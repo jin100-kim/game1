@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
@@ -7,21 +8,31 @@ namespace EJR.Game.Gameplay
 {
     public sealed class PlayerMover : MonoBehaviour
     {
+        private const float DefaultCollisionRadius = 0.35f;
+
         [SerializeField, Min(0.1f)] private float moveSpeed = 5f;
         [SerializeField] private Rect movementBounds = new Rect(-12f, -7f, 24f, 14f);
         [SerializeField] private bool clampToBounds = true;
 
         private float _speedMultiplier = 1f;
+        private float _collisionRadius = DefaultCollisionRadius;
+        private Func<Vector2> _moveInputReader;
 
         public void Initialize(PlayerConfig config, EJR.Game.Core.PlayerStatsRuntime stats, Rect bounds)
         {
             if (config != null)
             {
                 moveSpeed = Mathf.Max(0.1f, config.moveSpeed);
+                _collisionRadius = Mathf.Max(0.05f, config.collisionRadius);
             }
 
             _speedMultiplier = stats != null ? stats.MoveSpeedMultiplier : 1f;
             movementBounds = bounds;
+        }
+
+        public void SetMoveInputReader(Func<Vector2> moveInputReader)
+        {
+            _moveInputReader = moveInputReader;
         }
 
         private void Awake()
@@ -40,11 +51,21 @@ namespace EJR.Game.Gameplay
             {
                 _speedMultiplier = 1f;
             }
+
+            if (_collisionRadius <= 0f)
+            {
+                _collisionRadius = DefaultCollisionRadius;
+            }
         }
 
         private void Update()
         {
-            var move = ReadMovementInput();
+            var move = _moveInputReader != null ? _moveInputReader.Invoke() : ReadMovementInput();
+            if (!float.IsFinite(move.x) || !float.IsFinite(move.y))
+            {
+                move = Vector2.zero;
+            }
+
             if (move.sqrMagnitude > 1f)
             {
                 move.Normalize();
@@ -93,6 +114,13 @@ namespace EJR.Game.Gameplay
             if (Mathf.Approximately(y, 0f)) y = Input.GetAxisRaw("Vertical");
 
             return new Vector2(x, y);
+        }
+
+        private void OnDrawGizmos()
+        {
+            var radius = Mathf.Max(0.05f, _collisionRadius);
+            Gizmos.color = new Color(0.2f, 1f, 1f, 0.95f);
+            Gizmos.DrawWireSphere(transform.position, radius);
         }
     }
 }

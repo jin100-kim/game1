@@ -52,7 +52,8 @@ namespace EJR.Game.Gameplay
                     continue;
                 }
 
-                if ((enemy.transform.position - transform.position).sqrMagnitude <= _hitRadius * _hitRadius)
+                var hitDistance = _hitRadius + enemy.CollisionRadius;
+                if ((enemy.transform.position - transform.position).sqrMagnitude <= hitDistance * hitDistance)
                 {
                     try
                     {

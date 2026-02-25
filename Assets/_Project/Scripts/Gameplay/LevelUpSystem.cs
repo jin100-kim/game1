@@ -71,9 +71,9 @@ namespace EJR.Game.Gameplay
         private LevelUpOption[] GenerateOptions()
         {
             _workingOptions.Clear();
-            _workingOptions.Add(new LevelUpOption(LevelUpUpgradeType.Damage, 0.2f, "Damage +20%"));
-            _workingOptions.Add(new LevelUpOption(LevelUpUpgradeType.AttackSpeed, 0.1f, "Attack Speed +10%"));
-            _workingOptions.Add(new LevelUpOption(LevelUpUpgradeType.MoveSpeed, 0.15f, "Move Speed +15%"));
+            _workingOptions.Add(new LevelUpOption(LevelUpUpgradeType.Damage, 0.25f, "Damage +25%"));
+            _workingOptions.Add(new LevelUpOption(LevelUpUpgradeType.AttackSpeed, 0.12f, "Attack Speed +12%"));
+            _workingOptions.Add(new LevelUpOption(LevelUpUpgradeType.MoveSpeed, 0.10f, "Move Speed +10%"));
             return _workingOptions.ToArray();
         }
     }

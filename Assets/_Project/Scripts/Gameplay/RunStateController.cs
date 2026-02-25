@@ -23,13 +23,23 @@ namespace EJR.Game.Gameplay
         [SerializeField] private Vector3 cameraOffset = new Vector3(0f, 0f, -10f);
         [SerializeField, Min(0f)] private float cameraFollowSmoothTime = 0.08f;
 
+        [Header("Automation")]
+        [SerializeField] private bool enableAutoPlay;
+        [SerializeField] private bool autoRestartOnGameOver;
+        [SerializeField, Min(0f)] private float autoRestartDelay = 1f;
+        [SerializeField, Min(0f)] private float autoPickDelay = 0.2f;
+
         private PlayerHealth _playerHealth;
         private PlayerStatsRuntime _playerStats;
 
         private EnemyRegistry _enemyRegistry;
         private ExperienceSystem _experienceSystem;
+        private EnemySpawner _enemySpawner;
         private CameraFollow2D _cameraFollow;
         private WorldHealthBar _playerHealthBar;
+        private AutoPlayController _autoPlay;
+        private PlayerMover _playerMover;
+        private Transform _playerTransform;
 
         private LevelUpSystem _levelUp;
         private HudController _hud;
@@ -37,14 +47,20 @@ namespace EJR.Game.Gameplay
         private LevelUpOption[] _currentOptions;
 
         private float _remainingSeconds;
+        private float _autoPickAt = -1f;
+        private float _autoRestartAt = -1f;
         private bool _isGameOver;
+        private bool _bossWaveTriggered;
 
         private void Awake()
         {
+            // Keep simulation running even when the game window loses focus.
+            Application.runInBackground = true;
             Time.timeScale = 1f;
             EnsureCamera();
             EnsureConfigs();
-            _remainingSeconds = runDurationSeconds;
+            _remainingSeconds = Mathf.Max(30f, enemyConfig != null ? enemyConfig.bossWaveStartSeconds : runDurationSeconds);
+            _bossWaveTriggered = false;
         }
 
         private void Start()
@@ -56,6 +72,20 @@ namespace EJR.Game.Gameplay
 
         private void Update()
         {
+            if (!_isGameOver && enableAutoPlay && _levelUp != null && _levelUp.IsAwaitingChoice && _currentOptions != null && _currentOptions.Length > 0 && _autoPlay != null)
+            {
+                if (_autoPickAt < 0f)
+                {
+                    _autoPickAt = Time.unscaledTime + autoPickDelay;
+                }
+
+                if (Time.unscaledTime >= _autoPickAt)
+                {
+                    SelectLevelUpOption(_autoPlay.PickLevelUpOption(_currentOptions));
+                    return;
+                }
+            }
+
             if (!_isGameOver && _levelUp != null && _levelUp.IsAwaitingChoice)
             {
                 if (IsOptionKeyDown(0))
@@ -79,6 +109,12 @@ namespace EJR.Game.Gameplay
 
             if (_isGameOver)
             {
+                if (enableAutoPlay && autoRestartOnGameOver && _autoRestartAt >= 0f && Time.unscaledTime >= _autoRestartAt)
+                {
+                    RestartRun();
+                    return;
+                }
+
                 if (IsRestartKeyDown())
                 {
                     RestartRun();
@@ -89,11 +125,25 @@ namespace EJR.Game.Gameplay
 
             if (Time.timeScale > 0f)
             {
-                _remainingSeconds -= Time.deltaTime;
-                if (_remainingSeconds <= 0f)
+                if (!_bossWaveTriggered && _enemySpawner != null && _enemySpawner.IsBossWaveTriggered)
                 {
                     _remainingSeconds = 0f;
+                    _bossWaveTriggered = true;
+                }
+
+                if (!_bossWaveTriggered)
+                {
+                    _remainingSeconds -= Time.deltaTime;
+                    if (_remainingSeconds <= 0f)
+                    {
+                        _remainingSeconds = 0f;
+                        TriggerBossWave();
+                    }
+                }
+                else if (_enemySpawner != null && _enemySpawner.IsBossWaveCleared)
+                {
                     EndRun(cleared: true);
+                    return;
                 }
             }
 
@@ -184,7 +234,6 @@ namespace EJR.Game.Gameplay
             {
                 player = new GameObject("Player");
                 player.transform.position = Vector3.zero;
-                player.transform.localScale = Vector3.one * 0.7f;
             }
 
             var playerRenderer = player.GetComponent<SpriteRenderer>();
@@ -195,6 +244,7 @@ namespace EJR.Game.Gameplay
 
             playerRenderer.sprite = RuntimeSpriteFactory.GetSquareSprite();
             playerRenderer.color = new Color(0.35f, 0.75f, 1f);
+            player.transform.localScale = Vector3.one * Mathf.Max(0.1f, playerConfig.visualScale);
 
             _playerHealth = player.GetComponent<PlayerHealth>();
             if (_playerHealth == null)
@@ -224,6 +274,9 @@ namespace EJR.Game.Gameplay
                 playerMover = player.AddComponent<PlayerMover>();
             }
 
+            _playerMover = playerMover;
+            _playerTransform = player.transform;
+
             playerMover.Initialize(playerConfig, _playerStats, arenaBounds);
             _cameraFollow?.Initialize(player.transform, cameraOffset, cameraFollowSmoothTime);
             EnsureArenaBoundaryVisual();
@@ -234,10 +287,17 @@ namespace EJR.Game.Gameplay
             _experienceSystem.Initialize(player.transform, playerConfig, _levelUp);
 
             var enemySpawner = systems.AddComponent<EnemySpawner>();
-            enemySpawner.Initialize(enemyConfig, player.transform, _playerHealth, _enemyRegistry, _experienceSystem);
+            enemySpawner.Initialize(enemyConfig, player.transform, _playerHealth, _enemyRegistry, _experienceSystem, playerConfig.collisionRadius);
+            _enemySpawner = enemySpawner;
+            if (enemySpawner.BossWaveStartSeconds > 0f)
+            {
+                _remainingSeconds = enemySpawner.BossWaveStartSeconds;
+            }
 
             var weaponSystem = systems.AddComponent<AutoWeaponSystem>();
             weaponSystem.Initialize(weaponConfig, player.transform, _enemyRegistry, _playerStats);
+            ConfigureAutoPlay(playerMover, player.transform);
+            _hud.BindAutoPlayToggle(enableAutoPlay, ToggleAutoPlayFromHud);
         }
 
         private void EnsureArenaBoundaryVisual()
@@ -255,6 +315,46 @@ namespace EJR.Game.Gameplay
             }
 
             visualizer.Initialize(arenaBounds);
+        }
+
+        private void ConfigureAutoPlay(PlayerMover playerMover, Transform playerTransform)
+        {
+            _autoPickAt = -1f;
+            _autoRestartAt = -1f;
+
+            if (!enableAutoPlay || playerMover == null || playerTransform == null)
+            {
+                playerMover?.SetMoveInputReader(null);
+                if (_autoPlay != null)
+                {
+                    Destroy(_autoPlay);
+                    _autoPlay = null;
+                }
+
+                return;
+            }
+
+            if (_autoPlay == null)
+            {
+                _autoPlay = GetComponent<AutoPlayController>();
+                if (_autoPlay == null)
+                {
+                    _autoPlay = gameObject.AddComponent<AutoPlayController>();
+                }
+            }
+
+            var preferredRange = weaponConfig != null ? weaponConfig.attackRange : 6f;
+            var playerRadius = playerConfig != null ? playerConfig.collisionRadius : 0.35f;
+            _autoPlay.Initialize(playerTransform, _enemyRegistry, arenaBounds, preferredRange, playerRadius);
+            playerMover.SetMoveInputReader(_autoPlay.ReadMove);
+            _hud?.SetAutoPlayState(enableAutoPlay);
+        }
+
+        private void ToggleAutoPlayFromHud()
+        {
+            enableAutoPlay = !enableAutoPlay;
+            ConfigureAutoPlay(_playerMover, _playerTransform);
+            _hud?.SetAutoPlayState(enableAutoPlay);
         }
 
         private void HookEvents()
@@ -279,6 +379,7 @@ namespace EJR.Game.Gameplay
             }
 
             _currentOptions = options;
+            _autoPickAt = -1f;
             Time.timeScale = 0f;
             _hud.ShowLevelUpOptions(options, SelectLevelUpOption);
         }
@@ -287,6 +388,7 @@ namespace EJR.Game.Gameplay
         {
             _hud.HideLevelUpOptions();
             _levelUp.ApplyOption(optionIndex, _currentOptions, _playerStats);
+            _autoPickAt = -1f;
 
             if (_isGameOver)
             {
@@ -317,10 +419,26 @@ namespace EJR.Game.Gameplay
             Time.timeScale = 0f;
             _hud.HideLevelUpOptions();
             _hud.ShowResult(cleared, RestartRun);
+            _autoRestartAt = enableAutoPlay && autoRestartOnGameOver
+                ? Time.unscaledTime + autoRestartDelay
+                : -1f;
+        }
+
+        private void TriggerBossWave()
+        {
+            if (_bossWaveTriggered)
+            {
+                return;
+            }
+
+            _bossWaveTriggered = true;
+            _enemySpawner?.TriggerBossWave();
         }
 
         private void RestartRun()
         {
+            _autoRestartAt = -1f;
+            _autoPickAt = -1f;
             Time.timeScale = 1f;
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
         }

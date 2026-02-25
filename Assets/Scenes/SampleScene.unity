@@ -379,6 +379,12 @@ MonoBehaviour:
     width: 24
     height: 14
   runDurationSeconds: 600
+  cameraOffset: {x: 0, y: 0, z: -10}
+  cameraFollowSmoothTime: 0.08
+  enableAutoPlay: 0
+  autoRestartOnGameOver: 0
+  autoRestartDelay: 1
+  autoPickDelay: 0.2
 --- !u!4 &882580469
 Transform:
   m_ObjectHideFlags: 0

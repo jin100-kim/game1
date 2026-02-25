@@ -17,6 +17,9 @@ namespace EJR.Game.UI
         private Text _healthText;
         private Text _xpText;
         private Text _timeText;
+        private Button _autoPlayButton;
+        private Text _autoPlayButtonText;
+        private Image _autoPlayButtonImage;
 
         private GameObject _levelUpPanel;
         private Text _levelUpTitle;
@@ -51,6 +54,37 @@ namespace EJR.Game.UI
             _healthText.text = $"HP {Mathf.CeilToInt(currentHealth)}/{Mathf.CeilToInt(maxHealth)}";
             _xpText.text = $"LV {level}  XP {currentXp}/{requiredXp}";
             _timeText.text = $"TIME {Mathf.Max(0, Mathf.CeilToInt(remainingSeconds))}";
+        }
+
+        public void BindAutoPlayToggle(bool enabled, Action onToggle)
+        {
+            if (_autoPlayButton == null)
+            {
+                return;
+            }
+
+            _autoPlayButton.onClick.RemoveAllListeners();
+            if (onToggle != null)
+            {
+                _autoPlayButton.onClick.AddListener(() => onToggle.Invoke());
+            }
+
+            SetAutoPlayState(enabled);
+        }
+
+        public void SetAutoPlayState(bool enabled)
+        {
+            if (_autoPlayButtonText != null)
+            {
+                _autoPlayButtonText.text = enabled ? "AUTO ON" : "AUTO OFF";
+            }
+
+            if (_autoPlayButtonImage != null)
+            {
+                _autoPlayButtonImage.color = enabled
+                    ? new Color(0.2f, 0.55f, 0.27f, 1f)
+                    : new Color(0.2f, 0.2f, 0.2f, 1f);
+            }
         }
 
         public void ShowLevelUpOptions(LevelUpOption[] options, Action<int> onSelected)
@@ -188,10 +222,15 @@ namespace EJR.Game.UI
 
         private void BuildTopBar()
         {
-            var top = CreatePanel(_canvas.transform, "TopBar", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -10f), new Vector2(560f, 60f), new Color(0f, 0f, 0f, 0.35f));
-            _healthText = CreateText(top.transform, "HealthText", new Vector2(-170f, 0f), "HP");
-            _xpText = CreateText(top.transform, "XPText", new Vector2(0f, 0f), "XP");
-            _timeText = CreateText(top.transform, "TimeText", new Vector2(170f, 0f), "TIME");
+            var top = CreatePanel(_canvas.transform, "TopBar", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -10f), new Vector2(760f, 60f), new Color(0f, 0f, 0f, 0.35f));
+            _healthText = CreateText(top.transform, "HealthText", new Vector2(-250f, 0f), "HP");
+            _xpText = CreateText(top.transform, "XPText", new Vector2(-40f, 0f), "XP");
+            _timeText = CreateText(top.transform, "TimeText", new Vector2(160f, 0f), "TIME");
+
+            _autoPlayButton = CreateButton(top.transform, "AutoPlayButton", new Vector2(300f, 0f), new Vector2(130f, 42f));
+            _autoPlayButtonText = _autoPlayButton.GetComponentInChildren<Text>();
+            _autoPlayButtonImage = _autoPlayButton.GetComponent<Image>();
+            _autoPlayButtonText.text = "AUTO OFF";
         }
 
         private void BuildLevelUpPanel()
