@@ -385,6 +385,8 @@ MonoBehaviour:
   autoRestartOnGameOver: 0
   autoRestartDelay: 1
   autoPickDelay: 0.2
+  enableDebugTimeSkip: 1
+  debugAdvanceSeconds: 60
 --- !u!4 &882580469
 Transform:
   m_ObjectHideFlags: 0

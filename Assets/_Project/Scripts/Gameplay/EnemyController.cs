@@ -265,6 +265,11 @@ namespace EJR.Game.Gameplay
             }
 
             _health = Mathf.Max(0f, _health - appliedDamage);
+            if (_health > 0f)
+            {
+                _spriteAnimator?.PlayHurt();
+            }
+
             CombatTextSpawner.SpawnDamage(transform.position + new Vector3(0f, 0.8f, 0f), appliedDamage, CombatTextSpawner.EnemyDamagedColor);
             Changed?.Invoke(_health, MaxHealth);
 

@@ -31,6 +31,9 @@ namespace EJR.Game.Gameplay
         [Min(0)] public int idleEndFrame = 3;
         [Min(0)] public int moveStartFrame = 4;
         [Min(0)] public int moveEndFrame = 8;
+        public bool useHurtAnimation;
+        [Min(0)] public int hurtStartFrame;
+        [Min(0)] public int hurtEndFrame;
         [Min(0)] public int dieStartFrame = 9;
         [Min(0)] public int dieEndFrame = 12;
         [Header("Extracted Clip Ranges (Aseprite Tags)")]
@@ -221,6 +224,9 @@ namespace EJR.Game.Gameplay
                 idleEndFrame = 3,
                 moveStartFrame = 4,
                 moveEndFrame = 7,
+                useHurtAnimation = false,
+                hurtStartFrame = 0,
+                hurtEndFrame = 0,
                 dieStartFrame = 8,
                 dieEndFrame = 12,
                 clipRanges = new[]
@@ -239,6 +245,9 @@ namespace EJR.Game.Gameplay
                 idleEndFrame = 12,
                 moveStartFrame = 0,
                 moveEndFrame = 6,
+                useHurtAnimation = false,
+                hurtStartFrame = 0,
+                hurtEndFrame = 0,
                 dieStartFrame = 20,
                 dieEndFrame = 24,
                 clipRanges = new[]
@@ -258,6 +267,9 @@ namespace EJR.Game.Gameplay
                 idleEndFrame = 9,
                 moveStartFrame = 10,
                 moveEndFrame = 19,
+                useHurtAnimation = true,
+                hurtStartFrame = 32,
+                hurtEndFrame = 37,
                 dieStartFrame = 38,
                 dieEndFrame = 45,
                 clipRanges = new[]
@@ -279,6 +291,9 @@ namespace EJR.Game.Gameplay
                 idleEndFrame = 6,
                 moveStartFrame = 15,
                 moveEndFrame = 20,
+                useHurtAnimation = true,
+                hurtStartFrame = 21,
+                hurtEndFrame = 26,
                 dieStartFrame = 27,
                 dieEndFrame = 34,
                 clipRanges = new[]
@@ -303,7 +318,7 @@ namespace EJR.Game.Gameplay
                 moveSpeedMultiplier = 1f,
                 contactDamageMultiplier = 1f,
                 experienceMultiplier = 1f,
-                visualScaleMultiplier = 1f,
+                visualScaleMultiplier = 0.8f,
                 collisionRadiusMultiplier = 1f,
             },
             new EnemyStatProfile
@@ -313,8 +328,8 @@ namespace EJR.Game.Gameplay
                 moveSpeedMultiplier = 1.02f,
                 contactDamageMultiplier = 1.25f,
                 experienceMultiplier = 1.5f,
-                visualScaleMultiplier = 0.94f,
-                collisionRadiusMultiplier = 0.96f,
+                visualScaleMultiplier = 0.8f,
+                collisionRadiusMultiplier = 1f,
             },
             new EnemyStatProfile
             {
@@ -323,8 +338,8 @@ namespace EJR.Game.Gameplay
                 moveSpeedMultiplier = 1.22f,
                 contactDamageMultiplier = 1.45f,
                 experienceMultiplier = 2.2f,
-                visualScaleMultiplier = 1.04f,
-                collisionRadiusMultiplier = 1.06f,
+                visualScaleMultiplier = 1f,
+                collisionRadiusMultiplier = 1f,
             },
             new EnemyStatProfile
             {
@@ -333,8 +348,8 @@ namespace EJR.Game.Gameplay
                 moveSpeedMultiplier = 0.88f,
                 contactDamageMultiplier = 2.4f,
                 experienceMultiplier = 25f,
-                visualScaleMultiplier = 1.35f,
-                collisionRadiusMultiplier = 1.3f,
+                visualScaleMultiplier = 1.5f,
+                collisionRadiusMultiplier = 1.8f,
             },
         };
 
@@ -386,5 +401,6 @@ namespace EJR.Game.Gameplay
 
             return new EnemyStatProfile { visualKind = kind };
         }
+
     }
 }

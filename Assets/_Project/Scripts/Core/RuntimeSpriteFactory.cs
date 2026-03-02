@@ -42,8 +42,12 @@ namespace EJR.Game.Core
         private static readonly VisualAssetDescriptor BossDescriptor = new(
             "Aseprite/boss",
             "Assets/_Project/Art/Aseprite/boss.aseprite");
+        private static readonly VisualAssetDescriptor PlayerDescriptor = new(
+            "Aseprite/player001",
+            "Assets/_Project/Art/Aseprite/player001.aseprite");
 
         private static readonly Dictionary<EnemyVisualKind, Sprite[]> EnemyFramesByKind = new();
+        private static Sprite[] _playerFrames;
 
         private static Sprite _squareSprite;
 
@@ -75,6 +79,30 @@ namespace EJR.Game.Core
         public static Sprite[] GetSlimeAnimationFrames()
         {
             return GetEnemyAnimationFrames(EnemyVisualKind.Slime);
+        }
+
+        public static Sprite GetPlayerSprite()
+        {
+            var frames = GetPlayerAnimationFrames();
+            return frames.Length > 0 ? frames[0] : GetSquareSprite();
+        }
+
+        public static Sprite[] GetPlayerAnimationFrames()
+        {
+            if (_playerFrames != null && _playerFrames.Length > 0)
+            {
+                return _playerFrames;
+            }
+
+            var sourceFrames = LoadSourceFrames(PlayerDescriptor.ResourcePath, PlayerDescriptor.AssetPath);
+            if (sourceFrames.Length == 0)
+            {
+                _playerFrames = new[] { GetSquareSprite() };
+                return _playerFrames;
+            }
+
+            _playerFrames = sourceFrames;
+            return _playerFrames;
         }
 
         public static Sprite GetEnemySprite(EnemyVisualKind kind)

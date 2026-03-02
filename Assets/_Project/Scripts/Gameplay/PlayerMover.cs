@@ -18,6 +18,8 @@ namespace EJR.Game.Gameplay
         private float _collisionRadius = DefaultCollisionRadius;
         private Func<Vector2> _moveInputReader;
 
+        public Vector2 CurrentVelocity { get; private set; }
+
         public void Initialize(PlayerConfig config, EJR.Game.Core.PlayerStatsRuntime stats, Rect bounds)
         {
             if (config != null)
@@ -71,8 +73,9 @@ namespace EJR.Game.Gameplay
                 move.Normalize();
             }
 
+            var previous = transform.position;
             var delta = (Vector3)move * (moveSpeed * _speedMultiplier * Time.deltaTime);
-            var next = transform.position + delta;
+            var next = previous + delta;
 
             if (clampToBounds)
             {
@@ -82,6 +85,12 @@ namespace EJR.Game.Gameplay
 
             next.z = 0f;
             transform.position = next;
+            CurrentVelocity = ((Vector2)(next - previous)) / Mathf.Max(0.0001f, Time.deltaTime);
+        }
+
+        private void OnDisable()
+        {
+            CurrentVelocity = Vector2.zero;
         }
 
         private static Vector2 ReadMovementInput()

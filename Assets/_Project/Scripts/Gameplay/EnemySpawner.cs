@@ -17,6 +17,7 @@ namespace EJR.Game.Gameplay
         private bool _bossWaveTriggered;
         private EnemyController _bossEnemy;
 
+        public float ElapsedSeconds => _elapsedSeconds;
         public bool IsBossWaveTriggered => _bossWaveTriggered;
         public bool IsBossWaveCleared => _bossWaveTriggered && _bossEnemy == null;
         public float BossWaveStartSeconds => GetBossWaveStartSeconds();
@@ -104,6 +105,34 @@ namespace EJR.Game.Gameplay
                 var radius = Random.Range(minRadius, maxRadius);
                 var ringPosition = _target.position + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius;
                 SpawnEnemy(RuntimeSpriteFactory.EnemyVisualKind.Skeleton, ringPosition);
+            }
+        }
+
+        public void DebugAdvanceSeconds(float seconds)
+        {
+            if (seconds <= 0f)
+            {
+                return;
+            }
+
+            DebugSetElapsedSeconds(_elapsedSeconds + seconds);
+        }
+
+        public void DebugSetElapsedSeconds(float seconds)
+        {
+            _elapsedSeconds = Mathf.Max(0f, seconds);
+            if (!_bossWaveTriggered && _elapsedSeconds >= GetBossWaveStartSeconds())
+            {
+                TriggerBossWave();
+            }
+        }
+
+        public void DebugSkipToBossWave()
+        {
+            DebugSetElapsedSeconds(GetBossWaveStartSeconds());
+            if (!_bossWaveTriggered)
+            {
+                TriggerBossWave();
             }
         }
 

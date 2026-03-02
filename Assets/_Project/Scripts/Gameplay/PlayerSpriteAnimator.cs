@@ -3,7 +3,8 @@ using UnityEngine;
 
 namespace EJR.Game.Gameplay
 {
-    public sealed class EnemySpriteAnimator : MonoBehaviour
+    [DisallowMultipleComponent]
+    public sealed class PlayerSpriteAnimator : MonoBehaviour
     {
         private enum AnimationState
         {
@@ -27,15 +28,14 @@ namespace EJR.Game.Gameplay
             public int Length => End >= Start ? End - Start + 1 : 0;
         }
 
-        private const float MoveThreshold = 0.02f;
+        private const float MoveThreshold = 0.03f;
         private const float HurtFlashDuration = 0.08f;
         private const float HurtMinStateDuration = 0.08f;
         private static readonly Color HurtFlashColor = new(1f, 0.62f, 0.62f, 1f);
 
         private SpriteRenderer _targetRenderer;
-        private Sprite[] _frames;
-        private EnemyAnimationProfile _profile;
-        private float _framesPerSecond = 9f;
+        private Sprite[] _frames = Array.Empty<Sprite>();
+        private float _framesPerSecond = 10f;
         private bool _flipByMoveDirection = true;
         private Color _defaultColor = Color.white;
 
@@ -54,15 +54,15 @@ namespace EJR.Game.Gameplay
         private float _hurtStateTimer;
         private Vector2 _lastVelocity;
 
-        public void Initialize(SpriteRenderer targetRenderer, Sprite[] frames, EnemyAnimationProfile profile)
+        public void Initialize(SpriteRenderer targetRenderer, Sprite[] frames, PlayerConfig config)
         {
             _targetRenderer = targetRenderer;
             _frames = frames ?? Array.Empty<Sprite>();
-            _profile = profile;
-            _framesPerSecond = Mathf.Max(0.1f, profile != null ? profile.animationFps : 9f);
-            _flipByMoveDirection = profile == null || profile.flipByMoveDirection;
+            _framesPerSecond = Mathf.Max(0.1f, config != null ? config.animationFps : 10f);
+            _flipByMoveDirection = config == null || config.flipByMoveDirection;
             _defaultColor = targetRenderer != null ? targetRenderer.color : Color.white;
-            ConfigureRanges(profile);
+
+            ConfigureRanges(config);
 
             _state = AnimationState.Idle;
             _frameCursor = 0f;
@@ -72,21 +72,6 @@ namespace EJR.Game.Gameplay
             _lastVelocity = Vector2.zero;
             _currentFrameIndex = _idleRange.Start;
             ApplyFrame(_currentFrameIndex);
-        }
-
-        public bool TryGetClipRange(string clipName, out int startFrame, out int endFrame)
-        {
-            startFrame = 0;
-            endFrame = 0;
-
-            if (_profile == null || !_profile.TryGetClipRange(clipName, out var clipRange))
-            {
-                return false;
-            }
-
-            startFrame = clipRange.startFrame;
-            endFrame = clipRange.endFrame;
-            return true;
         }
 
         public void SetMotion(Vector2 velocity)
@@ -156,7 +141,13 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            _frameCursor += Time.deltaTime * _framesPerSecond;
+            var deltaTime = _state == AnimationState.Die ? Time.unscaledDeltaTime : Time.deltaTime;
+            if (deltaTime <= 0f)
+            {
+                return;
+            }
+
+            _frameCursor += deltaTime * _framesPerSecond;
             if (_state == AnimationState.Die)
             {
                 AdvanceOneShot(range);
@@ -166,7 +157,7 @@ namespace EJR.Game.Gameplay
             if (_state == AnimationState.Hurt)
             {
                 var finished = AdvanceOneShot(range);
-                _hurtStateTimer = Mathf.Max(0f, _hurtStateTimer - Time.deltaTime);
+                _hurtStateTimer = Mathf.Max(0f, _hurtStateTimer - deltaTime);
                 if (finished && _hurtStateTimer <= 0f)
                 {
                     var shouldMove = _lastVelocity.sqrMagnitude > MoveThreshold * MoveThreshold;
@@ -179,46 +170,58 @@ namespace EJR.Game.Gameplay
             AdvanceLoop(range);
         }
 
-        private void ConfigureRanges(EnemyAnimationProfile profile)
+        private void ConfigureRanges(PlayerConfig config)
         {
             var max = Mathf.Max(0, _frames.Length - 1);
 
-            var idleStart = profile != null ? profile.idleStartFrame : 0;
-            var idleEnd = profile != null ? profile.idleEndFrame : 0;
-            var moveStart = profile != null ? profile.moveStartFrame : 0;
-            var moveEnd = profile != null ? profile.moveEndFrame : max;
-            var hurtStart = profile != null ? profile.hurtStartFrame : 0;
-            var hurtEnd = profile != null ? profile.hurtEndFrame : 0;
-            var hasHurtRange = profile != null && profile.useHurtAnimation;
-            var dieStart = profile != null ? profile.dieStartFrame : 0;
-            var dieEnd = profile != null ? profile.dieEndFrame : 0;
+            var idleStart = config != null ? config.idleStartFrame : 0;
+            var idleEnd = config != null ? config.idleEndFrame : 0;
+            var moveStart = config != null ? config.moveStartFrame : 0;
+            var moveEnd = config != null ? config.moveEndFrame : max;
+            var hasHurtRange = config != null && config.useHurtAnimation;
+            var hurtStart = config != null ? config.hurtStartFrame : 0;
+            var hurtEnd = config != null ? config.hurtEndFrame : 0;
+            var dieStart = config != null ? config.dieStartFrame : 0;
+            var dieEnd = config != null ? config.dieEndFrame : 0;
 
-            if (profile != null)
+            var isLegacyHurtDisabledProfile = config != null
+                                              && !config.useHurtAnimation
+                                              && config.hurtStartFrame == 0
+                                              && config.hurtEndFrame == 0
+                                              && config.moveStartFrame == 4
+                                              && config.moveEndFrame >= 19;
+            if (isLegacyHurtDisabledProfile && max >= 23)
             {
-                if (TryResolveNamedRange(profile, out var idleRange, "Idle"))
-                {
-                    idleStart = idleRange.startFrame;
-                    idleEnd = idleRange.endFrame;
-                }
+                idleStart = 0;
+                idleEnd = 13;
+                moveStart = 14;
+                moveEnd = 14;
+                hasHurtRange = true;
+                hurtStart = 15;
+                hurtEnd = 19;
+                dieStart = 20;
+                dieEnd = 23;
+            }
 
-                if (TryResolveNamedRange(profile, out var moveRange, "Move", "Walk", "Fly", "Jump"))
-                {
-                    moveStart = moveRange.startFrame;
-                    moveEnd = moveRange.endFrame;
-                }
-
-                if (TryResolveNamedRange(profile, out var dieRange, "Die", "Death"))
-                {
-                    dieStart = dieRange.startFrame;
-                    dieEnd = dieRange.endFrame;
-                }
-
-                if (TryResolveNamedRange(profile, out var hurtRange, "Hurt", "Hit", "Damage"))
-                {
-                    hurtStart = hurtRange.startFrame;
-                    hurtEnd = hurtRange.endFrame;
-                    hasHurtRange = true;
-                }
+            var isPreviousTunedProfile = config != null
+                                         && config.useHurtAnimation
+                                         && config.idleStartFrame == 0
+                                         && config.idleEndFrame <= 3
+                                         && config.moveStartFrame == 4
+                                         && config.moveEndFrame == 15
+                                         && config.hurtStartFrame == 16
+                                         && config.hurtEndFrame == 19;
+            if (isPreviousTunedProfile && max >= 23)
+            {
+                idleStart = 0;
+                idleEnd = 13;
+                moveStart = 14;
+                moveEnd = 14;
+                hasHurtRange = true;
+                hurtStart = 15;
+                hurtEnd = 19;
+                dieStart = 20;
+                dieEnd = 23;
             }
 
             _idleRange = BuildRange(idleStart, idleEnd, max);
@@ -233,37 +236,13 @@ namespace EJR.Game.Gameplay
 
             if (_idleRange.Length == 0)
             {
-                _idleRange = new FrameRange(0, Mathf.Min(0, max));
+                _idleRange = new FrameRange(0, Mathf.Min(max, 0));
             }
 
             if (_moveRange.Length == 0)
             {
                 _moveRange = _idleRange;
             }
-        }
-
-        private static bool TryResolveNamedRange(
-            EnemyAnimationProfile profile,
-            out EnemyAnimationClipRange clipRange,
-            params string[] candidateNames)
-        {
-            clipRange = default;
-            if (profile == null || candidateNames == null || candidateNames.Length == 0)
-            {
-                return false;
-            }
-
-            for (var i = 0; i < candidateNames.Length; i++)
-            {
-                if (!profile.TryGetClipRange(candidateNames[i], out clipRange))
-                {
-                    continue;
-                }
-
-                return true;
-            }
-
-            return false;
         }
 
         private static FrameRange BuildRange(int start, int end, int maxFrameIndex)
