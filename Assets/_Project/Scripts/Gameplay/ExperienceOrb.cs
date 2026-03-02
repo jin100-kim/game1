@@ -1,16 +1,33 @@
-﻿using UnityEngine;
+using System.Collections.Generic;
+using UnityEngine;
 
 namespace EJR.Game.Gameplay
 {
     public sealed class ExperienceOrb : MonoBehaviour
     {
+        private static readonly List<ExperienceOrb> ActiveOrbList = new();
+
         private Transform _player;
         private ExperienceSystem _system;
         private float _pickupRadius;
         private float _attractRadius;
         private float _attractSpeed;
 
+        public static IReadOnlyList<ExperienceOrb> ActiveOrbs => ActiveOrbList;
         public int Value { get; private set; }
+
+        private void OnEnable()
+        {
+            if (!ActiveOrbList.Contains(this))
+            {
+                ActiveOrbList.Add(this);
+            }
+        }
+
+        private void OnDisable()
+        {
+            ActiveOrbList.Remove(this);
+        }
 
         public void Initialize(Transform player, ExperienceSystem system, int value, float pickupRadius, float attractRadius, float attractSpeed)
         {

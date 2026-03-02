@@ -1,9 +1,54 @@
-﻿using UnityEngine;
+using System;
+using System.Collections.Generic;
+using UnityEngine;
 
 namespace EJR.Game.Core
 {
     public static class RuntimeSpriteFactory
     {
+        public enum EnemyVisualKind
+        {
+            Slime,
+            Mushroom,
+            Skeleton,
+            Boss,
+        }
+
+        private readonly struct VisualAssetDescriptor
+        {
+            public readonly string ResourcePath;
+            public readonly string AssetPath;
+
+            public VisualAssetDescriptor(string resourcePath, string assetPath)
+            {
+                ResourcePath = resourcePath;
+                AssetPath = assetPath;
+            }
+        }
+
+        private const string FramePrefix = "Frame_";
+        private const byte AlphaCutoff = 18;
+        private const int KeyTolerance = 14;
+
+        private static readonly VisualAssetDescriptor SlimeDescriptor = new(
+            "Aseprite/Slime",
+            "Assets/_Project/Art/Aseprite/Slime.aseprite");
+        private static readonly VisualAssetDescriptor MushroomDescriptor = new(
+            "Aseprite/mushroom",
+            "Assets/_Project/Art/Aseprite/mushroom.aseprite");
+        private static readonly VisualAssetDescriptor SkeletonDescriptor = new(
+            "Aseprite/Skeleton",
+            "Assets/_Project/Art/Aseprite/Skeleton.aseprite");
+        private static readonly VisualAssetDescriptor BossDescriptor = new(
+            "Aseprite/boss",
+            "Assets/_Project/Art/Aseprite/boss.aseprite");
+        private static readonly VisualAssetDescriptor PlayerDescriptor = new(
+            "Aseprite/player001",
+            "Assets/_Project/Art/Aseprite/player001.aseprite");
+
+        private static readonly Dictionary<EnemyVisualKind, Sprite[]> EnemyFramesByKind = new();
+        private static Sprite[] _playerFrames;
+
         private static Sprite _squareSprite;
 
         public static Sprite GetSquareSprite()
@@ -20,9 +65,360 @@ namespace EJR.Game.Core
             };
             texture.SetPixel(0, 0, Color.white);
             texture.Apply();
+
             _squareSprite = Sprite.Create(texture, new Rect(0f, 0f, 1f, 1f), new Vector2(0.5f, 0.5f), 1f);
             _squareSprite.name = "RuntimeSquare";
             return _squareSprite;
+        }
+
+        public static Sprite GetSlimeSprite()
+        {
+            return GetEnemySprite(EnemyVisualKind.Slime);
+        }
+
+        public static Sprite[] GetSlimeAnimationFrames()
+        {
+            return GetEnemyAnimationFrames(EnemyVisualKind.Slime);
+        }
+
+        public static Sprite GetPlayerSprite()
+        {
+            var frames = GetPlayerAnimationFrames();
+            return frames.Length > 0 ? frames[0] : GetSquareSprite();
+        }
+
+        public static Sprite[] GetPlayerAnimationFrames()
+        {
+            if (_playerFrames != null && _playerFrames.Length > 0)
+            {
+                return _playerFrames;
+            }
+
+            var sourceFrames = LoadSourceFrames(PlayerDescriptor.ResourcePath, PlayerDescriptor.AssetPath);
+            if (sourceFrames.Length == 0)
+            {
+                _playerFrames = new[] { GetSquareSprite() };
+                return _playerFrames;
+            }
+
+            _playerFrames = sourceFrames;
+            return _playerFrames;
+        }
+
+        public static Sprite GetEnemySprite(EnemyVisualKind kind)
+        {
+            var frames = GetEnemyAnimationFrames(kind);
+            return frames.Length > 0 ? frames[0] : GetSquareSprite();
+        }
+
+        public static Sprite[] GetEnemyAnimationFrames(EnemyVisualKind kind)
+        {
+            if (EnemyFramesByKind.TryGetValue(kind, out var cachedFrames) && cachedFrames != null && cachedFrames.Length > 0)
+            {
+                return cachedFrames;
+            }
+
+            var descriptor = GetDescriptor(kind);
+            var sourceFrames = LoadSourceFrames(descriptor.ResourcePath, descriptor.AssetPath);
+            if (sourceFrames.Length == 0)
+            {
+                var fallback = new[] { GetSquareSprite() };
+                EnemyFramesByKind[kind] = fallback;
+                return fallback;
+            }
+
+            var cleanedFrames = new Sprite[sourceFrames.Length];
+            for (var i = 0; i < sourceFrames.Length; i++)
+            {
+                cleanedFrames[i] = CreateCleanedSprite(sourceFrames[i]) ?? sourceFrames[i];
+            }
+
+            EnemyFramesByKind[kind] = cleanedFrames;
+            return cleanedFrames;
+        }
+
+        private static VisualAssetDescriptor GetDescriptor(EnemyVisualKind kind)
+        {
+            return kind switch
+            {
+                EnemyVisualKind.Mushroom => MushroomDescriptor,
+                EnemyVisualKind.Skeleton => SkeletonDescriptor,
+                EnemyVisualKind.Boss => BossDescriptor,
+                _ => SlimeDescriptor,
+            };
+        }
+
+        private static Sprite[] LoadSourceFrames(string resourcePath, string assetPath)
+        {
+            var resourceSprites = Resources.LoadAll<Sprite>(resourcePath);
+            if (resourceSprites != null && resourceSprites.Length > 0)
+            {
+                SortFrames(resourceSprites);
+                return resourceSprites;
+            }
+
+#if UNITY_EDITOR
+            var editorAssets = UnityEditor.AssetDatabase.LoadAllAssetsAtPath(assetPath);
+            var spriteCount = 0;
+            for (var i = 0; i < editorAssets.Length; i++)
+            {
+                if (editorAssets[i] is Sprite)
+                {
+                    spriteCount++;
+                }
+            }
+
+            if (spriteCount <= 0)
+            {
+                return Array.Empty<Sprite>();
+            }
+
+            var frames = new Sprite[spriteCount];
+            var index = 0;
+            for (var i = 0; i < editorAssets.Length; i++)
+            {
+                if (editorAssets[i] is not Sprite sprite)
+                {
+                    continue;
+                }
+
+                frames[index++] = sprite;
+            }
+
+            SortFrames(frames);
+            return frames;
+#else
+            return Array.Empty<Sprite>();
+#endif
+        }
+
+        private static void SortFrames(Sprite[] frames)
+        {
+            Array.Sort(frames, CompareByFrameOrder);
+        }
+
+        private static int CompareByFrameOrder(Sprite left, Sprite right)
+        {
+            var leftIndex = ExtractFrameIndex(left != null ? left.name : string.Empty);
+            var rightIndex = ExtractFrameIndex(right != null ? right.name : string.Empty);
+            if (leftIndex != rightIndex)
+            {
+                return leftIndex.CompareTo(rightIndex);
+            }
+
+            var leftName = left != null ? left.name : string.Empty;
+            var rightName = right != null ? right.name : string.Empty;
+            return string.CompareOrdinal(leftName, rightName);
+        }
+
+        private static int ExtractFrameIndex(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                return int.MaxValue;
+            }
+
+            if (name.StartsWith(FramePrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                var numberPart = name.Substring(FramePrefix.Length);
+                if (int.TryParse(numberPart, out var directIndex))
+                {
+                    return directIndex;
+                }
+            }
+
+            for (var start = name.Length - 1; start >= 0; start--)
+            {
+                if (!char.IsDigit(name[start]))
+                {
+                    continue;
+                }
+
+                var end = start;
+                while (start >= 0 && char.IsDigit(name[start]))
+                {
+                    start--;
+                }
+
+                var length = end - start;
+                var number = name.Substring(start + 1, length);
+                if (int.TryParse(number, out var parsed))
+                {
+                    return parsed;
+                }
+
+                break;
+            }
+
+            return int.MaxValue - 1;
+        }
+
+        private static Sprite CreateCleanedSprite(Sprite sourceSprite)
+        {
+            var readableTexture = ExtractSpriteTexture(sourceSprite);
+            if (readableTexture == null)
+            {
+                return null;
+            }
+
+            var pixels = readableTexture.GetPixels32();
+            if (pixels == null || pixels.Length == 0)
+            {
+                return null;
+            }
+
+            var backgroundKey = EstimateBackgroundColor(pixels, readableTexture.width, readableTexture.height);
+            var useColorKey = backgroundKey.a > AlphaCutoff;
+
+            for (var i = 0; i < pixels.Length; i++)
+            {
+                var pixel = pixels[i];
+                if (pixel.a <= AlphaCutoff || (useColorKey && IsNearColor(pixel, backgroundKey, KeyTolerance)))
+                {
+                    pixel.a = 0;
+                    pixels[i] = pixel;
+                }
+            }
+
+            readableTexture.SetPixels32(pixels);
+            readableTexture.Apply();
+
+            if (!TryGetOpaqueBounds(pixels, readableTexture.width, readableTexture.height, out var minX, out var minY, out var maxX, out var maxY))
+            {
+                return null;
+            }
+
+            const int padding = 1;
+            minX = Mathf.Max(0, minX - padding);
+            minY = Mathf.Max(0, minY - padding);
+            maxX = Mathf.Min(readableTexture.width - 1, maxX + padding);
+            maxY = Mathf.Min(readableTexture.height - 1, maxY + padding);
+
+            var croppedWidth = maxX - minX + 1;
+            var croppedHeight = maxY - minY + 1;
+            var croppedPixels = new Color32[croppedWidth * croppedHeight];
+            for (var y = 0; y < croppedHeight; y++)
+            {
+                var sourceY = minY + y;
+                var sourceStart = sourceY * readableTexture.width + minX;
+                var targetStart = y * croppedWidth;
+                for (var x = 0; x < croppedWidth; x++)
+                {
+                    croppedPixels[targetStart + x] = pixels[sourceStart + x];
+                }
+            }
+
+            var croppedTexture = new Texture2D(croppedWidth, croppedHeight, TextureFormat.RGBA32, false)
+            {
+                filterMode = FilterMode.Point,
+                wrapMode = TextureWrapMode.Clamp,
+            };
+            croppedTexture.SetPixels32(croppedPixels);
+            croppedTexture.Apply();
+
+            var cleanedSprite = Sprite.Create(
+                croppedTexture,
+                new Rect(0f, 0f, croppedWidth, croppedHeight),
+                new Vector2(0.5f, 0.5f),
+                sourceSprite.pixelsPerUnit,
+                0,
+                SpriteMeshType.FullRect);
+            cleanedSprite.name = $"{sourceSprite.name}_RuntimeClean";
+            return cleanedSprite;
+        }
+
+        private static Texture2D ExtractSpriteTexture(Sprite sprite)
+        {
+            if (sprite == null || sprite.texture == null)
+            {
+                return null;
+            }
+
+            var sourceTexture = sprite.texture;
+            var sourceRect = sprite.rect;
+            var width = Mathf.Max(1, Mathf.RoundToInt(sourceRect.width));
+            var height = Mathf.Max(1, Mathf.RoundToInt(sourceRect.height));
+            var renderTexture = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGB32);
+            var previousActive = RenderTexture.active;
+            var previousFilterMode = sourceTexture.filterMode;
+
+            try
+            {
+                sourceTexture.filterMode = FilterMode.Point;
+                var uvScale = new Vector2(sourceRect.width / sourceTexture.width, sourceRect.height / sourceTexture.height);
+                var uvOffset = new Vector2(sourceRect.x / sourceTexture.width, sourceRect.y / sourceTexture.height);
+                Graphics.Blit(sourceTexture, renderTexture, uvScale, uvOffset);
+
+                RenderTexture.active = renderTexture;
+                var readableTexture = new Texture2D(width, height, TextureFormat.RGBA32, false)
+                {
+                    filterMode = FilterMode.Point,
+                    wrapMode = TextureWrapMode.Clamp,
+                };
+                readableTexture.ReadPixels(new Rect(0f, 0f, width, height), 0, 0);
+                readableTexture.Apply();
+                return readableTexture;
+            }
+            finally
+            {
+                sourceTexture.filterMode = previousFilterMode;
+                RenderTexture.active = previousActive;
+                RenderTexture.ReleaseTemporary(renderTexture);
+            }
+        }
+
+        private static Color32 EstimateBackgroundColor(Color32[] pixels, int width, int height)
+        {
+            var bottomLeft = pixels[0];
+            var bottomRight = pixels[Mathf.Max(0, width - 1)];
+            var topLeft = pixels[Mathf.Max(0, (height - 1) * width)];
+            var topRight = pixels[Mathf.Max(0, height * width - 1)];
+
+            return new Color32(
+                (byte)((bottomLeft.r + bottomRight.r + topLeft.r + topRight.r) / 4),
+                (byte)((bottomLeft.g + bottomRight.g + topLeft.g + topRight.g) / 4),
+                (byte)((bottomLeft.b + bottomRight.b + topLeft.b + topRight.b) / 4),
+                (byte)((bottomLeft.a + bottomRight.a + topLeft.a + topRight.a) / 4));
+        }
+
+        private static bool IsNearColor(Color32 left, Color32 right, int tolerance)
+        {
+            return Mathf.Abs(left.r - right.r) <= tolerance
+                   && Mathf.Abs(left.g - right.g) <= tolerance
+                   && Mathf.Abs(left.b - right.b) <= tolerance;
+        }
+
+        private static bool TryGetOpaqueBounds(
+            Color32[] pixels,
+            int width,
+            int height,
+            out int minX,
+            out int minY,
+            out int maxX,
+            out int maxY)
+        {
+            minX = width;
+            minY = height;
+            maxX = -1;
+            maxY = -1;
+
+            for (var y = 0; y < height; y++)
+            {
+                for (var x = 0; x < width; x++)
+                {
+                    if (pixels[y * width + x].a <= 0)
+                    {
+                        continue;
+                    }
+
+                    if (x < minX) minX = x;
+                    if (y < minY) minY = y;
+                    if (x > maxX) maxX = x;
+                    if (y > maxY) maxY = y;
+                }
+            }
+
+            return maxX >= minX && maxY >= minY;
         }
     }
 }

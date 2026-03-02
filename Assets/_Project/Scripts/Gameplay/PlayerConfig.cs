@@ -10,5 +10,26 @@ namespace EJR.Game.Gameplay
         [Min(0.1f)] public float pickupRadius = 1.2f;
         [Min(0.1f)] public float xpAttractRadius = 4f;
         [Min(0.1f)] public float xpAttractSpeed = 6f;
+        [Header("Combat")]
+        [Min(0f)] public float damageInvulnerabilitySeconds = 0.35f;
+
+        [Header("Size")]
+        [Min(0.1f)] public float visualScale = 0.7f;
+        [Min(0.1f)] public float visualScaleMultiplier = 1.5f;
+        public float visualYOffset = -1f;
+        [Min(0.05f)] public float collisionRadius = 0.35f;
+
+        [Header("Animation")]
+        [Min(1f)] public float animationFps = 10f;
+        public bool flipByMoveDirection = true;
+        [Min(0)] public int idleStartFrame = 0;
+        [Min(0)] public int idleEndFrame = 5;
+        [Min(0)] public int moveStartFrame = 6;
+        [Min(0)] public int moveEndFrame = 12;
+        public bool useHurtAnimation = true;
+        [Min(0)] public int hurtStartFrame = 13;
+        [Min(0)] public int hurtEndFrame = 18;
+        [Min(0)] public int dieStartFrame = 19;
+        [Min(0)] public int dieEndFrame = 23;
     }
 }
