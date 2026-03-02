@@ -45,9 +45,13 @@ namespace EJR.Game.Core
         private static readonly VisualAssetDescriptor PlayerDescriptor = new(
             "Aseprite/player001",
             "Assets/_Project/Art/Aseprite/player001.aseprite");
+        private static readonly VisualAssetDescriptor Fire1Descriptor = new(
+            "Aseprite/fire1",
+            "Assets/_Project/Art/Aseprite/fire1.ase");
 
         private static readonly Dictionary<EnemyVisualKind, Sprite[]> EnemyFramesByKind = new();
         private static Sprite[] _playerFrames;
+        private static Sprite[] _weaponFire1Frames;
 
         private static Sprite _squareSprite;
 
@@ -103,6 +107,30 @@ namespace EJR.Game.Core
 
             _playerFrames = sourceFrames;
             return _playerFrames;
+        }
+
+        public static Sprite GetWeaponFire1Sprite()
+        {
+            var frames = GetWeaponFire1AnimationFrames();
+            return frames.Length > 0 ? frames[0] : GetSquareSprite();
+        }
+
+        public static Sprite[] GetWeaponFire1AnimationFrames()
+        {
+            if (_weaponFire1Frames != null && _weaponFire1Frames.Length > 0)
+            {
+                return _weaponFire1Frames;
+            }
+
+            var sourceFrames = LoadSourceFrames(Fire1Descriptor.ResourcePath, Fire1Descriptor.AssetPath);
+            if (sourceFrames.Length == 0)
+            {
+                _weaponFire1Frames = new[] { GetSquareSprite() };
+                return _weaponFire1Frames;
+            }
+
+            _weaponFire1Frames = sourceFrames;
+            return _weaponFire1Frames;
         }
 
         public static Sprite GetEnemySprite(EnemyVisualKind kind)

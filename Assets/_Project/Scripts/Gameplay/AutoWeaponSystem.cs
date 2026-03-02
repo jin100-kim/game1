@@ -1,4 +1,5 @@
-﻿using EJR.Game.Core;
+using System;
+using EJR.Game.Core;
 using UnityEngine;
 
 namespace EJR.Game.Gameplay
@@ -9,15 +10,30 @@ namespace EJR.Game.Gameplay
         private Transform _owner;
         private EnemyRegistry _registry;
         private PlayerStatsRuntime _stats;
+        private Func<Vector2, Vector3> _projectileSpawnResolver;
+        private EnemyController _currentTarget;
+        private Vector2 _lastAimDirection = Vector2.right;
 
         private float _cooldown;
 
-        public void Initialize(WeaponConfig config, Transform owner, EnemyRegistry registry, PlayerStatsRuntime stats)
+        public event Action<Vector2> AimUpdated;
+        public event Action<Vector2> Fired;
+
+        public void Initialize(
+            WeaponConfig config,
+            Transform owner,
+            EnemyRegistry registry,
+            PlayerStatsRuntime stats,
+            Func<Vector2, Vector3> projectileSpawnResolver = null)
         {
             _config = config;
             _owner = owner;
             _registry = registry;
             _stats = stats;
+            _projectileSpawnResolver = projectileSpawnResolver;
+            _currentTarget = null;
+            _lastAimDirection = Vector2.right;
+            _cooldown = 0f;
         }
 
         private void Update()
@@ -27,26 +43,75 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
+            var attackCooldown = Mathf.Max(0.05f, _config.attackInterval * _stats.AttackIntervalMultiplier);
+
             _cooldown -= Time.deltaTime;
             if (_cooldown > 0f)
             {
                 return;
             }
 
-            var target = _registry.FindNearest(_owner.position, _config.attackRange);
-            if (target == null)
+            RefreshAimTarget();
+
+            if (!IsTargetUsable(_currentTarget))
             {
                 return;
             }
 
-            FireAt(target.transform.position);
-            _cooldown = Mathf.Max(0.05f, _config.attackInterval * _stats.AttackIntervalMultiplier);
+            FireAt(_currentTarget.transform.position);
+            _cooldown = attackCooldown;
+        }
+
+        private void RefreshAimTarget()
+        {
+            if (_registry == null || _owner == null || _config == null)
+            {
+                return;
+            }
+
+            _currentTarget = _registry.FindNearest(_owner.position, _config.attackRange);
+            if (_currentTarget == null)
+            {
+                return;
+            }
+
+            var nextDirection = (Vector2)(_currentTarget.transform.position - _owner.position);
+            if (nextDirection.sqrMagnitude <= 0.000001f)
+            {
+                return;
+            }
+
+            _lastAimDirection = nextDirection.normalized;
+            AimUpdated?.Invoke(_lastAimDirection);
+        }
+
+        private bool IsTargetUsable(EnemyController target)
+        {
+            if (target == null || _owner == null || _config == null)
+            {
+                return false;
+            }
+
+            var maxDistance = Mathf.Max(0.01f, _config.attackRange);
+            return (target.transform.position - _owner.position).sqrMagnitude <= maxDistance * maxDistance;
         }
 
         private void FireAt(Vector3 targetPosition)
         {
+            var nextDirection = (Vector2)(targetPosition - _owner.position);
+            if (nextDirection.sqrMagnitude > 0.000001f)
+            {
+                _lastAimDirection = nextDirection.normalized;
+            }
+
             var projectileObject = new GameObject("Projectile");
-            projectileObject.transform.position = _owner.position;
+            var projectileSpawnPosition = _owner.position;
+            if (_projectileSpawnResolver != null)
+            {
+                projectileSpawnPosition = _projectileSpawnResolver(_lastAimDirection);
+            }
+
+            projectileObject.transform.position = projectileSpawnPosition;
 
             var renderer = projectileObject.AddComponent<SpriteRenderer>();
             renderer.sprite = RuntimeSpriteFactory.GetSquareSprite();
@@ -54,9 +119,9 @@ namespace EJR.Game.Gameplay
             projectileObject.transform.localScale = Vector3.one * 0.25f;
 
             var projectile = projectileObject.AddComponent<Projectile>();
-            var direction = (targetPosition - _owner.position).normalized;
             var damage = _config.projectileDamage * _stats.DamageMultiplier;
-            projectile.Initialize(_registry, direction, _config.projectileSpeed, damage, _config.projectileLifetime, _config.projectileHitRadius);
+            projectile.Initialize(_registry, _lastAimDirection, _config.projectileSpeed, damage, _config.projectileLifetime, _config.projectileHitRadius);
+            Fired?.Invoke(_lastAimDirection);
         }
     }
 }

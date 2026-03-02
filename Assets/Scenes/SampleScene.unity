@@ -387,6 +387,8 @@ MonoBehaviour:
   autoPickDelay: 0.2
   enableDebugTimeSkip: 1
   debugAdvanceSeconds: 60
+  showWeaponAimGizmos: 1
+  weaponGizmoPointRadius: 0.06
 --- !u!4 &882580469
 Transform:
   m_ObjectHideFlags: 0

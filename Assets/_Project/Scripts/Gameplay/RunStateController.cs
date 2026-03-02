@@ -33,7 +33,13 @@ namespace EJR.Game.Gameplay
         [SerializeField] private bool enableDebugTimeSkip = true;
         [SerializeField, Min(1f)] private float debugAdvanceSeconds = 60f;
 
+        [Header("Debug Weapon Gizmos")]
+        [SerializeField] private bool showWeaponAimGizmos = true;
+        [SerializeField, Min(0.01f)] private float weaponGizmoPointRadius = 0.06f;
+
         private const string PlayerVisualObjectName = "Visual";
+        private const string WeaponVisualObjectName = "WeaponVisual";
+        private const float WeaponAimFlipEpsilon = 0.01f;
 
         private PlayerHealth _playerHealth;
         private PlayerStatsRuntime _playerStats;
@@ -46,7 +52,13 @@ namespace EJR.Game.Gameplay
         private AutoPlayController _autoPlay;
         private PlayerMover _playerMover;
         private PlayerSpriteAnimator _playerSpriteAnimator;
+        private WeaponSpriteAnimator _weaponSpriteAnimator;
+        private Transform _weaponVisualTransform;
+        private SpriteRenderer _weaponVisualRenderer;
         private Transform _playerTransform;
+        private AutoWeaponSystem _weaponSystem;
+        private Vector2 _lastWeaponAimDirection = Vector2.right;
+        private Vector2 _weaponOrbitCenterLocal = Vector2.zero;
 
         private LevelUpSystem _levelUp;
         private HudController _hud;
@@ -243,6 +255,12 @@ namespace EJR.Game.Gameplay
                 _playerHealth.Died -= OnPlayerDied;
             }
 
+            if (_weaponSystem != null)
+            {
+                _weaponSystem.AimUpdated -= OnWeaponAimUpdated;
+                _weaponSystem.Fired -= OnWeaponFired;
+            }
+
             Time.timeScale = 1f;
         }
 
@@ -347,6 +365,7 @@ namespace EJR.Game.Gameplay
             }
 
             visualTransform.localPosition = new Vector3(0f, playerConfig.visualYOffset, 0f);
+            _weaponOrbitCenterLocal = new Vector2(visualTransform.localPosition.x, visualTransform.localPosition.y);
 
             var playerRenderer = visualTransform.GetComponent<SpriteRenderer>();
             if (playerRenderer == null)
@@ -363,6 +382,7 @@ namespace EJR.Game.Gameplay
             playerRenderer.color = hasPlayerAnimation ? Color.white : new Color(0.35f, 0.75f, 1f);
             var visualWorldSize = Mathf.Max(0.1f, playerConfig.visualScale * Mathf.Max(0.1f, playerConfig.visualScaleMultiplier));
             ApplyVisualScale(visualTransform, playerSprite, visualWorldSize);
+            _playerTransform = player.transform;
 
             var playerSpriteAnimator = player.GetComponent<PlayerSpriteAnimator>();
             if (hasPlayerAnimation)
@@ -385,6 +405,8 @@ namespace EJR.Game.Gameplay
 
                 _playerSpriteAnimator = null;
             }
+
+            EnsureWeaponVisual(player.transform, playerRenderer);
 
             _playerHealth = player.GetComponent<PlayerHealth>();
             if (_playerHealth == null)
@@ -415,7 +437,6 @@ namespace EJR.Game.Gameplay
             }
 
             _playerMover = playerMover;
-            _playerTransform = player.transform;
 
             playerMover.Initialize(playerConfig, _playerStats, arenaBounds);
             _cameraFollow?.Initialize(player.transform, cameraOffset, cameraFollowSmoothTime);
@@ -435,9 +456,76 @@ namespace EJR.Game.Gameplay
             }
 
             var weaponSystem = systems.AddComponent<AutoWeaponSystem>();
-            weaponSystem.Initialize(weaponConfig, player.transform, _enemyRegistry, _playerStats);
+            weaponSystem.Initialize(weaponConfig, player.transform, _enemyRegistry, _playerStats, ResolveProjectileSpawnPoint);
+            weaponSystem.AimUpdated += OnWeaponAimUpdated;
+            weaponSystem.Fired += OnWeaponFired;
+            _weaponSystem = weaponSystem;
             ConfigureAutoPlay(playerMover, player.transform);
             _hud.BindAutoPlayToggle(enableAutoPlay, ToggleAutoPlayFromHud);
+        }
+
+        private void EnsureWeaponVisual(Transform playerTransform, SpriteRenderer playerRenderer)
+        {
+            if (playerTransform == null || playerRenderer == null)
+            {
+                _weaponSpriteAnimator = null;
+                _weaponVisualTransform = null;
+                _weaponVisualRenderer = null;
+                return;
+            }
+
+            var weaponTransform = playerTransform.Find(WeaponVisualObjectName);
+            if (weaponTransform == null)
+            {
+                weaponTransform = new GameObject(WeaponVisualObjectName).transform;
+                weaponTransform.SetParent(playerTransform, false);
+            }
+
+            var weaponRenderer = weaponTransform.GetComponent<SpriteRenderer>();
+            if (weaponRenderer == null)
+            {
+                weaponRenderer = weaponTransform.gameObject.AddComponent<SpriteRenderer>();
+            }
+
+            _weaponVisualTransform = weaponTransform;
+            _weaponVisualRenderer = weaponRenderer;
+
+            weaponRenderer.sortingLayerID = playerRenderer.sortingLayerID;
+            weaponRenderer.sortingOrder = playerRenderer.sortingOrder + 1;
+
+            var squareSprite = RuntimeSpriteFactory.GetSquareSprite();
+            var weaponFrames = RuntimeSpriteFactory.GetWeaponFire1AnimationFrames();
+            var weaponSprite = weaponFrames.Length > 0 ? weaponFrames[0] : squareSprite;
+            var hasWeaponAnimation = weaponFrames.Length > 1 && !ReferenceEquals(weaponSprite, squareSprite);
+
+            weaponRenderer.sprite = weaponSprite;
+            weaponRenderer.color = hasWeaponAnimation ? Color.white : new Color(1f, 0.95f, 0.35f);
+
+            var weaponVisualSize = playerConfig != null ? Mathf.Max(0.05f, playerConfig.weaponVisualScale) : 0.45f;
+            ApplyVisualScale(weaponTransform, weaponSprite, weaponVisualSize);
+            ApplyWeaponAim(_lastWeaponAimDirection, fromFireEvent: false);
+
+            var weaponAnimator = playerTransform.GetComponent<WeaponSpriteAnimator>();
+            if (hasWeaponAnimation)
+            {
+                if (weaponAnimator == null)
+                {
+                    weaponAnimator = playerTransform.gameObject.AddComponent<WeaponSpriteAnimator>();
+                }
+
+                weaponAnimator.enabled = true;
+                weaponAnimator.Initialize(weaponRenderer, weaponFrames, playerConfig);
+                _weaponSpriteAnimator = weaponAnimator;
+            }
+            else
+            {
+                if (weaponAnimator != null)
+                {
+                    weaponAnimator.enabled = false;
+                }
+
+                _weaponSpriteAnimator = null;
+            }
         }
 
         private void EnsureArenaBoundaryVisual()
@@ -516,6 +604,282 @@ namespace EJR.Game.Gameplay
             enableAutoPlay = !enableAutoPlay;
             ConfigureAutoPlay(_playerMover, _playerTransform);
             _hud?.SetAutoPlayState(enableAutoPlay);
+        }
+
+        private void OnWeaponAimUpdated(Vector2 direction)
+        {
+            ApplyWeaponAim(direction, fromFireEvent: false);
+        }
+
+        private void OnWeaponFired(Vector2 direction)
+        {
+            ApplyWeaponAim(direction, fromFireEvent: true);
+        }
+
+        private void ApplyWeaponAim(Vector2 direction, bool fromFireEvent)
+        {
+            if (_weaponVisualTransform == null)
+            {
+                return;
+            }
+
+            var normalizedDirection = NormalizeAimDirection(direction, _lastWeaponAimDirection);
+            _lastWeaponAimDirection = normalizedDirection;
+            var flipX = ResolveWeaponFlipX(normalizedDirection);
+            var rotationDegrees = CalculateWeaponRotationDegrees(normalizedDirection, flipX);
+            var localPosition = CalculateWeaponLocalPosition(_playerTransform, normalizedDirection, flipX, rotationDegrees);
+            _weaponVisualTransform.localPosition = new Vector3(localPosition.x, localPosition.y, 0f);
+            if (_weaponVisualRenderer != null)
+            {
+                _weaponVisualRenderer.flipX = flipX;
+            }
+
+            _weaponVisualTransform.localRotation = Quaternion.Euler(0f, 0f, rotationDegrees);
+
+            if (fromFireEvent)
+            {
+                _weaponSpriteAnimator?.PlayAttack(normalizedDirection);
+            }
+        }
+
+        private Vector3 ResolveProjectileSpawnPoint(Vector2 aimDirection)
+        {
+            if (_playerTransform == null)
+            {
+                return Vector3.zero;
+            }
+
+            if (_weaponVisualRenderer != null && _weaponVisualRenderer.sprite != null)
+            {
+                // Spawn from the rendered weapon sprite area (green gizmo rectangle), not transform pivot.
+                return _weaponVisualRenderer.bounds.center;
+            }
+
+            var normalizedDirection = NormalizeAimDirection(aimDirection, _lastWeaponAimDirection);
+            var flipX = ResolveWeaponFlipX(normalizedDirection);
+            var rotationDegrees = CalculateWeaponRotationDegrees(normalizedDirection, flipX);
+            var localPosition = CalculateWeaponLocalPosition(_playerTransform, normalizedDirection, flipX, rotationDegrees);
+            return _playerTransform.TransformPoint(new Vector3(localPosition.x, localPosition.y, 0f));
+        }
+
+        private Vector2 CalculateWeaponLocalPosition(Transform playerRoot, Vector2 normalizedDirection, bool flipX, float rotationDegrees)
+        {
+            var weaponOffset = playerConfig != null ? playerConfig.weaponVisualOffset : new Vector2(0.42f, -0.08f);
+            var aimDistance = playerConfig != null ? Mathf.Max(0.05f, playerConfig.weaponAimDistance) : 0.55f;
+            if (flipX)
+            {
+                weaponOffset.x = -weaponOffset.x;
+            }
+
+            var orbitCenterLocal = ResolveWeaponOrbitCenterLocal(playerRoot);
+            var rotatedOffset = RotateOffsetByDegrees(weaponOffset, rotationDegrees);
+            return orbitCenterLocal + normalizedDirection * aimDistance + rotatedOffset;
+        }
+
+        private bool ResolveWeaponFlipX(Vector2 normalizedDirection)
+        {
+            var previousFlip = _weaponVisualRenderer != null && _weaponVisualRenderer.flipX;
+            if (normalizedDirection.x > WeaponAimFlipEpsilon)
+            {
+                return false;
+            }
+
+            if (normalizedDirection.x < -WeaponAimFlipEpsilon)
+            {
+                return true;
+            }
+
+            return previousFlip;
+        }
+
+        private float CalculateWeaponRotationDegrees(Vector2 normalizedDirection, bool flipX)
+        {
+            // Base authored direction is 3 o'clock. Mirrored side must reverse signed angle.
+            var signedAngleFromHorizontal = Mathf.Atan2(normalizedDirection.y, Mathf.Abs(normalizedDirection.x)) * Mathf.Rad2Deg;
+            if (flipX)
+            {
+                signedAngleFromHorizontal = -signedAngleFromHorizontal;
+            }
+
+            var rotationOffset = playerConfig != null ? playerConfig.weaponAimRotationOffsetDegrees : 0f;
+            return signedAngleFromHorizontal + rotationOffset;
+        }
+
+        private static Vector2 RotateOffsetByDegrees(Vector2 offset, float degrees)
+        {
+            var radians = degrees * Mathf.Deg2Rad;
+            var cosine = Mathf.Cos(radians);
+            var sine = Mathf.Sin(radians);
+            return new Vector2(
+                offset.x * cosine - offset.y * sine,
+                offset.x * sine + offset.y * cosine);
+        }
+
+        private Vector2 ResolveWeaponOrbitCenterLocal(Transform playerRoot)
+        {
+            if (playerRoot != null)
+            {
+                var visual = playerRoot.Find(PlayerVisualObjectName);
+                if (visual != null)
+                {
+                    var visualRenderer = visual.GetComponent<SpriteRenderer>();
+                    if (visualRenderer != null)
+                    {
+                        // Use the rendered sprite center so orbit/gizmo center overlaps the visible character.
+                        var worldCenter = visualRenderer.bounds.center;
+                        var localCenter = playerRoot.InverseTransformPoint(worldCenter);
+                        _weaponOrbitCenterLocal = new Vector2(localCenter.x, localCenter.y);
+                        return _weaponOrbitCenterLocal;
+                    }
+
+                    _weaponOrbitCenterLocal = new Vector2(visual.localPosition.x, visual.localPosition.y);
+                    return _weaponOrbitCenterLocal;
+                }
+            }
+
+            if (playerConfig != null)
+            {
+                _weaponOrbitCenterLocal = new Vector2(0f, playerConfig.visualYOffset);
+            }
+
+            return _weaponOrbitCenterLocal;
+        }
+
+        private static Vector2 NormalizeAimDirection(Vector2 direction, Vector2 fallbackDirection)
+        {
+            if (direction.sqrMagnitude <= 0.000001f)
+            {
+                return fallbackDirection.sqrMagnitude > 0.000001f ? fallbackDirection.normalized : Vector2.right;
+            }
+
+            return direction.normalized;
+        }
+
+        private void OnDrawGizmos()
+        {
+            if (!showWeaponAimGizmos)
+            {
+                return;
+            }
+
+            var player = _playerTransform;
+            if (player == null)
+            {
+                var playerObject = GameObject.Find("Player");
+                player = playerObject != null ? playerObject.transform : null;
+            }
+
+            if (player == null)
+            {
+                return;
+            }
+
+            var orbitCenterLocal = ResolveWeaponOrbitCenterLocal(player);
+            var aimDirection = NormalizeAimDirection(_lastWeaponAimDirection, Vector2.right);
+            var aimDistance = playerConfig != null ? Mathf.Max(0.05f, playerConfig.weaponAimDistance) : 0.55f;
+            var flipX = ResolveWeaponFlipX(aimDirection);
+            var rotationDegrees = CalculateWeaponRotationDegrees(aimDirection, flipX);
+            var weaponLocal = CalculateWeaponLocalPosition(player, aimDirection, flipX, rotationDegrees);
+
+            var orbitCenterWorld = player.TransformPoint(new Vector3(orbitCenterLocal.x, orbitCenterLocal.y, 0f));
+            var radiusEndWorld = player.TransformPoint(new Vector3(
+                orbitCenterLocal.x + aimDirection.x * aimDistance,
+                orbitCenterLocal.y + aimDirection.y * aimDistance,
+                0f));
+            var weaponWorld = player.TransformPoint(new Vector3(weaponLocal.x, weaponLocal.y, 0f));
+
+            var pointRadius = Mathf.Max(0.01f, weaponGizmoPointRadius);
+
+            Gizmos.color = new Color(0.1f, 0.95f, 1f, 0.95f);
+            Gizmos.DrawSphere(orbitCenterWorld, pointRadius);
+            Gizmos.DrawWireSphere(orbitCenterWorld, aimDistance);
+
+            Gizmos.color = new Color(1f, 0.85f, 0.15f, 0.95f);
+            Gizmos.DrawLine(orbitCenterWorld, radiusEndWorld);
+
+            Gizmos.color = new Color(1f, 0.3f, 0.9f, 0.95f);
+            Gizmos.DrawLine(radiusEndWorld, weaponWorld);
+
+            Gizmos.color = new Color(1f, 1f, 1f, 0.95f);
+            Gizmos.DrawSphere(weaponWorld, pointRadius * 0.9f);
+            Gizmos.DrawLine(orbitCenterWorld, weaponWorld);
+
+            var projectileSpawnWorld = ResolveProjectileSpawnPoint(aimDirection);
+            Gizmos.color = new Color(1f, 0.25f, 0.25f, 0.95f);
+            Gizmos.DrawSphere(projectileSpawnWorld, pointRadius * 0.85f);
+            Gizmos.DrawLine(weaponWorld, projectileSpawnWorld);
+
+            DrawWeaponSpriteRectGizmo(player);
+        }
+
+        private void DrawWeaponSpriteRectGizmo(Transform playerRoot)
+        {
+            if (playerRoot == null)
+            {
+                return;
+            }
+
+            var weaponTransform = _weaponVisualTransform;
+            if (weaponTransform == null)
+            {
+                weaponTransform = playerRoot.Find(WeaponVisualObjectName);
+            }
+
+            if (weaponTransform == null)
+            {
+                return;
+            }
+
+            var weaponRenderer = _weaponVisualRenderer;
+            if (weaponRenderer == null)
+            {
+                weaponRenderer = weaponTransform.GetComponent<SpriteRenderer>();
+            }
+
+            if (weaponRenderer == null || weaponRenderer.sprite == null)
+            {
+                return;
+            }
+
+            var sprite = weaponRenderer.sprite;
+            var pixelsPerUnit = Mathf.Max(0.0001f, sprite.pixelsPerUnit);
+            var rect = sprite.rect;
+            if (rect.width <= 0f || rect.height <= 0f)
+            {
+                return;
+            }
+
+            // Use sprite rect dimensions (includes transparent pixels inside the sprite frame).
+            var size = new Vector2(rect.width / pixelsPerUnit, rect.height / pixelsPerUnit);
+            var pivotNormalized = new Vector2(sprite.pivot.x / rect.width, sprite.pivot.y / rect.height);
+
+            var bottomLeft = new Vector2(-pivotNormalized.x * size.x, -pivotNormalized.y * size.y);
+            var bottomRight = bottomLeft + new Vector2(size.x, 0f);
+            var topRight = bottomLeft + size;
+            var topLeft = bottomLeft + new Vector2(0f, size.y);
+
+            bottomLeft = ApplySpriteFlip(bottomLeft, weaponRenderer);
+            bottomRight = ApplySpriteFlip(bottomRight, weaponRenderer);
+            topRight = ApplySpriteFlip(topRight, weaponRenderer);
+            topLeft = ApplySpriteFlip(topLeft, weaponRenderer);
+
+            var p0 = weaponTransform.TransformPoint(new Vector3(bottomLeft.x, bottomLeft.y, 0f));
+            var p1 = weaponTransform.TransformPoint(new Vector3(bottomRight.x, bottomRight.y, 0f));
+            var p2 = weaponTransform.TransformPoint(new Vector3(topRight.x, topRight.y, 0f));
+            var p3 = weaponTransform.TransformPoint(new Vector3(topLeft.x, topLeft.y, 0f));
+
+            Gizmos.color = new Color(0.3f, 1f, 0.3f, 0.95f);
+            Gizmos.DrawLine(p0, p1);
+            Gizmos.DrawLine(p1, p2);
+            Gizmos.DrawLine(p2, p3);
+            Gizmos.DrawLine(p3, p0);
+        }
+
+        private static Vector2 ApplySpriteFlip(Vector2 point, SpriteRenderer renderer)
+        {
+            var x = renderer.flipX ? -point.x : point.x;
+            var y = renderer.flipY ? -point.y : point.y;
+            return new Vector2(x, y);
         }
 
         private void HookEvents()
