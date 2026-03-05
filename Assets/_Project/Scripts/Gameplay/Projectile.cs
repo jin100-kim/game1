@@ -1,4 +1,4 @@
-﻿using EJR.Game.Core;
+using System;
 using UnityEngine;
 
 namespace EJR.Game.Gameplay
@@ -11,6 +11,9 @@ namespace EJR.Game.Gameplay
         private float _damage;
         private float _lifetime;
         private float _hitRadius;
+        private Action<Projectile> _releaseToPool;
+        private bool _isActive;
+        private readonly System.Collections.Generic.List<EnemyController> _nearbyEnemies = new(16);
 
         public void Initialize(
             EnemyRegistry registry,
@@ -18,7 +21,8 @@ namespace EJR.Game.Gameplay
             float speed,
             float damage,
             float lifetime,
-            float hitRadius)
+            float hitRadius,
+            Action<Projectile> releaseToPool)
         {
             _registry = registry;
             _direction = direction.normalized;
@@ -26,15 +30,22 @@ namespace EJR.Game.Gameplay
             _damage = damage;
             _lifetime = lifetime;
             _hitRadius = hitRadius;
+            _releaseToPool = releaseToPool;
+            _isActive = true;
         }
 
         private void Update()
         {
+            if (!_isActive)
+            {
+                return;
+            }
+
             transform.position += _direction * _speed * Time.deltaTime;
             _lifetime -= Time.deltaTime;
             if (_lifetime <= 0f)
             {
-                Destroy(gameObject);
+                Release();
                 return;
             }
 
@@ -43,10 +54,11 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            var enemies = _registry.Enemies;
-            for (var i = enemies.Count - 1; i >= 0; i--)
+            var searchRadius = _hitRadius + _registry.GetMaxCollisionRadius();
+            _registry.GetNearby((Vector2)transform.position, searchRadius, _nearbyEnemies);
+            for (var i = _nearbyEnemies.Count - 1; i >= 0; i--)
             {
-                var enemy = enemies[i];
+                var enemy = _nearbyEnemies[i];
                 if (enemy == null)
                 {
                     continue;
@@ -61,13 +73,29 @@ namespace EJR.Game.Gameplay
                     }
                     finally
                     {
-                        // Always remove projectile on first hit so runtime errors cannot create pseudo-piercing.
-                        Destroy(gameObject);
+                        // Always release projectile on first hit so runtime errors cannot create pseudo-piercing.
+                        Release();
                     }
 
                     return;
                 }
             }
+        }
+
+        private void OnDisable()
+        {
+            _isActive = false;
+        }
+
+        private void Release()
+        {
+            if (!_isActive)
+            {
+                return;
+            }
+
+            _isActive = false;
+            _releaseToPool?.Invoke(this);
         }
     }
 }

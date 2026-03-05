@@ -53,6 +53,8 @@ namespace EJR.Game.Gameplay
         private float _hurtFlashTimer;
         private float _hurtStateTimer;
         private Vector2 _lastVelocity;
+        private bool _useAimDirectionLook;
+        private Vector2 _lastLookDirection = Vector2.right;
 
         public void Initialize(SpriteRenderer targetRenderer, Sprite[] frames, PlayerConfig config)
         {
@@ -70,6 +72,8 @@ namespace EJR.Game.Gameplay
             _hurtFlashTimer = 0f;
             _hurtStateTimer = 0f;
             _lastVelocity = Vector2.zero;
+            _useAimDirectionLook = true;
+            _lastLookDirection = Vector2.right;
             _currentFrameIndex = _idleRange.Start;
             ApplyFrame(_currentFrameIndex);
         }
@@ -83,7 +87,7 @@ namespace EJR.Game.Gameplay
 
             _lastVelocity = velocity;
 
-            if (_flipByMoveDirection && Mathf.Abs(velocity.x) > 0.01f)
+            if (!_useAimDirectionLook && _flipByMoveDirection && Mathf.Abs(velocity.x) > 0.01f)
             {
                 _targetRenderer.flipX = velocity.x < 0f;
             }
@@ -95,6 +99,30 @@ namespace EJR.Game.Gameplay
 
             var shouldMove = velocity.sqrMagnitude > MoveThreshold * MoveThreshold;
             SetState(shouldMove ? AnimationState.Move : AnimationState.Idle, reset: false);
+        }
+
+        public void SetLookDirection(Vector2 direction)
+        {
+            if (_isDying || _targetRenderer == null || _frames.Length == 0)
+            {
+                return;
+            }
+
+            _useAimDirectionLook = true;
+            if (direction.sqrMagnitude <= 0.000001f)
+            {
+                direction = _lastLookDirection;
+            }
+            else
+            {
+                direction.Normalize();
+                _lastLookDirection = direction;
+            }
+
+            if (Mathf.Abs(direction.x) > 0.01f)
+            {
+                _targetRenderer.flipX = direction.x < 0f;
+            }
         }
 
         public void PlayHurt()

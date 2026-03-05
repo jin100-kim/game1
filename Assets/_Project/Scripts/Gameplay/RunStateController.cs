@@ -28,6 +28,7 @@ namespace EJR.Game.Gameplay
         [SerializeField] private bool autoRestartOnGameOver;
         [SerializeField, Min(0f)] private float autoRestartDelay = 1f;
         [SerializeField, Min(0f)] private float autoPickDelay = 0.2f;
+        [SerializeField, Min(0.02f)] private float hudRefreshInterval = 0.1f;
 
         [Header("Debug Time Skip")]
         [SerializeField] private bool enableDebugTimeSkip = true;
@@ -36,6 +37,12 @@ namespace EJR.Game.Gameplay
         [Header("Debug Weapon Gizmos")]
         [SerializeField] private bool showWeaponAimGizmos = true;
         [SerializeField, Min(0.01f)] private float weaponGizmoPointRadius = 0.06f;
+        [SerializeField, Min(45f)] private float weaponAimSmoothingDegreesPerSecond = 540f;
+
+        [Header("Weapon Layering")]
+        [SerializeField] private int weaponFrontSortingOffset = 1;
+        [SerializeField] private int weaponBackSortingOffset = -1;
+        [SerializeField, Range(0f, 0.2f)] private float weaponLayerSwapDeadZone = 0.02f;
 
         private const string PlayerVisualObjectName = "Visual";
         private const string WeaponVisualObjectName = "WeaponVisual";
@@ -55,10 +62,14 @@ namespace EJR.Game.Gameplay
         private WeaponSpriteAnimator _weaponSpriteAnimator;
         private Transform _weaponVisualTransform;
         private SpriteRenderer _weaponVisualRenderer;
+        private SpriteRenderer _playerVisualRenderer;
         private Transform _playerTransform;
         private AutoWeaponSystem _weaponSystem;
         private Vector2 _lastWeaponAimDirection = Vector2.right;
+        private Vector2 _targetWeaponAimDirection = Vector2.right;
+        private Vector2 _smoothedWeaponAimDirection = Vector2.right;
         private Vector2 _weaponOrbitCenterLocal = Vector2.zero;
+        private bool _weaponDrawBehind;
 
         private LevelUpSystem _levelUp;
         private HudController _hud;
@@ -70,6 +81,7 @@ namespace EJR.Game.Gameplay
         private float _autoRestartAt = -1f;
         private bool _isGameOver;
         private bool _bossWaveTriggered;
+        private float _nextHudRefreshAt;
 
         private void Awake()
         {
@@ -86,12 +98,14 @@ namespace EJR.Game.Gameplay
         {
             BuildRuntimeGraph();
             HookEvents();
+            _nextHudRefreshAt = 0f;
             UpdateHud();
         }
 
         private void Update()
         {
             HandleDebugTimeSkipInput();
+            UpdateWeaponAimSmoothing();
             if (!_isGameOver && _playerSpriteAnimator != null && _playerMover != null)
             {
                 _playerSpriteAnimator.SetMotion(_playerMover.CurrentVelocity);
@@ -172,7 +186,7 @@ namespace EJR.Game.Gameplay
                 }
             }
 
-            UpdateHud();
+            TryRefreshHud();
         }
 
         private static bool IsRestartKeyDown()
@@ -383,6 +397,7 @@ namespace EJR.Game.Gameplay
             var visualWorldSize = Mathf.Max(0.1f, playerConfig.visualScale * Mathf.Max(0.1f, playerConfig.visualScaleMultiplier));
             ApplyVisualScale(visualTransform, playerSprite, visualWorldSize);
             _playerTransform = player.transform;
+            _playerVisualRenderer = playerRenderer;
 
             var playerSpriteAnimator = player.GetComponent<PlayerSpriteAnimator>();
             if (hasPlayerAnimation)
@@ -460,6 +475,8 @@ namespace EJR.Game.Gameplay
             weaponSystem.AimUpdated += OnWeaponAimUpdated;
             weaponSystem.Fired += OnWeaponFired;
             _weaponSystem = weaponSystem;
+            _targetWeaponAimDirection = Vector2.right;
+            _smoothedWeaponAimDirection = Vector2.right;
             ConfigureAutoPlay(playerMover, player.transform);
             _hud.BindAutoPlayToggle(enableAutoPlay, ToggleAutoPlayFromHud);
         }
@@ -489,9 +506,10 @@ namespace EJR.Game.Gameplay
 
             _weaponVisualTransform = weaponTransform;
             _weaponVisualRenderer = weaponRenderer;
+            _weaponDrawBehind = false;
 
             weaponRenderer.sortingLayerID = playerRenderer.sortingLayerID;
-            weaponRenderer.sortingOrder = playerRenderer.sortingOrder + 1;
+            weaponRenderer.sortingOrder = playerRenderer.sortingOrder + weaponFrontSortingOffset;
 
             var squareSprite = RuntimeSpriteFactory.GetSquareSprite();
             var weaponFrames = RuntimeSpriteFactory.GetWeaponFire1AnimationFrames();
@@ -608,12 +626,15 @@ namespace EJR.Game.Gameplay
 
         private void OnWeaponAimUpdated(Vector2 direction)
         {
-            ApplyWeaponAim(direction, fromFireEvent: false);
+            _targetWeaponAimDirection = NormalizeAimDirection(direction, _targetWeaponAimDirection);
         }
 
         private void OnWeaponFired(Vector2 direction)
         {
-            ApplyWeaponAim(direction, fromFireEvent: true);
+            var normalized = NormalizeAimDirection(direction, _targetWeaponAimDirection);
+            _targetWeaponAimDirection = normalized;
+            _smoothedWeaponAimDirection = normalized;
+            ApplyWeaponAim(normalized, fromFireEvent: true);
         }
 
         private void ApplyWeaponAim(Vector2 direction, bool fromFireEvent)
@@ -625,6 +646,7 @@ namespace EJR.Game.Gameplay
 
             var normalizedDirection = NormalizeAimDirection(direction, _lastWeaponAimDirection);
             _lastWeaponAimDirection = normalizedDirection;
+            _playerSpriteAnimator?.SetLookDirection(normalizedDirection);
             var flipX = ResolveWeaponFlipX(normalizedDirection);
             var rotationDegrees = CalculateWeaponRotationDegrees(normalizedDirection, flipX);
             var localPosition = CalculateWeaponLocalPosition(_playerTransform, normalizedDirection, flipX, rotationDegrees);
@@ -634,6 +656,7 @@ namespace EJR.Game.Gameplay
                 _weaponVisualRenderer.flipX = flipX;
             }
 
+            UpdateWeaponSorting(normalizedDirection);
             _weaponVisualTransform.localRotation = Quaternion.Euler(0f, 0f, rotationDegrees);
 
             if (fromFireEvent)
@@ -715,6 +738,28 @@ namespace EJR.Game.Gameplay
                 offset.x * sine + offset.y * cosine);
         }
 
+        private void UpdateWeaponSorting(Vector2 aimDirection)
+        {
+            if (_weaponVisualRenderer == null || _playerVisualRenderer == null)
+            {
+                return;
+            }
+
+            var deadZone = Mathf.Max(0f, weaponLayerSwapDeadZone);
+            if (aimDirection.y > deadZone)
+            {
+                _weaponDrawBehind = true;
+            }
+            else if (aimDirection.y < -deadZone)
+            {
+                _weaponDrawBehind = false;
+            }
+
+            var offset = _weaponDrawBehind ? weaponBackSortingOffset : weaponFrontSortingOffset;
+            _weaponVisualRenderer.sortingLayerID = _playerVisualRenderer.sortingLayerID;
+            _weaponVisualRenderer.sortingOrder = _playerVisualRenderer.sortingOrder + offset;
+        }
+
         private Vector2 ResolveWeaponOrbitCenterLocal(Transform playerRoot)
         {
             if (playerRoot != null)
@@ -753,6 +798,26 @@ namespace EJR.Game.Gameplay
             }
 
             return direction.normalized;
+        }
+
+        private void UpdateWeaponAimSmoothing()
+        {
+            if (_weaponVisualTransform == null)
+            {
+                return;
+            }
+
+            var from = NormalizeAimDirection(_smoothedWeaponAimDirection, _lastWeaponAimDirection);
+            var to = NormalizeAimDirection(_targetWeaponAimDirection, from);
+            var maxRadiansDelta = Mathf.Max(1f, weaponAimSmoothingDegreesPerSecond) * Mathf.Deg2Rad * Time.deltaTime;
+            var next3 = Vector3.RotateTowards(
+                new Vector3(from.x, from.y, 0f),
+                new Vector3(to.x, to.y, 0f),
+                maxRadiansDelta,
+                0f);
+            var next = new Vector2(next3.x, next3.y);
+            _smoothedWeaponAimDirection = NormalizeAimDirection(next, to);
+            ApplyWeaponAim(_smoothedWeaponAimDirection, fromFireEvent: false);
         }
 
         private void OnDrawGizmos()
@@ -988,6 +1053,17 @@ namespace EJR.Game.Gameplay
                 _levelUp.CurrentExperience,
                 _levelUp.RequiredExperience,
                 _remainingSeconds);
+        }
+
+        private void TryRefreshHud()
+        {
+            if (Time.unscaledTime < _nextHudRefreshAt)
+            {
+                return;
+            }
+
+            _nextHudRefreshAt = Time.unscaledTime + Mathf.Max(0.02f, hudRefreshInterval);
+            UpdateHud();
         }
     }
 }

@@ -26,6 +26,7 @@ namespace EJR.Game.Gameplay
         private int _experienceOnDeath = 1;
         private EnemySpriteAnimator _spriteAnimator;
         private bool _isDead;
+        private readonly System.Collections.Generic.List<EnemyController> _nearbyBuffer = new(24);
 
         public float MaxHealth => _maxHealth;
         public float CurrentHealth => _health;
@@ -108,6 +109,7 @@ namespace EJR.Game.Gameplay
             next = ResolvePlayerOverlap(next, minimumSeparation, (Vector2)direction);
             next = ResolveCrowdOverlaps(next);
             transform.position = next;
+            _registry?.NotifyMoved(this, transform.position);
             if (_spriteAnimator != null)
             {
                 var velocity = ((Vector2)(transform.position - previousPosition)) / Mathf.Max(0.0001f, Time.deltaTime);
@@ -152,7 +154,9 @@ namespace EJR.Game.Gameplay
             var separation = Vector2.zero;
             var rangeMultiplier = Mathf.Max(1f, _config.separationRangeMultiplier);
             var overlapPadding = Mathf.Max(0f, _config.overlapResolvePadding);
-            var neighbors = _registry.Enemies;
+            var searchRadius = (CollisionRadius * rangeMultiplier) + _registry.GetMaxCollisionRadius() + overlapPadding;
+            _registry.GetNearby(selfPosition, searchRadius, _nearbyBuffer);
+            var neighbors = _nearbyBuffer;
 
             for (var i = 0; i < neighbors.Count; i++)
             {
@@ -210,11 +214,13 @@ namespace EJR.Game.Gameplay
 
             var resolved = candidatePosition;
             var padding = Mathf.Max(0f, _config.overlapResolvePadding);
-            var neighbors = _registry.Enemies;
+            var searchRadius = CollisionRadius + _registry.GetMaxCollisionRadius() + padding;
 
             for (var pass = 0; pass < 2; pass++)
             {
                 var adjusted = false;
+                _registry.GetNearby((Vector2)resolved, searchRadius, _nearbyBuffer);
+                var neighbors = _nearbyBuffer;
                 for (var i = 0; i < neighbors.Count; i++)
                 {
                     var neighbor = neighbors[i];

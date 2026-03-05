@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 namespace EJR.Game.Gameplay
@@ -6,28 +7,48 @@ namespace EJR.Game.Gameplay
     public sealed class DamageNumberPopup : MonoBehaviour
     {
         private TextMesh _textMesh;
+        private Action<DamageNumberPopup> _releaseToPool;
         private float _lifetime;
         private float _riseSpeed;
         private float _elapsed;
         private Color _baseColor;
+        private bool _isShowing;
 
-        public void Initialize(TextMesh textMesh, float lifetime, float riseSpeed)
+        public void Initialize(TextMesh textMesh, Action<DamageNumberPopup> releaseToPool)
         {
             _textMesh = textMesh;
+            _releaseToPool = releaseToPool;
+            _isShowing = false;
+        }
+
+        public void Show(Vector3 worldPosition, string text, Color color, float lifetime, float riseSpeed)
+        {
+            if (_textMesh == null)
+            {
+                _releaseToPool?.Invoke(this);
+                return;
+            }
+
+            transform.position = worldPosition;
             _lifetime = Mathf.Max(0.1f, lifetime);
             _riseSpeed = Mathf.Max(0.1f, riseSpeed);
-
-            if (_textMesh != null)
-            {
-                _baseColor = _textMesh.color;
-            }
+            _elapsed = 0f;
+            _baseColor = color;
+            _textMesh.text = text;
+            _textMesh.color = color;
+            _isShowing = true;
         }
 
         private void Update()
         {
+            if (!_isShowing)
+            {
+                return;
+            }
+
             if (_textMesh == null)
             {
-                Destroy(gameObject);
+                Release();
                 return;
             }
 
@@ -42,8 +63,24 @@ namespace EJR.Game.Gameplay
 
             if (_elapsed >= _lifetime)
             {
-                Destroy(gameObject);
+                Release();
             }
+        }
+
+        private void OnDisable()
+        {
+            _isShowing = false;
+        }
+
+        private void Release()
+        {
+            if (!_isShowing)
+            {
+                return;
+            }
+
+            _isShowing = false;
+            _releaseToPool?.Invoke(this);
         }
     }
 }

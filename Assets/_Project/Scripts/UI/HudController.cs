@@ -29,6 +29,12 @@ namespace EJR.Game.UI
         private GameObject _resultPanel;
         private Text _resultText;
         private Button _restartButton;
+        private int _lastCurrentHp = int.MinValue;
+        private int _lastMaxHp = int.MinValue;
+        private int _lastLevel = int.MinValue;
+        private int _lastCurrentXp = int.MinValue;
+        private int _lastRequiredXp = int.MinValue;
+        private int _lastRemainingSeconds = int.MinValue;
 
         public HudController()
         {
@@ -51,9 +57,30 @@ namespace EJR.Game.UI
                 return;
             }
 
-            _healthText.text = $"HP {Mathf.CeilToInt(currentHealth)}/{Mathf.CeilToInt(maxHealth)}";
-            _xpText.text = $"LV {level}  XP {currentXp}/{requiredXp}";
-            _timeText.text = $"TIME {Mathf.Max(0, Mathf.CeilToInt(remainingSeconds))}";
+            var currentHpInt = Mathf.CeilToInt(currentHealth);
+            var maxHpInt = Mathf.CeilToInt(maxHealth);
+            var remainingSecondsInt = Mathf.Max(0, Mathf.CeilToInt(remainingSeconds));
+
+            if (currentHpInt != _lastCurrentHp || maxHpInt != _lastMaxHp)
+            {
+                _healthText.text = $"HP {currentHpInt}/{maxHpInt}";
+                _lastCurrentHp = currentHpInt;
+                _lastMaxHp = maxHpInt;
+            }
+
+            if (level != _lastLevel || currentXp != _lastCurrentXp || requiredXp != _lastRequiredXp)
+            {
+                _xpText.text = $"LV {level}  XP {currentXp}/{requiredXp}";
+                _lastLevel = level;
+                _lastCurrentXp = currentXp;
+                _lastRequiredXp = requiredXp;
+            }
+
+            if (remainingSecondsInt != _lastRemainingSeconds)
+            {
+                _timeText.text = $"TIME {remainingSecondsInt}";
+                _lastRemainingSeconds = remainingSecondsInt;
+            }
         }
 
         public void BindAutoPlayToggle(bool enabled, Action onToggle)

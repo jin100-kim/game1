@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System;
 using UnityEngine;
 
 namespace EJR.Game.Gameplay
@@ -12,6 +13,8 @@ namespace EJR.Game.Gameplay
         private float _pickupRadius;
         private float _attractRadius;
         private float _attractSpeed;
+        private Action<ExperienceOrb> _releaseToPool;
+        private bool _isActive;
 
         public static IReadOnlyList<ExperienceOrb> ActiveOrbs => ActiveOrbList;
         public int Value { get; private set; }
@@ -27,9 +30,17 @@ namespace EJR.Game.Gameplay
         private void OnDisable()
         {
             ActiveOrbList.Remove(this);
+            _isActive = false;
         }
 
-        public void Initialize(Transform player, ExperienceSystem system, int value, float pickupRadius, float attractRadius, float attractSpeed)
+        public void Initialize(
+            Transform player,
+            ExperienceSystem system,
+            int value,
+            float pickupRadius,
+            float attractRadius,
+            float attractSpeed,
+            Action<ExperienceOrb> releaseToPool)
         {
             _player = player;
             _system = system;
@@ -37,11 +48,13 @@ namespace EJR.Game.Gameplay
             _pickupRadius = pickupRadius;
             _attractRadius = attractRadius;
             _attractSpeed = attractSpeed;
+            _releaseToPool = releaseToPool;
+            _isActive = true;
         }
 
         private void Update()
         {
-            if (_player == null || _system == null)
+            if (!_isActive || _player == null || _system == null)
             {
                 return;
             }
@@ -52,7 +65,7 @@ namespace EJR.Game.Gameplay
             if (distance <= _pickupRadius)
             {
                 _system.Collect(Value);
-                Destroy(gameObject);
+                Release();
                 return;
             }
 
@@ -68,6 +81,17 @@ namespace EJR.Game.Gameplay
                     transform.position += move;
                 }
             }
+        }
+
+        private void Release()
+        {
+            if (!_isActive)
+            {
+                return;
+            }
+
+            _isActive = false;
+            _releaseToPool?.Invoke(this);
         }
     }
 }

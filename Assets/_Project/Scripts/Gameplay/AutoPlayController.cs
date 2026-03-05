@@ -31,6 +31,7 @@ namespace EJR.Game.Gameplay
         [SerializeField, Min(0f)] private float strafeWeight = 1.2f;
         [SerializeField, Min(0f)] private float approachWeight = 0.45f;
         [SerializeField, Min(0.1f)] private float strafeProbeDistance = 1.4f;
+        [SerializeField, Min(0.01f)] private float decisionInterval = 0.06f;
 
         private Transform _player;
         private EnemyRegistry _enemyRegistry;
@@ -50,6 +51,8 @@ namespace EJR.Game.Gameplay
         private float _forcedEscapeUntil;
         private ExperienceOrb _cachedXpTarget;
         private float _nextXpScanAt;
+        private float _nextDecisionAt;
+        private Vector2 _cachedMove;
 
         public void Initialize(
             Transform player,
@@ -75,6 +78,8 @@ namespace EJR.Game.Gameplay
             _forcedEscapeUntil = -1f;
             _cachedXpTarget = null;
             _nextXpScanAt = 0f;
+            _nextDecisionAt = 0f;
+            _cachedMove = Vector2.zero;
         }
 
         public Vector2 ReadMove()
@@ -83,6 +88,13 @@ namespace EJR.Game.Gameplay
             {
                 return Vector2.zero;
             }
+
+            if (Time.time < _nextDecisionAt)
+            {
+                return _cachedMove;
+            }
+
+            _nextDecisionAt = Time.time + Mathf.Max(0.01f, decisionInterval);
 
             var playerPosition = (Vector2)_player.position;
             var movementDelta = (playerPosition - _lastPlayerPosition).magnitude;
@@ -132,7 +144,8 @@ namespace EJR.Game.Gameplay
             }
 
             _lastPlayerPosition = playerPosition;
-            return move;
+            _cachedMove = move;
+            return _cachedMove;
         }
 
         public int PickLevelUpOption(LevelUpOption[] options)
