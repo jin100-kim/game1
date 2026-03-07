@@ -53,6 +53,9 @@ namespace EJR.Game.Gameplay
         private float _hurtFlashTimer;
         private float _hurtStateTimer;
         private Vector2 _lastVelocity;
+        private bool _clipOneShotActive;
+        private FrameRange _clipOneShotRange;
+        private float _clipOneShotFps;
 
         public void Initialize(SpriteRenderer targetRenderer, Sprite[] frames, EnemyAnimationProfile profile)
         {
@@ -70,6 +73,9 @@ namespace EJR.Game.Gameplay
             _hurtFlashTimer = 0f;
             _hurtStateTimer = 0f;
             _lastVelocity = Vector2.zero;
+            _clipOneShotActive = false;
+            _clipOneShotRange = new FrameRange(0, -1);
+            _clipOneShotFps = 0f;
             _currentFrameIndex = _idleRange.Start;
             ApplyFrame(_currentFrameIndex);
         }
@@ -108,6 +114,11 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
+            if (_clipOneShotActive)
+            {
+                return;
+            }
+
             var shouldMove = velocity.sqrMagnitude > MoveThreshold * MoveThreshold;
             SetState(shouldMove ? AnimationState.Move : AnimationState.Idle, reset: false);
         }
@@ -137,8 +148,48 @@ namespace EJR.Game.Gameplay
             }
 
             _isDying = true;
+            _clipOneShotActive = false;
             SetState(AnimationState.Die, reset: true);
             return _dieRange.Length / Mathf.Max(0.1f, _framesPerSecond);
+        }
+
+        public float PlayHurtOneShot(float durationSeconds)
+        {
+            return PlayClipOneShot("Hurt", durationSeconds);
+        }
+
+        public float PlayAttackOneShot(float durationSeconds)
+        {
+            return PlayClipOneShot("Attack", durationSeconds);
+        }
+
+        public float PlayClipOneShot(string clipName, float durationSeconds)
+        {
+            if (_isDying || _targetRenderer == null || _frames == null || _frames.Length == 0)
+            {
+                return 0f;
+            }
+
+            if (!TryGetClipRange(clipName, out var startFrame, out var endFrame))
+            {
+                return 0f;
+            }
+
+            var maxFrameIndex = Mathf.Max(0, _frames.Length - 1);
+            var range = BuildRange(startFrame, endFrame, maxFrameIndex);
+            if (range.Length <= 0)
+            {
+                return 0f;
+            }
+
+            var clampedDuration = Mathf.Max(0.05f, durationSeconds);
+            _clipOneShotActive = true;
+            _clipOneShotRange = range;
+            _clipOneShotFps = Mathf.Max(0.1f, range.Length / clampedDuration);
+            _frameCursor = 0f;
+            _currentFrameIndex = range.Start;
+            ApplyFrame(_currentFrameIndex);
+            return clampedDuration;
         }
 
         private void Update()
@@ -147,6 +198,12 @@ namespace EJR.Game.Gameplay
 
             if (_targetRenderer == null || _frames == null || _frames.Length == 0)
             {
+                return;
+            }
+
+            if (_clipOneShotActive)
+            {
+                AdvanceClipOneShot();
                 return;
             }
 
@@ -177,6 +234,37 @@ namespace EJR.Game.Gameplay
             }
 
             AdvanceLoop(range);
+        }
+
+        private void AdvanceClipOneShot()
+        {
+            if (!_clipOneShotActive || _clipOneShotRange.Length <= 0)
+            {
+                _clipOneShotActive = false;
+                return;
+            }
+
+            _frameCursor += Time.deltaTime * Mathf.Max(0.1f, _clipOneShotFps);
+            var steps = Mathf.FloorToInt(_frameCursor);
+            if (steps > 0)
+            {
+                _frameCursor -= steps;
+                var nextFrame = Mathf.Min(_clipOneShotRange.End, _currentFrameIndex + steps);
+                if (nextFrame != _currentFrameIndex)
+                {
+                    _currentFrameIndex = nextFrame;
+                    ApplyFrame(_currentFrameIndex);
+                }
+            }
+
+            if (_currentFrameIndex < _clipOneShotRange.End)
+            {
+                return;
+            }
+
+            _clipOneShotActive = false;
+            var shouldMove = _lastVelocity.sqrMagnitude > MoveThreshold * MoveThreshold;
+            SetState(shouldMove ? AnimationState.Move : AnimationState.Idle, reset: true);
         }
 
         private void ConfigureRanges(EnemyAnimationProfile profile)

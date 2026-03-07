@@ -14,6 +14,11 @@ namespace EJR.Game.Core
         SniperRifle = 2,
         Shotgun = 3,
         Katana = 4,
+        ChainAttack = 5,
+        Lightning = 6,
+        Satellite = 7,
+        RifleTurret = 8,
+        Aura = 9,
     }
 
     public enum StatUpgradeId
@@ -32,6 +37,7 @@ namespace EJR.Game.Core
         Fire = 1,
         Wind = 2,
         Light = 3,
+        Water = 4,
     }
 
     public readonly struct LevelUpOption

@@ -17,11 +17,6 @@ namespace EJR.Game.UI
         private Text _healthText;
         private Text _xpText;
         private Text _timeText;
-        private Button _autoPlayButton;
-        private Text _autoPlayButtonText;
-        private Image _autoPlayButtonImage;
-        private Button _aimModeButton;
-        private Text _aimModeButtonText;
         private GameObject _buildPanel;
         private Text _weaponBuildText;
         private Text _statBuildText;
@@ -97,61 +92,6 @@ namespace EJR.Game.UI
             var minutes = clampedSeconds / 60;
             var seconds = clampedSeconds % 60;
             return $"{minutes:00}:{seconds:00}";
-        }
-
-        public void BindAutoPlayToggle(bool enabled, Action onToggle)
-        {
-            if (_autoPlayButton == null)
-            {
-                return;
-            }
-
-            _autoPlayButton.onClick.RemoveAllListeners();
-            if (onToggle != null)
-            {
-                _autoPlayButton.onClick.AddListener(() => onToggle.Invoke());
-            }
-
-            SetAutoPlayState(enabled);
-        }
-
-        public void BindAimModeToggle(Action onToggle)
-        {
-            if (_aimModeButton == null)
-            {
-                return;
-            }
-
-            _aimModeButton.onClick.RemoveAllListeners();
-            if (onToggle != null)
-            {
-                _aimModeButton.onClick.AddListener(() => onToggle.Invoke());
-            }
-        }
-
-        public void SetAutoPlayState(bool enabled)
-        {
-            if (_autoPlayButtonText != null)
-            {
-                _autoPlayButtonText.text = enabled ? "AUTO ON" : "AUTO OFF";
-            }
-
-            if (_autoPlayButtonImage != null)
-            {
-                _autoPlayButtonImage.color = enabled
-                    ? new Color(0.2f, 0.55f, 0.27f, 1f)
-                    : new Color(0.2f, 0.2f, 0.2f, 1f);
-            }
-        }
-
-        public void SetAimModeLabel(string label)
-        {
-            if (_aimModeButtonText == null)
-            {
-                return;
-            }
-
-            _aimModeButtonText.text = string.IsNullOrWhiteSpace(label) ? "AIM NEAR" : label;
         }
 
         public void SetBuildInfo(string weaponsSummary, string statsSummary)
@@ -312,19 +252,10 @@ namespace EJR.Game.UI
 
         private void BuildTopBar()
         {
-            var top = CreatePanel(_canvas.transform, "TopBar", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -10f), new Vector2(940f, 60f), new Color(0f, 0f, 0f, 0.35f));
+            var top = CreatePanel(_canvas.transform, "TopBar", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -10f), new Vector2(620f, 60f), new Color(0f, 0f, 0f, 0.35f));
             _healthText = CreateText(top.transform, "HealthText", new Vector2(-250f, 0f), "HP");
             _xpText = CreateText(top.transform, "XPText", new Vector2(-40f, 0f), "XP");
             _timeText = CreateText(top.transform, "TimeText", new Vector2(160f, 0f), "TIME");
-
-            _autoPlayButton = CreateButton(top.transform, "AutoPlayButton", new Vector2(300f, 0f), new Vector2(130f, 42f));
-            _autoPlayButtonText = _autoPlayButton.GetComponentInChildren<Text>();
-            _autoPlayButtonImage = _autoPlayButton.GetComponent<Image>();
-            _autoPlayButtonText.text = "AUTO OFF";
-
-            _aimModeButton = CreateButton(top.transform, "AimModeButton", new Vector2(455f, 0f), new Vector2(150f, 42f));
-            _aimModeButtonText = _aimModeButton.GetComponentInChildren<Text>();
-            _aimModeButtonText.text = "AIM NEAR";
         }
 
         private void BuildBuildPanel()

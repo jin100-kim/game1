@@ -28,6 +28,11 @@ namespace EJR.Game.Gameplay
             WeaponUpgradeId.SniperRifle,
             WeaponUpgradeId.Shotgun,
             WeaponUpgradeId.Katana,
+            WeaponUpgradeId.ChainAttack,
+            WeaponUpgradeId.Lightning,
+            WeaponUpgradeId.Satellite,
+            WeaponUpgradeId.RifleTurret,
+            WeaponUpgradeId.Aura,
         };
 
         private static readonly StatUpgradeId[] AllStatIds =
@@ -112,6 +117,32 @@ namespace EJR.Game.Gameplay
 
             TryOpenNextChoice();
             ExperienceChanged?.Invoke(CurrentExperience, RequiredExperience, Level);
+        }
+
+        public bool RerollCurrentChoice()
+        {
+            if (!_awaitingChoice || _build == null)
+            {
+                return false;
+            }
+
+            LevelUpOption[] nextOptions;
+            if (_awaitingCoreChoice && _pendingCoreChoices.Count > 0)
+            {
+                nextOptions = GenerateCoreOptions(_pendingCoreChoices.Peek());
+            }
+            else
+            {
+                nextOptions = GenerateOptions(Level);
+            }
+
+            if (nextOptions == null || nextOptions.Length == 0)
+            {
+                return false;
+            }
+
+            OptionsGenerated?.Invoke(nextOptions);
+            return true;
         }
 
         private void TryOpenNextChoice()
@@ -309,6 +340,17 @@ namespace EJR.Game.Gameplay
                     isLockedBySlot: false,
                     label: $"CORE {weaponName}: Light Lv1",
                     coreElement: WeaponCoreElement.Light));
+
+                _workingOptions.Add(new LevelUpOption(
+                    UpgradeCategory.WeaponCore,
+                    coreChoice.WeaponId,
+                    default,
+                    0,
+                    1,
+                    isNewAcquire: true,
+                    isLockedBySlot: false,
+                    label: $"CORE {weaponName}: Water Lv1",
+                    coreElement: WeaponCoreElement.Water));
                 return _workingOptions.ToArray();
             }
 
@@ -402,6 +444,11 @@ namespace EJR.Game.Gameplay
                 WeaponUpgradeId.SniperRifle => "Sniper",
                 WeaponUpgradeId.Shotgun => "Shotgun",
                 WeaponUpgradeId.Katana => "Katana",
+                WeaponUpgradeId.ChainAttack => "Chain",
+                WeaponUpgradeId.Lightning => "Lightning",
+                WeaponUpgradeId.Satellite => "Satellite",
+                WeaponUpgradeId.RifleTurret => "Rifle Turret",
+                WeaponUpgradeId.Aura => "Aura",
                 _ => "Rifle",
             };
         }
@@ -427,6 +474,7 @@ namespace EJR.Game.Gameplay
                 WeaponCoreElement.Fire => "Fire",
                 WeaponCoreElement.Wind => "Wind",
                 WeaponCoreElement.Light => "Light",
+                WeaponCoreElement.Water => "Water",
                 _ => "Core",
             };
         }

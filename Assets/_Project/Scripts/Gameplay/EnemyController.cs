@@ -6,7 +6,30 @@ namespace EJR.Game.Gameplay
 {
     public sealed class EnemyController : MonoBehaviour
     {
-        private const float FireExplosionRadius = 1.45f;
+        private enum BossPatternState
+        {
+            None = 0,
+            TelegraphDash = 1,
+            Dashing = 2,
+            ProjectileVolley = 3,
+        }
+
+        private const float FireExplosionRadius = 0.725f;
+        private const float FireExplosionFxDuration = 0.18f;
+        private const float FireExplosionFxLineWidth = 0.06f;
+        private const int FireExplosionFxSegments = 28;
+        private static readonly Color FireExplosionFxColor = new(1f, 0.45f, 0.1f, 0.9f);
+        private const float BossTelegraphDuration = 1f;
+        private const float BossDashDuration = 0.8f;
+        private const float BossDashSpeedMultiplier = 6f;
+        private const float BossProjectileSpeed = 7.2f;
+        private const float BossProjectileLifetime = 4f;
+        private const float BossProjectileHitRadius = 0.14f;
+        private const float BossProjectileVisualScale = 0.22f;
+        private const float BossProjectileDamageMultiplier = 0.7f;
+        private const float BossProjectileShotInterval = 0.2f;
+        private const int BossEightWayShots = 5;
+        private const int BossAimShots = 10;
 
         public event Action<float, float> Changed;
 
@@ -36,6 +59,14 @@ namespace EJR.Game.Gameplay
         private float _fireAccumulatedDamage;
         private int _fireAccumulatedHits;
         private int _fireTriggerHitCount = int.MaxValue;
+        private BossPatternState _bossPatternState;
+        private float _bossPatternCooldown;
+        private float _bossStateTimer;
+        private Vector2 _bossDashDirection = Vector2.right;
+        private int _bossVolleyPhase;
+        private int _bossShotsRemaining;
+        private float _bossShotTimer;
+        private static Material _fireExplosionFxMaterial;
 
         private readonly System.Collections.Generic.List<EnemyController> _nearbyBuffer = new(24);
 
@@ -82,6 +113,13 @@ namespace EJR.Game.Gameplay
             _experienceOnDeath = Mathf.Max(1, Mathf.RoundToInt(config.experienceOnDeath * experienceMultiplier));
 
             _health = _maxHealth;
+            _bossPatternState = BossPatternState.None;
+            _bossPatternCooldown = IsBoss ? UnityEngine.Random.Range(1.2f, 2.1f) : float.MaxValue;
+            _bossStateTimer = 0f;
+            _bossDashDirection = Vector2.right;
+            _bossVolleyPhase = 0;
+            _bossShotsRemaining = 0;
+            _bossShotTimer = 0f;
             _registry.Register(this);
             Changed?.Invoke(_health, _maxHealth);
         }
@@ -104,30 +142,35 @@ namespace EJR.Game.Gameplay
             TickCoreEffectDurations();
 
             var previousPosition = transform.position;
-            var toPlayer = _target.position - transform.position;
-            var distance = toPlayer.magnitude;
-            var direction = distance > 0.001f ? toPlayer / distance : Vector3.zero;
-            var minimumSeparation = CollisionRadius + _playerCollisionRadius;
-            var separation = ComputeSeparationVector((Vector2)transform.position) * Mathf.Max(0f, _config.separationWeight);
-
-            var desired = separation;
-            if (distance > minimumSeparation)
+            var handledByBossPattern = UpdateBossPattern(Time.deltaTime);
+            if (!handledByBossPattern)
             {
-                desired += (Vector2)direction;
+                var toPlayer = _target.position - transform.position;
+                var distance = toPlayer.magnitude;
+                var direction = distance > 0.001f ? toPlayer / distance : Vector3.zero;
+                var minimumSeparation = CollisionRadius + _playerCollisionRadius;
+                var separation = ComputeSeparationVector((Vector2)transform.position) * Mathf.Max(0f, _config.separationWeight);
+
+                var desired = separation;
+                if (distance > minimumSeparation)
+                {
+                    desired += (Vector2)direction;
+                }
+
+                if (desired.sqrMagnitude > 1f)
+                {
+                    desired.Normalize();
+                }
+
+                var effectiveMoveSpeed = _moveSpeed * Mathf.Clamp(_activeSlowMultiplier, 0.1f, 1f);
+                var moveBudget = effectiveMoveSpeed * Time.deltaTime;
+                var next = transform.position + (Vector3)(desired * moveBudget);
+                next = ResolvePlayerOverlap(next, minimumSeparation, (Vector2)direction);
+                next = ResolveCrowdOverlaps(next);
+                transform.position = next;
+                _registry?.NotifyMoved(this, transform.position);
             }
 
-            if (desired.sqrMagnitude > 1f)
-            {
-                desired.Normalize();
-            }
-
-            var effectiveMoveSpeed = _moveSpeed * Mathf.Clamp(_activeSlowMultiplier, 0.1f, 1f);
-            var moveBudget = effectiveMoveSpeed * Time.deltaTime;
-            var next = transform.position + (Vector3)(desired * moveBudget);
-            next = ResolvePlayerOverlap(next, minimumSeparation, (Vector2)direction);
-            next = ResolveCrowdOverlaps(next);
-            transform.position = next;
-            _registry?.NotifyMoved(this, transform.position);
             if (_spriteAnimator != null)
             {
                 var velocity = ((Vector2)(transform.position - previousPosition)) / Mathf.Max(0.0001f, Time.deltaTime);
@@ -135,8 +178,9 @@ namespace EJR.Game.Gameplay
             }
 
             _contactCooldown -= Time.deltaTime;
+            var minimumSeparationForContact = CollisionRadius + _playerCollisionRadius;
             var currentDistance = (_target.position - transform.position).magnitude;
-            if (currentDistance <= minimumSeparation + 0.02f && _contactCooldown <= 0f)
+            if (currentDistance <= minimumSeparationForContact + 0.02f && _contactCooldown <= 0f)
             {
                 _contactCooldown = _contactDamageCooldown;
                 _playerHealth.TakeDamage(_contactDamage);
@@ -299,7 +343,9 @@ namespace EJR.Game.Gameplay
             }
 
             _health = Mathf.Max(0f, _health - appliedDamage);
-            if (_health > 0f)
+            if (_health > 0f &&
+                _visualKind != RuntimeSpriteFactory.EnemyVisualKind.Boss &&
+                _visualKind != RuntimeSpriteFactory.EnemyVisualKind.Skeleton)
             {
                 _spriteAnimator?.PlayHurt();
             }
@@ -326,6 +372,7 @@ namespace EJR.Game.Gameplay
             }
 
             _isDead = true;
+            EndBossPattern();
             TriggerFireExplosionIfReady();
 
             if (_experienceSystem != null)
@@ -371,6 +418,169 @@ namespace EJR.Game.Gameplay
             }
         }
 
+        private bool UpdateBossPattern(float deltaTime)
+        {
+            if (!IsBoss || _playerHealth == null || _target == null)
+            {
+                return false;
+            }
+
+            switch (_bossPatternState)
+            {
+                case BossPatternState.TelegraphDash:
+                    _bossStateTimer -= deltaTime;
+                    if (_bossStateTimer <= 0f)
+                    {
+                        BeginBossDash();
+                    }
+
+                    return true;
+
+                case BossPatternState.Dashing:
+                {
+                    var step = _bossDashDirection * (Mathf.Max(0.1f, _moveSpeed) * BossDashSpeedMultiplier) * deltaTime;
+                    var next = (Vector2)transform.position + step;
+                    transform.position = new Vector3(next.x, next.y, transform.position.z);
+                    _registry?.NotifyMoved(this, transform.position);
+
+                    _bossStateTimer -= deltaTime;
+                    if (_bossStateTimer <= 0f)
+                    {
+                        EndBossPattern();
+                    }
+
+                    return true;
+                }
+
+                case BossPatternState.ProjectileVolley:
+                    _bossShotTimer -= deltaTime;
+                    if (_bossShotTimer <= 0f)
+                    {
+                        FireBossVolleyStep();
+                    }
+
+                    return true;
+            }
+
+            _bossPatternCooldown -= deltaTime;
+            if (_bossPatternCooldown > 0f)
+            {
+                return false;
+            }
+
+            StartRandomBossPattern();
+            return true;
+        }
+
+        private void StartRandomBossPattern()
+        {
+            var patternIndex = UnityEngine.Random.Range(0, 2);
+            switch (patternIndex)
+            {
+                case 0:
+                    _bossPatternState = BossPatternState.TelegraphDash;
+                    _bossStateTimer = BossTelegraphDuration;
+                    _spriteAnimator?.PlayHurtOneShot(BossTelegraphDuration);
+                    break;
+
+                default:
+                    _bossPatternState = BossPatternState.ProjectileVolley;
+                    _bossVolleyPhase = 0;
+                    _bossShotsRemaining = BossEightWayShots;
+                    _bossShotTimer = 0f;
+                    break;
+            }
+        }
+
+        private void BeginBossDash()
+        {
+            var toPlayer = (Vector2)(_target.position - transform.position);
+            _bossDashDirection = toPlayer.sqrMagnitude > 0.000001f ? toPlayer.normalized : Vector2.right;
+            _bossPatternState = BossPatternState.Dashing;
+            _bossStateTimer = BossDashDuration;
+        }
+
+        private void FireBossVolleyStep()
+        {
+            var shotDuration = Mathf.Max(0.08f, BossProjectileShotInterval * 0.8f);
+            _spriteAnimator?.PlayAttackOneShot(shotDuration);
+
+            if (_bossVolleyPhase == 0)
+            {
+                FireBossEightWayBurst();
+                _bossShotsRemaining--;
+                if (_bossShotsRemaining <= 0)
+                {
+                    _bossVolleyPhase = 1;
+                    _bossShotsRemaining = BossAimShots;
+                    _bossShotTimer = 0.3f;
+                    return;
+                }
+            }
+            else
+            {
+                FireBossAimShot();
+                _bossShotsRemaining--;
+                if (_bossShotsRemaining <= 0)
+                {
+                    EndBossPattern();
+                    return;
+                }
+            }
+
+            _bossShotTimer = BossProjectileShotInterval;
+        }
+
+        private void FireBossEightWayBurst()
+        {
+            for (var i = 0; i < 8; i++)
+            {
+                var radians = (Mathf.PI * 2f * i) / 8f;
+                var direction = new Vector2(Mathf.Cos(radians), Mathf.Sin(radians));
+                SpawnBossProjectile(direction);
+            }
+        }
+
+        private void FireBossAimShot()
+        {
+            var toPlayer = (Vector2)(_target.position - transform.position);
+            var direction = toPlayer.sqrMagnitude > 0.000001f ? toPlayer.normalized : Vector2.right;
+            SpawnBossProjectile(direction);
+        }
+
+        private void SpawnBossProjectile(Vector2 direction)
+        {
+            var normalizedDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : Vector2.right;
+            var projectileObject = new GameObject("BossProjectile");
+            projectileObject.transform.position = transform.position;
+
+            var renderer = projectileObject.AddComponent<SpriteRenderer>();
+            renderer.sprite = RuntimeSpriteFactory.GetSquareSprite();
+            renderer.color = new Color(1f, 0.32f, 0.24f, 1f);
+            renderer.sortingOrder = 38;
+            projectileObject.transform.localScale = Vector3.one * BossProjectileVisualScale;
+
+            var projectile = projectileObject.AddComponent<BossProjectile>();
+            projectile.Initialize(
+                normalizedDirection,
+                BossProjectileSpeed,
+                BossProjectileLifetime,
+                Mathf.Max(1f, _contactDamage * BossProjectileDamageMultiplier),
+                BossProjectileHitRadius,
+                _playerHealth,
+                _playerCollisionRadius);
+        }
+
+        private void EndBossPattern()
+        {
+            _bossPatternState = BossPatternState.None;
+            _bossStateTimer = 0f;
+            _bossShotTimer = 0f;
+            _bossShotsRemaining = 0;
+            _bossVolleyPhase = 0;
+            _bossPatternCooldown = UnityEngine.Random.Range(2.4f, 4.2f);
+        }
+
         private void ApplyWeaponCoreOnHit(WeaponCoreElement coreElement, int coreLevel, float dealtDamage)
         {
             var clampedLevel = Mathf.Clamp(coreLevel, 1, PlayerBuildRuntime.MaxCoreLevel);
@@ -385,6 +595,9 @@ namespace EJR.Game.Gameplay
                 case WeaponCoreElement.Light:
                     ApplyLightCore(clampedLevel);
                     break;
+                case WeaponCoreElement.Water:
+                    ApplyWaterCore(clampedLevel);
+                    break;
             }
         }
 
@@ -392,9 +605,9 @@ namespace EJR.Game.Gameplay
         {
             var (accumulateRatio, hitThreshold) = coreLevel switch
             {
-                1 => (0.05f, 5),
-                2 => (0.10f, 4),
-                _ => (0.20f, 2),
+                1 => (0.10f, 5),
+                2 => (0.15f, 4),
+                _ => (0.40f, 2),
             };
 
             _fireAccumulatedDamage += Mathf.Max(0f, dealtDamage) * accumulateRatio;
@@ -409,11 +622,16 @@ namespace EJR.Game.Gameplay
 
         private void ApplyWindCore(int coreLevel)
         {
+            if (IsBoss)
+            {
+                return;
+            }
+
             var (slowPercent, duration) = coreLevel switch
             {
-                1 => (0.10f, 0.3f),
-                2 => (0.20f, 0.5f),
-                _ => (0.50f, 1.0f),
+                1 => (0.20f, 0.1f),
+                2 => (0.40f, 0.1f),
+                _ => (0.60f, 0.2f),
             };
 
             var slowMultiplier = Mathf.Clamp01(1f - slowPercent);
@@ -425,13 +643,50 @@ namespace EJR.Game.Gameplay
         {
             var (bonusMultiplier, duration) = coreLevel switch
             {
-                1 => (0.05f, 1.0f),
-                2 => (0.10f, 2.0f),
-                _ => (0.20f, 5.0f),
+                1 => (0.10f, 1.0f),
+                2 => (0.20f, 2.0f),
+                _ => (0.30f, 5.0f),
             };
 
             _activeLightBonusMultiplier = Mathf.Max(_activeLightBonusMultiplier, bonusMultiplier);
             _activeLightRemaining = Mathf.Max(_activeLightRemaining, duration);
+        }
+
+        private void ApplyWaterCore(int coreLevel)
+        {
+            if (IsBoss)
+            {
+                return;
+            }
+
+            var knockbackDistance = coreLevel switch
+            {
+                1 => 0.1f,
+                2 => 0.2f,
+                _ => 0.5f,
+            };
+
+            if (knockbackDistance <= 0f)
+            {
+                return;
+            }
+
+            var away = _target != null
+                ? (Vector2)(transform.position - _target.position)
+                : Vector2.zero;
+            if (away.sqrMagnitude <= 0.000001f)
+            {
+                away = UnityEngine.Random.insideUnitCircle;
+            }
+
+            if (away.sqrMagnitude <= 0.000001f)
+            {
+                away = Vector2.right;
+            }
+
+            var next = (Vector2)transform.position + (away.normalized * knockbackDistance);
+            transform.position = new Vector3(next.x, next.y, transform.position.z);
+            _registry?.NotifyMoved(this, transform.position);
         }
 
         private void TriggerFireExplosionIfReady()
@@ -451,6 +706,7 @@ namespace EJR.Game.Gameplay
             }
 
             var origin = (Vector2)transform.position;
+            SpawnFireExplosionRangeFx(origin);
             var searchRadius = FireExplosionRadius + _registry.GetMaxCollisionRadius();
             _registry.GetNearby(origin, searchRadius, _nearbyBuffer);
 
@@ -474,6 +730,56 @@ namespace EJR.Game.Gameplay
             }
         }
 
+        private static void SpawnFireExplosionRangeFx(Vector2 origin)
+        {
+            var fxObject = new GameObject("FireExplosionFx");
+            var lineRenderer = fxObject.AddComponent<LineRenderer>();
+            lineRenderer.useWorldSpace = true;
+            lineRenderer.loop = true;
+            lineRenderer.alignment = LineAlignment.View;
+            lineRenderer.numCapVertices = 2;
+            lineRenderer.numCornerVertices = 2;
+            lineRenderer.positionCount = FireExplosionFxSegments;
+            lineRenderer.startWidth = FireExplosionFxLineWidth;
+            lineRenderer.endWidth = FireExplosionFxLineWidth;
+            lineRenderer.startColor = FireExplosionFxColor;
+            lineRenderer.endColor = FireExplosionFxColor;
+            lineRenderer.sortingOrder = 520;
+            lineRenderer.sharedMaterial = GetOrCreateFireExplosionFxMaterial();
+
+            for (var i = 0; i < FireExplosionFxSegments; i++)
+            {
+                var t = i / (float)FireExplosionFxSegments;
+                var angle = t * Mathf.PI * 2f;
+                var point = origin + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * FireExplosionRadius;
+                lineRenderer.SetPosition(i, new Vector3(point.x, point.y, -0.02f));
+            }
+
+            Destroy(fxObject, FireExplosionFxDuration);
+        }
+
+        private static Material GetOrCreateFireExplosionFxMaterial()
+        {
+            if (_fireExplosionFxMaterial != null)
+            {
+                return _fireExplosionFxMaterial;
+            }
+
+            var shader = Shader.Find("Sprites/Default");
+            if (shader == null)
+            {
+                shader = Shader.Find("Unlit/Color");
+            }
+
+            _fireExplosionFxMaterial = new Material(shader)
+            {
+                name = "FireExplosionFxMat",
+                hideFlags = HideFlags.HideAndDontSave,
+            };
+
+            return _fireExplosionFxMaterial;
+        }
+
         private void ResetFireAccumulation()
         {
             _fireAccumulatedDamage = 0f;
@@ -485,6 +791,63 @@ namespace EJR.Game.Gameplay
         {
             Gizmos.color = new Color(1f, 0.25f, 0.25f, 0.95f);
             Gizmos.DrawWireSphere(transform.position, CollisionRadius);
+        }
+    }
+
+    public sealed class BossProjectile : MonoBehaviour
+    {
+        private Vector2 _direction;
+        private float _speed;
+        private float _lifetime;
+        private float _damage;
+        private float _hitRadius;
+        private float _playerCollisionRadius;
+        private PlayerHealth _targetPlayer;
+
+        public void Initialize(
+            Vector2 direction,
+            float speed,
+            float lifetime,
+            float damage,
+            float hitRadius,
+            PlayerHealth targetPlayer,
+            float playerCollisionRadius)
+        {
+            _direction = direction.sqrMagnitude > 0.000001f ? direction.normalized : Vector2.right;
+            _speed = Mathf.Max(0.1f, speed);
+            _lifetime = Mathf.Max(0.05f, lifetime);
+            _damage = Mathf.Max(0f, damage);
+            _hitRadius = Mathf.Max(0.02f, hitRadius);
+            _targetPlayer = targetPlayer;
+            _playerCollisionRadius = Mathf.Max(0.05f, playerCollisionRadius);
+        }
+
+        private void Update()
+        {
+            transform.position += new Vector3(_direction.x, _direction.y, 0f) * (_speed * Time.deltaTime);
+            _lifetime -= Time.deltaTime;
+            if (_lifetime <= 0f)
+            {
+                Destroy(gameObject);
+                return;
+            }
+
+            if (_targetPlayer == null || _damage <= 0f)
+            {
+                return;
+            }
+
+            var hitLimit = _hitRadius + _playerCollisionRadius;
+            var hitLimitSq = hitLimit * hitLimit;
+            var playerPos = (Vector2)_targetPlayer.transform.position;
+            var projectilePos = (Vector2)transform.position;
+            if ((playerPos - projectilePos).sqrMagnitude > hitLimitSq)
+            {
+                return;
+            }
+
+            _targetPlayer.TakeDamage(_damage);
+            Destroy(gameObject);
         }
     }
 }

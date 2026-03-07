@@ -10,13 +10,6 @@ namespace EJR.Game.Gameplay
 {
     public sealed class RunStateController : MonoBehaviour
     {
-        private enum AimMode
-        {
-            NearestEnemy = 0,
-            LastMoveDirection = 1,
-            Mouse = 2,
-        }
-
         [Header("Configs (optional, runtime defaults used if empty)")]
         [SerializeField] private PlayerConfig playerConfig;
         [SerializeField] private WeaponConfig weaponConfig;
@@ -30,15 +23,7 @@ namespace EJR.Game.Gameplay
         [SerializeField] private Vector3 cameraOffset = new Vector3(0f, 0f, -10f);
         [SerializeField, Min(0f)] private float cameraFollowSmoothTime = 0.08f;
 
-        [Header("Automation")]
-        [SerializeField] private bool enableAutoPlay;
-        [SerializeField] private bool autoRestartOnGameOver;
-        [SerializeField, Min(0f)] private float autoRestartDelay = 1f;
-        [SerializeField, Min(0f)] private float autoPickDelay = 0.2f;
         [SerializeField, Min(0.02f)] private float hudRefreshInterval = 0.1f;
-
-        [Header("Aim")]
-        [SerializeField] private AimMode aimMode = AimMode.NearestEnemy;
 
         [Header("Debug Hotkeys (F5~F8)")]
         [SerializeField] private bool enableDebugTimeSkip = true;
@@ -67,7 +52,6 @@ namespace EJR.Game.Gameplay
         private EnemySpawner _enemySpawner;
         private CameraFollow2D _cameraFollow;
         private WorldHealthBar _playerHealthBar;
-        private AutoPlayController _autoPlay;
         private PlayerMover _playerMover;
         private PlayerSpriteAnimator _playerSpriteAnimator;
         private WeaponSpriteAnimator _weaponSpriteAnimator;
@@ -79,7 +63,6 @@ namespace EJR.Game.Gameplay
         private Vector2 _lastWeaponAimDirection = Vector2.right;
         private Vector2 _targetWeaponAimDirection = Vector2.right;
         private Vector2 _smoothedWeaponAimDirection = Vector2.right;
-        private Vector2 _lastMoveAimDirection = Vector2.right;
         private Vector2 _weaponOrbitCenterLocal = Vector2.zero;
         private bool _weaponDrawBehind;
 
@@ -90,8 +73,6 @@ namespace EJR.Game.Gameplay
         private LevelUpOption[] _currentOptions;
 
         private float _remainingSeconds;
-        private float _autoPickAt = -1f;
-        private float _autoRestartAt = -1f;
         private bool _isGameOver;
         private bool _bossWaveTriggered;
         private float _nextHudRefreshAt;
@@ -117,26 +98,11 @@ namespace EJR.Game.Gameplay
 
         private void Update()
         {
-            UpdateRecentMoveAimDirection();
             HandleDebugTimeSkipInput();
             UpdateWeaponAimSmoothing();
             if (!_isGameOver && _playerSpriteAnimator != null && _playerMover != null)
             {
                 _playerSpriteAnimator.SetMotion(_playerMover.CurrentVelocity);
-            }
-
-            if (!_isGameOver && enableAutoPlay && _levelUp != null && _levelUp.IsAwaitingChoice && _currentOptions != null && _currentOptions.Length > 0 && _autoPlay != null)
-            {
-                if (_autoPickAt < 0f)
-                {
-                    _autoPickAt = Time.unscaledTime + autoPickDelay;
-                }
-
-                if (Time.unscaledTime >= _autoPickAt)
-                {
-                    SelectLevelUpOption(_autoPlay.PickLevelUpOption(_currentOptions));
-                    return;
-                }
             }
 
             if (!_isGameOver && _levelUp != null && _levelUp.IsAwaitingChoice)
@@ -159,19 +125,9 @@ namespace EJR.Game.Gameplay
                     return;
                 }
             }
-            else if (!_isGameOver && IsAimModeCycleKeyDown())
-            {
-                CycleAimMode();
-            }
 
             if (_isGameOver)
             {
-                if (enableAutoPlay && autoRestartOnGameOver && _autoRestartAt >= 0f && Time.unscaledTime >= _autoRestartAt)
-                {
-                    RestartRun();
-                    return;
-                }
-
                 if (IsRestartKeyDown())
                 {
                     RestartRun();
@@ -248,18 +204,6 @@ namespace EJR.Game.Gameplay
             };
         }
 
-        private static bool IsAimModeCycleKeyDown()
-        {
-#if ENABLE_INPUT_SYSTEM
-            var keyboard = Keyboard.current;
-            if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame)
-            {
-                return true;
-            }
-#endif
-            return Input.GetKeyDown(KeyCode.Space);
-        }
-
         private static bool IsDebugGrantLevelKeyDown()
         {
 #if ENABLE_INPUT_SYSTEM
@@ -284,7 +228,7 @@ namespace EJR.Game.Gameplay
             return Input.GetKeyDown(KeyCode.F6);
         }
 
-        private static bool IsDebugSkipMushroomKeyDown()
+        private static bool IsDebugRerollOptionsKeyDown()
         {
 #if ENABLE_INPUT_SYSTEM
             var keyboard = Keyboard.current;
@@ -353,7 +297,7 @@ namespace EJR.Game.Gameplay
 
         private void HandleDebugTimeSkipInput()
         {
-            if (!enableDebugTimeSkip || _isGameOver || _enemySpawner == null)
+            if (!enableDebugTimeSkip || _isGameOver)
             {
                 return;
             }
@@ -366,24 +310,26 @@ namespace EJR.Game.Gameplay
 
             if (IsDebugAdvanceKeyDown())
             {
-                _enemySpawner.DebugAdvanceSeconds(debugAdvanceSeconds);
-                SyncRemainingTimeFromSpawner();
+                if (_enemySpawner != null)
+                {
+                    _enemySpawner.DebugAdvanceSeconds(debugAdvanceSeconds);
+                    SyncRemainingTimeFromSpawner();
+                }
             }
 
-            if (IsDebugSkipMushroomKeyDown())
+            if (IsDebugRerollOptionsKeyDown())
             {
-                var mushroomPhaseTime = enemyConfig != null
-                    ? Mathf.Max(0f, enemyConfig.mushroomPhaseStartSeconds + 1f)
-                    : 301f;
-                _enemySpawner.DebugSetElapsedSeconds(mushroomPhaseTime);
-                SyncRemainingTimeFromSpawner();
+                DebugRerollLevelUpOptions();
             }
 
             if (IsDebugSkipBossKeyDown())
             {
-                _enemySpawner.DebugSkipToBossWave();
-                _bossWaveTriggered = true;
-                _remainingSeconds = 0f;
+                if (_enemySpawner != null)
+                {
+                    _enemySpawner.DebugSkipToBossWave();
+                    _bossWaveTriggered = true;
+                    _remainingSeconds = 0f;
+                }
             }
         }
 
@@ -402,6 +348,19 @@ namespace EJR.Game.Gameplay
             }
 
             UpdateHud();
+        }
+
+        private void DebugRerollLevelUpOptions()
+        {
+            if (_levelUp == null || !_levelUp.IsAwaitingChoice)
+            {
+                return;
+            }
+
+            if (_levelUp.RerollCurrentChoice())
+            {
+                UpdateHud();
+            }
         }
 
         private void SyncRemainingTimeFromSpawner()
@@ -547,19 +506,13 @@ namespace EJR.Game.Gameplay
 
             var weaponSystem = systems.AddComponent<AutoWeaponSystem>();
             weaponSystem.Initialize(weaponConfig, player.transform, _enemyRegistry, _playerStats, ResolveProjectileSpawnPoint, arenaBounds);
-            weaponSystem.SetAimDirectionOverrideProvider(ResolveAimDirectionOverride);
             weaponSystem.ConfigureLoadout(_buildRuntime, _playerStats);
             weaponSystem.AimUpdated += OnWeaponAimUpdated;
             weaponSystem.Fired += OnWeaponFired;
             _weaponSystem = weaponSystem;
             _targetWeaponAimDirection = Vector2.right;
             _smoothedWeaponAimDirection = Vector2.right;
-            _lastMoveAimDirection = Vector2.right;
             ApplyBuildToRuntimeSystems();
-            ConfigureAutoPlay(playerMover, player.transform);
-            _hud.BindAutoPlayToggle(enableAutoPlay, ToggleAutoPlayFromHud);
-            _hud.BindAimModeToggle(ToggleAimModeFromHud);
-            RefreshAimModeHud();
         }
 
         private void EnsureWeaponVisual(Transform playerTransform, SpriteRenderer playerRenderer)
@@ -663,149 +616,6 @@ namespace EJR.Game.Gameplay
 
             var uniformScale = clampedSize / spriteSize;
             targetTransform.localScale = new Vector3(uniformScale, uniformScale, 1f);
-        }
-
-        private void ConfigureAutoPlay(PlayerMover playerMover, Transform playerTransform)
-        {
-            _autoPickAt = -1f;
-            _autoRestartAt = -1f;
-
-            if (!enableAutoPlay || playerMover == null || playerTransform == null)
-            {
-                playerMover?.SetMoveInputReader(null);
-                if (_autoPlay != null)
-                {
-                    Destroy(_autoPlay);
-                    _autoPlay = null;
-                }
-
-                return;
-            }
-
-            if (_autoPlay == null)
-            {
-                _autoPlay = GetComponent<AutoPlayController>();
-                if (_autoPlay == null)
-                {
-                    _autoPlay = gameObject.AddComponent<AutoPlayController>();
-                }
-            }
-
-            var preferredRange = GetPreferredAutoPlayRange();
-            var playerRadius = playerConfig != null ? playerConfig.collisionRadius : 0.35f;
-            _autoPlay.Initialize(playerTransform, _enemyRegistry, arenaBounds, preferredRange, playerRadius);
-            playerMover.SetMoveInputReader(_autoPlay.ReadMove);
-            _hud?.SetAutoPlayState(enableAutoPlay);
-        }
-
-        private Vector2? ResolveAimDirectionOverride()
-        {
-            return aimMode switch
-            {
-                AimMode.LastMoveDirection => ResolveRecentMoveAimDirection(),
-                AimMode.Mouse => ResolveMouseAimDirection(),
-                _ => null,
-            };
-        }
-
-        private Vector2? ResolveRecentMoveAimDirection()
-        {
-            var fallback = _lastWeaponAimDirection.sqrMagnitude > 0.000001f ? _lastWeaponAimDirection : Vector2.right;
-            var direction = _lastMoveAimDirection.sqrMagnitude > 0.000001f ? _lastMoveAimDirection : fallback;
-            return direction.normalized;
-        }
-
-        private Vector2? ResolveMouseAimDirection()
-        {
-            if (aimMode != AimMode.Mouse || _playerTransform == null)
-            {
-                return null;
-            }
-
-            var mainCamera = Camera.main;
-            if (mainCamera == null)
-            {
-                return null;
-            }
-
-#if ENABLE_INPUT_SYSTEM
-            var mouse = Mouse.current;
-            if (mouse == null)
-            {
-                return null;
-            }
-
-            var screenPosition = mouse.position.ReadValue();
-#else
-            var screenPosition = (Vector2)Input.mousePosition;
-#endif
-
-            var screenRay = mainCamera.ScreenPointToRay(screenPosition);
-            var aimPlane = new Plane(Vector3.forward, _playerTransform.position);
-            if (!aimPlane.Raycast(screenRay, out var hitDistance))
-            {
-                return null;
-            }
-
-            var worldPosition = screenRay.GetPoint(hitDistance);
-            var direction = (Vector2)(worldPosition - _playerTransform.position);
-            if (direction.sqrMagnitude <= 0.000001f)
-            {
-                return null;
-            }
-
-            return direction.normalized;
-        }
-
-        private void UpdateRecentMoveAimDirection()
-        {
-            if (_playerMover == null)
-            {
-                return;
-            }
-
-            var velocity = _playerMover.CurrentVelocity;
-            if (velocity.sqrMagnitude <= 0.0004f)
-            {
-                return;
-            }
-
-            _lastMoveAimDirection = velocity.normalized;
-        }
-
-        private void ToggleAimModeFromHud()
-        {
-            CycleAimMode();
-        }
-
-        private void CycleAimMode()
-        {
-            var modeCount = System.Enum.GetValues(typeof(AimMode)).Length;
-            var nextMode = ((int)aimMode + 1) % modeCount;
-            aimMode = (AimMode)nextMode;
-            RefreshAimModeHud();
-        }
-
-        private void RefreshAimModeHud()
-        {
-            _hud?.SetAimModeLabel(GetAimModeLabel(aimMode));
-        }
-
-        private static string GetAimModeLabel(AimMode mode)
-        {
-            return mode switch
-            {
-                AimMode.LastMoveDirection => "AIM MOVE",
-                AimMode.Mouse => "AIM MOUSE",
-                _ => "AIM NEAR",
-            };
-        }
-
-        private void ToggleAutoPlayFromHud()
-        {
-            enableAutoPlay = !enableAutoPlay;
-            ConfigureAutoPlay(_playerMover, _playerTransform);
-            _hud?.SetAutoPlayState(enableAutoPlay);
         }
 
         private void OnWeaponAimUpdated(Vector2 direction)
@@ -942,39 +752,6 @@ namespace EJR.Game.Gameplay
             var offset = _weaponDrawBehind ? weaponBackSortingOffset : weaponFrontSortingOffset;
             _weaponVisualRenderer.sortingLayerID = _playerVisualRenderer.sortingLayerID;
             _weaponVisualRenderer.sortingOrder = _playerVisualRenderer.sortingOrder + offset;
-        }
-
-        private float GetPreferredAutoPlayRange()
-        {
-            if (weaponConfig == null)
-            {
-                return 6f;
-            }
-
-            var attackRangeMultiplier = _playerStats != null ? Mathf.Max(0.1f, _playerStats.AttackRangeMultiplier) : 1f;
-            var maxRange = Mathf.Max(0.5f, weaponConfig.attackRange);
-            if (_buildRuntime != null)
-            {
-                for (var i = 0; i < _buildRuntime.OwnedWeapons.Count; i++)
-                {
-                    var weaponId = _buildRuntime.OwnedWeapons[i];
-                    var level = Mathf.Max(1, _buildRuntime.GetWeaponLevel(weaponId));
-                    var tier = Mathf.Max(0, level - 1);
-
-                    var range = weaponId switch
-                    {
-                        WeaponUpgradeId.Katana => Mathf.Max(0.25f, weaponConfig.katanaRange * (1f + (0.04f * tier))),
-                        _ => Mathf.Max(0.5f, weaponConfig.attackRange),
-                    };
-
-                    if (range > maxRange)
-                    {
-                        maxRange = range;
-                    }
-                }
-            }
-
-            return maxRange * attackRangeMultiplier;
         }
 
         private Vector2 ResolveWeaponOrbitCenterLocal(Transform playerRoot)
@@ -1192,7 +969,6 @@ namespace EJR.Game.Gameplay
             }
 
             _currentOptions = options;
-            _autoPickAt = -1f;
             Time.timeScale = 0f;
             _hud.ShowLevelUpOptions(options, SelectLevelUpOption);
         }
@@ -1202,7 +978,6 @@ namespace EJR.Game.Gameplay
             _hud.HideLevelUpOptions();
             _levelUp.ApplyOption(optionIndex, _currentOptions);
             ApplyBuildToRuntimeSystems();
-            _autoPickAt = -1f;
 
             if (_isGameOver)
             {
@@ -1233,9 +1008,6 @@ namespace EJR.Game.Gameplay
             Time.timeScale = 0f;
             _hud.HideLevelUpOptions();
             _hud.ShowResult(cleared, RestartRun);
-            _autoRestartAt = enableAutoPlay && autoRestartOnGameOver
-                ? Time.unscaledTime + autoRestartDelay
-                : -1f;
         }
 
         private void TriggerBossWave()
@@ -1251,8 +1023,6 @@ namespace EJR.Game.Gameplay
 
         private void RestartRun()
         {
-            _autoRestartAt = -1f;
-            _autoPickAt = -1f;
             Time.timeScale = 1f;
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
         }
@@ -1292,12 +1062,6 @@ namespace EJR.Game.Gameplay
             if (_playerHealth != null)
             {
                 _playerHealth.SetMaxHealth(GetCurrentMaxHealth(), healDelta: true);
-            }
-
-            if (enableAutoPlay && _autoPlay != null && _playerTransform != null && _enemyRegistry != null)
-            {
-                var playerRadius = playerConfig != null ? playerConfig.collisionRadius : 0.35f;
-                _autoPlay.Initialize(_playerTransform, _enemyRegistry, arenaBounds, GetPreferredAutoPlayRange(), playerRadius);
             }
         }
 
@@ -1384,6 +1148,11 @@ namespace EJR.Game.Gameplay
                 WeaponUpgradeId.SniperRifle => "Sniper",
                 WeaponUpgradeId.Shotgun => "Shotgun",
                 WeaponUpgradeId.Katana => "Katana",
+                WeaponUpgradeId.ChainAttack => "Chain",
+                WeaponUpgradeId.Lightning => "Lightning",
+                WeaponUpgradeId.Satellite => "Satellite",
+                WeaponUpgradeId.RifleTurret => "Rifle Turret",
+                WeaponUpgradeId.Aura => "Aura",
                 _ => "Rifle",
             };
         }
@@ -1409,6 +1178,7 @@ namespace EJR.Game.Gameplay
                 WeaponCoreElement.Fire => "Fire",
                 WeaponCoreElement.Wind => "Wind",
                 WeaponCoreElement.Light => "Light",
+                WeaponCoreElement.Water => "Water",
                 _ => "Core",
             };
         }

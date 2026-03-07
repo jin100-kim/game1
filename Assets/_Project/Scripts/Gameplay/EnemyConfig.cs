@@ -357,8 +357,8 @@ namespace EJR.Game.Gameplay
             new EnemyStatProfile
             {
                 visualKind = RuntimeSpriteFactory.EnemyVisualKind.Boss,
-                healthMultiplier = 1150f,
-                moveSpeedMultiplier = 0.88f,
+                healthMultiplier = 287.5f,
+                moveSpeedMultiplier = 1.2f,
                 contactDamageMultiplier = 2.4f,
                 experienceMultiplier = 25f,
                 visualScaleMultiplier = 1.5f,

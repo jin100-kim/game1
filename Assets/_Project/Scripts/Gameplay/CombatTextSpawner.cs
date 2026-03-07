@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Globalization;
 using UnityEngine;
 
 namespace EJR.Game.Gameplay
@@ -36,7 +37,7 @@ namespace EJR.Game.Gameplay
 
             popup.gameObject.SetActive(true);
             var jitteredPosition = worldPosition + new Vector3(Random.Range(-0.08f, 0.08f), 0f, 0f);
-            popup.Show(jitteredPosition, Mathf.CeilToInt(damageValue).ToString(), color, PopupLifetime, PopupRiseSpeed);
+            popup.Show(jitteredPosition, damageValue.ToString("0.0", CultureInfo.InvariantCulture), color, PopupLifetime, PopupRiseSpeed);
         }
 
         private static void EnsurePoolPrepared()
