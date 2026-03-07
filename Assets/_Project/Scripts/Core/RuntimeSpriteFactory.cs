@@ -29,6 +29,10 @@ namespace EJR.Game.Core
         private const string FramePrefix = "Frame_";
         private const byte AlphaCutoff = 18;
         private const int KeyTolerance = 14;
+        private const int SexyFireStackStartFrame = 0;
+        private const int SexyFireStackEndFrame = 3;
+        private const int SexyFireBoomStartFrame = 4;
+        private const int SexyFireBoomEndFrame = 7;
 
         private static readonly VisualAssetDescriptor SlimeDescriptor = new(
             "Aseprite/Slime",
@@ -46,8 +50,8 @@ namespace EJR.Game.Core
             "Aseprite/player001",
             "Assets/_Project/Art/Aseprite/player001.aseprite");
         private static readonly VisualAssetDescriptor Fire1Descriptor = new(
-            "Aseprite/fire1",
-            "Assets/_Project/Art/Aseprite/fire1.ase");
+            "Aseprite/sexyrifle",
+            "Assets/_Project/Art/Aseprite/sexyrifle.ase");
         private static readonly VisualAssetDescriptor SexySwordDescriptor = new(
             "Aseprite/sexysword",
             "Assets/_Project/Art/Aseprite/sexysword.aseprite");
@@ -143,7 +147,13 @@ namespace EJR.Game.Core
                 return _weaponFire1Frames;
             }
 
-            _weaponFire1Frames = sourceFrames;
+            var centeredFrames = new Sprite[sourceFrames.Length];
+            for (var i = 0; i < sourceFrames.Length; i++)
+            {
+                centeredFrames[i] = CreateCenteredPivotSprite(sourceFrames[i]) ?? sourceFrames[i];
+            }
+
+            _weaponFire1Frames = centeredFrames;
             return _weaponFire1Frames;
         }
 
@@ -179,7 +189,10 @@ namespace EJR.Game.Core
             }
 
             var fireFrames = GetSexyFireAnimationFrames();
-            _sexyFireStackFrames = ExtractSexyFireSegment(fireFrames, stackSegment: true);
+            _sexyFireStackFrames = SliceFramesInclusive(
+                fireFrames,
+                SexyFireStackStartFrame,
+                SexyFireStackEndFrame);
             return _sexyFireStackFrames;
         }
 
@@ -191,7 +204,10 @@ namespace EJR.Game.Core
             }
 
             var fireFrames = GetSexyFireAnimationFrames();
-            _sexyFireBoomFrames = ExtractSexyFireSegment(fireFrames, stackSegment: false);
+            _sexyFireBoomFrames = SliceFramesInclusive(
+                fireFrames,
+                SexyFireBoomStartFrame,
+                SexyFireBoomEndFrame);
             return _sexyFireBoomFrames;
         }
 
@@ -299,24 +315,16 @@ namespace EJR.Game.Core
             Array.Sort(frames, CompareByFrameOrder);
         }
 
-        private static Sprite[] ExtractSexyFireSegment(Sprite[] fireFrames, bool stackSegment)
+        private static Sprite[] SliceFramesInclusive(Sprite[] sourceFrames, int startFrame, int endFrame)
         {
-            if (fireFrames == null || fireFrames.Length <= 0)
+            if (sourceFrames == null || sourceFrames.Length <= 0)
             {
                 return Array.Empty<Sprite>();
             }
 
-            if (fireFrames.Length >= 8)
-            {
-                return stackSegment
-                    ? SliceFrames(fireFrames, 0, 4)
-                    : SliceFrames(fireFrames, 4, fireFrames.Length - 4);
-            }
-
-            var split = Mathf.Clamp(fireFrames.Length / 2, 1, fireFrames.Length);
-            return stackSegment
-                ? SliceFrames(fireFrames, 0, split)
-                : SliceFrames(fireFrames, split, fireFrames.Length - split);
+            var safeStart = Mathf.Clamp(Mathf.Min(startFrame, endFrame), 0, sourceFrames.Length - 1);
+            var safeEnd = Mathf.Clamp(Mathf.Max(startFrame, endFrame), 0, sourceFrames.Length - 1);
+            return SliceFrames(sourceFrames, safeStart, (safeEnd - safeStart) + 1);
         }
 
         private static Sprite[] SliceFrames(Sprite[] sourceFrames, int start, int count)
@@ -507,6 +515,32 @@ namespace EJR.Game.Core
                 RenderTexture.active = previousActive;
                 RenderTexture.ReleaseTemporary(renderTexture);
             }
+        }
+
+        private static Sprite CreateCenteredPivotSprite(Sprite sourceSprite)
+        {
+            if (sourceSprite == null)
+            {
+                return null;
+            }
+
+            var readableTexture = ExtractSpriteTexture(sourceSprite);
+            if (readableTexture == null)
+            {
+                return null;
+            }
+
+            var width = readableTexture.width;
+            var height = readableTexture.height;
+            var centeredSprite = Sprite.Create(
+                readableTexture,
+                new Rect(0f, 0f, width, height),
+                new Vector2(0.5f, 0.5f),
+                sourceSprite.pixelsPerUnit,
+                0,
+                SpriteMeshType.FullRect);
+            centeredSprite.name = $"{sourceSprite.name}_Centered";
+            return centeredSprite;
         }
 
         private static Color32 EstimateBackgroundColor(Color32[] pixels, int width, int height)

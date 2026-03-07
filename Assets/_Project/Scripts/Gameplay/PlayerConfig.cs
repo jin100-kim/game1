@@ -33,13 +33,13 @@ namespace EJR.Game.Gameplay
         [Min(0)] public int dieEndFrame = 23;
 
         [Header("Weapon Visual")]
-        public Vector2 weaponVisualOffset = new(0f, -0.85f);
+        public Vector2 weaponVisualOffset = new(0f, -0.05f);
         [Min(0.05f)] public float weaponAimDistance = 0.4f;
         public float weaponAimRotationOffsetDegrees = 0f;
-        [Min(0.05f)] public float weaponVisualScale = 0.45f;
+        [Min(0.05f)] public float weaponVisualScale = 0.675f;
         [Min(1f)] public float weaponAnimationFps = 18f;
         [Min(0)] public int weaponIdleFrame = 0;
         [Min(0)] public int weaponAttackStartFrame = 1;
-        [Min(0)] public int weaponAttackEndFrame = 3;
+        [Min(0)] public int weaponAttackEndFrame = 2;
     }
 }

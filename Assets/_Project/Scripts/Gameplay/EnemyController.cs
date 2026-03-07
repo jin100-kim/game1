@@ -23,8 +23,8 @@ namespace EJR.Game.Gameplay
         private static readonly Color FireExplosionFxColor = new(1f, 0.45f, 0.1f, 0.9f);
         private const float FireStackFxFps = 10f;
         private const float FireBoomFxFps = 14f;
-        private const float FireStackFxScale = 0.45f;
-        private const float FireBoomFxScale = 1.1f;
+        private const float FireStackFxScale = 1.35f;
+        private const float FireBoomFxScale = 3.3f;
         private const float BossTelegraphDuration = 1f;
         private const float BossDashDuration = 0.8f;
         private const float BossDashSpeedMultiplier = 6f;
@@ -765,13 +765,14 @@ namespace EJR.Game.Gameplay
             {
                 var fxObject = new GameObject("FireStackFx");
                 fxObject.transform.SetParent(transform, false);
-                fxObject.transform.localPosition = new Vector3(0f, 0.15f, -0.02f);
-                fxObject.transform.localScale = Vector3.one * FireStackFxScale;
+                var stackScale = Mathf.Max(0.05f, FireStackFxScale);
+                fxObject.transform.localScale = Vector3.one * stackScale;
 
                 var renderer = fxObject.AddComponent<SpriteRenderer>();
                 renderer.sprite = frames[0];
                 renderer.color = Color.white;
                 renderer.sortingOrder = 45;
+                fxObject.transform.localPosition = GetColliderCenteredOffset(renderer.sprite, stackScale, -0.02f);
 
                 _fireStackFxAnimator = fxObject.AddComponent<SpriteFxAnimator>();
                 _fireStackFxAnimator.Initialize(renderer, frames, FireStackFxFps, loop: true, destroyOnComplete: false);
@@ -802,16 +803,32 @@ namespace EJR.Game.Gameplay
             }
 
             var fxObject = new GameObject("FireBoomFx");
-            fxObject.transform.position = new Vector3(origin.x, origin.y, -0.02f);
-            fxObject.transform.localScale = Vector3.one * Mathf.Max(0.1f, FireBoomFxScale * explosionRadius);
+            var boomScale = Mathf.Max(0.1f, FireBoomFxScale * explosionRadius);
+            fxObject.transform.localScale = Vector3.one * boomScale;
 
             var renderer = fxObject.AddComponent<SpriteRenderer>();
             renderer.sprite = frames[0];
             renderer.color = Color.white;
             renderer.sortingOrder = 530;
+            var centeredOffset = GetColliderCenteredOffset(renderer.sprite, boomScale, -0.02f);
+            fxObject.transform.position = new Vector3(origin.x, origin.y, 0f) + centeredOffset;
 
             var animator = fxObject.AddComponent<SpriteFxAnimator>();
             animator.Initialize(renderer, frames, FireBoomFxFps, loop: false, destroyOnComplete: true);
+        }
+
+        private static Vector3 GetColliderCenteredOffset(Sprite sprite, float uniformScale, float z)
+        {
+            if (sprite == null)
+            {
+                return new Vector3(0f, 0f, z);
+            }
+
+            var centerFromPivot = sprite.bounds.center;
+            return new Vector3(
+                -centerFromPivot.x * uniformScale,
+                -centerFromPivot.y * uniformScale,
+                z);
         }
 
         private void TriggerFireExplosionIfReady()

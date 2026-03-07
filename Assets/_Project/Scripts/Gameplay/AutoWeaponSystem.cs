@@ -15,7 +15,7 @@ namespace EJR.Game.Gameplay
         [SerializeField] private Color katanaRangeEffectColor = new(0.2f, 1f, 0.9f, 0.9f);
         [SerializeField, Min(0.01f)] private float katanaSlashFxFps = 18f;
         [SerializeField, Min(0.05f)] private float katanaSlashFxForwardOffset = 1f;
-        [SerializeField, Min(0.05f)] private float katanaSlashFxScale = 0.95f;
+        [SerializeField, Min(0.05f)] private float katanaSlashFxScale = 3f;
         [SerializeField, Min(0.01f)] private float chainFxDuration = 0.08f;
         [SerializeField, Min(0.005f)] private float chainFxWidth = 0.05f;
         [SerializeField] private Color chainFxColor = new(0.45f, 0.85f, 1f, 0.95f);
@@ -32,6 +32,9 @@ namespace EJR.Game.Gameplay
         [SerializeField, Range(8, 96)] private int ringFxSegments = 28;
         [SerializeField, Min(0.1f)] private float satelliteVisualAnimationFps = 12f;
         [SerializeField, Min(1)] private int satelliteVisualSortOrder = 33;
+        [Header("Debug Gizmos")]
+        [SerializeField] private bool showSatelliteHitGizmos = true;
+        [SerializeField] private Color satelliteHitGizmoColor = new(0.35f, 1f, 0.95f, 0.95f);
 
         private sealed class WeaponRuntime
         {
@@ -837,7 +840,7 @@ namespace EJR.Game.Gameplay
             renderer.sprite = hasAnimation ? frames[0] : RuntimeSpriteFactory.GetSquareSprite();
             renderer.color = Color.white;
             renderer.sortingOrder = satelliteVisualSortOrder;
-            satelliteObject.transform.localScale = Vector3.one * 0.32f;
+            satelliteObject.transform.localScale = Vector3.one * 1.5f;
 
             if (hasAnimation && frames.Length > 1)
             {
@@ -1572,6 +1575,37 @@ namespace EJR.Game.Gameplay
 
                 weapon.SatelliteVisuals.Clear();
                 weapon.SatelliteHitCooldownUntil.Clear();
+            }
+        }
+
+        private void OnDrawGizmos()
+        {
+            if (!showSatelliteHitGizmos || _config == null || _loadout == null || _loadout.Count <= 0)
+            {
+                return;
+            }
+
+            var hitRadius = Mathf.Max(0.05f, _config.satelliteHitRadius);
+            Gizmos.color = satelliteHitGizmoColor;
+
+            for (var i = 0; i < _loadout.Count; i++)
+            {
+                var weapon = _loadout[i];
+                if (weapon == null || weapon.WeaponId != WeaponUpgradeId.Satellite)
+                {
+                    continue;
+                }
+
+                for (var visualIndex = 0; visualIndex < weapon.SatelliteVisuals.Count; visualIndex++)
+                {
+                    var visual = weapon.SatelliteVisuals[visualIndex];
+                    if (visual == null)
+                    {
+                        continue;
+                    }
+
+                    Gizmos.DrawWireSphere(visual.position, hitRadius);
+                }
             }
         }
     }
