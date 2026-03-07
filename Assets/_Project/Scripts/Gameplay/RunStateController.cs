@@ -546,7 +546,7 @@ namespace EJR.Game.Gameplay
             }
 
             var weaponSystem = systems.AddComponent<AutoWeaponSystem>();
-            weaponSystem.Initialize(weaponConfig, player.transform, _enemyRegistry, _playerStats, ResolveProjectileSpawnPoint);
+            weaponSystem.Initialize(weaponConfig, player.transform, _enemyRegistry, _playerStats, ResolveProjectileSpawnPoint, arenaBounds);
             weaponSystem.SetAimDirectionOverrideProvider(ResolveAimDirectionOverride);
             weaponSystem.ConfigureLoadout(_buildRuntime, _playerStats);
             weaponSystem.AimUpdated += OnWeaponAimUpdated;
@@ -1334,7 +1334,12 @@ namespace EJR.Game.Gameplay
                 {
                     var weaponId = _buildRuntime.OwnedWeapons[slotIndex];
                     var level = _buildRuntime.GetWeaponLevel(weaponId);
-                    lines += $"\n{slotNumber}) {GetWeaponDisplayName(weaponId)} Lv{level}";
+                    var coreLevel = _buildRuntime.GetWeaponCoreLevel(weaponId);
+                    var coreElement = _buildRuntime.GetWeaponCoreElement(weaponId);
+                    var coreSuffix = coreLevel > 0
+                        ? $" [{GetCoreDisplayName(coreElement)} C{coreLevel}]"
+                        : string.Empty;
+                    lines += $"\n{slotNumber}) {GetWeaponDisplayName(weaponId)} Lv{level}{coreSuffix}";
                 }
                 else
                 {
@@ -1394,6 +1399,17 @@ namespace EJR.Game.Gameplay
                 StatUpgradeId.MoveSpeed => "Move Speed",
                 StatUpgradeId.AttackRange => "Attack Range",
                 _ => statId.ToString(),
+            };
+        }
+
+        private static string GetCoreDisplayName(WeaponCoreElement coreElement)
+        {
+            return coreElement switch
+            {
+                WeaponCoreElement.Fire => "Fire",
+                WeaponCoreElement.Wind => "Wind",
+                WeaponCoreElement.Light => "Light",
+                _ => "Core",
             };
         }
 

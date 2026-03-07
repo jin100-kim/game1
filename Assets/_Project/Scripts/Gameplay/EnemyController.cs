@@ -6,6 +6,8 @@ namespace EJR.Game.Gameplay
 {
     public sealed class EnemyController : MonoBehaviour
     {
+        private const float FireExplosionRadius = 1.45f;
+
         public event Action<float, float> Changed;
 
         private EnemyConfig _config;
@@ -26,6 +28,15 @@ namespace EJR.Game.Gameplay
         private int _experienceOnDeath = 1;
         private EnemySpriteAnimator _spriteAnimator;
         private bool _isDead;
+
+        private float _activeSlowMultiplier = 1f;
+        private float _activeSlowRemaining;
+        private float _activeLightBonusMultiplier;
+        private float _activeLightRemaining;
+        private float _fireAccumulatedDamage;
+        private int _fireAccumulatedHits;
+        private int _fireTriggerHitCount = int.MaxValue;
+
         private readonly System.Collections.Generic.List<EnemyController> _nearbyBuffer = new(24);
 
         public float MaxHealth => _maxHealth;
@@ -43,7 +54,9 @@ namespace EJR.Game.Gameplay
             EnemyRegistry registry,
             ExperienceSystem experienceSystem,
             float playerCollisionRadius,
-            float collisionRadius)
+            float collisionRadius,
+            float runtimeHealthMultiplier = 1f,
+            float runtimeMoveSpeedMultiplier = 1f)
         {
             _config = config;
             _visualKind = visualKind;
@@ -59,9 +72,11 @@ namespace EJR.Game.Gameplay
             var moveMultiplier = statProfile != null ? Mathf.Max(0.1f, statProfile.moveSpeedMultiplier) : 1f;
             var contactDamageMultiplier = statProfile != null ? Mathf.Max(0.1f, statProfile.contactDamageMultiplier) : 1f;
             var experienceMultiplier = statProfile != null ? Mathf.Max(0.1f, statProfile.experienceMultiplier) : 1f;
+            var elapsedHealthMultiplier = Mathf.Max(0.1f, runtimeHealthMultiplier);
+            var elapsedMoveMultiplier = Mathf.Max(0.1f, runtimeMoveSpeedMultiplier);
 
-            _maxHealth = Mathf.Max(1f, config.maxHealth * healthMultiplier);
-            _moveSpeed = Mathf.Max(0.1f, config.moveSpeed * moveMultiplier);
+            _maxHealth = Mathf.Max(1f, config.maxHealth * healthMultiplier * elapsedHealthMultiplier);
+            _moveSpeed = Mathf.Max(0.1f, config.moveSpeed * moveMultiplier * elapsedMoveMultiplier);
             _contactDamage = Mathf.Max(0f, config.contactDamage * contactDamageMultiplier);
             _contactDamageCooldown = Mathf.Max(0.05f, config.contactDamageCooldown);
             _experienceOnDeath = Mathf.Max(1, Mathf.RoundToInt(config.experienceOnDeath * experienceMultiplier));
@@ -86,6 +101,8 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
+            TickCoreEffectDurations();
+
             var previousPosition = transform.position;
             var toPlayer = _target.position - transform.position;
             var distance = toPlayer.magnitude;
@@ -104,7 +121,8 @@ namespace EJR.Game.Gameplay
                 desired.Normalize();
             }
 
-            var moveBudget = _moveSpeed * Time.deltaTime;
+            var effectiveMoveSpeed = _moveSpeed * Mathf.Clamp(_activeSlowMultiplier, 0.1f, 1f);
+            var moveBudget = effectiveMoveSpeed * Time.deltaTime;
             var next = transform.position + (Vector3)(desired * moveBudget);
             next = ResolvePlayerOverlap(next, minimumSeparation, (Vector2)direction);
             next = ResolveCrowdOverlaps(next);
@@ -259,6 +277,11 @@ namespace EJR.Game.Gameplay
 
         public void ReceiveDamage(float damage)
         {
+            ReceiveWeaponDamage(damage, WeaponUpgradeId.Rifle, WeaponCoreElement.None, 0);
+        }
+
+        public void ReceiveWeaponDamage(float damage, WeaponUpgradeId sourceWeaponId, WeaponCoreElement coreElement, int coreLevel)
+        {
             if (_isDead)
             {
                 return;
@@ -270,6 +293,11 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
+            if (_activeLightRemaining > 0f && _activeLightBonusMultiplier > 0f)
+            {
+                appliedDamage *= 1f + _activeLightBonusMultiplier;
+            }
+
             _health = Mathf.Max(0f, _health - appliedDamage);
             if (_health > 0f)
             {
@@ -278,6 +306,11 @@ namespace EJR.Game.Gameplay
 
             CombatTextSpawner.SpawnDamage(transform.position + new Vector3(0f, 0.8f, 0f), appliedDamage, CombatTextSpawner.EnemyDamagedColor);
             Changed?.Invoke(_health, MaxHealth);
+
+            if (coreLevel > 0)
+            {
+                ApplyWeaponCoreOnHit(coreElement, coreLevel, appliedDamage);
+            }
 
             if (_health <= 0f)
             {
@@ -293,6 +326,7 @@ namespace EJR.Game.Gameplay
             }
 
             _isDead = true;
+            TriggerFireExplosionIfReady();
 
             if (_experienceSystem != null)
             {
@@ -312,6 +346,139 @@ namespace EJR.Game.Gameplay
             }
 
             Destroy(gameObject);
+        }
+
+        private void TickCoreEffectDurations()
+        {
+            if (_activeSlowRemaining > 0f)
+            {
+                _activeSlowRemaining -= Time.deltaTime;
+                if (_activeSlowRemaining <= 0f)
+                {
+                    _activeSlowRemaining = 0f;
+                    _activeSlowMultiplier = 1f;
+                }
+            }
+
+            if (_activeLightRemaining > 0f)
+            {
+                _activeLightRemaining -= Time.deltaTime;
+                if (_activeLightRemaining <= 0f)
+                {
+                    _activeLightRemaining = 0f;
+                    _activeLightBonusMultiplier = 0f;
+                }
+            }
+        }
+
+        private void ApplyWeaponCoreOnHit(WeaponCoreElement coreElement, int coreLevel, float dealtDamage)
+        {
+            var clampedLevel = Mathf.Clamp(coreLevel, 1, PlayerBuildRuntime.MaxCoreLevel);
+            switch (coreElement)
+            {
+                case WeaponCoreElement.Fire:
+                    ApplyFireCore(clampedLevel, dealtDamage);
+                    break;
+                case WeaponCoreElement.Wind:
+                    ApplyWindCore(clampedLevel);
+                    break;
+                case WeaponCoreElement.Light:
+                    ApplyLightCore(clampedLevel);
+                    break;
+            }
+        }
+
+        private void ApplyFireCore(int coreLevel, float dealtDamage)
+        {
+            var (accumulateRatio, hitThreshold) = coreLevel switch
+            {
+                1 => (0.05f, 5),
+                2 => (0.10f, 4),
+                _ => (0.20f, 2),
+            };
+
+            _fireAccumulatedDamage += Mathf.Max(0f, dealtDamage) * accumulateRatio;
+            _fireAccumulatedHits++;
+            _fireTriggerHitCount = hitThreshold;
+
+            if (_fireAccumulatedHits >= _fireTriggerHitCount)
+            {
+                TriggerFireExplosionIfReady();
+            }
+        }
+
+        private void ApplyWindCore(int coreLevel)
+        {
+            var (slowPercent, duration) = coreLevel switch
+            {
+                1 => (0.10f, 0.3f),
+                2 => (0.20f, 0.5f),
+                _ => (0.50f, 1.0f),
+            };
+
+            var slowMultiplier = Mathf.Clamp01(1f - slowPercent);
+            _activeSlowMultiplier = Mathf.Min(_activeSlowMultiplier, slowMultiplier);
+            _activeSlowRemaining = Mathf.Max(_activeSlowRemaining, duration);
+        }
+
+        private void ApplyLightCore(int coreLevel)
+        {
+            var (bonusMultiplier, duration) = coreLevel switch
+            {
+                1 => (0.05f, 1.0f),
+                2 => (0.10f, 2.0f),
+                _ => (0.20f, 5.0f),
+            };
+
+            _activeLightBonusMultiplier = Mathf.Max(_activeLightBonusMultiplier, bonusMultiplier);
+            _activeLightRemaining = Mathf.Max(_activeLightRemaining, duration);
+        }
+
+        private void TriggerFireExplosionIfReady()
+        {
+            if (_fireAccumulatedDamage <= 0f)
+            {
+                ResetFireAccumulation();
+                return;
+            }
+
+            var explosionDamage = _fireAccumulatedDamage;
+            ResetFireAccumulation();
+
+            if (_registry == null)
+            {
+                return;
+            }
+
+            var origin = (Vector2)transform.position;
+            var searchRadius = FireExplosionRadius + _registry.GetMaxCollisionRadius();
+            _registry.GetNearby(origin, searchRadius, _nearbyBuffer);
+
+            for (var i = 0; i < _nearbyBuffer.Count; i++)
+            {
+                var enemy = _nearbyBuffer[i];
+                if (enemy == null || ReferenceEquals(enemy, this))
+                {
+                    continue;
+                }
+
+                var toEnemy = (Vector2)enemy.transform.position - origin;
+                var distance = toEnemy.magnitude;
+                var limit = FireExplosionRadius + enemy.CollisionRadius;
+                if (distance > limit)
+                {
+                    continue;
+                }
+
+                enemy.ReceiveDamage(explosionDamage);
+            }
+        }
+
+        private void ResetFireAccumulation()
+        {
+            _fireAccumulatedDamage = 0f;
+            _fireAccumulatedHits = 0;
+            _fireTriggerHitCount = int.MaxValue;
         }
 
         private void OnDrawGizmos()

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using EJR.Game.Core;
 using UnityEngine;
 
 namespace EJR.Game.Gameplay
@@ -16,10 +17,16 @@ namespace EJR.Game.Gameplay
         private float _hitRadius;
         private float _damageFalloffPerHit;
         private int _remainingHits;
+        private WeaponUpgradeId _sourceWeaponId;
+        private WeaponCoreElement _sourceCoreElement;
+        private int _sourceCoreLevel;
         private Action<Projectile> _releaseToPool;
         private bool _isActive;
+        private bool _useBoundsCulling;
+        private Rect _bounds;
         private readonly List<EnemyController> _nearbyEnemies = new(16);
         private readonly List<EnemyController> _hitEnemies = new(8);
+        private const float BoundsCullMargin = 0.15f;
 
         public void Initialize(
             EnemyRegistry registry,
@@ -31,7 +38,12 @@ namespace EJR.Game.Gameplay
             int maxHits,
             float damageFalloffPerHit,
             float minimumDamageMultiplier,
-            Action<Projectile> releaseToPool)
+            WeaponUpgradeId sourceWeaponId,
+            WeaponCoreElement sourceCoreElement,
+            int sourceCoreLevel,
+            Action<Projectile> releaseToPool,
+            bool useBoundsCulling = false,
+            Rect bounds = default)
         {
             _registry = registry;
             _direction = direction.normalized;
@@ -43,7 +55,12 @@ namespace EJR.Game.Gameplay
             _hitRadius = hitRadius;
             _remainingHits = Mathf.Max(1, maxHits);
             _damageFalloffPerHit = Mathf.Clamp01(damageFalloffPerHit);
+            _sourceWeaponId = sourceWeaponId;
+            _sourceCoreElement = sourceCoreElement;
+            _sourceCoreLevel = Mathf.Max(0, sourceCoreLevel);
             _releaseToPool = releaseToPool;
+            _useBoundsCulling = useBoundsCulling;
+            _bounds = bounds;
             _isActive = true;
             _hitEnemies.Clear();
         }
@@ -56,6 +73,13 @@ namespace EJR.Game.Gameplay
             }
 
             transform.position += _direction * _speed * Time.deltaTime;
+
+            if (_useBoundsCulling && IsOutOfBounds(transform.position))
+            {
+                Release();
+                return;
+            }
+
             _lifetime -= Time.deltaTime;
             if (_lifetime <= 0f)
             {
@@ -86,7 +110,7 @@ namespace EJR.Game.Gameplay
 
                 try
                 {
-                    enemy.ReceiveDamage(_currentDamage);
+                    enemy.ReceiveWeaponDamage(_currentDamage, _sourceWeaponId, _sourceCoreElement, _sourceCoreLevel);
                 }
                 finally
                 {
@@ -144,6 +168,14 @@ namespace EJR.Game.Gameplay
 
             _isActive = false;
             _releaseToPool?.Invoke(this);
+        }
+
+        private bool IsOutOfBounds(Vector3 worldPosition)
+        {
+            return worldPosition.x < _bounds.xMin - BoundsCullMargin
+                || worldPosition.x > _bounds.xMax + BoundsCullMargin
+                || worldPosition.y < _bounds.yMin - BoundsCullMargin
+                || worldPosition.y > _bounds.yMax + BoundsCullMargin;
         }
     }
 }

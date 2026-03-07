@@ -86,9 +86,17 @@ namespace EJR.Game.UI
 
             if (remainingSecondsInt != _lastRemainingSeconds)
             {
-                _timeText.text = $"TIME {remainingSecondsInt}";
+                _timeText.text = $"TIME {FormatTime(remainingSecondsInt)}";
                 _lastRemainingSeconds = remainingSecondsInt;
             }
+        }
+
+        private static string FormatTime(int totalSeconds)
+        {
+            var clampedSeconds = Mathf.Max(0, totalSeconds);
+            var minutes = clampedSeconds / 60;
+            var seconds = clampedSeconds % 60;
+            return $"{minutes:00}:{seconds:00}";
         }
 
         public void BindAutoPlayToggle(bool enabled, Action onToggle)

@@ -9,6 +9,10 @@ namespace EJR.Game.Gameplay
     {
         [SerializeField, Min(0)] private int projectilePoolPrewarmCount = 40;
         [SerializeField, Min(0.01f)] private float targetScanInterval = 0.08f;
+        [SerializeField, Min(0.02f)] private float katanaRangeEffectDuration = 0.12f;
+        [SerializeField, Min(0.01f)] private float katanaRangeEffectWidth = 0.05f;
+        [SerializeField, Range(4, 40)] private int katanaRangeEffectSegments = 14;
+        [SerializeField] private Color katanaRangeEffectColor = new(0.2f, 1f, 0.9f, 0.9f);
 
         private sealed class WeaponRuntime
         {
@@ -34,6 +38,8 @@ namespace EJR.Game.Gameplay
         private PlayerStatsRuntime _stats;
         private Func<Vector2, Vector3> _projectileSpawnResolver;
         private Func<Vector2?> _aimDirectionOverrideProvider;
+        private bool _useProjectileBoundsCulling;
+        private Rect _projectileCullBounds;
 
         private EnemyController _currentTarget;
         private Vector2 _lastAimDirection = Vector2.right;
@@ -42,7 +48,10 @@ namespace EJR.Game.Gameplay
         private readonly List<WeaponRuntime> _loadout = new(4);
         private readonly List<EnemyController> _nearbyEnemies = new(32);
         private readonly Queue<Projectile> _projectilePool = new();
+        private readonly Dictionary<WeaponUpgradeId, WeaponCoreElement> _coreElementByWeapon = new();
+        private readonly Dictionary<WeaponUpgradeId, int> _coreLevelByWeapon = new();
         private Transform _projectilePoolRoot;
+        private static Material _katanaRangeEffectMaterial;
 
         public event Action<Vector2> AimUpdated;
         public event Action<Vector2> Fired;
@@ -52,13 +61,16 @@ namespace EJR.Game.Gameplay
             Transform owner,
             EnemyRegistry registry,
             PlayerStatsRuntime stats,
-            Func<Vector2, Vector3> projectileSpawnResolver = null)
+            Func<Vector2, Vector3> projectileSpawnResolver = null,
+            Rect? projectileCullBounds = null)
         {
             _config = config;
             _owner = owner;
             _registry = registry;
             _stats = stats;
             _projectileSpawnResolver = projectileSpawnResolver;
+            _useProjectileBoundsCulling = projectileCullBounds.HasValue;
+            _projectileCullBounds = projectileCullBounds.GetValueOrDefault();
             _currentTarget = null;
             _lastAimDirection = Vector2.right;
             _targetScanCooldown = 0f;
@@ -74,6 +86,8 @@ namespace EJR.Game.Gameplay
         {
             _stats = stats ?? _stats;
             _loadout.Clear();
+            _coreElementByWeapon.Clear();
+            _coreLevelByWeapon.Clear();
 
             if (build == null || build.OwnedWeapons.Count <= 0)
             {
@@ -86,6 +100,13 @@ namespace EJR.Game.Gameplay
                 var id = build.OwnedWeapons[i];
                 var level = Mathf.Max(1, build.GetWeaponLevel(id));
                 _loadout.Add(new WeaponRuntime(id, level));
+
+                var coreLevel = build.GetWeaponCoreLevel(id);
+                if (coreLevel > 0)
+                {
+                    _coreElementByWeapon[id] = build.GetWeaponCoreElement(id);
+                    _coreLevelByWeapon[id] = coreLevel;
+                }
             }
         }
 
@@ -295,7 +316,12 @@ namespace EJR.Game.Gameplay
         private void FireRifle(WeaponRuntime weapon, Vector2 direction)
         {
             var damage = GetWeaponBaseDamage(weapon);
+            var coreElement = GetCoreElement(weapon.WeaponId);
+            var coreLevel = GetCoreLevel(weapon.WeaponId);
             SpawnProjectile(
+                weapon.WeaponId,
+                coreElement,
+                coreLevel,
                 direction,
                 damage,
                 _config.projectileSpeed,
@@ -312,7 +338,12 @@ namespace EJR.Game.Gameplay
             var spread = UnityEngine.Random.Range(-_config.smgSpreadAngle, _config.smgSpreadAngle);
             var spreadDirection = RotateDirection(direction, spread);
             var damage = GetWeaponBaseDamage(weapon) * Mathf.Clamp(_config.smgShotDamageMultiplier, 0.05f, 2f);
+            var coreElement = GetCoreElement(weapon.WeaponId);
+            var coreLevel = GetCoreLevel(weapon.WeaponId);
             SpawnProjectile(
+                weapon.WeaponId,
+                coreElement,
+                coreLevel,
                 spreadDirection,
                 damage,
                 _config.projectileSpeed * 1.1f,
@@ -327,7 +358,12 @@ namespace EJR.Game.Gameplay
         private void FireSniper(WeaponRuntime weapon, Vector2 direction)
         {
             var damage = GetWeaponBaseDamage(weapon) * 2f;
+            var coreElement = GetCoreElement(weapon.WeaponId);
+            var coreLevel = GetCoreLevel(weapon.WeaponId);
             SpawnProjectile(
+                weapon.WeaponId,
+                coreElement,
+                coreLevel,
                 direction,
                 damage,
                 _config.projectileSpeed * 1.6f,
@@ -345,10 +381,15 @@ namespace EJR.Game.Gameplay
             var spread = Mathf.Max(1f, _config.shotgunSpreadAngle);
             var halfSpread = spread * 0.5f;
             var damagePerPellet = GetWeaponBaseDamage(weapon) * Mathf.Clamp(_config.shotgunPelletDamageMultiplier, 0.05f, 2f);
+            var coreElement = GetCoreElement(weapon.WeaponId);
+            var coreLevel = GetCoreLevel(weapon.WeaponId);
 
             if (pelletCount == 1)
             {
                 SpawnProjectile(
+                    weapon.WeaponId,
+                    coreElement,
+                    coreLevel,
                     direction,
                     damagePerPellet,
                     _config.projectileSpeed * 0.95f,
@@ -367,6 +408,9 @@ namespace EJR.Game.Gameplay
                 var angle = Mathf.Lerp(-halfSpread, halfSpread, t);
                 var pelletDirection = RotateDirection(direction, angle);
                 SpawnProjectile(
+                    weapon.WeaponId,
+                    coreElement,
+                    coreLevel,
                     pelletDirection,
                     damagePerPellet,
                     _config.projectileSpeed * 0.95f,
@@ -384,8 +428,11 @@ namespace EJR.Game.Gameplay
             var range = GetWeaponRange(weapon);
             var coneHalfAngle = Mathf.Max(2f, _config.katanaConeAngle) * 0.5f;
             var damage = GetWeaponBaseDamage(weapon) * Mathf.Clamp(_config.katanaDamageMultiplier, 0.05f, 3f);
+            var coreElement = GetCoreElement(weapon.WeaponId);
+            var coreLevel = GetCoreLevel(weapon.WeaponId);
 
             var origin = (Vector2)_owner.position;
+            SpawnKatanaRangeEffect(origin, direction, range, coneHalfAngle);
             var searchRadius = range + _registry.GetMaxCollisionRadius();
             _registry.GetNearby(origin, searchRadius, _nearbyEnemies);
 
@@ -401,7 +448,7 @@ namespace EJR.Game.Gameplay
                 var centerDistance = toEnemy.magnitude;
                 if (centerDistance <= 0.0001f)
                 {
-                    enemy.ReceiveDamage(damage);
+                    enemy.ReceiveWeaponDamage(damage, weapon.WeaponId, coreElement, coreLevel);
                     continue;
                 }
 
@@ -414,14 +461,81 @@ namespace EJR.Game.Gameplay
                 var angle = Vector2.Angle(direction, toEnemy / centerDistance);
                 if (angle <= coneHalfAngle)
                 {
-                    enemy.ReceiveDamage(damage);
+                    enemy.ReceiveWeaponDamage(damage, weapon.WeaponId, coreElement, coreLevel);
                 }
             }
 
             Fired?.Invoke(direction);
         }
 
+        private void SpawnKatanaRangeEffect(Vector2 origin, Vector2 direction, float range, float coneHalfAngle)
+        {
+            if (!isActiveAndEnabled)
+            {
+                return;
+            }
+
+            var normalizedDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : Vector2.right;
+            var segments = Mathf.Clamp(katanaRangeEffectSegments, 4, 40);
+            var fxObject = new GameObject("KatanaRangeFx");
+            fxObject.transform.SetParent(transform, false);
+
+            var lineRenderer = fxObject.AddComponent<LineRenderer>();
+            lineRenderer.useWorldSpace = true;
+            lineRenderer.loop = false;
+            lineRenderer.numCapVertices = 2;
+            lineRenderer.numCornerVertices = 2;
+            lineRenderer.alignment = LineAlignment.View;
+            lineRenderer.startWidth = katanaRangeEffectWidth;
+            lineRenderer.endWidth = katanaRangeEffectWidth;
+            lineRenderer.startColor = katanaRangeEffectColor;
+            lineRenderer.endColor = katanaRangeEffectColor;
+            lineRenderer.sortingOrder = 500;
+            lineRenderer.sharedMaterial = GetOrCreateKatanaRangeEffectMaterial();
+
+            var totalPoints = segments + 3;
+            lineRenderer.positionCount = totalPoints;
+            lineRenderer.SetPosition(0, new Vector3(origin.x, origin.y, -0.02f));
+
+            for (var i = 0; i <= segments; i++)
+            {
+                var t = i / (float)segments;
+                var angle = Mathf.Lerp(-coneHalfAngle, coneHalfAngle, t);
+                var rayDirection = RotateDirection(normalizedDirection, angle);
+                var point = origin + (rayDirection * range);
+                lineRenderer.SetPosition(i + 1, new Vector3(point.x, point.y, -0.02f));
+            }
+
+            lineRenderer.SetPosition(totalPoints - 1, new Vector3(origin.x, origin.y, -0.02f));
+            Destroy(fxObject, Mathf.Max(0.02f, katanaRangeEffectDuration));
+        }
+
+        private static Material GetOrCreateKatanaRangeEffectMaterial()
+        {
+            if (_katanaRangeEffectMaterial != null)
+            {
+                return _katanaRangeEffectMaterial;
+            }
+
+            var shader = Shader.Find("Sprites/Default");
+            if (shader == null)
+            {
+                shader = Shader.Find("Unlit/Color");
+            }
+
+            _katanaRangeEffectMaterial = new Material(shader)
+            {
+                name = "KatanaRangeFxMat",
+                hideFlags = HideFlags.HideAndDontSave,
+            };
+
+            return _katanaRangeEffectMaterial;
+        }
+
         private void SpawnProjectile(
+            WeaponUpgradeId weaponId,
+            WeaponCoreElement coreElement,
+            int coreLevel,
             Vector2 direction,
             float damage,
             float speed,
@@ -462,7 +576,12 @@ namespace EJR.Game.Gameplay
                 Mathf.Max(1, maxHits),
                 Mathf.Clamp(damageFalloffPerHit, 0f, 0.9f),
                 Mathf.Clamp(minimumDamageMultiplier, 0.05f, 1f),
-                ReturnProjectileToPool);
+                weaponId,
+                coreElement,
+                coreLevel,
+                ReturnProjectileToPool,
+                _useProjectileBoundsCulling,
+                _projectileCullBounds);
 
             Fired?.Invoke(normalizedDirection);
         }
@@ -528,6 +647,20 @@ namespace EJR.Game.Gameplay
             }
 
             return maxRange;
+        }
+
+        private WeaponCoreElement GetCoreElement(WeaponUpgradeId weaponId)
+        {
+            return _coreElementByWeapon.TryGetValue(weaponId, out var coreElement)
+                ? coreElement
+                : WeaponCoreElement.None;
+        }
+
+        private int GetCoreLevel(WeaponUpgradeId weaponId)
+        {
+            return _coreLevelByWeapon.TryGetValue(weaponId, out var coreLevel)
+                ? coreLevel
+                : 0;
         }
 
         private bool IsTargetUsable(EnemyController target, float maxDistance)

@@ -10,6 +10,7 @@ namespace EJR.Game.Gameplay
         public const int MaxWeaponSlotsAbsolute = 3;
         public const int MaxStatSlots = 3;
         public const int MaxUpgradeLevel = 10;
+        public const int MaxCoreLevel = 3;
         public const int SecondWeaponUnlockLevel = 10;
         public const int ThirdWeaponUnlockLevel = 20;
 
@@ -17,6 +18,8 @@ namespace EJR.Game.Gameplay
         private readonly List<StatUpgradeId> _statOrder = new(3);
         private readonly Dictionary<WeaponUpgradeId, int> _weaponLevels = new();
         private readonly Dictionary<StatUpgradeId, int> _statLevels = new();
+        private readonly Dictionary<WeaponUpgradeId, WeaponCoreElement> _weaponCoreElements = new();
+        private readonly Dictionary<WeaponUpgradeId, int> _weaponCoreLevels = new();
 
         public IReadOnlyList<WeaponUpgradeId> OwnedWeapons => _weaponOrder;
         public IReadOnlyList<StatUpgradeId> OwnedStats => _statOrder;
@@ -27,6 +30,8 @@ namespace EJR.Game.Gameplay
             _statOrder.Clear();
             _weaponLevels.Clear();
             _statLevels.Clear();
+            _weaponCoreElements.Clear();
+            _weaponCoreLevels.Clear();
             _weaponOrder.Add(WeaponUpgradeId.Rifle);
             _weaponLevels[WeaponUpgradeId.Rifle] = 1;
         }
@@ -64,6 +69,54 @@ namespace EJR.Game.Gameplay
         public int GetStatLevel(StatUpgradeId id)
         {
             return _statLevels.TryGetValue(id, out var level) ? level : 0;
+        }
+
+        public bool HasWeaponCore(WeaponUpgradeId id)
+        {
+            return _weaponCoreElements.ContainsKey(id) && GetWeaponCoreLevel(id) > 0;
+        }
+
+        public WeaponCoreElement GetWeaponCoreElement(WeaponUpgradeId id)
+        {
+            return _weaponCoreElements.TryGetValue(id, out var element) ? element : WeaponCoreElement.None;
+        }
+
+        public int GetWeaponCoreLevel(WeaponUpgradeId id)
+        {
+            return _weaponCoreLevels.TryGetValue(id, out var level) ? level : 0;
+        }
+
+        public bool CanChooseInitialCore(WeaponUpgradeId id)
+        {
+            var weaponLevel = GetWeaponLevel(id);
+            if (weaponLevel < 3)
+            {
+                return false;
+            }
+
+            return !HasWeaponCore(id);
+        }
+
+        public bool CanUpgradeCore(WeaponUpgradeId id)
+        {
+            var coreLevel = GetWeaponCoreLevel(id);
+            if (coreLevel <= 0 || coreLevel >= MaxCoreLevel)
+            {
+                return false;
+            }
+
+            var requiredWeaponLevel = GetRequiredWeaponLevelForCoreLevel(coreLevel + 1);
+            return GetWeaponLevel(id) >= requiredWeaponLevel;
+        }
+
+        public static int GetRequiredWeaponLevelForCoreLevel(int coreLevel)
+        {
+            return coreLevel switch
+            {
+                1 => 3,
+                2 => 6,
+                _ => 10,
+            };
         }
 
         public bool CanAcquireWeapon(WeaponUpgradeId id, int playerLevel)
@@ -108,6 +161,9 @@ namespace EJR.Game.Gameplay
                     break;
                 case UpgradeCategory.Stat:
                     ApplyStat(option.StatId);
+                    break;
+                case UpgradeCategory.WeaponCore:
+                    ApplyWeaponCore(option.WeaponId, option.CoreElement);
                     break;
             }
         }
@@ -154,6 +210,61 @@ namespace EJR.Game.Gameplay
             }
 
             _statLevels[id] = Mathf.Clamp(level + 1, 1, MaxUpgradeLevel);
+        }
+
+        private void ApplyWeaponCore(WeaponUpgradeId weaponId, WeaponCoreElement coreElement)
+        {
+            if (!HasWeapon(weaponId))
+            {
+                return;
+            }
+
+            var weaponLevel = GetWeaponLevel(weaponId);
+            var currentCoreLevel = GetWeaponCoreLevel(weaponId);
+            if (currentCoreLevel <= 0)
+            {
+                if (weaponLevel < GetRequiredWeaponLevelForCoreLevel(1))
+                {
+                    return;
+                }
+
+                if (coreElement == WeaponCoreElement.None)
+                {
+                    return;
+                }
+
+                _weaponCoreElements[weaponId] = coreElement;
+                _weaponCoreLevels[weaponId] = 1;
+                return;
+            }
+
+            if (currentCoreLevel >= MaxCoreLevel)
+            {
+                return;
+            }
+
+            var lockedElement = GetWeaponCoreElement(weaponId);
+            if (lockedElement == WeaponCoreElement.None)
+            {
+                return;
+            }
+
+            var requestedElement = coreElement == WeaponCoreElement.None ? lockedElement : coreElement;
+            if (requestedElement != lockedElement)
+            {
+                // Multi-core mixing is intentionally disabled for now.
+                return;
+            }
+
+            var nextCoreLevel = currentCoreLevel + 1;
+            var requiredWeaponLevel = GetRequiredWeaponLevelForCoreLevel(nextCoreLevel);
+            if (weaponLevel < requiredWeaponLevel)
+            {
+                return;
+            }
+
+            _weaponCoreElements[weaponId] = lockedElement;
+            _weaponCoreLevels[weaponId] = Mathf.Clamp(nextCoreLevel, 1, MaxCoreLevel);
         }
     }
 }

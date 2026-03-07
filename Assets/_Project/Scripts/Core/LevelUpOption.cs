@@ -4,6 +4,7 @@ namespace EJR.Game.Core
     {
         Weapon = 0,
         Stat = 1,
+        WeaponCore = 2,
     }
 
     public enum WeaponUpgradeId
@@ -25,6 +26,14 @@ namespace EJR.Game.Core
         AttackRange = 5,
     }
 
+    public enum WeaponCoreElement
+    {
+        None = 0,
+        Fire = 1,
+        Wind = 2,
+        Light = 3,
+    }
+
     public readonly struct LevelUpOption
     {
         public LevelUpOption(
@@ -35,7 +44,8 @@ namespace EJR.Game.Core
             int nextLevel,
             bool isNewAcquire,
             bool isLockedBySlot,
-            string label)
+            string label,
+            WeaponCoreElement coreElement = WeaponCoreElement.None)
         {
             Category = category;
             WeaponId = weaponId;
@@ -45,6 +55,7 @@ namespace EJR.Game.Core
             IsNewAcquire = isNewAcquire;
             IsLockedBySlot = isLockedBySlot;
             Label = label;
+            CoreElement = coreElement;
         }
 
         public UpgradeCategory Category { get; }
@@ -55,5 +66,6 @@ namespace EJR.Game.Core
         public bool IsNewAcquire { get; }
         public bool IsLockedBySlot { get; }
         public string Label { get; }
+        public WeaponCoreElement CoreElement { get; }
     }
 }

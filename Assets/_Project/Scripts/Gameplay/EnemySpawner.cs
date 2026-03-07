@@ -146,6 +146,9 @@ namespace EJR.Game.Gameplay
         {
             var statProfile = _config.GetStatProfile(visualKind);
             var collisionRadius = CalculateCollisionRadius(statProfile);
+            var runtimeMinuteTier = Mathf.Max(0, Mathf.FloorToInt(_elapsedSeconds / 60f));
+            var runtimeMoveSpeedMultiplier = 1f + (runtimeMinuteTier * 0.05f);
+            var runtimeHealthMultiplier = 1f + (runtimeMinuteTier * 0.10f);
 
             var spawnPosition = requestedPosition.HasValue
                 ? requestedPosition.Value
@@ -189,7 +192,9 @@ namespace EJR.Game.Gameplay
                 _registry,
                 _experienceSystem,
                 _playerCollisionRadius,
-                collisionRadius);
+                collisionRadius,
+                runtimeHealthMultiplier,
+                runtimeMoveSpeedMultiplier);
 
             var healthBar = enemyObject.AddComponent<WorldHealthBar>();
             var healthBarYOffset = _config.visualYOffset + Mathf.Max(0.28f, visualWorldSize * 0.36f);

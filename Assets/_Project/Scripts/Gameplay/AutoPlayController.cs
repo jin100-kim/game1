@@ -164,6 +164,7 @@ namespace EJR.Game.Gameplay
                 {
                     UpgradeCategory.Weapon => option.IsNewAcquire ? 150f : 88f,
                     UpgradeCategory.Stat => GetStatPriorityScore(option.StatId),
+                    UpgradeCategory.WeaponCore => GetCorePriorityScore(option.CoreElement, option.NextLevel),
                     _ => 0f,
                 };
 
@@ -243,6 +244,19 @@ namespace EJR.Game.Gameplay
                 StatUpgradeId.AttackRange => 86f,
                 _ => 0f,
             };
+        }
+
+        private static float GetCorePriorityScore(WeaponCoreElement coreElement, int nextLevel)
+        {
+            var baseScore = coreElement switch
+            {
+                WeaponCoreElement.Fire => 230f,
+                WeaponCoreElement.Light => 225f,
+                WeaponCoreElement.Wind => 210f,
+                _ => 180f,
+            };
+
+            return baseScore + (nextLevel * 20f);
         }
 
         private void UpdateThreatSnapshot()

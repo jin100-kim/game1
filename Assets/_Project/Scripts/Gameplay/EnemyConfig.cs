@@ -205,7 +205,7 @@ namespace EJR.Game.Gameplay
         [Min(30f)] public float mushroomPhaseStartSeconds = 180f;
         [Min(60f)] public float bossWaveStartSeconds = 600f;
         [Range(0f, 1f)] public float mushroomRatioAtPhaseStart = 0.5f;
-        [Range(0f, 1f)] public float mushroomRatioBeforeBoss = 0f;
+        [Range(0f, 1f)] public float mushroomRatioBeforeBoss = 1f;
         [Min(1)] public int bossWaveSkeletonCount = 15;
         [Min(0.1f)] public float bossSpawnRadius = 9f;
         [Min(0.1f)] public float skeletonWaveMinRadius = 7.5f;
@@ -221,8 +221,8 @@ namespace EJR.Game.Gameplay
         [Min(0)] public int wave2SlimeCount = 0;
         [Min(0)] public int wave2MushroomCount = 30;
         [Min(0)] public int wave2SkeletonCount = 0;
-        [Min(0.1f)] public float timedWaveMinRadius = 6.5f;
-        [Min(0.1f)] public float timedWaveMaxRadius = 9.5f;
+        [Min(0.1f)] public float timedWaveMinRadius = 9.5f;
+        [Min(0.1f)] public float timedWaveMaxRadius = 13f;
 
         [Header("Animation Profiles")]
         [SerializeField]
@@ -347,7 +347,7 @@ namespace EJR.Game.Gameplay
             new EnemyStatProfile
             {
                 visualKind = RuntimeSpriteFactory.EnemyVisualKind.Skeleton,
-                healthMultiplier = 2.2f,
+                healthMultiplier = 44f,
                 moveSpeedMultiplier = 1.22f,
                 contactDamageMultiplier = 1.45f,
                 experienceMultiplier = 2.2f,
@@ -357,7 +357,7 @@ namespace EJR.Game.Gameplay
             new EnemyStatProfile
             {
                 visualKind = RuntimeSpriteFactory.EnemyVisualKind.Boss,
-                healthMultiplier = 11.5f,
+                healthMultiplier = 1150f,
                 moveSpeedMultiplier = 0.88f,
                 contactDamageMultiplier = 2.4f,
                 experienceMultiplier = 25f,
