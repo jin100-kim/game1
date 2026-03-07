@@ -117,7 +117,7 @@ namespace EJR.Game.UI
             }
         }
 
-        public void ShowLevelUpOptions(LevelUpOption[] options, Action<int> onSelected)
+        public void ShowLevelUpOptions(LevelUpOption[] options, Action<int> onSelected, string title = "Level Up - Choose One")
         {
             if (_levelUpPanel == null || options == null || options.Length == 0)
             {
@@ -125,7 +125,7 @@ namespace EJR.Game.UI
             }
 
             _levelUpPanel.SetActive(true);
-            _levelUpTitle.text = "Level Up - Choose One";
+            _levelUpTitle.text = string.IsNullOrWhiteSpace(title) ? "Level Up - Choose One" : title;
 
             for (var i = 0; i < _levelButtons.Length; i++)
             {
@@ -287,16 +287,16 @@ namespace EJR.Game.UI
 
         private void BuildLevelUpPanel()
         {
-            _levelUpPanel = CreatePanel(_canvas.transform, "LevelUpPanel", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(460f, 300f), new Color(0f, 0f, 0f, 0.85f));
+            _levelUpPanel = CreatePanel(_canvas.transform, "LevelUpPanel", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(460f, 360f), new Color(0f, 0f, 0f, 0.85f));
             _levelUpPanel.SetActive(false);
 
-            _levelUpTitle = CreateText(_levelUpPanel.transform, "Title", new Vector2(0f, 120f), "Level Up");
-            _levelButtons = new Button[3];
-            _levelButtonTexts = new Text[3];
+            _levelUpTitle = CreateText(_levelUpPanel.transform, "Title", new Vector2(0f, 145f), "Level Up");
+            _levelButtons = new Button[4];
+            _levelButtonTexts = new Text[4];
 
-            for (var i = 0; i < 3; i++)
+            for (var i = 0; i < 4; i++)
             {
-                var y = 50f - (i * 75f);
+                var y = 88f - (i * 64f);
                 var button = CreateButton(_levelUpPanel.transform, $"OptionButton{i}", new Vector2(0f, y), new Vector2(360f, 55f));
                 _levelButtons[i] = button;
                 _levelButtonTexts[i] = button.GetComponentInChildren<Text>();

@@ -67,7 +67,7 @@ namespace EJR.Game.Gameplay
         [Range(0.1f, 5f)] public float lightningIntervalMultiplier = 1.0f;
 
         [Header("Satellite")]
-        [Min(0.2f)] public float satelliteOrbitRadius = 1.25f;
+        [Min(0.2f)] public float satelliteOrbitRadius = 1.7f;
         [Min(30f)] public float satelliteAngularSpeed = 220f;
         [Min(0.05f)] public float satelliteHitRadius = 0.32f;
         [Min(0.01f)] public float satelliteHitCooldownPerEnemy = 0.25f;

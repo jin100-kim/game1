@@ -43,6 +43,13 @@ namespace EJR.Game.Gameplay
         private const string PlayerVisualObjectName = "Visual";
         private const string WeaponVisualObjectName = "WeaponVisual";
         private const float WeaponAimFlipEpsilon = 0.01f;
+        private static readonly WeaponUpgradeId[] StarterWeaponIds =
+        {
+            WeaponUpgradeId.Rifle,
+            WeaponUpgradeId.Smg,
+            WeaponUpgradeId.SniperRifle,
+            WeaponUpgradeId.Shotgun,
+        };
 
         private PlayerHealth _playerHealth;
         private PlayerStatsRuntime _playerStats;
@@ -74,6 +81,7 @@ namespace EJR.Game.Gameplay
 
         private float _remainingSeconds;
         private bool _isGameOver;
+        private bool _isAwaitingStarterWeaponChoice;
         private bool _bossWaveTriggered;
         private float _nextHudRefreshAt;
 
@@ -105,23 +113,17 @@ namespace EJR.Game.Gameplay
                 _playerSpriteAnimator.SetMotion(_playerMover.CurrentVelocity);
             }
 
-            if (!_isGameOver && _levelUp != null && _levelUp.IsAwaitingChoice)
+            if (!_isGameOver && IsAnyChoiceAwaiting() && _currentOptions != null)
             {
-                if (IsOptionKeyDown(0))
+                var maxOptions = Mathf.Min(_currentOptions.Length, 4);
+                for (var optionIndex = 0; optionIndex < maxOptions; optionIndex++)
                 {
-                    SelectLevelUpOption(0);
-                    return;
-                }
+                    if (!IsOptionKeyDown(optionIndex))
+                    {
+                        continue;
+                    }
 
-                if (IsOptionKeyDown(1))
-                {
-                    SelectLevelUpOption(1);
-                    return;
-                }
-
-                if (IsOptionKeyDown(2))
-                {
-                    SelectLevelUpOption(2);
+                    SelectLevelUpOption(optionIndex);
                     return;
                 }
             }
@@ -191,6 +193,7 @@ namespace EJR.Game.Gameplay
                     0 => keyboard.digit1Key.wasPressedThisFrame || keyboard.numpad1Key.wasPressedThisFrame,
                     1 => keyboard.digit2Key.wasPressedThisFrame || keyboard.numpad2Key.wasPressedThisFrame,
                     2 => keyboard.digit3Key.wasPressedThisFrame || keyboard.numpad3Key.wasPressedThisFrame,
+                    3 => keyboard.digit4Key.wasPressedThisFrame || keyboard.numpad4Key.wasPressedThisFrame,
                     _ => false,
                 };
             }
@@ -200,6 +203,7 @@ namespace EJR.Game.Gameplay
                 0 => Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1),
                 1 => Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2),
                 2 => Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3),
+                3 => Input.GetKeyDown(KeyCode.Alpha4) || Input.GetKeyDown(KeyCode.Keypad4),
                 _ => false,
             };
         }
@@ -383,7 +387,7 @@ namespace EJR.Game.Gameplay
         private void BuildRuntimeGraph()
         {
             _buildRuntime = new PlayerBuildRuntime();
-            _buildRuntime.InitializeDefaults();
+            _buildRuntime.InitializeDefaults(grantStarterRifle: false);
 
             _playerStats = new PlayerStatsRuntime();
             _playerStats.RecalculateFromBuild(_buildRuntime);
@@ -513,6 +517,7 @@ namespace EJR.Game.Gameplay
             _targetWeaponAimDirection = Vector2.right;
             _smoothedWeaponAimDirection = Vector2.right;
             ApplyBuildToRuntimeSystems();
+            BeginStarterWeaponChoiceIfNeeded();
         }
 
         private void EnsureWeaponVisual(Transform playerTransform, SpriteRenderer playerRenderer)
@@ -963,7 +968,7 @@ namespace EJR.Game.Gameplay
 
         private void OnLevelUpRequested(LevelUpOption[] options)
         {
-            if (_isGameOver)
+            if (_isGameOver || _isAwaitingStarterWeaponChoice)
             {
                 return;
             }
@@ -975,6 +980,12 @@ namespace EJR.Game.Gameplay
 
         private void SelectLevelUpOption(int optionIndex)
         {
+            if (_isAwaitingStarterWeaponChoice)
+            {
+                SelectStarterWeaponOption(optionIndex);
+                return;
+            }
+
             _hud.HideLevelUpOptions();
             _levelUp.ApplyOption(optionIndex, _currentOptions);
             ApplyBuildToRuntimeSystems();
@@ -990,6 +1001,67 @@ namespace EJR.Game.Gameplay
             }
 
             if (Time.timeScale <= 0f)
+            {
+                Time.timeScale = 1f;
+            }
+
+            UpdateHud();
+        }
+
+        private void BeginStarterWeaponChoiceIfNeeded()
+        {
+            if (_buildRuntime == null || _hud == null || _buildRuntime.OwnedWeapons.Count > 0)
+            {
+                return;
+            }
+
+            var options = CreateStarterWeaponOptions();
+            if (options.Length <= 0)
+            {
+                return;
+            }
+
+            _isAwaitingStarterWeaponChoice = true;
+            _currentOptions = options;
+            Time.timeScale = 0f;
+            _hud.ShowLevelUpOptions(options, SelectLevelUpOption, "Choose Start Weapon");
+        }
+
+        private LevelUpOption[] CreateStarterWeaponOptions()
+        {
+            var options = new LevelUpOption[StarterWeaponIds.Length];
+            for (var i = 0; i < StarterWeaponIds.Length; i++)
+            {
+                var weaponId = StarterWeaponIds[i];
+                options[i] = new LevelUpOption(
+                    UpgradeCategory.Weapon,
+                    weaponId,
+                    default,
+                    0,
+                    1,
+                    isNewAcquire: true,
+                    isLockedBySlot: false,
+                    label: $"Start: {GetWeaponDisplayName(weaponId)} Lv1");
+            }
+
+            return options;
+        }
+
+        private void SelectStarterWeaponOption(int optionIndex)
+        {
+            if (_buildRuntime == null || _currentOptions == null || _currentOptions.Length <= 0)
+            {
+                return;
+            }
+
+            optionIndex = Mathf.Clamp(optionIndex, 0, _currentOptions.Length - 1);
+            _buildRuntime.Apply(_currentOptions[optionIndex]);
+            _isAwaitingStarterWeaponChoice = false;
+            _currentOptions = null;
+            _hud.HideLevelUpOptions();
+            ApplyBuildToRuntimeSystems();
+
+            if (!_isGameOver && Time.timeScale <= 0f)
             {
                 Time.timeScale = 1f;
             }
@@ -1076,7 +1148,7 @@ namespace EJR.Game.Gameplay
         {
             if (_buildRuntime == null || _levelUp == null)
             {
-                return "Weapons\n1) Rifle Lv1\n2) Locked (Lv10)\n3) Locked (Lv20)";
+                return "Weapons\n1) Empty\n2) Locked (Lv10)\n3) Locked (Lv20)";
             }
 
             var unlockedSlots = _buildRuntime.GetUnlockedWeaponSlots(_levelUp.Level);
@@ -1192,6 +1264,11 @@ namespace EJR.Game.Gameplay
 
             _nextHudRefreshAt = Time.unscaledTime + Mathf.Max(0.02f, hudRefreshInterval);
             UpdateHud();
+        }
+
+        private bool IsAnyChoiceAwaiting()
+        {
+            return _isAwaitingStarterWeaponChoice || (_levelUp != null && _levelUp.IsAwaitingChoice);
         }
     }
 }

@@ -124,7 +124,6 @@ namespace EJR.Game.Gameplay
 
             if (build == null || build.OwnedWeapons.Count <= 0)
             {
-                _loadout.Add(new WeaponRuntime(WeaponUpgradeId.Rifle, 1));
                 return;
             }
 
@@ -152,7 +151,7 @@ namespace EJR.Game.Gameplay
 
             if (_loadout.Count <= 0)
             {
-                _loadout.Add(new WeaponRuntime(WeaponUpgradeId.Rifle, 1));
+                return;
             }
 
             RefreshAimDirection();

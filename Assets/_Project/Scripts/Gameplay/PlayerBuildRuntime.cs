@@ -24,7 +24,7 @@ namespace EJR.Game.Gameplay
         public IReadOnlyList<WeaponUpgradeId> OwnedWeapons => _weaponOrder;
         public IReadOnlyList<StatUpgradeId> OwnedStats => _statOrder;
 
-        public void InitializeDefaults()
+        public void InitializeDefaults(bool grantStarterRifle = true)
         {
             _weaponOrder.Clear();
             _statOrder.Clear();
@@ -32,8 +32,11 @@ namespace EJR.Game.Gameplay
             _statLevels.Clear();
             _weaponCoreElements.Clear();
             _weaponCoreLevels.Clear();
-            _weaponOrder.Add(WeaponUpgradeId.Rifle);
-            _weaponLevels[WeaponUpgradeId.Rifle] = 1;
+            if (grantStarterRifle)
+            {
+                _weaponOrder.Add(WeaponUpgradeId.Rifle);
+                _weaponLevels[WeaponUpgradeId.Rifle] = 1;
+            }
         }
 
         public int GetUnlockedWeaponSlots(int playerLevel)
