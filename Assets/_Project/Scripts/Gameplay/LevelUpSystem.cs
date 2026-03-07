@@ -308,7 +308,8 @@ namespace EJR.Game.Gameplay
             var weaponName = GetWeaponName(coreChoice.WeaponId);
             if (coreChoice.TargetCoreLevel <= 1)
             {
-                _workingOptions.Add(new LevelUpOption(
+                _candidates.Clear();
+                _candidates.Add(new LevelUpOption(
                     UpgradeCategory.WeaponCore,
                     coreChoice.WeaponId,
                     default,
@@ -319,7 +320,7 @@ namespace EJR.Game.Gameplay
                     label: $"CORE {weaponName}: Fire Lv1",
                     coreElement: WeaponCoreElement.Fire));
 
-                _workingOptions.Add(new LevelUpOption(
+                _candidates.Add(new LevelUpOption(
                     UpgradeCategory.WeaponCore,
                     coreChoice.WeaponId,
                     default,
@@ -330,7 +331,7 @@ namespace EJR.Game.Gameplay
                     label: $"CORE {weaponName}: Wind Lv1",
                     coreElement: WeaponCoreElement.Wind));
 
-                _workingOptions.Add(new LevelUpOption(
+                _candidates.Add(new LevelUpOption(
                     UpgradeCategory.WeaponCore,
                     coreChoice.WeaponId,
                     default,
@@ -341,7 +342,7 @@ namespace EJR.Game.Gameplay
                     label: $"CORE {weaponName}: Light Lv1",
                     coreElement: WeaponCoreElement.Light));
 
-                _workingOptions.Add(new LevelUpOption(
+                _candidates.Add(new LevelUpOption(
                     UpgradeCategory.WeaponCore,
                     coreChoice.WeaponId,
                     default,
@@ -351,6 +352,14 @@ namespace EJR.Game.Gameplay
                     isLockedBySlot: false,
                     label: $"CORE {weaponName}: Water Lv1",
                     coreElement: WeaponCoreElement.Water));
+
+                ShuffleCandidates(_candidates);
+                var optionCount = Mathf.Min(3, _candidates.Count);
+                for (var i = 0; i < optionCount; i++)
+                {
+                    _workingOptions.Add(_candidates[i]);
+                }
+
                 return _workingOptions.ToArray();
             }
 

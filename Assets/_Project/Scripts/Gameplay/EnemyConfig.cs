@@ -184,7 +184,7 @@ namespace EJR.Game.Gameplay
     [CreateAssetMenu(menuName = "EJR/Config/Enemy", fileName = "EnemyConfig")]
     public sealed class EnemyConfig : ScriptableObject
     {
-        [Min(1f)] public float maxHealth = 24f;
+        [Min(1f)] public float maxHealth = 50f;
         [Min(0.1f)] public float moveSpeed = 1.55f;
         [Min(1f)] public float contactDamage = 8f;
         [Min(0.1f)] public float contactDamageCooldown = 0.85f;
@@ -206,7 +206,7 @@ namespace EJR.Game.Gameplay
         [Min(60f)] public float bossWaveStartSeconds = 600f;
         [Range(0f, 1f)] public float mushroomRatioAtPhaseStart = 0.5f;
         [Range(0f, 1f)] public float mushroomRatioBeforeBoss = 1f;
-        [Min(1)] public int bossWaveSkeletonCount = 15;
+        [Min(1)] public int bossWaveSkeletonCount = 8;
         [Min(0.1f)] public float bossSpawnRadius = 9f;
         [Min(0.1f)] public float skeletonWaveMinRadius = 7.5f;
         [Min(0.1f)] public float skeletonWaveMaxRadius = 11f;
@@ -215,11 +215,11 @@ namespace EJR.Game.Gameplay
         public bool enableTimedWaves = true;
         [Min(1f)] public float wave1TimeSeconds = 180f;
         [Min(1f)] public float wave2TimeSeconds = 360f;
-        [Min(0)] public int wave1SlimeCount = 20;
+        [Min(0)] public int wave1SlimeCount = 10;
         [Min(0)] public int wave1MushroomCount = 0;
         [Min(0)] public int wave1SkeletonCount = 0;
         [Min(0)] public int wave2SlimeCount = 0;
-        [Min(0)] public int wave2MushroomCount = 30;
+        [Min(0)] public int wave2MushroomCount = 15;
         [Min(0)] public int wave2SkeletonCount = 0;
         [Min(0.1f)] public float timedWaveMinRadius = 9.5f;
         [Min(0.1f)] public float timedWaveMaxRadius = 13f;
@@ -330,34 +330,34 @@ namespace EJR.Game.Gameplay
                 healthMultiplier = 1f,
                 moveSpeedMultiplier = 1f,
                 contactDamageMultiplier = 1f,
-                experienceMultiplier = 1f,
+                experienceMultiplier = 2f,
                 visualScaleMultiplier = 0.8f,
                 collisionRadiusMultiplier = 1f,
             },
             new EnemyStatProfile
             {
                 visualKind = RuntimeSpriteFactory.EnemyVisualKind.Mushroom,
-                healthMultiplier = 1.5f,
+                healthMultiplier = 2f,
                 moveSpeedMultiplier = 1.02f,
                 contactDamageMultiplier = 1.25f,
-                experienceMultiplier = 1.5f,
+                experienceMultiplier = 3f,
                 visualScaleMultiplier = 0.8f,
                 collisionRadiusMultiplier = 1f,
             },
             new EnemyStatProfile
             {
                 visualKind = RuntimeSpriteFactory.EnemyVisualKind.Skeleton,
-                healthMultiplier = 44f,
+                healthMultiplier = 10f,
                 moveSpeedMultiplier = 1.22f,
                 contactDamageMultiplier = 1.45f,
-                experienceMultiplier = 2.2f,
+                experienceMultiplier = 10f,
                 visualScaleMultiplier = 1f,
                 collisionRadiusMultiplier = 1f,
             },
             new EnemyStatProfile
             {
                 visualKind = RuntimeSpriteFactory.EnemyVisualKind.Boss,
-                healthMultiplier = 287.5f,
+                healthMultiplier = 100f,
                 moveSpeedMultiplier = 1.2f,
                 contactDamageMultiplier = 2.4f,
                 experienceMultiplier = 25f,
@@ -372,8 +372,8 @@ namespace EJR.Game.Gameplay
         [Min(0f)] public float overlapResolvePadding = 0f;
 
         [Header("Spawner")]
-        [Min(0.1f)] public float initialSpawnInterval = 1.2f;
-        [Min(0.05f)] public float minimumSpawnInterval = 0.25f;
+        [Min(0.1f)] public float initialSpawnInterval = 2.4f;
+        [Min(0.05f)] public float minimumSpawnInterval = 0.5f;
         [Min(1f)] public float spawnRampSeconds = 480f;
         [Min(0.1f)] public float minSpawnRadius = 8f;
         [Min(0.1f)] public float maxSpawnRadius = 12f;

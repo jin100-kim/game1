@@ -8,6 +8,7 @@ namespace EJR.Game.Gameplay
     {
         public static readonly Color EnemyDamagedColor = new Color(1f, 0.92f, 0.35f, 1f);
         public static readonly Color PlayerDamagedColor = new Color(1f, 0.35f, 0.35f, 1f);
+        public static readonly Color LightBonusColor = new Color(0.72f, 0.96f, 1f, 1f);
 
         private const int PopupPoolPrewarmCount = 40;
         private const float PopupLifetime = 0.65f;

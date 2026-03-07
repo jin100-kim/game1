@@ -63,8 +63,9 @@ namespace EJR.Game.Gameplay
         private float _bossPatternCooldown;
         private float _bossStateTimer;
         private Vector2 _bossDashDirection = Vector2.right;
-        private int _bossVolleyPhase;
-        private int _bossShotsRemaining;
+        private int _bossEightWayShotsRemaining;
+        private int _bossAimShotsRemaining;
+        private bool _bossUseEightWayNext = true;
         private float _bossShotTimer;
         private static Material _fireExplosionFxMaterial;
 
@@ -117,8 +118,9 @@ namespace EJR.Game.Gameplay
             _bossPatternCooldown = IsBoss ? UnityEngine.Random.Range(1.2f, 2.1f) : float.MaxValue;
             _bossStateTimer = 0f;
             _bossDashDirection = Vector2.right;
-            _bossVolleyPhase = 0;
-            _bossShotsRemaining = 0;
+            _bossEightWayShotsRemaining = 0;
+            _bossAimShotsRemaining = 0;
+            _bossUseEightWayNext = true;
             _bossShotTimer = 0f;
             _registry.Register(this);
             Changed?.Invoke(_health, _maxHealth);
@@ -331,17 +333,27 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            var appliedDamage = Mathf.Max(0f, damage);
-            if (appliedDamage <= 0f)
+            var baseDamage = Mathf.Max(0f, damage);
+            if (baseDamage <= 0f)
             {
                 return;
             }
 
+            var lightBonusMultiplier = 0f;
             if (_activeLightRemaining > 0f && _activeLightBonusMultiplier > 0f)
             {
-                appliedDamage *= 1f + _activeLightBonusMultiplier;
+                lightBonusMultiplier = _activeLightBonusMultiplier;
             }
 
+            if (coreElement == WeaponCoreElement.Light && coreLevel > 0)
+            {
+                var immediateLightMultiplier = GetLightBonusMultiplierForLevel(Mathf.Clamp(coreLevel, 1, PlayerBuildRuntime.MaxCoreLevel));
+                lightBonusMultiplier = Mathf.Max(lightBonusMultiplier, immediateLightMultiplier);
+            }
+
+            var lightBonusDamage = baseDamage * lightBonusMultiplier;
+
+            var appliedDamage = baseDamage + lightBonusDamage;
             _health = Mathf.Max(0f, _health - appliedDamage);
             if (_health > 0f &&
                 _visualKind != RuntimeSpriteFactory.EnemyVisualKind.Boss &&
@@ -350,7 +362,12 @@ namespace EJR.Game.Gameplay
                 _spriteAnimator?.PlayHurt();
             }
 
-            CombatTextSpawner.SpawnDamage(transform.position + new Vector3(0f, 0.8f, 0f), appliedDamage, CombatTextSpawner.EnemyDamagedColor);
+            var basePopupPosition = transform.position + new Vector3(0f, 0.8f, 0f);
+            CombatTextSpawner.SpawnDamage(basePopupPosition, baseDamage, CombatTextSpawner.EnemyDamagedColor);
+            if (lightBonusDamage > 0f)
+            {
+                CombatTextSpawner.SpawnDamage(basePopupPosition + new Vector3(0f, 0.18f, 0f), lightBonusDamage, CombatTextSpawner.LightBonusColor);
+            }
             Changed?.Invoke(_health, MaxHealth);
 
             if (coreLevel > 0)
@@ -485,8 +502,9 @@ namespace EJR.Game.Gameplay
 
                 default:
                     _bossPatternState = BossPatternState.ProjectileVolley;
-                    _bossVolleyPhase = 0;
-                    _bossShotsRemaining = BossEightWayShots;
+                    _bossEightWayShotsRemaining = BossEightWayShots;
+                    _bossAimShotsRemaining = BossAimShots;
+                    _bossUseEightWayNext = true;
                     _bossShotTimer = 0f;
                     break;
             }
@@ -505,27 +523,39 @@ namespace EJR.Game.Gameplay
             var shotDuration = Mathf.Max(0.08f, BossProjectileShotInterval * 0.8f);
             _spriteAnimator?.PlayAttackOneShot(shotDuration);
 
-            if (_bossVolleyPhase == 0)
+            var canFireEightWay = _bossEightWayShotsRemaining > 0;
+            var canFireAim = _bossAimShotsRemaining > 0;
+            if (!canFireEightWay && !canFireAim)
+            {
+                EndBossPattern();
+                return;
+            }
+
+            var fireEightWay = canFireEightWay && (!canFireAim || _bossUseEightWayNext);
+            if (fireEightWay)
             {
                 FireBossEightWayBurst();
-                _bossShotsRemaining--;
-                if (_bossShotsRemaining <= 0)
-                {
-                    _bossVolleyPhase = 1;
-                    _bossShotsRemaining = BossAimShots;
-                    _bossShotTimer = 0.3f;
-                    return;
-                }
+                _bossEightWayShotsRemaining--;
             }
             else
             {
                 FireBossAimShot();
-                _bossShotsRemaining--;
-                if (_bossShotsRemaining <= 0)
-                {
-                    EndBossPattern();
-                    return;
-                }
+                _bossAimShotsRemaining--;
+            }
+
+            if (_bossEightWayShotsRemaining > 0 && _bossAimShotsRemaining > 0)
+            {
+                _bossUseEightWayNext = !_bossUseEightWayNext;
+            }
+            else
+            {
+                _bossUseEightWayNext = _bossEightWayShotsRemaining > 0;
+            }
+
+            if (_bossEightWayShotsRemaining <= 0 && _bossAimShotsRemaining <= 0)
+            {
+                EndBossPattern();
+                return;
             }
 
             _bossShotTimer = BossProjectileShotInterval;
@@ -576,8 +606,9 @@ namespace EJR.Game.Gameplay
             _bossPatternState = BossPatternState.None;
             _bossStateTimer = 0f;
             _bossShotTimer = 0f;
-            _bossShotsRemaining = 0;
-            _bossVolleyPhase = 0;
+            _bossEightWayShotsRemaining = 0;
+            _bossAimShotsRemaining = 0;
+            _bossUseEightWayNext = true;
             _bossPatternCooldown = UnityEngine.Random.Range(2.4f, 4.2f);
         }
 
@@ -590,13 +621,13 @@ namespace EJR.Game.Gameplay
                     ApplyFireCore(clampedLevel, dealtDamage);
                     break;
                 case WeaponCoreElement.Wind:
-                    ApplyWindCore(clampedLevel);
+                    ApplyWaterCore(clampedLevel);
                     break;
                 case WeaponCoreElement.Light:
                     ApplyLightCore(clampedLevel);
                     break;
                 case WeaponCoreElement.Water:
-                    ApplyWaterCore(clampedLevel);
+                    ApplyWindCore(clampedLevel);
                     break;
             }
         }
@@ -606,8 +637,8 @@ namespace EJR.Game.Gameplay
             var (accumulateRatio, hitThreshold) = coreLevel switch
             {
                 1 => (0.10f, 5),
-                2 => (0.15f, 4),
-                _ => (0.40f, 2),
+                2 => (0.20f, 4),
+                _ => (0.30f, 2),
             };
 
             _fireAccumulatedDamage += Mathf.Max(0f, dealtDamage) * accumulateRatio;
@@ -629,9 +660,9 @@ namespace EJR.Game.Gameplay
 
             var (slowPercent, duration) = coreLevel switch
             {
-                1 => (0.20f, 0.1f),
-                2 => (0.40f, 0.1f),
-                _ => (0.60f, 0.2f),
+                1 => (0.30f, 1.0f),
+                2 => (0.50f, 1.0f),
+                _ => (0.80f, 1.0f),
             };
 
             var slowMultiplier = Mathf.Clamp01(1f - slowPercent);
@@ -652,6 +683,16 @@ namespace EJR.Game.Gameplay
             _activeLightRemaining = Mathf.Max(_activeLightRemaining, duration);
         }
 
+        private static float GetLightBonusMultiplierForLevel(int coreLevel)
+        {
+            return coreLevel switch
+            {
+                1 => 0.10f,
+                2 => 0.20f,
+                _ => 0.30f,
+            };
+        }
+
         private void ApplyWaterCore(int coreLevel)
         {
             if (IsBoss)
@@ -663,7 +704,7 @@ namespace EJR.Game.Gameplay
             {
                 1 => 0.1f,
                 2 => 0.2f,
-                _ => 0.5f,
+                _ => 0.3f,
             };
 
             if (knockbackDistance <= 0f)
@@ -698,6 +739,8 @@ namespace EJR.Game.Gameplay
             }
 
             var explosionDamage = _fireAccumulatedDamage;
+            var explosionScale = Mathf.Clamp01(_fireAccumulatedHits / (float)Mathf.Max(1, _fireTriggerHitCount));
+            var explosionRadius = FireExplosionRadius * explosionScale;
             ResetFireAccumulation();
 
             if (_registry == null)
@@ -705,9 +748,14 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
+            if (explosionRadius <= 0.0001f)
+            {
+                return;
+            }
+
             var origin = (Vector2)transform.position;
-            SpawnFireExplosionRangeFx(origin);
-            var searchRadius = FireExplosionRadius + _registry.GetMaxCollisionRadius();
+            SpawnFireExplosionRangeFx(origin, explosionRadius);
+            var searchRadius = explosionRadius + _registry.GetMaxCollisionRadius();
             _registry.GetNearby(origin, searchRadius, _nearbyBuffer);
 
             for (var i = 0; i < _nearbyBuffer.Count; i++)
@@ -720,7 +768,7 @@ namespace EJR.Game.Gameplay
 
                 var toEnemy = (Vector2)enemy.transform.position - origin;
                 var distance = toEnemy.magnitude;
-                var limit = FireExplosionRadius + enemy.CollisionRadius;
+                var limit = explosionRadius + enemy.CollisionRadius;
                 if (distance > limit)
                 {
                     continue;
@@ -730,7 +778,7 @@ namespace EJR.Game.Gameplay
             }
         }
 
-        private static void SpawnFireExplosionRangeFx(Vector2 origin)
+        private static void SpawnFireExplosionRangeFx(Vector2 origin, float radius)
         {
             var fxObject = new GameObject("FireExplosionFx");
             var lineRenderer = fxObject.AddComponent<LineRenderer>();
@@ -751,7 +799,7 @@ namespace EJR.Game.Gameplay
             {
                 var t = i / (float)FireExplosionFxSegments;
                 var angle = t * Mathf.PI * 2f;
-                var point = origin + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * FireExplosionRadius;
+                var point = origin + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
                 lineRenderer.SetPosition(i, new Vector3(point.x, point.y, -0.02f));
             }
 

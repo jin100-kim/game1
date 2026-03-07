@@ -238,7 +238,7 @@ namespace EJR.Game.Gameplay
                     }
 
                     weapon.BurstShotsRemaining--;
-                    weapon.BurstShotCooldown = Mathf.Max(0.01f, _config.smgBurstShotInterval);
+                    weapon.BurstShotCooldown = Mathf.Max(0.01f, ApplyCoreAttackIntervalToValue(Mathf.Max(0.01f, _config.smgBurstShotInterval), weapon));
                     if (weapon.BurstShotsRemaining <= 0)
                     {
                         weapon.Cooldown = GetAttackInterval(weapon);
@@ -323,7 +323,7 @@ namespace EJR.Game.Gameplay
             weapon.BurstShotCooldown = 0f;
             FireSmgBullet(weapon, direction);
             weapon.BurstShotsRemaining--;
-            weapon.BurstShotCooldown = Mathf.Max(0.01f, _config.smgBurstShotInterval);
+            weapon.BurstShotCooldown = Mathf.Max(0.01f, ApplyCoreAttackIntervalToValue(Mathf.Max(0.01f, _config.smgBurstShotInterval), weapon));
             if (weapon.BurstShotsRemaining <= 0)
             {
                 weapon.Cooldown = GetAttackInterval(weapon);
@@ -1126,8 +1126,8 @@ namespace EJR.Game.Gameplay
         private float GetAttackInterval(WeaponRuntime weapon)
         {
             var tier = Mathf.Max(0, weapon.Level - 1);
-            var levelMultiplier = Mathf.Max(0.35f, 1f - (0.03f * tier));
-            var attackSpeed = _stats != null ? Mathf.Max(0.2f, _stats.AttackIntervalMultiplier) : 1f;
+            var weaponLevelMultiplier = Mathf.Max(0.35f, 1f - (0.03f * tier));
+            var statAttackSpeedMultiplier = _stats != null ? Mathf.Max(0.2f, _stats.AttackIntervalMultiplier) : 1f;
 
             var baseInterval = Mathf.Max(0.05f, _config.attackInterval);
             if (weapon.WeaponId == WeaponUpgradeId.Smg)
@@ -1151,7 +1151,9 @@ namespace EJR.Game.Gameplay
                 baseInterval *= 1.05f;
             }
 
-            return Mathf.Max(0.05f, baseInterval * attackSpeed * levelMultiplier);
+            var nonCoreInterval = baseInterval * statAttackSpeedMultiplier * weaponLevelMultiplier;
+            var withCoreApplied = ApplyCoreAttackIntervalToValue(nonCoreInterval, weapon);
+            return Mathf.Max(0.05f, withCoreApplied);
         }
 
         private float GetLightningInterval(WeaponRuntime weapon)
@@ -1162,25 +1164,28 @@ namespace EJR.Game.Gameplay
         private float GetAuraTickInterval(WeaponRuntime weapon)
         {
             var tier = Mathf.Max(0, weapon.Level - 1);
-            var levelMultiplier = Mathf.Max(0.45f, 1f - (0.025f * tier));
-            var attackSpeed = _stats != null ? Mathf.Max(0.2f, _stats.AttackIntervalMultiplier) : 1f;
-            return Mathf.Max(0.03f, Mathf.Max(0.01f, _config.auraTickInterval) * attackSpeed * levelMultiplier);
+            var weaponLevelMultiplier = Mathf.Max(0.45f, 1f - (0.025f * tier));
+            var statAttackSpeedMultiplier = _stats != null ? Mathf.Max(0.2f, _stats.AttackIntervalMultiplier) : 1f;
+            var nonCoreInterval = Mathf.Max(0.01f, _config.auraTickInterval) * statAttackSpeedMultiplier * weaponLevelMultiplier;
+            return Mathf.Max(0.03f, ApplyCoreAttackIntervalToValue(nonCoreInterval, weapon));
         }
 
         private float GetSatelliteHitCooldown(WeaponRuntime weapon)
         {
             var tier = Mathf.Max(0, weapon.Level - 1);
-            var levelMultiplier = Mathf.Max(0.35f, 1f - (0.025f * tier));
-            var attackSpeed = _stats != null ? Mathf.Max(0.2f, _stats.AttackIntervalMultiplier) : 1f;
-            return Mathf.Max(0.03f, Mathf.Max(0.01f, _config.satelliteHitCooldownPerEnemy) * attackSpeed * levelMultiplier);
+            var weaponLevelMultiplier = Mathf.Max(0.35f, 1f - (0.025f * tier));
+            var statAttackSpeedMultiplier = _stats != null ? Mathf.Max(0.2f, _stats.AttackIntervalMultiplier) : 1f;
+            var nonCoreInterval = Mathf.Max(0.01f, _config.satelliteHitCooldownPerEnemy) * statAttackSpeedMultiplier * weaponLevelMultiplier;
+            return Mathf.Max(0.03f, ApplyCoreAttackIntervalToValue(nonCoreInterval, weapon));
         }
 
         private float GetRifleTurretDeployInterval(WeaponRuntime weapon)
         {
             var tier = Mathf.Max(0, weapon.Level - 1);
-            var levelMultiplier = Mathf.Max(0.4f, 1f - (0.03f * tier));
-            var attackSpeed = _stats != null ? Mathf.Max(0.2f, _stats.AttackIntervalMultiplier) : 1f;
-            return Mathf.Max(0.1f, Mathf.Max(0.1f, _config.rifleTurretDeployInterval) * attackSpeed * levelMultiplier);
+            var weaponLevelMultiplier = Mathf.Max(0.4f, 1f - (0.03f * tier));
+            var statAttackSpeedMultiplier = _stats != null ? Mathf.Max(0.2f, _stats.AttackIntervalMultiplier) : 1f;
+            var nonCoreInterval = Mathf.Max(0.1f, _config.rifleTurretDeployInterval) * statAttackSpeedMultiplier * weaponLevelMultiplier;
+            return Mathf.Max(0.1f, ApplyCoreAttackIntervalToValue(nonCoreInterval, weapon));
         }
 
         private float GetRifleTurretShotInterval(WeaponRuntime weapon)
@@ -1191,9 +1196,72 @@ namespace EJR.Game.Gameplay
         private float GetWeaponBaseDamage(WeaponRuntime weapon)
         {
             var tier = Mathf.Max(0, weapon.Level - 1);
-            var levelMultiplier = 1f + (0.18f * tier);
-            var damageMultiplier = _stats != null ? Mathf.Max(0.1f, _stats.DamageMultiplier) : 1f;
-            return Mathf.Max(0.1f, _config.projectileDamage * damageMultiplier * levelMultiplier);
+            var weaponLevelMultiplier = 1f + (0.18f * tier);
+            var statDamageMultiplier = _stats != null ? Mathf.Max(0.1f, _stats.DamageMultiplier) : 1f;
+            var nonCoreDamage = _config.projectileDamage * statDamageMultiplier * weaponLevelMultiplier;
+            var withCoreApplied = ApplyCoreDamageToValue(nonCoreDamage, weapon);
+            return Mathf.Max(0.1f, withCoreApplied);
+        }
+
+        private float ApplyCoreDamageToValue(float value, WeaponRuntime weapon)
+        {
+            return Mathf.Max(0f, value) * GetCoreDamageMultiplier(weapon);
+        }
+
+        private float ApplyCoreAttackIntervalToValue(float interval, WeaponRuntime weapon)
+        {
+            return Mathf.Max(0f, interval) * GetCoreAttackIntervalMultiplier(weapon);
+        }
+
+        private float GetCoreDamageMultiplier(WeaponRuntime weapon)
+        {
+            var coreElement = GetCoreElement(weapon.WeaponId);
+            var rawCoreLevel = GetCoreLevel(weapon.WeaponId);
+            if (rawCoreLevel <= 0)
+            {
+                return 1f;
+            }
+            var coreLevel = Mathf.Clamp(rawCoreLevel, 1, PlayerBuildRuntime.MaxCoreLevel);
+
+            return coreElement switch
+            {
+                WeaponCoreElement.Wind => coreLevel switch
+                {
+                    1 => 0.90f,
+                    2 => 0.85f,
+                    _ => 0.80f,
+                },
+                WeaponCoreElement.Water => coreLevel switch
+                {
+                    1 => 1.10f,
+                    2 => 1.20f,
+                    _ => 1.30f,
+                },
+                _ => 1f,
+            };
+        }
+
+        private float GetCoreAttackIntervalMultiplier(WeaponRuntime weapon)
+        {
+            var coreElement = GetCoreElement(weapon.WeaponId);
+            var rawCoreLevel = GetCoreLevel(weapon.WeaponId);
+            if (rawCoreLevel <= 0)
+            {
+                return 1f;
+            }
+            var coreLevel = Mathf.Clamp(rawCoreLevel, 1, PlayerBuildRuntime.MaxCoreLevel);
+
+            if (coreElement != WeaponCoreElement.Wind)
+            {
+                return 1f;
+            }
+
+            return coreLevel switch
+            {
+                1 => 0.80f,
+                2 => 0.65f,
+                _ => 0.50f,
+            };
         }
 
         private float GetWeaponRange(WeaponRuntime weapon)
