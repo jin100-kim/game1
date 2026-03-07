@@ -15,6 +15,8 @@ namespace EJR.Game.Gameplay
         }
 
         private const float FireExplosionRadius = 0.725f;
+        private const float FireExplosionMaxRadiusMultiplier = 1.25f;
+        private const float FireExplosionMinRadiusRatio = 0.5f;
         private const float FireExplosionFxDuration = 0.18f;
         private const float FireExplosionFxLineWidth = 0.06f;
         private const int FireExplosionFxSegments = 28;
@@ -739,8 +741,10 @@ namespace EJR.Game.Gameplay
             }
 
             var explosionDamage = _fireAccumulatedDamage;
-            var explosionScale = Mathf.Clamp01(_fireAccumulatedHits / (float)Mathf.Max(1, _fireTriggerHitCount));
-            var explosionRadius = FireExplosionRadius * explosionScale;
+            var hitProgress = Mathf.Clamp01(_fireAccumulatedHits / (float)Mathf.Max(1, _fireTriggerHitCount));
+            var maxExplosionRadius = FireExplosionRadius * FireExplosionMaxRadiusMultiplier;
+            var scaledRadiusRatio = Mathf.Lerp(FireExplosionMinRadiusRatio, 1f, hitProgress);
+            var explosionRadius = maxExplosionRadius * scaledRadiusRatio;
             ResetFireAccumulation();
 
             if (_registry == null)

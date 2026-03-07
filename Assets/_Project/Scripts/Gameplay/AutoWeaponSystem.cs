@@ -1129,7 +1129,10 @@ namespace EJR.Game.Gameplay
             var weaponLevelMultiplier = Mathf.Max(0.35f, 1f - (0.03f * tier));
             var statAttackSpeedMultiplier = _stats != null ? Mathf.Max(0.2f, _stats.AttackIntervalMultiplier) : 1f;
 
-            var baseInterval = Mathf.Max(0.05f, _config.attackInterval);
+            var baseInterval = weapon.WeaponId == WeaponUpgradeId.Rifle
+                ? Mathf.Max(0.05f, _config.rifleAttackInterval)
+                : Mathf.Max(0.05f, _config.attackInterval);
+
             if (weapon.WeaponId == WeaponUpgradeId.Smg)
             {
                 baseInterval *= 0.92f;
@@ -1198,7 +1201,10 @@ namespace EJR.Game.Gameplay
             var tier = Mathf.Max(0, weapon.Level - 1);
             var weaponLevelMultiplier = 1f + (0.18f * tier);
             var statDamageMultiplier = _stats != null ? Mathf.Max(0.1f, _stats.DamageMultiplier) : 1f;
-            var nonCoreDamage = _config.projectileDamage * statDamageMultiplier * weaponLevelMultiplier;
+            var weaponBaseDamage = weapon.WeaponId == WeaponUpgradeId.Rifle
+                ? Mathf.Max(0.1f, _config.rifleBaseDamage)
+                : Mathf.Max(0.1f, _config.projectileDamage);
+            var nonCoreDamage = weaponBaseDamage * statDamageMultiplier * weaponLevelMultiplier;
             var withCoreApplied = ApplyCoreDamageToValue(nonCoreDamage, weapon);
             return Mathf.Max(0.1f, withCoreApplied);
         }
