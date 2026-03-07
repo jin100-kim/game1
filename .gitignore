@@ -8,9 +8,9 @@
 UserSettings/
 MemoryCaptures/
 
-# Allow playtest build artifacts only
-!Builds/playtest/
-!Builds/playtest/**
+# Allow Windows build artifacts
+!Builds/Windows/
+!Builds/Windows/**
 
 # Visual Studio / Rider
 .vs/
