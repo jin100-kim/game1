@@ -15,6 +15,8 @@ namespace EJR.Game.Gameplay
         private float _elapsedSeconds;
         private float _spawnTimer;
         private bool _bossWaveTriggered;
+        private bool _wave1Triggered;
+        private bool _wave2Triggered;
         private EnemyController _bossEnemy;
 
         public float ElapsedSeconds => _elapsedSeconds;
@@ -39,6 +41,8 @@ namespace EJR.Game.Gameplay
             _spawnTimer = 0f;
             _elapsedSeconds = 0f;
             _bossWaveTriggered = false;
+            _wave1Triggered = false;
+            _wave2Triggered = false;
             _bossEnemy = null;
         }
 
@@ -50,6 +54,7 @@ namespace EJR.Game.Gameplay
             }
 
             _elapsedSeconds += Time.deltaTime;
+            TryTriggerTimedWaves();
             if (!_bossWaveTriggered && _elapsedSeconds >= GetBossWaveStartSeconds())
             {
                 TriggerBossWave();
@@ -121,6 +126,7 @@ namespace EJR.Game.Gameplay
         public void DebugSetElapsedSeconds(float seconds)
         {
             _elapsedSeconds = Mathf.Max(0f, seconds);
+            TryTriggerTimedWaves();
             if (!_bossWaveTriggered && _elapsedSeconds >= GetBossWaveStartSeconds())
             {
                 TriggerBossWave();
@@ -198,6 +204,73 @@ namespace EJR.Game.Gameplay
             enemy.Changed += healthBar.SetHealth;
 
             return enemy;
+        }
+
+        private void TryTriggerTimedWaves()
+        {
+            if (_bossWaveTriggered || _config == null || _target == null || !_config.enableTimedWaves)
+            {
+                return;
+            }
+
+            var bossStart = GetBossWaveStartSeconds();
+
+            if (!_wave1Triggered &&
+                _elapsedSeconds >= Mathf.Max(1f, _config.wave1TimeSeconds) &&
+                _config.wave1TimeSeconds < bossStart)
+            {
+                TriggerConfiguredWave(_config.wave1SlimeCount, _config.wave1MushroomCount, _config.wave1SkeletonCount);
+                _wave1Triggered = true;
+            }
+
+            if (!_wave2Triggered &&
+                _elapsedSeconds >= Mathf.Max(1f, _config.wave2TimeSeconds) &&
+                _config.wave2TimeSeconds < bossStart)
+            {
+                TriggerConfiguredWave(_config.wave2SlimeCount, _config.wave2MushroomCount, _config.wave2SkeletonCount);
+                _wave2Triggered = true;
+            }
+        }
+
+        private void TriggerConfiguredWave(int slimeCount, int mushroomCount, int skeletonCount)
+        {
+            var validSlimeCount = _config.spawnSlime ? Mathf.Max(0, slimeCount) : 0;
+            var validMushroomCount = _config.spawnMushroom ? Mathf.Max(0, mushroomCount) : 0;
+            var validSkeletonCount = _config.spawnSkeleton ? Mathf.Max(0, skeletonCount) : 0;
+            var total = validSlimeCount + validMushroomCount + validSkeletonCount;
+            if (total <= 0)
+            {
+                return;
+            }
+
+            var minRadius = Mathf.Max(0.1f, _config.timedWaveMinRadius);
+            var maxRadius = Mathf.Max(minRadius + 0.1f, _config.timedWaveMaxRadius);
+            var angleOffset = Random.value * Mathf.PI * 2f;
+            var spawnIndex = 0;
+
+            SpawnWaveEnemies(RuntimeSpriteFactory.EnemyVisualKind.Slime, validSlimeCount, total, ref spawnIndex, angleOffset, minRadius, maxRadius);
+            SpawnWaveEnemies(RuntimeSpriteFactory.EnemyVisualKind.Mushroom, validMushroomCount, total, ref spawnIndex, angleOffset, minRadius, maxRadius);
+            SpawnWaveEnemies(RuntimeSpriteFactory.EnemyVisualKind.Skeleton, validSkeletonCount, total, ref spawnIndex, angleOffset, minRadius, maxRadius);
+        }
+
+        private void SpawnWaveEnemies(
+            RuntimeSpriteFactory.EnemyVisualKind visualKind,
+            int count,
+            int total,
+            ref int spawnIndex,
+            float angleOffset,
+            float minRadius,
+            float maxRadius)
+        {
+            for (var i = 0; i < count; i++)
+            {
+                var t = total > 0 ? spawnIndex / (float)total : 0f;
+                var angle = angleOffset + (Mathf.PI * 2f * t) + Random.Range(-0.15f, 0.15f);
+                var radius = Random.Range(minRadius, maxRadius);
+                var position = _target.position + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius;
+                SpawnEnemy(visualKind, position);
+                spawnIndex++;
+            }
         }
 
         private static void ApplyVisualScale(Transform targetTransform, Sprite sprite, float desiredWorldSize)
@@ -310,14 +383,25 @@ namespace EJR.Game.Gameplay
                 return RuntimeSpriteFactory.EnemyVisualKind.Slime;
             }
 
-            var t = Mathf.InverseLerp(
-                Mathf.Max(0f, _config.mushroomPhaseStartSeconds),
-                GetBossWaveStartSeconds(),
-                _elapsedSeconds);
-            var mushroomChance = Mathf.Lerp(
-                Mathf.Clamp01(_config.mushroomRatioAtPhaseStart),
-                Mathf.Clamp01(_config.mushroomRatioBeforeBoss),
-                t);
+            var phaseStart = Mathf.Max(0f, _config.mushroomPhaseStartSeconds);
+            var phaseEnd = Mathf.Max(phaseStart + 1f, _config.wave2TimeSeconds);
+            float mushroomChance;
+
+            if (_elapsedSeconds < phaseStart)
+            {
+                // Before phase start: slime only.
+                mushroomChance = 0f;
+            }
+            else if (_elapsedSeconds < phaseEnd)
+            {
+                // Middle phase (e.g. 3~6 min): configured mixed ratio.
+                mushroomChance = Mathf.Clamp01(_config.mushroomRatioAtPhaseStart);
+            }
+            else
+            {
+                // After middle phase: configured post-phase ratio.
+                mushroomChance = Mathf.Clamp01(_config.mushroomRatioBeforeBoss);
+            }
 
             return Random.value < mushroomChance
                 ? RuntimeSpriteFactory.EnemyVisualKind.Mushroom

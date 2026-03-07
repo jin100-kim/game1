@@ -25,6 +25,46 @@ namespace EJR.Game.Gameplay
             Changed?.Invoke(CurrentHealth, MaxHealth);
         }
 
+        public void SetMaxHealth(float newMaxHealth, bool healDelta)
+        {
+            var clampedMax = Mathf.Max(1f, newMaxHealth);
+            if (Mathf.Abs(clampedMax - MaxHealth) <= 0.0001f)
+            {
+                return;
+            }
+
+            var previousMax = MaxHealth;
+            MaxHealth = clampedMax;
+
+            if (healDelta)
+            {
+                CurrentHealth = Mathf.Clamp(CurrentHealth + (MaxHealth - previousMax), 0f, MaxHealth);
+            }
+            else
+            {
+                CurrentHealth = Mathf.Clamp(CurrentHealth, 0f, MaxHealth);
+            }
+
+            Changed?.Invoke(CurrentHealth, MaxHealth);
+        }
+
+        public void Heal(float amount)
+        {
+            if (amount <= 0f || CurrentHealth <= 0f || CurrentHealth >= MaxHealth)
+            {
+                return;
+            }
+
+            var nextHealth = Mathf.Min(MaxHealth, CurrentHealth + amount);
+            if (nextHealth <= CurrentHealth + 0.0001f)
+            {
+                return;
+            }
+
+            CurrentHealth = nextHealth;
+            Changed?.Invoke(CurrentHealth, MaxHealth);
+        }
+
         public void TakeDamage(float damage)
         {
             if (CurrentHealth <= 0f || IsInvulnerable)

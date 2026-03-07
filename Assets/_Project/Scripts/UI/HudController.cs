@@ -20,6 +20,11 @@ namespace EJR.Game.UI
         private Button _autoPlayButton;
         private Text _autoPlayButtonText;
         private Image _autoPlayButtonImage;
+        private Button _aimModeButton;
+        private Text _aimModeButtonText;
+        private GameObject _buildPanel;
+        private Text _weaponBuildText;
+        private Text _statBuildText;
 
         private GameObject _levelUpPanel;
         private Text _levelUpTitle;
@@ -35,6 +40,8 @@ namespace EJR.Game.UI
         private int _lastCurrentXp = int.MinValue;
         private int _lastRequiredXp = int.MinValue;
         private int _lastRemainingSeconds = int.MinValue;
+        private string _lastWeaponBuildSummary = string.Empty;
+        private string _lastStatBuildSummary = string.Empty;
 
         public HudController()
         {
@@ -46,6 +53,7 @@ namespace EJR.Game.UI
             EnsureEventSystem();
             BuildCanvas();
             BuildTopBar();
+            BuildBuildPanel();
             BuildLevelUpPanel();
             BuildResultPanel();
         }
@@ -99,6 +107,20 @@ namespace EJR.Game.UI
             SetAutoPlayState(enabled);
         }
 
+        public void BindAimModeToggle(Action onToggle)
+        {
+            if (_aimModeButton == null)
+            {
+                return;
+            }
+
+            _aimModeButton.onClick.RemoveAllListeners();
+            if (onToggle != null)
+            {
+                _aimModeButton.onClick.AddListener(() => onToggle.Invoke());
+            }
+        }
+
         public void SetAutoPlayState(bool enabled)
         {
             if (_autoPlayButtonText != null)
@@ -111,6 +133,39 @@ namespace EJR.Game.UI
                 _autoPlayButtonImage.color = enabled
                     ? new Color(0.2f, 0.55f, 0.27f, 1f)
                     : new Color(0.2f, 0.2f, 0.2f, 1f);
+            }
+        }
+
+        public void SetAimModeLabel(string label)
+        {
+            if (_aimModeButtonText == null)
+            {
+                return;
+            }
+
+            _aimModeButtonText.text = string.IsNullOrWhiteSpace(label) ? "AIM NEAR" : label;
+        }
+
+        public void SetBuildInfo(string weaponsSummary, string statsSummary)
+        {
+            if (_weaponBuildText == null || _statBuildText == null)
+            {
+                return;
+            }
+
+            weaponsSummary ??= "Weapons";
+            statsSummary ??= "Stats";
+
+            if (!string.Equals(_lastWeaponBuildSummary, weaponsSummary, StringComparison.Ordinal))
+            {
+                _weaponBuildText.text = weaponsSummary;
+                _lastWeaponBuildSummary = weaponsSummary;
+            }
+
+            if (!string.Equals(_lastStatBuildSummary, statsSummary, StringComparison.Ordinal))
+            {
+                _statBuildText.text = statsSummary;
+                _lastStatBuildSummary = statsSummary;
             }
         }
 
@@ -249,7 +304,7 @@ namespace EJR.Game.UI
 
         private void BuildTopBar()
         {
-            var top = CreatePanel(_canvas.transform, "TopBar", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -10f), new Vector2(760f, 60f), new Color(0f, 0f, 0f, 0.35f));
+            var top = CreatePanel(_canvas.transform, "TopBar", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -10f), new Vector2(940f, 60f), new Color(0f, 0f, 0f, 0.35f));
             _healthText = CreateText(top.transform, "HealthText", new Vector2(-250f, 0f), "HP");
             _xpText = CreateText(top.transform, "XPText", new Vector2(-40f, 0f), "XP");
             _timeText = CreateText(top.transform, "TimeText", new Vector2(160f, 0f), "TIME");
@@ -258,6 +313,37 @@ namespace EJR.Game.UI
             _autoPlayButtonText = _autoPlayButton.GetComponentInChildren<Text>();
             _autoPlayButtonImage = _autoPlayButton.GetComponent<Image>();
             _autoPlayButtonText.text = "AUTO OFF";
+
+            _aimModeButton = CreateButton(top.transform, "AimModeButton", new Vector2(455f, 0f), new Vector2(150f, 42f));
+            _aimModeButtonText = _aimModeButton.GetComponentInChildren<Text>();
+            _aimModeButtonText.text = "AIM NEAR";
+        }
+
+        private void BuildBuildPanel()
+        {
+            _buildPanel = CreatePanel(
+                _canvas.transform,
+                "BuildPanel",
+                new Vector2(1f, 1f),
+                new Vector2(1f, 1f),
+                new Vector2(1f, 1f),
+                new Vector2(-12f, -82f),
+                new Vector2(280f, 220f),
+                new Color(0f, 0f, 0f, 0.35f));
+
+            _weaponBuildText = CreateMultilineText(
+                _buildPanel.transform,
+                "WeaponsBuildText",
+                new Vector2(0f, -8f),
+                new Vector2(260f, 100f),
+                "Weapons");
+
+            _statBuildText = CreateMultilineText(
+                _buildPanel.transform,
+                "StatsBuildText",
+                new Vector2(0f, -116f),
+                new Vector2(260f, 100f),
+                "Stats");
         }
 
         private void BuildLevelUpPanel()
@@ -365,6 +451,30 @@ namespace EJR.Game.UI
             labelText.raycastTarget = false;
 
             return button;
+        }
+
+        private Text CreateMultilineText(Transform parent, string name, Vector2 anchoredPosition, Vector2 size, string content)
+        {
+            var textObject = new GameObject(name);
+            textObject.transform.SetParent(parent, false);
+
+            var rect = textObject.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 1f);
+            rect.anchorMax = new Vector2(0.5f, 1f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.anchoredPosition = anchoredPosition;
+            rect.sizeDelta = size;
+
+            var text = textObject.AddComponent<Text>();
+            text.font = _font;
+            text.text = content;
+            text.color = Color.white;
+            text.alignment = TextAnchor.UpperLeft;
+            text.fontSize = 16;
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            text.verticalOverflow = VerticalWrapMode.Overflow;
+            text.raycastTarget = false;
+            return text;
         }
     }
 }

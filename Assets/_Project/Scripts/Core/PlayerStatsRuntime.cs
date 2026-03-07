@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+using EJR.Game.Gameplay;
+using UnityEngine;
 
 namespace EJR.Game.Core
 {
@@ -8,21 +9,37 @@ namespace EJR.Game.Core
         public float DamageMultiplier { get; private set; } = 1f;
         public float AttackIntervalMultiplier { get; private set; } = 1f;
         public float MoveSpeedMultiplier { get; private set; } = 1f;
+        public float AttackRangeMultiplier { get; private set; } = 1f;
+        public float MaxHealthBonus { get; private set; }
+        public float HealthRegenPerSecond { get; private set; }
 
-        public void ApplyUpgrade(LevelUpOption option)
+        public void RecalculateFromBuild(PlayerBuildRuntime build)
         {
-            switch (option.UpgradeType)
+            DamageMultiplier = 1f;
+            AttackIntervalMultiplier = 1f;
+            MoveSpeedMultiplier = 1f;
+            AttackRangeMultiplier = 1f;
+            MaxHealthBonus = 0f;
+            HealthRegenPerSecond = 0f;
+
+            if (build == null)
             {
-                case LevelUpUpgradeType.Damage:
-                    DamageMultiplier += option.Value;
-                    break;
-                case LevelUpUpgradeType.AttackSpeed:
-                    AttackIntervalMultiplier = Mathf.Clamp(AttackIntervalMultiplier * (1f - option.Value), 0.15f, 4f);
-                    break;
-                case LevelUpUpgradeType.MoveSpeed:
-                    MoveSpeedMultiplier += option.Value;
-                    break;
+                return;
             }
+
+            var attackPowerLevel = build.GetStatLevel(StatUpgradeId.AttackPower);
+            var attackSpeedLevel = build.GetStatLevel(StatUpgradeId.AttackSpeed);
+            var maxHealthLevel = build.GetStatLevel(StatUpgradeId.MaxHealth);
+            var healthRegenLevel = build.GetStatLevel(StatUpgradeId.HealthRegen);
+            var moveSpeedLevel = build.GetStatLevel(StatUpgradeId.MoveSpeed);
+            var attackRangeLevel = build.GetStatLevel(StatUpgradeId.AttackRange);
+
+            DamageMultiplier += attackPowerLevel * 0.10f;
+            AttackIntervalMultiplier = Mathf.Clamp(1f - (attackSpeedLevel * 0.05f), 0.35f, 1f);
+            MaxHealthBonus = maxHealthLevel * 12f;
+            HealthRegenPerSecond = healthRegenLevel * 0.6f;
+            MoveSpeedMultiplier = 1f + (moveSpeedLevel * 0.06f);
+            AttackRangeMultiplier = 1f + (attackRangeLevel * 0.05f);
         }
     }
 }

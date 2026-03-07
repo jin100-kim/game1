@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using EJR.Game.Core;
 using UnityEngine;
@@ -7,9 +7,30 @@ namespace EJR.Game.Gameplay
 {
     public sealed class LevelUpSystem
     {
+        private static readonly WeaponUpgradeId[] AllWeaponIds =
+        {
+            WeaponUpgradeId.Rifle,
+            WeaponUpgradeId.Smg,
+            WeaponUpgradeId.SniperRifle,
+            WeaponUpgradeId.Shotgun,
+            WeaponUpgradeId.Katana,
+        };
+
+        private static readonly StatUpgradeId[] AllStatIds =
+        {
+            StatUpgradeId.AttackPower,
+            StatUpgradeId.AttackSpeed,
+            StatUpgradeId.MaxHealth,
+            StatUpgradeId.HealthRegen,
+            StatUpgradeId.MoveSpeed,
+            StatUpgradeId.AttackRange,
+        };
+
         private readonly List<LevelUpOption> _workingOptions = new(3);
+        private readonly List<LevelUpOption> _candidates = new(24);
         private int _pendingChoices;
         private bool _awaitingChoice;
+        private PlayerBuildRuntime _build;
 
         public int Level { get; private set; } = 1;
         public int CurrentExperience { get; private set; }
@@ -19,6 +40,11 @@ namespace EJR.Game.Gameplay
 
         public event Action<int, int, int> ExperienceChanged;
         public event Action<LevelUpOption[]> OptionsGenerated;
+
+        public void Initialize(PlayerBuildRuntime build)
+        {
+            _build = build;
+        }
 
         public void AddExperience(int amount)
         {
@@ -38,43 +64,189 @@ namespace EJR.Game.Gameplay
             }
 
             ExperienceChanged?.Invoke(CurrentExperience, RequiredExperience, Level);
-
-            if (_pendingChoices > 0 && !_awaitingChoice)
-            {
-                _awaitingChoice = true;
-                OptionsGenerated?.Invoke(GenerateOptions());
-            }
+            TryOpenNextChoice();
         }
 
-        public void ApplyOption(int optionIndex, IReadOnlyList<LevelUpOption> options, PlayerStatsRuntime stats)
+        public void ApplyOption(int optionIndex, IReadOnlyList<LevelUpOption> options)
         {
-            if (!_awaitingChoice || stats == null || options == null || options.Count == 0)
+            if (!_awaitingChoice || _build == null || options == null || options.Count == 0)
             {
                 return;
             }
 
             optionIndex = Mathf.Clamp(optionIndex, 0, options.Count - 1);
-            stats.ApplyUpgrade(options[optionIndex]);
+            _build.Apply(options[optionIndex]);
 
             _pendingChoices = Mathf.Max(0, _pendingChoices - 1);
             _awaitingChoice = false;
 
-            if (_pendingChoices > 0)
-            {
-                _awaitingChoice = true;
-                OptionsGenerated?.Invoke(GenerateOptions());
-            }
-
+            TryOpenNextChoice();
             ExperienceChanged?.Invoke(CurrentExperience, RequiredExperience, Level);
         }
 
-        private LevelUpOption[] GenerateOptions()
+        private void TryOpenNextChoice()
         {
+            if (_awaitingChoice || _pendingChoices <= 0 || _build == null)
+            {
+                return;
+            }
+
+            while (_pendingChoices > 0)
+            {
+                var options = GenerateOptions(Level);
+                if (options.Length <= 0)
+                {
+                    _pendingChoices--;
+                    continue;
+                }
+
+                _awaitingChoice = true;
+                OptionsGenerated?.Invoke(options);
+                return;
+            }
+
+            _awaitingChoice = false;
+        }
+
+        private LevelUpOption[] GenerateOptions(int playerLevel)
+        {
+            _candidates.Clear();
             _workingOptions.Clear();
-            _workingOptions.Add(new LevelUpOption(LevelUpUpgradeType.Damage, 0.25f, "Damage +25%"));
-            _workingOptions.Add(new LevelUpOption(LevelUpUpgradeType.AttackSpeed, 0.12f, "Attack Speed +12%"));
-            _workingOptions.Add(new LevelUpOption(LevelUpUpgradeType.MoveSpeed, 0.10f, "Move Speed +10%"));
+
+            if (_build == null)
+            {
+                return Array.Empty<LevelUpOption>();
+            }
+
+            for (var i = 0; i < _build.OwnedWeapons.Count; i++)
+            {
+                var weaponId = _build.OwnedWeapons[i];
+                var currentLevel = _build.GetWeaponLevel(weaponId);
+                if (currentLevel >= PlayerBuildRuntime.MaxUpgradeLevel)
+                {
+                    continue;
+                }
+
+                var nextLevel = currentLevel + 1;
+                _candidates.Add(new LevelUpOption(
+                    UpgradeCategory.Weapon,
+                    weaponId,
+                    default,
+                    currentLevel,
+                    nextLevel,
+                    isNewAcquire: false,
+                    isLockedBySlot: false,
+                    label: $"UP Weapon: {GetWeaponName(weaponId)} Lv{nextLevel}"));
+            }
+
+            for (var i = 0; i < _build.OwnedStats.Count; i++)
+            {
+                var statId = _build.OwnedStats[i];
+                var currentLevel = _build.GetStatLevel(statId);
+                if (currentLevel >= PlayerBuildRuntime.MaxUpgradeLevel)
+                {
+                    continue;
+                }
+
+                var nextLevel = currentLevel + 1;
+                _candidates.Add(new LevelUpOption(
+                    UpgradeCategory.Stat,
+                    default,
+                    statId,
+                    currentLevel,
+                    nextLevel,
+                    isNewAcquire: false,
+                    isLockedBySlot: false,
+                    label: $"UP Stat: {GetStatName(statId)} Lv{nextLevel}"));
+            }
+
+            for (var i = 0; i < AllWeaponIds.Length; i++)
+            {
+                var weaponId = AllWeaponIds[i];
+                if (_build.CanAcquireWeapon(weaponId, playerLevel))
+                {
+                    _candidates.Add(new LevelUpOption(
+                        UpgradeCategory.Weapon,
+                        weaponId,
+                        default,
+                        0,
+                        1,
+                        isNewAcquire: true,
+                        isLockedBySlot: false,
+                        label: $"NEW Weapon: {GetWeaponName(weaponId)} Lv1"));
+                }
+            }
+
+            if (_build.OwnedStats.Count < PlayerBuildRuntime.MaxStatSlots)
+            {
+                for (var i = 0; i < AllStatIds.Length; i++)
+                {
+                    var statId = AllStatIds[i];
+                    if (_build.HasStat(statId))
+                    {
+                        continue;
+                    }
+
+                    _candidates.Add(new LevelUpOption(
+                        UpgradeCategory.Stat,
+                        default,
+                        statId,
+                        0,
+                        1,
+                        isNewAcquire: true,
+                        isLockedBySlot: false,
+                        label: $"NEW Stat: {GetStatName(statId)} Lv1"));
+                }
+            }
+
+            if (_candidates.Count <= 0)
+            {
+                return Array.Empty<LevelUpOption>();
+            }
+
+            ShuffleCandidates(_candidates);
+            var optionCount = Mathf.Min(3, _candidates.Count);
+            for (var i = 0; i < optionCount; i++)
+            {
+                _workingOptions.Add(_candidates[i]);
+            }
+
             return _workingOptions.ToArray();
+        }
+
+        private static void ShuffleCandidates(List<LevelUpOption> items)
+        {
+            for (var i = items.Count - 1; i > 0; i--)
+            {
+                var swapIndex = UnityEngine.Random.Range(0, i + 1);
+                (items[i], items[swapIndex]) = (items[swapIndex], items[i]);
+            }
+        }
+
+        private static string GetWeaponName(WeaponUpgradeId weaponId)
+        {
+            return weaponId switch
+            {
+                WeaponUpgradeId.Smg => "SMG",
+                WeaponUpgradeId.SniperRifle => "Sniper",
+                WeaponUpgradeId.Shotgun => "Shotgun",
+                WeaponUpgradeId.Katana => "Katana",
+                _ => "Rifle",
+            };
+        }
+
+        private static string GetStatName(StatUpgradeId statId)
+        {
+            return statId switch
+            {
+                StatUpgradeId.AttackPower => "Attack Power",
+                StatUpgradeId.AttackSpeed => "Attack Speed",
+                StatUpgradeId.MaxHealth => "Max Health",
+                StatUpgradeId.HealthRegen => "Health Regen",
+                StatUpgradeId.MoveSpeed => "Move Speed",
+                StatUpgradeId.AttackRange => "Attack Range",
+                _ => statId.ToString(),
+            };
         }
     }
 }

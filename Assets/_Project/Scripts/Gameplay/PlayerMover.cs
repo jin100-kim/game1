@@ -17,6 +17,7 @@ namespace EJR.Game.Gameplay
         private float _speedMultiplier = 1f;
         private float _collisionRadius = DefaultCollisionRadius;
         private Func<Vector2> _moveInputReader;
+        private EJR.Game.Core.PlayerStatsRuntime _stats;
 
         public Vector2 CurrentVelocity { get; private set; }
 
@@ -28,6 +29,7 @@ namespace EJR.Game.Gameplay
                 _collisionRadius = Mathf.Max(0.05f, config.collisionRadius);
             }
 
+            _stats = stats;
             _speedMultiplier = stats != null ? stats.MoveSpeedMultiplier : 1f;
             movementBounds = bounds;
         }
@@ -62,6 +64,11 @@ namespace EJR.Game.Gameplay
 
         private void Update()
         {
+            if (_stats != null)
+            {
+                _speedMultiplier = Mathf.Max(0.1f, _stats.MoveSpeedMultiplier);
+            }
+
             var move = _moveInputReader != null ? _moveInputReader.Invoke() : ReadMovementInput();
             if (!float.IsFinite(move.x) || !float.IsFinite(move.y))
             {

@@ -159,32 +159,64 @@ namespace EJR.Game.Gameplay
             var bestScore = float.MinValue;
             for (var i = 0; i < options.Length; i++)
             {
-                var score = options[i].UpgradeType switch
+                var option = options[i];
+                var score = option.Category switch
                 {
-                    LevelUpUpgradeType.AttackSpeed => 92f,
-                    LevelUpUpgradeType.Damage => 80f,
-                    LevelUpUpgradeType.MoveSpeed => 84f,
+                    UpgradeCategory.Weapon => option.IsNewAcquire ? 150f : 88f,
+                    UpgradeCategory.Stat => GetStatPriorityScore(option.StatId),
                     _ => 0f,
                 };
 
-                score += options[i].Value * 100f;
+                score += option.IsNewAcquire ? 25f : 0f;
+                score += option.NextLevel * 2f;
+
+                if (option.Category == UpgradeCategory.Weapon)
+                {
+                    score += option.WeaponId switch
+                    {
+                        WeaponUpgradeId.Smg => 12f,
+                        WeaponUpgradeId.Shotgun => 9f,
+                        WeaponUpgradeId.SniperRifle => 8f,
+                        WeaponUpgradeId.Katana => 6f,
+                        _ => 5f,
+                    };
+                }
 
                 if (_lastThreatDensity > 1.8f)
                 {
-                    score += options[i].UpgradeType switch
-                    {
-                        LevelUpUpgradeType.MoveSpeed => 42f,
-                        LevelUpUpgradeType.AttackSpeed => 10f,
-                        _ => 0f,
-                    };
+                    score += option.Category == UpgradeCategory.Stat
+                        ? option.StatId switch
+                        {
+                            StatUpgradeId.MoveSpeed => 38f,
+                            StatUpgradeId.MaxHealth => 26f,
+                            StatUpgradeId.HealthRegen => 22f,
+                            StatUpgradeId.AttackSpeed => 8f,
+                            _ => 0f,
+                        }
+                        : 0f;
                 }
 
                 if (_lastNearestDistance < emergencyRadius * 1.35f)
                 {
-                    score += options[i].UpgradeType switch
+                    score += option.Category == UpgradeCategory.Stat
+                        ? option.StatId switch
+                        {
+                            StatUpgradeId.MoveSpeed => 44f,
+                            StatUpgradeId.MaxHealth => 30f,
+                            StatUpgradeId.HealthRegen => 24f,
+                            StatUpgradeId.AttackSpeed => 10f,
+                            _ => 0f,
+                        }
+                        : 0f;
+                }
+
+                if (option.Category == UpgradeCategory.Weapon && !option.IsNewAcquire)
+                {
+                    score += option.WeaponId switch
                     {
-                        LevelUpUpgradeType.MoveSpeed => 60f,
-                        LevelUpUpgradeType.AttackSpeed => 12f,
+                        WeaponUpgradeId.Smg => 8f,
+                        WeaponUpgradeId.Shotgun => 6f,
+                        WeaponUpgradeId.SniperRifle => 5f,
                         _ => 0f,
                     };
                 }
@@ -197,6 +229,20 @@ namespace EJR.Game.Gameplay
             }
 
             return bestIndex;
+        }
+
+        private static float GetStatPriorityScore(StatUpgradeId statId)
+        {
+            return statId switch
+            {
+                StatUpgradeId.AttackSpeed => 120f,
+                StatUpgradeId.AttackPower => 112f,
+                StatUpgradeId.MoveSpeed => 104f,
+                StatUpgradeId.MaxHealth => 96f,
+                StatUpgradeId.HealthRegen => 90f,
+                StatUpgradeId.AttackRange => 86f,
+                _ => 0f,
+            };
         }
 
         private void UpdateThreatSnapshot()

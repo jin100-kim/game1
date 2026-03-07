@@ -202,14 +202,27 @@ namespace EJR.Game.Gameplay
         public bool spawnBoss = true;
 
         [Header("Progression")]
-        [Min(30f)] public float mushroomPhaseStartSeconds = 300f;
+        [Min(30f)] public float mushroomPhaseStartSeconds = 180f;
         [Min(60f)] public float bossWaveStartSeconds = 600f;
-        [Range(0f, 1f)] public float mushroomRatioAtPhaseStart = 0.2f;
-        [Range(0f, 1f)] public float mushroomRatioBeforeBoss = 0.85f;
-        [Min(1)] public int bossWaveSkeletonCount = 10;
+        [Range(0f, 1f)] public float mushroomRatioAtPhaseStart = 0.5f;
+        [Range(0f, 1f)] public float mushroomRatioBeforeBoss = 0f;
+        [Min(1)] public int bossWaveSkeletonCount = 15;
         [Min(0.1f)] public float bossSpawnRadius = 9f;
         [Min(0.1f)] public float skeletonWaveMinRadius = 7.5f;
         [Min(0.1f)] public float skeletonWaveMaxRadius = 11f;
+
+        [Header("Timed Waves")]
+        public bool enableTimedWaves = true;
+        [Min(1f)] public float wave1TimeSeconds = 180f;
+        [Min(1f)] public float wave2TimeSeconds = 360f;
+        [Min(0)] public int wave1SlimeCount = 20;
+        [Min(0)] public int wave1MushroomCount = 0;
+        [Min(0)] public int wave1SkeletonCount = 0;
+        [Min(0)] public int wave2SlimeCount = 0;
+        [Min(0)] public int wave2MushroomCount = 30;
+        [Min(0)] public int wave2SkeletonCount = 0;
+        [Min(0.1f)] public float timedWaveMinRadius = 6.5f;
+        [Min(0.1f)] public float timedWaveMaxRadius = 9.5f;
 
         [Header("Animation Profiles")]
         [SerializeField]
