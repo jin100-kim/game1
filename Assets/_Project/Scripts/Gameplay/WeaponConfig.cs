@@ -26,8 +26,8 @@ namespace EJR.Game.Gameplay
         [Min(1f)] public float projectileDamage = 12f;
 
         [Header("Rifle")]
-        [Min(0.05f)] public float rifleAttackInterval = 0.4f;
-        [Min(0.1f)] public float rifleBaseDamage = 8f;
+        [Min(0.05f)] public float rifleAttackInterval = 0.7f;
+        [Min(0.1f)] public float rifleBaseDamage = 12f;
 
         [Header("Projectile Base")]
         [Min(0.5f)] public float projectileSpeed = 10f;
