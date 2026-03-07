@@ -49,6 +49,12 @@ namespace EJR.Game.Gameplay
             WeaponUpgradeId.Smg,
             WeaponUpgradeId.SniperRifle,
             WeaponUpgradeId.Shotgun,
+            WeaponUpgradeId.Katana,
+            WeaponUpgradeId.ChainAttack,
+            WeaponUpgradeId.Lightning,
+            WeaponUpgradeId.Satellite,
+            WeaponUpgradeId.RifleTurret,
+            WeaponUpgradeId.Aura,
         };
 
         private PlayerHealth _playerHealth;
@@ -115,7 +121,7 @@ namespace EJR.Game.Gameplay
 
             if (!_isGameOver && IsAnyChoiceAwaiting() && _currentOptions != null)
             {
-                var maxOptions = Mathf.Min(_currentOptions.Length, 4);
+                var maxOptions = Mathf.Min(_currentOptions.Length, 10);
                 for (var optionIndex = 0; optionIndex < maxOptions; optionIndex++)
                 {
                     if (!IsOptionKeyDown(optionIndex))
@@ -194,6 +200,12 @@ namespace EJR.Game.Gameplay
                     1 => keyboard.digit2Key.wasPressedThisFrame || keyboard.numpad2Key.wasPressedThisFrame,
                     2 => keyboard.digit3Key.wasPressedThisFrame || keyboard.numpad3Key.wasPressedThisFrame,
                     3 => keyboard.digit4Key.wasPressedThisFrame || keyboard.numpad4Key.wasPressedThisFrame,
+                    4 => keyboard.digit5Key.wasPressedThisFrame || keyboard.numpad5Key.wasPressedThisFrame,
+                    5 => keyboard.digit6Key.wasPressedThisFrame || keyboard.numpad6Key.wasPressedThisFrame,
+                    6 => keyboard.digit7Key.wasPressedThisFrame || keyboard.numpad7Key.wasPressedThisFrame,
+                    7 => keyboard.digit8Key.wasPressedThisFrame || keyboard.numpad8Key.wasPressedThisFrame,
+                    8 => keyboard.digit9Key.wasPressedThisFrame || keyboard.numpad9Key.wasPressedThisFrame,
+                    9 => keyboard.digit0Key.wasPressedThisFrame || keyboard.numpad0Key.wasPressedThisFrame,
                     _ => false,
                 };
             }
@@ -204,6 +216,12 @@ namespace EJR.Game.Gameplay
                 1 => Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2),
                 2 => Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3),
                 3 => Input.GetKeyDown(KeyCode.Alpha4) || Input.GetKeyDown(KeyCode.Keypad4),
+                4 => Input.GetKeyDown(KeyCode.Alpha5) || Input.GetKeyDown(KeyCode.Keypad5),
+                5 => Input.GetKeyDown(KeyCode.Alpha6) || Input.GetKeyDown(KeyCode.Keypad6),
+                6 => Input.GetKeyDown(KeyCode.Alpha7) || Input.GetKeyDown(KeyCode.Keypad7),
+                7 => Input.GetKeyDown(KeyCode.Alpha8) || Input.GetKeyDown(KeyCode.Keypad8),
+                8 => Input.GetKeyDown(KeyCode.Alpha9) || Input.GetKeyDown(KeyCode.Keypad9),
+                9 => Input.GetKeyDown(KeyCode.Alpha0) || Input.GetKeyDown(KeyCode.Keypad0),
                 _ => false,
             };
         }
@@ -671,7 +689,9 @@ namespace EJR.Game.Gameplay
                 return Vector3.zero;
             }
 
-            if (_weaponVisualRenderer != null && _weaponVisualRenderer.sprite != null)
+            if (_weaponVisualRenderer != null
+                && _weaponVisualRenderer.enabled
+                && _weaponVisualRenderer.sprite != null)
             {
                 // Spawn from the rendered weapon sprite area (green gizmo rectangle), not transform pivot.
                 return _weaponVisualRenderer.bounds.center;
@@ -1131,6 +1151,8 @@ namespace EJR.Game.Gameplay
                 _weaponSystem.ConfigureLoadout(_buildRuntime, _playerStats);
             }
 
+            UpdateWeaponVisualActivation();
+
             if (_playerHealth != null)
             {
                 _playerHealth.SetMaxHealth(GetCurrentMaxHealth(), healDelta: true);
@@ -1269,6 +1291,48 @@ namespace EJR.Game.Gameplay
         private bool IsAnyChoiceAwaiting()
         {
             return _isAwaitingStarterWeaponChoice || (_levelUp != null && _levelUp.IsAwaitingChoice);
+        }
+
+        private void UpdateWeaponVisualActivation()
+        {
+            if (_weaponVisualRenderer == null || _buildRuntime == null)
+            {
+                return;
+            }
+
+            var hasGunWeapon = HasAnyGunWeapon(_buildRuntime);
+            _weaponVisualRenderer.enabled = hasGunWeapon;
+            if (_weaponSpriteAnimator != null)
+            {
+                _weaponSpriteAnimator.enabled = hasGunWeapon;
+            }
+        }
+
+        private static bool HasAnyGunWeapon(PlayerBuildRuntime buildRuntime)
+        {
+            if (buildRuntime == null)
+            {
+                return false;
+            }
+
+            var ownedWeapons = buildRuntime.OwnedWeapons;
+            for (var i = 0; i < ownedWeapons.Count; i++)
+            {
+                if (IsGunWeapon(ownedWeapons[i]))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsGunWeapon(WeaponUpgradeId weaponId)
+        {
+            return weaponId == WeaponUpgradeId.Rifle
+                   || weaponId == WeaponUpgradeId.Smg
+                   || weaponId == WeaponUpgradeId.SniperRifle
+                   || weaponId == WeaponUpgradeId.Shotgun;
         }
     }
 }

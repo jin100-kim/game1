@@ -13,6 +13,9 @@ namespace EJR.Game.Gameplay
         [SerializeField, Min(0.01f)] private float katanaRangeEffectWidth = 0.05f;
         [SerializeField, Range(4, 40)] private int katanaRangeEffectSegments = 14;
         [SerializeField] private Color katanaRangeEffectColor = new(0.2f, 1f, 0.9f, 0.9f);
+        [SerializeField, Min(0.01f)] private float katanaSlashFxFps = 18f;
+        [SerializeField, Min(0.05f)] private float katanaSlashFxForwardOffset = 1f;
+        [SerializeField, Min(0.05f)] private float katanaSlashFxScale = 0.95f;
         [SerializeField, Min(0.01f)] private float chainFxDuration = 0.08f;
         [SerializeField, Min(0.005f)] private float chainFxWidth = 0.05f;
         [SerializeField] private Color chainFxColor = new(0.45f, 0.85f, 1f, 0.95f);
@@ -27,6 +30,8 @@ namespace EJR.Game.Gameplay
         [SerializeField] private Color turretTracerFxColor = new(1f, 0.86f, 0.28f, 0.95f);
         [SerializeField] private Color turretRangeFxColor = new(0.55f, 0.9f, 1f, 0.28f);
         [SerializeField, Range(8, 96)] private int ringFxSegments = 28;
+        [SerializeField, Min(0.1f)] private float satelliteVisualAnimationFps = 12f;
+        [SerializeField, Min(1)] private int satelliteVisualSortOrder = 33;
 
         private sealed class WeaponRuntime
         {
@@ -46,7 +51,7 @@ namespace EJR.Game.Gameplay
             public int BurstShotsRemaining { get; set; }
             public float BurstShotCooldown { get; set; }
             public float OrbitAngleDegrees { get; set; }
-            public Transform SatelliteVisual { get; set; }
+            public List<Transform> SatelliteVisuals { get; } = new(3);
             public Dictionary<EnemyController, float> SatelliteHitCooldownUntil { get; } = new();
         }
 
@@ -448,6 +453,7 @@ namespace EJR.Game.Gameplay
             var coreLevel = GetCoreLevel(weapon.WeaponId);
 
             var origin = (Vector2)_owner.position;
+            SpawnKatanaSlashSpriteFx(origin, direction, range);
             SpawnKatanaRangeEffect(origin, direction, range, coneHalfAngle);
             var searchRadius = range + _registry.GetMaxCollisionRadius();
             _registry.GetNearby(origin, searchRadius, _nearbyEnemies);
@@ -551,8 +557,9 @@ namespace EJR.Game.Gameplay
 
         private void UpdateSatellite(WeaponRuntime weapon)
         {
-            EnsureSatelliteVisual(weapon);
-            if (weapon.SatelliteVisual == null)
+            var satelliteCount = GetSatelliteCount();
+            EnsureSatelliteVisuals(weapon, satelliteCount);
+            if (weapon.SatelliteVisuals.Count <= 0)
             {
                 return;
             }
@@ -567,42 +574,52 @@ namespace EJR.Game.Gameplay
             }
 
             var orbitRadius = Mathf.Max(0.2f, _config.satelliteOrbitRadius) * (1f + (0.02f * tier));
-            var radians = weapon.OrbitAngleDegrees * Mathf.Deg2Rad;
-            var offset = new Vector2(Mathf.Cos(radians), Mathf.Sin(radians)) * orbitRadius;
-            var worldPos = (Vector2)_owner.position + offset;
-            weapon.SatelliteVisual.position = new Vector3(worldPos.x, worldPos.y, 0f);
-
-            PruneEnemyCooldownMap(weapon.SatelliteHitCooldownUntil);
-
             var hitRadius = Mathf.Max(0.05f, _config.satelliteHitRadius);
             var damage = GetWeaponBaseDamage(weapon) * Mathf.Clamp(_config.satelliteDamageMultiplier, 0.05f, 5f);
             var coreElement = GetCoreElement(weapon.WeaponId);
             var coreLevel = GetCoreLevel(weapon.WeaponId);
             var hitCooldown = GetSatelliteHitCooldown(weapon);
 
-            _registry.GetNearby(worldPos, hitRadius + _registry.GetMaxCollisionRadius(), _nearbyEnemies);
-            for (var i = 0; i < _nearbyEnemies.Count; i++)
+            PruneEnemyCooldownMap(weapon.SatelliteHitCooldownUntil);
+
+            for (var satelliteIndex = 0; satelliteIndex < weapon.SatelliteVisuals.Count; satelliteIndex++)
             {
-                var enemy = _nearbyEnemies[i];
-                if (!IsEnemyUsable(enemy))
+                var satelliteVisual = weapon.SatelliteVisuals[satelliteIndex];
+                if (satelliteVisual == null)
                 {
                     continue;
                 }
 
-                var limit = hitRadius + enemy.CollisionRadius;
-                if (((Vector2)enemy.transform.position - worldPos).sqrMagnitude > limit * limit)
-                {
-                    continue;
-                }
+                var phase = (360f / Mathf.Max(1, satelliteCount)) * satelliteIndex;
+                var angle = (weapon.OrbitAngleDegrees + phase) * Mathf.Deg2Rad;
+                var offset = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * orbitRadius;
+                var worldPos = (Vector2)_owner.position + offset;
+                satelliteVisual.position = new Vector3(worldPos.x, worldPos.y, 0f);
 
-                if (weapon.SatelliteHitCooldownUntil.TryGetValue(enemy, out var nextHitAt) && Time.time < nextHitAt)
+                _registry.GetNearby(worldPos, hitRadius + _registry.GetMaxCollisionRadius(), _nearbyEnemies);
+                for (var i = 0; i < _nearbyEnemies.Count; i++)
                 {
-                    continue;
-                }
+                    var enemy = _nearbyEnemies[i];
+                    if (!IsEnemyUsable(enemy))
+                    {
+                        continue;
+                    }
 
-                weapon.SatelliteHitCooldownUntil[enemy] = Time.time + hitCooldown;
-                enemy.ReceiveWeaponDamage(damage, weapon.WeaponId, coreElement, coreLevel);
-                SpawnRingFx((Vector2)enemy.transform.position, hitRadius * 0.9f, auraFxColor, auraFxWidth, 0.06f, "SatelliteHitFx");
+                    var limit = hitRadius + enemy.CollisionRadius;
+                    if (((Vector2)enemy.transform.position - worldPos).sqrMagnitude > limit * limit)
+                    {
+                        continue;
+                    }
+
+                    if (weapon.SatelliteHitCooldownUntil.TryGetValue(enemy, out var nextHitAt) && Time.time < nextHitAt)
+                    {
+                        continue;
+                    }
+
+                    weapon.SatelliteHitCooldownUntil[enemy] = Time.time + hitCooldown;
+                    enemy.ReceiveWeaponDamage(damage, weapon.WeaponId, coreElement, coreLevel);
+                    SpawnRingFx((Vector2)enemy.transform.position, hitRadius * 0.9f, auraFxColor, auraFxWidth, 0.06f, "SatelliteHitFx");
+                }
             }
         }
 
@@ -783,21 +800,68 @@ namespace EJR.Game.Gameplay
             _rifleTurrets.Clear();
         }
 
-        private void EnsureSatelliteVisual(WeaponRuntime weapon)
+        private void EnsureSatelliteVisuals(WeaponRuntime weapon, int desiredCount)
         {
-            if (weapon.SatelliteVisual != null)
+            if (weapon == null)
             {
                 return;
             }
 
+            var clampedCount = Mathf.Clamp(desiredCount, 1, 6);
+            while (weapon.SatelliteVisuals.Count < clampedCount)
+            {
+                weapon.SatelliteVisuals.Add(CreateSatelliteVisual());
+            }
+
+            while (weapon.SatelliteVisuals.Count > clampedCount)
+            {
+                var lastIndex = weapon.SatelliteVisuals.Count - 1;
+                var visual = weapon.SatelliteVisuals[lastIndex];
+                if (visual != null)
+                {
+                    Destroy(visual.gameObject);
+                }
+
+                weapon.SatelliteVisuals.RemoveAt(lastIndex);
+            }
+        }
+
+        private Transform CreateSatelliteVisual()
+        {
             var satelliteObject = new GameObject("SatelliteVisual");
             satelliteObject.transform.SetParent(transform, false);
+
             var renderer = satelliteObject.AddComponent<SpriteRenderer>();
-            renderer.sprite = RuntimeSpriteFactory.GetSquareSprite();
-            renderer.color = new Color(0.72f, 1f, 0.9f, 0.95f);
-            renderer.sortingOrder = 33;
-            satelliteObject.transform.localScale = Vector3.one * 0.22f;
-            weapon.SatelliteVisual = satelliteObject.transform;
+            var frames = RuntimeSpriteFactory.GetSexyDroneAnimationFrames();
+            var hasAnimation = frames != null && frames.Length > 0;
+            renderer.sprite = hasAnimation ? frames[0] : RuntimeSpriteFactory.GetSquareSprite();
+            renderer.color = Color.white;
+            renderer.sortingOrder = satelliteVisualSortOrder;
+            satelliteObject.transform.localScale = Vector3.one * 0.32f;
+
+            if (hasAnimation && frames.Length > 1)
+            {
+                var animator = satelliteObject.AddComponent<SpriteFxAnimator>();
+                animator.Initialize(renderer, frames, satelliteVisualAnimationFps, loop: true, destroyOnComplete: false);
+            }
+
+            return satelliteObject.transform;
+        }
+
+        private int GetSatelliteCount()
+        {
+            if (_config == null)
+            {
+                return 2;
+            }
+
+            var configuredCount = _config.satelliteBaseCount;
+            if (configuredCount <= 0)
+            {
+                configuredCount = 2;
+            }
+
+            return Mathf.Clamp(configuredCount, 1, 6);
         }
 
         private EnemyController FindRandomUsableInRange(Vector2 origin, float maxDistance)
@@ -953,6 +1017,34 @@ namespace EJR.Game.Gameplay
 
             lineRenderer.SetPosition(totalPoints - 1, new Vector3(origin.x, origin.y, -0.02f));
             Destroy(fxObject, Mathf.Max(0.02f, katanaRangeEffectDuration));
+        }
+
+        private void SpawnKatanaSlashSpriteFx(Vector2 origin, Vector2 direction, float range)
+        {
+            var frames = RuntimeSpriteFactory.GetSexySwordAnimationFrames();
+            if (frames == null || frames.Length <= 0)
+            {
+                return;
+            }
+
+            var normalizedDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : Vector2.right;
+            var fxObject = new GameObject("KatanaSlashFx");
+            fxObject.transform.SetParent(transform, false);
+
+            var forward = Mathf.Max(0.05f, katanaSlashFxForwardOffset);
+            var fxPosition = origin + (normalizedDirection * forward);
+            fxObject.transform.position = new Vector3(fxPosition.x, fxPosition.y, -0.02f);
+            fxObject.transform.rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(normalizedDirection.y, normalizedDirection.x) * Mathf.Rad2Deg);
+            var scale = Mathf.Max(0.05f, katanaSlashFxScale) * Mathf.Max(0.8f, range * 0.4f);
+            fxObject.transform.localScale = Vector3.one * scale;
+
+            var renderer = fxObject.AddComponent<SpriteRenderer>();
+            renderer.sprite = frames[0];
+            renderer.color = Color.white;
+            renderer.sortingOrder = 510;
+
+            var animator = fxObject.AddComponent<SpriteFxAnimator>();
+            animator.Initialize(renderer, frames, katanaSlashFxFps, loop: false, destroyOnComplete: true);
         }
 
         private void SpawnLightningStrikeFx(Vector3 targetPosition)
@@ -1469,14 +1561,19 @@ namespace EJR.Game.Gameplay
                     continue;
                 }
 
-                if (weapon.SatelliteVisual != null)
+                for (var visualIndex = 0; visualIndex < weapon.SatelliteVisuals.Count; visualIndex++)
                 {
-                    Destroy(weapon.SatelliteVisual.gameObject);
-                    weapon.SatelliteVisual = null;
+                    var visual = weapon.SatelliteVisuals[visualIndex];
+                    if (visual != null)
+                    {
+                        Destroy(visual.gameObject);
+                    }
                 }
 
+                weapon.SatelliteVisuals.Clear();
                 weapon.SatelliteHitCooldownUntil.Clear();
             }
         }
     }
+
 }

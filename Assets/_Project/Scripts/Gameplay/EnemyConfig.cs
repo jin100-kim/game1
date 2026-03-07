@@ -359,10 +359,10 @@ namespace EJR.Game.Gameplay
                 visualKind = RuntimeSpriteFactory.EnemyVisualKind.Boss,
                 healthMultiplier = 100f,
                 moveSpeedMultiplier = 1.2f,
-                contactDamageMultiplier = 2.4f,
+                contactDamageMultiplier = 3f,
                 experienceMultiplier = 25f,
-                visualScaleMultiplier = 1.5f,
-                collisionRadiusMultiplier = 1.8f,
+                visualScaleMultiplier = 1.8f,
+                collisionRadiusMultiplier = 2.16f,
             },
         };
 
@@ -377,6 +377,17 @@ namespace EJR.Game.Gameplay
         [Min(1f)] public float spawnRampSeconds = 480f;
         [Min(0.1f)] public float minSpawnRadius = 8f;
         [Min(0.1f)] public float maxSpawnRadius = 12f;
+
+        [Header("Dynamic Density")]
+        public bool enableDynamicDensity = true;
+        [Min(1)] public int targetAliveStart = 3;
+        [Min(1)] public int targetAliveEnd = 48;
+        [Min(1f)] public float targetAliveRampSeconds = 480f;
+        [Min(0.1f)] public float targetAliveCurveExponent = 2f;
+        [Range(0.2f, 1f)] public float lowDensityIntervalScaleMin = 0.45f;
+        [Range(1f, 3f)] public float highDensityIntervalScaleMax = 1.35f;
+        [Min(0)] public int lowDensityExtraSpawnMax = 2;
+        [Min(1)] public int hardAliveCap = 120;
 
         public EnemyAnimationProfile GetAnimationProfile(RuntimeSpriteFactory.EnemyVisualKind kind)
         {

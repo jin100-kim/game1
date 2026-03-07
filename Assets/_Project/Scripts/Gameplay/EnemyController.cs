@@ -21,6 +21,10 @@ namespace EJR.Game.Gameplay
         private const float FireExplosionFxLineWidth = 0.06f;
         private const int FireExplosionFxSegments = 28;
         private static readonly Color FireExplosionFxColor = new(1f, 0.45f, 0.1f, 0.9f);
+        private const float FireStackFxFps = 10f;
+        private const float FireBoomFxFps = 14f;
+        private const float FireStackFxScale = 0.45f;
+        private const float FireBoomFxScale = 1.1f;
         private const float BossTelegraphDuration = 1f;
         private const float BossDashDuration = 0.8f;
         private const float BossDashSpeedMultiplier = 6f;
@@ -28,10 +32,11 @@ namespace EJR.Game.Gameplay
         private const float BossProjectileLifetime = 4f;
         private const float BossProjectileHitRadius = 0.14f;
         private const float BossProjectileVisualScale = 0.22f;
-        private const float BossProjectileDamageMultiplier = 0.7f;
+        private const float BossProjectileDamageMultiplier = 0.8f;
         private const float BossProjectileShotInterval = 0.2f;
-        private const int BossEightWayShots = 5;
+        private const int BossEightWayShots = 10;
         private const int BossAimShots = 10;
+        private const float BossAimSpreadDegrees = 15f;
 
         public event Action<float, float> Changed;
 
@@ -70,6 +75,8 @@ namespace EJR.Game.Gameplay
         private bool _bossUseEightWayNext = true;
         private float _bossShotTimer;
         private static Material _fireExplosionFxMaterial;
+        private Transform _fireStackFxRoot;
+        private SpriteFxAnimator _fireStackFxAnimator;
 
         private readonly System.Collections.Generic.List<EnemyController> _nearbyBuffer = new(24);
 
@@ -576,8 +583,21 @@ namespace EJR.Game.Gameplay
         private void FireBossAimShot()
         {
             var toPlayer = (Vector2)(_target.position - transform.position);
-            var direction = toPlayer.sqrMagnitude > 0.000001f ? toPlayer.normalized : Vector2.right;
-            SpawnBossProjectile(direction);
+            var centerDirection = toPlayer.sqrMagnitude > 0.000001f ? toPlayer.normalized : Vector2.right;
+            SpawnBossProjectile(centerDirection);
+            SpawnBossProjectile(RotateDirection(centerDirection, -BossAimSpreadDegrees));
+            SpawnBossProjectile(RotateDirection(centerDirection, BossAimSpreadDegrees));
+        }
+
+        private static Vector2 RotateDirection(Vector2 direction, float degrees)
+        {
+            var radians = degrees * Mathf.Deg2Rad;
+            var cosine = Mathf.Cos(radians);
+            var sine = Mathf.Sin(radians);
+            var x = (direction.x * cosine) - (direction.y * sine);
+            var y = (direction.x * sine) + (direction.y * cosine);
+            var rotated = new Vector2(x, y);
+            return rotated.sqrMagnitude > 0.000001f ? rotated.normalized : Vector2.right;
         }
 
         private void SpawnBossProjectile(Vector2 direction)
@@ -646,6 +666,7 @@ namespace EJR.Game.Gameplay
             _fireAccumulatedDamage += Mathf.Max(0f, dealtDamage) * accumulateRatio;
             _fireAccumulatedHits++;
             _fireTriggerHitCount = hitThreshold;
+            ShowFireStackFx();
 
             if (_fireAccumulatedHits >= _fireTriggerHitCount)
             {
@@ -732,6 +753,67 @@ namespace EJR.Game.Gameplay
             _registry?.NotifyMoved(this, transform.position);
         }
 
+        private void ShowFireStackFx()
+        {
+            var frames = RuntimeSpriteFactory.GetSexyFireStackAnimationFrames();
+            if (frames == null || frames.Length <= 0)
+            {
+                return;
+            }
+
+            if (_fireStackFxRoot == null)
+            {
+                var fxObject = new GameObject("FireStackFx");
+                fxObject.transform.SetParent(transform, false);
+                fxObject.transform.localPosition = new Vector3(0f, 0.15f, -0.02f);
+                fxObject.transform.localScale = Vector3.one * FireStackFxScale;
+
+                var renderer = fxObject.AddComponent<SpriteRenderer>();
+                renderer.sprite = frames[0];
+                renderer.color = Color.white;
+                renderer.sortingOrder = 45;
+
+                _fireStackFxAnimator = fxObject.AddComponent<SpriteFxAnimator>();
+                _fireStackFxAnimator.Initialize(renderer, frames, FireStackFxFps, loop: true, destroyOnComplete: false);
+                _fireStackFxRoot = fxObject.transform;
+            }
+
+            if (_fireStackFxRoot != null && !_fireStackFxRoot.gameObject.activeSelf)
+            {
+                _fireStackFxRoot.gameObject.SetActive(true);
+                _fireStackFxAnimator?.PlayFromStart();
+            }
+        }
+
+        private void HideFireStackFx()
+        {
+            if (_fireStackFxRoot != null)
+            {
+                _fireStackFxRoot.gameObject.SetActive(false);
+            }
+        }
+
+        private void SpawnFireBoomFx(Vector2 origin, float explosionRadius)
+        {
+            var frames = RuntimeSpriteFactory.GetSexyFireBoomAnimationFrames();
+            if (frames == null || frames.Length <= 0)
+            {
+                return;
+            }
+
+            var fxObject = new GameObject("FireBoomFx");
+            fxObject.transform.position = new Vector3(origin.x, origin.y, -0.02f);
+            fxObject.transform.localScale = Vector3.one * Mathf.Max(0.1f, FireBoomFxScale * explosionRadius);
+
+            var renderer = fxObject.AddComponent<SpriteRenderer>();
+            renderer.sprite = frames[0];
+            renderer.color = Color.white;
+            renderer.sortingOrder = 530;
+
+            var animator = fxObject.AddComponent<SpriteFxAnimator>();
+            animator.Initialize(renderer, frames, FireBoomFxFps, loop: false, destroyOnComplete: true);
+        }
+
         private void TriggerFireExplosionIfReady()
         {
             if (_fireAccumulatedDamage <= 0f)
@@ -758,6 +840,7 @@ namespace EJR.Game.Gameplay
             }
 
             var origin = (Vector2)transform.position;
+            SpawnFireBoomFx(origin, explosionRadius);
             SpawnFireExplosionRangeFx(origin, explosionRadius);
             var searchRadius = explosionRadius + _registry.GetMaxCollisionRadius();
             _registry.GetNearby(origin, searchRadius, _nearbyBuffer);
@@ -837,12 +920,101 @@ namespace EJR.Game.Gameplay
             _fireAccumulatedDamage = 0f;
             _fireAccumulatedHits = 0;
             _fireTriggerHitCount = int.MaxValue;
+            HideFireStackFx();
         }
 
         private void OnDrawGizmos()
         {
             Gizmos.color = new Color(1f, 0.25f, 0.25f, 0.95f);
             Gizmos.DrawWireSphere(transform.position, CollisionRadius);
+        }
+    }
+
+    [DisallowMultipleComponent]
+    public sealed class SpriteFxAnimator : MonoBehaviour
+    {
+        private SpriteRenderer _targetRenderer;
+        private Sprite[] _frames = Array.Empty<Sprite>();
+        private float _framesPerSecond = 12f;
+        private bool _loop;
+        private bool _destroyOnComplete;
+        private int _currentFrameIndex;
+        private float _frameCursor;
+        private bool _isPlaying;
+
+        public void Initialize(
+            SpriteRenderer targetRenderer,
+            Sprite[] frames,
+            float framesPerSecond,
+            bool loop,
+            bool destroyOnComplete)
+        {
+            _targetRenderer = targetRenderer;
+            _frames = frames ?? Array.Empty<Sprite>();
+            _framesPerSecond = Mathf.Max(0.1f, framesPerSecond);
+            _loop = loop;
+            _destroyOnComplete = destroyOnComplete;
+
+            _currentFrameIndex = 0;
+            _frameCursor = 0f;
+            _isPlaying = _frames.Length > 0 && _targetRenderer != null;
+
+            if (_isPlaying)
+            {
+                _targetRenderer.sprite = _frames[0];
+            }
+        }
+
+        public void PlayFromStart()
+        {
+            if (_targetRenderer == null || _frames == null || _frames.Length == 0)
+            {
+                _isPlaying = false;
+                return;
+            }
+
+            _currentFrameIndex = 0;
+            _frameCursor = 0f;
+            _isPlaying = true;
+            _targetRenderer.sprite = _frames[0];
+        }
+
+        private void Update()
+        {
+            if (!_isPlaying || _targetRenderer == null || _frames == null || _frames.Length <= 0)
+            {
+                return;
+            }
+
+            _frameCursor += Time.deltaTime * _framesPerSecond;
+            var steps = Mathf.FloorToInt(_frameCursor);
+            if (steps <= 0)
+            {
+                return;
+            }
+
+            _frameCursor -= steps;
+            _currentFrameIndex += steps;
+
+            if (_loop)
+            {
+                _currentFrameIndex %= _frames.Length;
+                _targetRenderer.sprite = _frames[_currentFrameIndex];
+                return;
+            }
+
+            if (_currentFrameIndex < _frames.Length)
+            {
+                _targetRenderer.sprite = _frames[_currentFrameIndex];
+                return;
+            }
+
+            _isPlaying = false;
+            _targetRenderer.sprite = _frames[_frames.Length - 1];
+            if (_destroyOnComplete)
+            {
+                Destroy(gameObject);
+            }
         }
     }
 

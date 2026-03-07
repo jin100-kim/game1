@@ -48,10 +48,24 @@ namespace EJR.Game.Core
         private static readonly VisualAssetDescriptor Fire1Descriptor = new(
             "Aseprite/fire1",
             "Assets/_Project/Art/Aseprite/fire1.ase");
+        private static readonly VisualAssetDescriptor SexySwordDescriptor = new(
+            "Aseprite/sexysword",
+            "Assets/_Project/Art/Aseprite/sexysword.aseprite");
+        private static readonly VisualAssetDescriptor SexyFireDescriptor = new(
+            "Aseprite/sexyfire",
+            "Assets/_Project/Art/Aseprite/sexyfire.aseprite");
+        private static readonly VisualAssetDescriptor SexyDroneDescriptor = new(
+            "Aseprite/sexydrone",
+            "Assets/_Project/Art/Aseprite/sexydrone.aseprite");
 
         private static readonly Dictionary<EnemyVisualKind, Sprite[]> EnemyFramesByKind = new();
         private static Sprite[] _playerFrames;
         private static Sprite[] _weaponFire1Frames;
+        private static Sprite[] _sexySwordFrames;
+        private static Sprite[] _sexyFireFrames;
+        private static Sprite[] _sexyFireStackFrames;
+        private static Sprite[] _sexyFireBoomFrames;
+        private static Sprite[] _sexyDroneFrames;
 
         private static Sprite _squareSprite;
 
@@ -131,6 +145,66 @@ namespace EJR.Game.Core
 
             _weaponFire1Frames = sourceFrames;
             return _weaponFire1Frames;
+        }
+
+        public static Sprite[] GetSexySwordAnimationFrames()
+        {
+            if (_sexySwordFrames != null && _sexySwordFrames.Length > 0)
+            {
+                return _sexySwordFrames;
+            }
+
+            var sourceFrames = LoadSourceFrames(SexySwordDescriptor.ResourcePath, SexySwordDescriptor.AssetPath);
+            _sexySwordFrames = sourceFrames.Length > 0 ? sourceFrames : Array.Empty<Sprite>();
+            return _sexySwordFrames;
+        }
+
+        public static Sprite[] GetSexyFireAnimationFrames()
+        {
+            if (_sexyFireFrames != null && _sexyFireFrames.Length > 0)
+            {
+                return _sexyFireFrames;
+            }
+
+            var sourceFrames = LoadSourceFrames(SexyFireDescriptor.ResourcePath, SexyFireDescriptor.AssetPath);
+            _sexyFireFrames = sourceFrames.Length > 0 ? sourceFrames : Array.Empty<Sprite>();
+            return _sexyFireFrames;
+        }
+
+        public static Sprite[] GetSexyFireStackAnimationFrames()
+        {
+            if (_sexyFireStackFrames != null && _sexyFireStackFrames.Length > 0)
+            {
+                return _sexyFireStackFrames;
+            }
+
+            var fireFrames = GetSexyFireAnimationFrames();
+            _sexyFireStackFrames = ExtractSexyFireSegment(fireFrames, stackSegment: true);
+            return _sexyFireStackFrames;
+        }
+
+        public static Sprite[] GetSexyFireBoomAnimationFrames()
+        {
+            if (_sexyFireBoomFrames != null && _sexyFireBoomFrames.Length > 0)
+            {
+                return _sexyFireBoomFrames;
+            }
+
+            var fireFrames = GetSexyFireAnimationFrames();
+            _sexyFireBoomFrames = ExtractSexyFireSegment(fireFrames, stackSegment: false);
+            return _sexyFireBoomFrames;
+        }
+
+        public static Sprite[] GetSexyDroneAnimationFrames()
+        {
+            if (_sexyDroneFrames != null && _sexyDroneFrames.Length > 0)
+            {
+                return _sexyDroneFrames;
+            }
+
+            var sourceFrames = LoadSourceFrames(SexyDroneDescriptor.ResourcePath, SexyDroneDescriptor.AssetPath);
+            _sexyDroneFrames = sourceFrames.Length > 0 ? sourceFrames : Array.Empty<Sprite>();
+            return _sexyDroneFrames;
         }
 
         public static Sprite GetEnemySprite(EnemyVisualKind kind)
@@ -223,6 +297,46 @@ namespace EJR.Game.Core
         private static void SortFrames(Sprite[] frames)
         {
             Array.Sort(frames, CompareByFrameOrder);
+        }
+
+        private static Sprite[] ExtractSexyFireSegment(Sprite[] fireFrames, bool stackSegment)
+        {
+            if (fireFrames == null || fireFrames.Length <= 0)
+            {
+                return Array.Empty<Sprite>();
+            }
+
+            if (fireFrames.Length >= 8)
+            {
+                return stackSegment
+                    ? SliceFrames(fireFrames, 0, 4)
+                    : SliceFrames(fireFrames, 4, fireFrames.Length - 4);
+            }
+
+            var split = Mathf.Clamp(fireFrames.Length / 2, 1, fireFrames.Length);
+            return stackSegment
+                ? SliceFrames(fireFrames, 0, split)
+                : SliceFrames(fireFrames, split, fireFrames.Length - split);
+        }
+
+        private static Sprite[] SliceFrames(Sprite[] sourceFrames, int start, int count)
+        {
+            if (sourceFrames == null || sourceFrames.Length <= 0 || count <= 0 || start >= sourceFrames.Length)
+            {
+                return Array.Empty<Sprite>();
+            }
+
+            var clampedStart = Mathf.Clamp(start, 0, sourceFrames.Length - 1);
+            var maxCount = sourceFrames.Length - clampedStart;
+            var clampedCount = Mathf.Clamp(count, 0, maxCount);
+            if (clampedCount <= 0)
+            {
+                return Array.Empty<Sprite>();
+            }
+
+            var sliced = new Sprite[clampedCount];
+            Array.Copy(sourceFrames, clampedStart, sliced, 0, clampedCount);
+            return sliced;
         }
 
         private static int CompareByFrameOrder(Sprite left, Sprite right)

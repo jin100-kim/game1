@@ -381,14 +381,16 @@ MonoBehaviour:
   runDurationSeconds: 600
   cameraOffset: {x: 0, y: 0, z: -10}
   cameraFollowSmoothTime: 0.08
-  enableAutoPlay: 0
-  autoRestartOnGameOver: 0
-  autoRestartDelay: 1
-  autoPickDelay: 0.2
+  hudRefreshInterval: 0.1
   enableDebugTimeSkip: 1
+  debugGrantLevelsPerPress: 1
   debugAdvanceSeconds: 60
   showWeaponAimGizmos: 1
   weaponGizmoPointRadius: 0.06
+  weaponAimSmoothingDegreesPerSecond: 540
+  weaponFrontSortingOffset: 1
+  weaponBackSortingOffset: -1
+  weaponLayerSwapDeadZone: 0.02
 --- !u!4 &882580469
 Transform:
   m_ObjectHideFlags: 0

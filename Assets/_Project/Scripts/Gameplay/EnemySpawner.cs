@@ -71,12 +71,8 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            SpawnEnemy(PickEnemyVisualKind());
-            _spawnTimer = SpawnMath.CalculateSpawnInterval(
-                _elapsedSeconds,
-                _config.initialSpawnInterval,
-                _config.minimumSpawnInterval,
-                _config.spawnRampSeconds);
+            SpawnDynamicTickEnemies();
+            _spawnTimer = CalculateNextSpawnInterval();
         }
 
         public void TriggerBossWave()
@@ -418,6 +414,123 @@ namespace EJR.Game.Gameplay
             var phaseStart = _config != null ? Mathf.Max(0f, _config.mushroomPhaseStartSeconds) : 300f;
             var bossStart = _config != null ? Mathf.Max(1f, _config.bossWaveStartSeconds) : 600f;
             return Mathf.Max(phaseStart + 1f, bossStart);
+        }
+
+        private void SpawnDynamicTickEnemies()
+        {
+            var aliveCount = GetAliveEnemyCount();
+            var targetAliveCount = GetTargetAliveCount();
+            var spawnCount = CalculateSpawnCountForTick(aliveCount, targetAliveCount);
+
+            for (var i = 0; i < spawnCount; i++)
+            {
+                if (IsAtHardAliveCap())
+                {
+                    break;
+                }
+
+                SpawnEnemy(PickEnemyVisualKind());
+            }
+        }
+
+        private float CalculateNextSpawnInterval()
+        {
+            var baseInterval = SpawnMath.CalculateSpawnInterval(
+                _elapsedSeconds,
+                _config.initialSpawnInterval,
+                _config.minimumSpawnInterval,
+                _config.spawnRampSeconds);
+
+            if (_config == null || !_config.enableDynamicDensity)
+            {
+                return baseInterval;
+            }
+
+            var targetAliveCount = Mathf.Max(1, GetTargetAliveCount());
+            var aliveCount = GetAliveEnemyCount();
+            var densityRatio = aliveCount / (float)targetAliveCount;
+
+            float densityScale;
+            if (densityRatio < 1f)
+            {
+                densityScale = Mathf.Lerp(
+                    Mathf.Clamp(_config.lowDensityIntervalScaleMin, 0.2f, 1f),
+                    1f,
+                    densityRatio);
+            }
+            else
+            {
+                var t = Mathf.Clamp01((densityRatio - 1f) / 0.6f);
+                densityScale = Mathf.Lerp(
+                    1f,
+                    Mathf.Max(1f, _config.highDensityIntervalScaleMax),
+                    t);
+            }
+
+            return Mathf.Max(0.03f, baseInterval * densityScale);
+        }
+
+        private int CalculateSpawnCountForTick(int aliveCount, int targetAliveCount)
+        {
+            if (_config == null)
+            {
+                return 1;
+            }
+
+            if (!_config.enableDynamicDensity)
+            {
+                return IsAtHardAliveCap() ? 0 : 1;
+            }
+
+            if (IsAtHardAliveCap())
+            {
+                return 0;
+            }
+
+            var deficit = Mathf.Max(0, targetAliveCount - aliveCount);
+            if (deficit <= 0)
+            {
+                return 1;
+            }
+
+            var chunk = Mathf.Max(1, Mathf.RoundToInt(targetAliveCount * 0.25f));
+            var extraSpawns = Mathf.Min(
+                Mathf.Max(0, _config.lowDensityExtraSpawnMax),
+                Mathf.CeilToInt(deficit / (float)chunk));
+
+            return 1 + extraSpawns;
+        }
+
+        private int GetAliveEnemyCount()
+        {
+            return _registry != null && _registry.Enemies != null ? _registry.Enemies.Count : 0;
+        }
+
+        private int GetTargetAliveCount()
+        {
+            if (_config == null)
+            {
+                return 12;
+            }
+
+            var start = Mathf.Max(1, _config.targetAliveStart);
+            var end = Mathf.Max(start, _config.targetAliveEnd);
+            var rampSeconds = Mathf.Max(1f, _config.targetAliveRampSeconds);
+            var t = Mathf.Clamp01(_elapsedSeconds / rampSeconds);
+            var exponent = Mathf.Max(0.1f, _config.targetAliveCurveExponent);
+            var curvedT = Mathf.Pow(t, exponent);
+            return Mathf.RoundToInt(Mathf.Lerp(start, end, curvedT));
+        }
+
+        private bool IsAtHardAliveCap()
+        {
+            if (_config == null)
+            {
+                return false;
+            }
+
+            var hardCap = Mathf.Max(1, _config.hardAliveCap);
+            return GetAliveEnemyCount() >= hardCap;
         }
     }
 }

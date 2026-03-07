@@ -287,17 +287,17 @@ namespace EJR.Game.UI
 
         private void BuildLevelUpPanel()
         {
-            _levelUpPanel = CreatePanel(_canvas.transform, "LevelUpPanel", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(460f, 360f), new Color(0f, 0f, 0f, 0.85f));
+            _levelUpPanel = CreatePanel(_canvas.transform, "LevelUpPanel", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(560f, 700f), new Color(0f, 0f, 0f, 0.85f));
             _levelUpPanel.SetActive(false);
 
-            _levelUpTitle = CreateText(_levelUpPanel.transform, "Title", new Vector2(0f, 145f), "Level Up");
-            _levelButtons = new Button[4];
-            _levelButtonTexts = new Text[4];
+            _levelUpTitle = CreateText(_levelUpPanel.transform, "Title", new Vector2(0f, 300f), "Level Up");
+            _levelButtons = new Button[10];
+            _levelButtonTexts = new Text[10];
 
-            for (var i = 0; i < 4; i++)
+            for (var i = 0; i < _levelButtons.Length; i++)
             {
-                var y = 88f - (i * 64f);
-                var button = CreateButton(_levelUpPanel.transform, $"OptionButton{i}", new Vector2(0f, y), new Vector2(360f, 55f));
+                var y = 240f - (i * 56f);
+                var button = CreateButton(_levelUpPanel.transform, $"OptionButton{i}", new Vector2(0f, y), new Vector2(460f, 48f));
                 _levelButtons[i] = button;
                 _levelButtonTexts[i] = button.GetComponentInChildren<Text>();
             }
