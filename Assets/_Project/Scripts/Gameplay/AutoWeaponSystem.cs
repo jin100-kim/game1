@@ -14,8 +14,9 @@ namespace EJR.Game.Gameplay
         [SerializeField, Range(4, 40)] private int katanaRangeEffectSegments = 14;
         [SerializeField] private Color katanaRangeEffectColor = new(0.2f, 1f, 0.9f, 0.9f);
         [SerializeField, Min(0.01f)] private float katanaSlashFxFps = 18f;
-        [SerializeField, Min(0.05f)] private float katanaSlashFxForwardOffset = 1f;
-        [SerializeField, Min(0.05f)] private float katanaSlashFxScale = 3f;
+        [SerializeField, Min(0.05f)] private float katanaSlashFxForwardOffset = 0.72f;
+        [SerializeField] private Vector2 katanaSlashFxLocalOffset = new(-0.22f, -2.0f);
+        [SerializeField, Min(0.05f)] private float katanaSlashFxScale = 6f;
         [SerializeField, Min(0.01f)] private float chainFxDuration = 0.08f;
         [SerializeField, Min(0.005f)] private float chainFxWidth = 0.05f;
         [SerializeField] private Color chainFxColor = new(0.45f, 0.85f, 1f, 0.95f);
@@ -124,14 +125,29 @@ namespace EJR.Game.Gameplay
         public void ConfigureLoadout(PlayerBuildRuntime build, PlayerStatsRuntime stats)
         {
             _stats = stats ?? _stats;
-            CleanupLoadoutRuntimeState();
-            ClearRifleTurrets();
-            _loadout.Clear();
+            var existingById = new Dictionary<WeaponUpgradeId, WeaponRuntime>(_loadout.Count);
+            for (var i = 0; i < _loadout.Count; i++)
+            {
+                var runtime = _loadout[i];
+                if (runtime == null)
+                {
+                    continue;
+                }
+
+                existingById[runtime.WeaponId] = runtime;
+            }
+
+            var nextLoadout = new List<WeaponRuntime>(Mathf.Max(1, build != null ? build.OwnedWeapons.Count : 0));
+            var hasRifleTurretInNextLoadout = false;
+
             _coreElementByWeapon.Clear();
             _coreLevelByWeapon.Clear();
 
             if (build == null || build.OwnedWeapons.Count <= 0)
             {
+                CleanupLoadoutRuntimeState();
+                ClearRifleTurrets();
+                _loadout.Clear();
                 return;
             }
 
@@ -139,7 +155,21 @@ namespace EJR.Game.Gameplay
             {
                 var id = build.OwnedWeapons[i];
                 var level = Mathf.Max(1, build.GetWeaponLevel(id));
-                _loadout.Add(new WeaponRuntime(id, level));
+                if (!existingById.TryGetValue(id, out var runtime) || runtime == null)
+                {
+                    runtime = new WeaponRuntime(id, level);
+                }
+                else
+                {
+                    existingById.Remove(id);
+                    runtime.Level = level;
+                }
+
+                nextLoadout.Add(runtime);
+                if (id == WeaponUpgradeId.RifleTurret)
+                {
+                    hasRifleTurretInNextLoadout = true;
+                }
 
                 var coreLevel = build.GetWeaponCoreLevel(id);
                 if (coreLevel > 0)
@@ -148,6 +178,19 @@ namespace EJR.Game.Gameplay
                     _coreLevelByWeapon[id] = coreLevel;
                 }
             }
+
+            foreach (var pair in existingById)
+            {
+                CleanupWeaponRuntimeState(pair.Value);
+            }
+
+            if (!hasRifleTurretInNextLoadout)
+            {
+                ClearRifleTurrets();
+            }
+
+            _loadout.Clear();
+            _loadout.AddRange(nextLoadout);
         }
 
         private void Update()
@@ -831,24 +874,43 @@ namespace EJR.Game.Gameplay
 
         private Transform CreateSatelliteVisual()
         {
-            var satelliteObject = new GameObject("SatelliteVisual");
-            satelliteObject.transform.SetParent(transform, false);
+            var satelliteRoot = new GameObject("SatelliteVisual");
+            satelliteRoot.transform.SetParent(transform, false);
 
-            var renderer = satelliteObject.AddComponent<SpriteRenderer>();
+            var visualObject = new GameObject("Visual");
+            visualObject.transform.SetParent(satelliteRoot.transform, false);
+
+            var renderer = visualObject.AddComponent<SpriteRenderer>();
             var frames = RuntimeSpriteFactory.GetSexyDroneAnimationFrames();
             var hasAnimation = frames != null && frames.Length > 0;
             renderer.sprite = hasAnimation ? frames[0] : RuntimeSpriteFactory.GetSquareSprite();
             renderer.color = Color.white;
             renderer.sortingOrder = satelliteVisualSortOrder;
-            satelliteObject.transform.localScale = Vector3.one * 1.5f;
+            var visualScale = 1.5f;
+            visualObject.transform.localScale = Vector3.one * visualScale;
+            visualObject.transform.localPosition = GetSpriteCenterAlignOffset(renderer.sprite, visualScale);
 
             if (hasAnimation && frames.Length > 1)
             {
-                var animator = satelliteObject.AddComponent<SpriteFxAnimator>();
+                var animator = visualObject.AddComponent<SpriteFxAnimator>();
                 animator.Initialize(renderer, frames, satelliteVisualAnimationFps, loop: true, destroyOnComplete: false);
             }
 
-            return satelliteObject.transform;
+            return satelliteRoot.transform;
+        }
+
+        private static Vector3 GetSpriteCenterAlignOffset(Sprite sprite, float uniformScale)
+        {
+            if (sprite == null)
+            {
+                return Vector3.zero;
+            }
+
+            var centerFromPivot = sprite.bounds.center;
+            return new Vector3(
+                -centerFromPivot.x * uniformScale,
+                -centerFromPivot.y * uniformScale,
+                0f);
         }
 
         private int GetSatelliteCount()
@@ -1024,7 +1086,7 @@ namespace EJR.Game.Gameplay
 
         private void SpawnKatanaSlashSpriteFx(Vector2 origin, Vector2 direction, float range)
         {
-            var frames = RuntimeSpriteFactory.GetSexySwordAnimationFrames();
+            var frames = RuntimeSpriteFactory.GetSexySwordAttackAnimationFrames();
             if (frames == null || frames.Length <= 0)
             {
                 return;
@@ -1035,7 +1097,10 @@ namespace EJR.Game.Gameplay
             fxObject.transform.SetParent(transform, false);
 
             var forward = Mathf.Max(0.05f, katanaSlashFxForwardOffset);
-            var fxPosition = origin + (normalizedDirection * forward);
+            var forwardAxis = normalizedDirection;
+            var leftAxis = new Vector2(-normalizedDirection.y, normalizedDirection.x);
+            var worldOffset = (forwardAxis * katanaSlashFxLocalOffset.x) + (leftAxis * katanaSlashFxLocalOffset.y);
+            var fxPosition = origin + (normalizedDirection * forward) + worldOffset;
             fxObject.transform.position = new Vector3(fxPosition.x, fxPosition.y, -0.02f);
             fxObject.transform.rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(normalizedDirection.y, normalizedDirection.x) * Mathf.Rad2Deg);
             var scale = Mathf.Max(0.05f, katanaSlashFxScale) * Mathf.Max(0.8f, range * 0.4f);
@@ -1558,24 +1623,28 @@ namespace EJR.Game.Gameplay
         {
             for (var i = 0; i < _loadout.Count; i++)
             {
-                var weapon = _loadout[i];
-                if (weapon == null)
-                {
-                    continue;
-                }
-
-                for (var visualIndex = 0; visualIndex < weapon.SatelliteVisuals.Count; visualIndex++)
-                {
-                    var visual = weapon.SatelliteVisuals[visualIndex];
-                    if (visual != null)
-                    {
-                        Destroy(visual.gameObject);
-                    }
-                }
-
-                weapon.SatelliteVisuals.Clear();
-                weapon.SatelliteHitCooldownUntil.Clear();
+                CleanupWeaponRuntimeState(_loadout[i]);
             }
+        }
+
+        private static void CleanupWeaponRuntimeState(WeaponRuntime weapon)
+        {
+            if (weapon == null)
+            {
+                return;
+            }
+
+            for (var visualIndex = 0; visualIndex < weapon.SatelliteVisuals.Count; visualIndex++)
+            {
+                var visual = weapon.SatelliteVisuals[visualIndex];
+                if (visual != null)
+                {
+                    Destroy(visual.gameObject);
+                }
+            }
+
+            weapon.SatelliteVisuals.Clear();
+            weapon.SatelliteHitCooldownUntil.Clear();
         }
 
         private void OnDrawGizmos()

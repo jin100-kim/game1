@@ -35,7 +35,10 @@ namespace EJR.Game.Core
             var attackRangeLevel = build.GetStatLevel(StatUpgradeId.AttackRange);
 
             DamageMultiplier += attackPowerLevel * 0.10f;
-            AttackIntervalMultiplier = Mathf.Clamp(1f - (attackSpeedLevel * 0.05f), 0.35f, 1f);
+            // Cooldown model: finalCooldown = baseCooldown / (1 + attackSpeedBonus)
+            // Keep this as "interval multiplier" so weapon systems can keep multiplying by it.
+            var attackSpeedBonus = Mathf.Max(0f, attackSpeedLevel * 0.05f);
+            AttackIntervalMultiplier = 1f / (1f + attackSpeedBonus);
             MaxHealthBonus = maxHealthLevel * 12f;
             HealthRegenPerSecond = healthRegenLevel * 0.6f;
             MoveSpeedMultiplier = 1f + (moveSpeedLevel * 0.06f);

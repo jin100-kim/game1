@@ -11,6 +11,16 @@ namespace EJR.Game.UI
 {
     public sealed class HudController
     {
+        private const float LevelPanelWidth = 560f;
+        private const float LevelPanelMinHeight = 240f;
+        private const float LevelPanelTopPadding = 24f;
+        private const float LevelPanelBottomPadding = 24f;
+        private const float LevelTitleHeight = 36f;
+        private const float LevelButtonsTopGap = 20f;
+        private const float LevelButtonWidth = 460f;
+        private const float LevelButtonHeight = 48f;
+        private const float LevelButtonSpacing = 8f;
+
         private readonly Font _font;
 
         private Canvas _canvas;
@@ -126,12 +136,14 @@ namespace EJR.Game.UI
 
             _levelUpPanel.SetActive(true);
             _levelUpTitle.text = string.IsNullOrWhiteSpace(title) ? "Level Up - Choose One" : title;
+            var visibleCount = Mathf.Min(options.Length, _levelButtons.Length);
+            LayoutLevelUpPanel(visibleCount);
 
             for (var i = 0; i < _levelButtons.Length; i++)
             {
                 var button = _levelButtons[i];
                 var text = _levelButtonTexts[i];
-                if (i >= options.Length)
+                if (i >= visibleCount)
                 {
                     button.gameObject.SetActive(false);
                     continue;
@@ -146,7 +158,7 @@ namespace EJR.Game.UI
             }
 
             var eventSystem = EventSystem.current;
-            if (eventSystem != null)
+            if (eventSystem != null && visibleCount > 0)
             {
                 eventSystem.SetSelectedGameObject(null);
                 eventSystem.SetSelectedGameObject(_levelButtons[0].gameObject);
@@ -287,19 +299,57 @@ namespace EJR.Game.UI
 
         private void BuildLevelUpPanel()
         {
-            _levelUpPanel = CreatePanel(_canvas.transform, "LevelUpPanel", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(560f, 700f), new Color(0f, 0f, 0f, 0.85f));
+            _levelUpPanel = CreatePanel(_canvas.transform, "LevelUpPanel", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(LevelPanelWidth, LevelPanelMinHeight), new Color(0f, 0f, 0f, 0.85f));
             _levelUpPanel.SetActive(false);
 
-            _levelUpTitle = CreateText(_levelUpPanel.transform, "Title", new Vector2(0f, 300f), "Level Up");
+            _levelUpTitle = CreateText(_levelUpPanel.transform, "Title", Vector2.zero, "Level Up");
             _levelButtons = new Button[10];
             _levelButtonTexts = new Text[10];
 
             for (var i = 0; i < _levelButtons.Length; i++)
             {
-                var y = 240f - (i * 56f);
-                var button = CreateButton(_levelUpPanel.transform, $"OptionButton{i}", new Vector2(0f, y), new Vector2(460f, 48f));
+                var button = CreateButton(_levelUpPanel.transform, $"OptionButton{i}", Vector2.zero, new Vector2(LevelButtonWidth, LevelButtonHeight));
                 _levelButtons[i] = button;
                 _levelButtonTexts[i] = button.GetComponentInChildren<Text>();
+            }
+
+            LayoutLevelUpPanel(3);
+        }
+
+        private void LayoutLevelUpPanel(int visibleOptionCount)
+        {
+            if (_levelUpPanel == null || _levelUpTitle == null)
+            {
+                return;
+            }
+
+            var clampedCount = Mathf.Clamp(visibleOptionCount, 1, _levelButtons != null ? _levelButtons.Length : 1);
+            var buttonsHeight = (clampedCount * LevelButtonHeight) + (Mathf.Max(0, clampedCount - 1) * LevelButtonSpacing);
+            var panelHeight = Mathf.Max(
+                LevelPanelMinHeight,
+                LevelPanelTopPadding + LevelTitleHeight + LevelButtonsTopGap + buttonsHeight + LevelPanelBottomPadding);
+
+            var panelRect = _levelUpPanel.GetComponent<RectTransform>();
+            if (panelRect != null)
+            {
+                panelRect.sizeDelta = new Vector2(LevelPanelWidth, panelHeight);
+            }
+
+            var topY = (panelHeight * 0.5f) - LevelPanelTopPadding;
+            var titleRect = _levelUpTitle.rectTransform;
+            titleRect.anchoredPosition = new Vector2(0f, topY - (LevelTitleHeight * 0.5f));
+
+            var firstButtonCenterY = topY - LevelTitleHeight - LevelButtonsTopGap - (LevelButtonHeight * 0.5f);
+            for (var i = 0; i < _levelButtons.Length; i++)
+            {
+                var buttonRect = _levelButtons[i].GetComponent<RectTransform>();
+                if (buttonRect == null)
+                {
+                    continue;
+                }
+
+                buttonRect.sizeDelta = new Vector2(LevelButtonWidth, LevelButtonHeight);
+                buttonRect.anchoredPosition = new Vector2(0f, firstButtonCenterY - (i * (LevelButtonHeight + LevelButtonSpacing)));
             }
         }
 

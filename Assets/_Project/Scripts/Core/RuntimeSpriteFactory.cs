@@ -33,6 +33,8 @@ namespace EJR.Game.Core
         private const int SexyFireStackEndFrame = 3;
         private const int SexyFireBoomStartFrame = 4;
         private const int SexyFireBoomEndFrame = 7;
+        private const int SexySwordAttackStartFrame = 0;
+        private const int SexySwordAttackEndFrame = 4;
 
         private static readonly VisualAssetDescriptor SlimeDescriptor = new(
             "Aseprite/Slime",
@@ -66,6 +68,7 @@ namespace EJR.Game.Core
         private static Sprite[] _playerFrames;
         private static Sprite[] _weaponFire1Frames;
         private static Sprite[] _sexySwordFrames;
+        private static Sprite[] _sexySwordAttackFrames;
         private static Sprite[] _sexyFireFrames;
         private static Sprite[] _sexyFireStackFrames;
         private static Sprite[] _sexyFireBoomFrames;
@@ -165,8 +168,29 @@ namespace EJR.Game.Core
             }
 
             var sourceFrames = LoadSourceFrames(SexySwordDescriptor.ResourcePath, SexySwordDescriptor.AssetPath);
-            _sexySwordFrames = sourceFrames.Length > 0 ? sourceFrames : Array.Empty<Sprite>();
+            if (sourceFrames.Length <= 0)
+            {
+                _sexySwordFrames = Array.Empty<Sprite>();
+                return _sexySwordFrames;
+            }
+
+            _sexySwordFrames = sourceFrames;
             return _sexySwordFrames;
+        }
+
+        public static Sprite[] GetSexySwordAttackAnimationFrames()
+        {
+            if (_sexySwordAttackFrames != null && _sexySwordAttackFrames.Length > 0)
+            {
+                return _sexySwordAttackFrames;
+            }
+
+            var sourceFrames = GetSexySwordAnimationFrames();
+            _sexySwordAttackFrames = SliceFramesInclusive(
+                sourceFrames,
+                SexySwordAttackStartFrame,
+                SexySwordAttackEndFrame);
+            return _sexySwordAttackFrames;
         }
 
         public static Sprite[] GetSexyFireAnimationFrames()
