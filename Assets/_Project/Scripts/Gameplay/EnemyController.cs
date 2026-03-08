@@ -23,8 +23,8 @@ namespace EJR.Game.Gameplay
         private static readonly Color FireExplosionFxColor = new(1f, 0.45f, 0.1f, 0.9f);
         private const float FireStackFxFps = 10f;
         private const float FireBoomFxFps = 14f;
-        private const float FireStackFxScale = 1.35f;
-        private const float FireBoomFxScale = 3.3f;
+        private const float FireStackFxScale = 2.7f;
+        private const float FireBoomFxScale = 6f;
         private const float BossTelegraphDuration = 1f;
         private const float BossDashDuration = 0.8f;
         private const float BossDashSpeedMultiplier = 6f;
@@ -858,7 +858,6 @@ namespace EJR.Game.Gameplay
 
             var origin = (Vector2)transform.position;
             SpawnFireBoomFx(origin, explosionRadius);
-            SpawnFireExplosionRangeFx(origin, explosionRadius);
             var searchRadius = explosionRadius + _registry.GetMaxCollisionRadius();
             _registry.GetNearby(origin, searchRadius, _nearbyBuffer);
 

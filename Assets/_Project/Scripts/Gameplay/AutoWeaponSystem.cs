@@ -500,7 +500,6 @@ namespace EJR.Game.Gameplay
 
             var origin = (Vector2)_owner.position;
             SpawnKatanaSlashSpriteFx(origin, direction, range);
-            SpawnKatanaRangeEffect(origin, direction, range, coneHalfAngle);
             var searchRadius = range + _registry.GetMaxCollisionRadius();
             _registry.GetNearby(origin, searchRadius, _nearbyEnemies);
 
