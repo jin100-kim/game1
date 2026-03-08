@@ -89,6 +89,7 @@ namespace EJR.Game.Gameplay
         private float _remainingSeconds;
         private bool _isGameOver;
         private bool _isAwaitingStarterWeaponChoice;
+        private bool _isPauseMenuOpen;
         private bool _bossWaveTriggered;
         private float _nextHudRefreshAt;
 
@@ -113,6 +114,13 @@ namespace EJR.Game.Gameplay
 
         private void Update()
         {
+            HandlePauseMenuInput();
+            if (_isPauseMenuOpen)
+            {
+                TryRefreshHud();
+                return;
+            }
+
             HandleDebugTimeSkipInput();
             UpdateWeaponAimSmoothing();
             if (!_isGameOver && _playerSpriteAnimator != null && _playerMover != null)
@@ -187,6 +195,18 @@ namespace EJR.Game.Gameplay
             }
 #endif
             return Input.GetKeyDown(KeyCode.R);
+        }
+
+        private static bool IsPauseToggleKeyDown()
+        {
+#if ENABLE_INPUT_SYSTEM
+            var keyboard = Keyboard.current;
+            if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
+            {
+                return true;
+            }
+#endif
+            return Input.GetKeyDown(KeyCode.Escape);
         }
 
         private static bool IsOptionKeyDown(int zeroBasedIndex)
@@ -356,6 +376,74 @@ namespace EJR.Game.Gameplay
 
                 DebugRandomLevelUpToTarget(debugSkipBossTargetLevel);
             }
+        }
+
+        private void HandlePauseMenuInput()
+        {
+            if (_isGameOver)
+            {
+                return;
+            }
+
+            if (!_isPauseMenuOpen && IsAnyChoiceAwaiting())
+            {
+                return;
+            }
+
+            if (!IsPauseToggleKeyDown())
+            {
+                return;
+            }
+
+            if (_isPauseMenuOpen)
+            {
+                ResumeFromPauseMenu();
+            }
+            else
+            {
+                OpenPauseMenu();
+            }
+        }
+
+        private void OpenPauseMenu()
+        {
+            if (_hud == null || _isPauseMenuOpen)
+            {
+                return;
+            }
+
+            _isPauseMenuOpen = true;
+            Time.timeScale = 0f;
+            _hud.ShowPauseMenu(ResumeFromPauseMenu, QuitFromPauseMenu);
+        }
+
+        private void ResumeFromPauseMenu()
+        {
+            if (!_isPauseMenuOpen)
+            {
+                return;
+            }
+
+            _isPauseMenuOpen = false;
+            _hud?.HidePauseMenu();
+            if (!_isGameOver && !IsAnyChoiceAwaiting())
+            {
+                Time.timeScale = 1f;
+            }
+
+            UpdateHud();
+        }
+
+        private void QuitFromPauseMenu()
+        {
+            _isPauseMenuOpen = false;
+            _hud?.HidePauseMenu();
+            Time.timeScale = 1f;
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
         }
 
         private void GrantDebugLevels(int levelsToGrant)
@@ -1152,8 +1240,10 @@ namespace EJR.Game.Gameplay
             }
 
             _isGameOver = true;
+            _isPauseMenuOpen = false;
             Time.timeScale = 0f;
             _hud.HideLevelUpOptions();
+            _hud.HidePauseMenu();
             _hud.HideBossBar();
             _hud.ShowResult(cleared, RestartRun);
         }

@@ -35,6 +35,7 @@ namespace EJR.Game.Core
         private const int SexyFireBoomEndFrame = 7;
         private const int SexySwordAttackStartFrame = 0;
         private const int SexySwordAttackEndFrame = 4;
+        private const int SatelliteBeamFrameCanvasSize = 64;
 
         private static readonly VisualAssetDescriptor SlimeDescriptor = new(
             "Aseprite/Slime",
@@ -52,17 +53,23 @@ namespace EJR.Game.Core
             "Aseprite/player001",
             "Assets/_Project/Art/Aseprite/player001.aseprite");
         private static readonly VisualAssetDescriptor Fire1Descriptor = new(
-            "Aseprite/sexyrifle",
-            "Assets/_Project/Art/Aseprite/sexyrifle.ase");
+            "Aseprite/sexyRifle",
+            "Assets/Resources/Aseprite/sexyRifle.ase");
         private static readonly VisualAssetDescriptor SexySwordDescriptor = new(
-            "Aseprite/sexysword",
-            "Assets/_Project/Art/Aseprite/sexysword.aseprite");
+            "Aseprite/sexySword",
+            "Assets/Resources/Aseprite/sexySword.aseprite");
         private static readonly VisualAssetDescriptor SexyFireDescriptor = new(
-            "Aseprite/sexyfire",
-            "Assets/_Project/Art/Aseprite/sexyfire.aseprite");
+            "Aseprite/sexyFire",
+            "Assets/Resources/Aseprite/sexyFire.aseprite");
         private static readonly VisualAssetDescriptor SexyDroneDescriptor = new(
-            "Aseprite/sexydrone",
-            "Assets/_Project/Art/Aseprite/sexydrone.aseprite");
+            "Aseprite/sexyDrone",
+            "Assets/Resources/Aseprite/sexyDrone.aseprite");
+        private static readonly VisualAssetDescriptor SexyTurretDescriptor = new(
+            "Aseprite/sexyTurret",
+            "Assets/Resources/Aseprite/sexyTurret.aseprite");
+        private static readonly VisualAssetDescriptor SexySatelliteBeamDescriptor = new(
+            "Aseprite/sexySatelliteBeam",
+            "Assets/Resources/Aseprite/sexySatelliteBeam.aseprite");
 
         private static readonly Dictionary<EnemyVisualKind, Sprite[]> EnemyFramesByKind = new();
         private static Sprite[] _playerFrames;
@@ -73,6 +80,8 @@ namespace EJR.Game.Core
         private static Sprite[] _sexyFireStackFrames;
         private static Sprite[] _sexyFireBoomFrames;
         private static Sprite[] _sexyDroneFrames;
+        private static Sprite[] _sexyTurretFrames;
+        private static Sprite[] _sexySatelliteBeamFrames;
 
         private static Sprite _squareSprite;
 
@@ -245,6 +254,53 @@ namespace EJR.Game.Core
             var sourceFrames = LoadSourceFrames(SexyDroneDescriptor.ResourcePath, SexyDroneDescriptor.AssetPath);
             _sexyDroneFrames = sourceFrames.Length > 0 ? sourceFrames : Array.Empty<Sprite>();
             return _sexyDroneFrames;
+        }
+
+        public static Sprite[] GetSexyTurretAnimationFrames()
+        {
+            if (_sexyTurretFrames != null && _sexyTurretFrames.Length > 0)
+            {
+                return _sexyTurretFrames;
+            }
+
+            var sourceFrames = LoadSourceFrames(SexyTurretDescriptor.ResourcePath, SexyTurretDescriptor.AssetPath);
+            if (sourceFrames.Length <= 0)
+            {
+                _sexyTurretFrames = Array.Empty<Sprite>();
+                return _sexyTurretFrames;
+            }
+
+            var centeredFrames = new Sprite[sourceFrames.Length];
+            for (var i = 0; i < sourceFrames.Length; i++)
+            {
+                centeredFrames[i] = CreateCenteredPivotSprite(sourceFrames[i]) ?? sourceFrames[i];
+            }
+
+            _sexyTurretFrames = centeredFrames;
+            return _sexyTurretFrames;
+        }
+
+        public static Sprite[] GetSexySatelliteBeamAnimationFrames()
+        {
+            if (_sexySatelliteBeamFrames != null && _sexySatelliteBeamFrames.Length > 0)
+            {
+                return _sexySatelliteBeamFrames;
+            }
+
+            var sourceFrames = LoadSourceFrames(SexySatelliteBeamDescriptor.ResourcePath, SexySatelliteBeamDescriptor.AssetPath);
+            if (sourceFrames.Length <= 0)
+            {
+                _sexySatelliteBeamFrames = Array.Empty<Sprite>();
+                return _sexySatelliteBeamFrames;
+            }
+
+            _sexySatelliteBeamFrames = CreateFixedCanvasSpritesByPivot(
+                sourceFrames,
+                SatelliteBeamFrameCanvasSize,
+                SatelliteBeamFrameCanvasSize,
+                new Vector2(SatelliteBeamFrameCanvasSize * 0.5f, 0f),
+                new Vector2(0.5f, 0.5f));
+            return _sexySatelliteBeamFrames;
         }
 
         public static Sprite GetEnemySprite(EnemyVisualKind kind)
@@ -565,6 +621,232 @@ namespace EJR.Game.Core
                 SpriteMeshType.FullRect);
             centeredSprite.name = $"{sourceSprite.name}_Centered";
             return centeredSprite;
+        }
+
+        private static Sprite[] CreateSharedCanvasCenteredSprites(Sprite[] sourceFrames)
+        {
+            if (sourceFrames == null || sourceFrames.Length <= 0)
+            {
+                return Array.Empty<Sprite>();
+            }
+
+            var extractedTextures = new Texture2D[sourceFrames.Length];
+            var centerXs = new int[sourceFrames.Length];
+            var centerYs = new int[sourceFrames.Length];
+            var hasExtractedTexture = false;
+            var hasAnchor = false;
+            var anchorX = 0;
+            var anchorY = 0;
+            var minPlacedX = int.MaxValue;
+            var minPlacedY = int.MaxValue;
+            var maxPlacedX = int.MinValue;
+            var maxPlacedY = int.MinValue;
+
+            for (var i = 0; i < sourceFrames.Length; i++)
+            {
+                var extracted = ExtractSpriteTexture(sourceFrames[i]);
+                extractedTextures[i] = extracted;
+                if (extracted == null)
+                {
+                    continue;
+                }
+
+                hasExtractedTexture = true;
+                var pixels = extracted.GetPixels32();
+                var width = extracted.width;
+                var height = extracted.height;
+
+                if (!TryGetOpaqueBounds(pixels, width, height, out var minX, out var minY, out var maxX, out var maxY))
+                {
+                    minX = 0;
+                    minY = 0;
+                    maxX = Mathf.Max(0, width - 1);
+                    maxY = Mathf.Max(0, height - 1);
+                }
+
+                // Use integer texel centers to avoid half-pixel drift between frames.
+                var frameCenterX = (minX + maxX + 1) / 2;
+                var frameCenterY = (minY + maxY + 1) / 2;
+                centerXs[i] = frameCenterX;
+                centerYs[i] = frameCenterY;
+
+                if (!hasAnchor)
+                {
+                    anchorX = frameCenterX;
+                    anchorY = frameCenterY;
+                    hasAnchor = true;
+                }
+
+                var offsetX = anchorX - frameCenterX;
+                var offsetY = anchorY - frameCenterY;
+                minPlacedX = Mathf.Min(minPlacedX, offsetX);
+                minPlacedY = Mathf.Min(minPlacedY, offsetY);
+                maxPlacedX = Mathf.Max(maxPlacedX, offsetX + width);
+                maxPlacedY = Mathf.Max(maxPlacedY, offsetY + height);
+            }
+
+            if (!hasExtractedTexture)
+            {
+                var fallback = new Sprite[sourceFrames.Length];
+                Array.Copy(sourceFrames, fallback, sourceFrames.Length);
+                return fallback;
+            }
+
+            if (!hasAnchor)
+            {
+                anchorX = 0;
+                anchorY = 0;
+                minPlacedX = 0;
+                minPlacedY = 0;
+                maxPlacedX = 1;
+                maxPlacedY = 1;
+            }
+
+            var canvasWidth = Mathf.Max(1, maxPlacedX - minPlacedX);
+            var canvasHeight = Mathf.Max(1, maxPlacedY - minPlacedY);
+            var anchorCanvasX = -minPlacedX;
+            var anchorCanvasY = -minPlacedY;
+
+            var result = new Sprite[sourceFrames.Length];
+            for (var i = 0; i < sourceFrames.Length; i++)
+            {
+                var sourceSprite = sourceFrames[i];
+                var extracted = extractedTextures[i];
+                if (sourceSprite == null || extracted == null)
+                {
+                    result[i] = sourceSprite;
+                    continue;
+                }
+
+                var canvasTexture = new Texture2D(canvasWidth, canvasHeight, TextureFormat.RGBA32, false)
+                {
+                    filterMode = FilterMode.Point,
+                    wrapMode = TextureWrapMode.Clamp,
+                };
+
+                var transparentPixels = new Color32[canvasWidth * canvasHeight];
+                canvasTexture.SetPixels32(transparentPixels);
+
+                var offsetX = anchorCanvasX - centerXs[i];
+                var offsetY = anchorCanvasY - centerYs[i];
+                var sourcePixels = extracted.GetPixels32();
+                for (var y = 0; y < extracted.height; y++)
+                {
+                    var sourceRowStart = y * extracted.width;
+                    var targetY = offsetY + y;
+                    if (targetY < 0 || targetY >= canvasHeight)
+                    {
+                        continue;
+                    }
+
+                    var targetRowStart = (targetY * canvasWidth) + offsetX;
+                    for (var x = 0; x < extracted.width; x++)
+                    {
+                        var targetX = offsetX + x;
+                        if (targetX < 0 || targetX >= canvasWidth)
+                        {
+                            continue;
+                        }
+
+                        transparentPixels[targetRowStart + x] = sourcePixels[sourceRowStart + x];
+                    }
+                }
+
+                canvasTexture.SetPixels32(transparentPixels);
+                canvasTexture.Apply();
+
+                var pivotX = Mathf.Clamp01(anchorCanvasX / (float)canvasWidth);
+                var pivotY = Mathf.Clamp01(anchorCanvasY / (float)canvasHeight);
+                var centeredSprite = Sprite.Create(
+                    canvasTexture,
+                    new Rect(0f, 0f, canvasWidth, canvasHeight),
+                    new Vector2(pivotX, pivotY),
+                    sourceSprite.pixelsPerUnit,
+                    0,
+                    SpriteMeshType.FullRect);
+                centeredSprite.name = $"{sourceSprite.name}_SharedAnchor";
+                result[i] = centeredSprite;
+            }
+
+            return result;
+        }
+
+        private static Sprite[] CreateFixedCanvasSpritesByPivot(
+            Sprite[] sourceFrames,
+            int canvasWidth,
+            int canvasHeight,
+            Vector2 anchorPixels,
+            Vector2 outputPivotNormalized)
+        {
+            if (sourceFrames == null || sourceFrames.Length <= 0)
+            {
+                return Array.Empty<Sprite>();
+            }
+
+            var safeWidth = Mathf.Max(1, canvasWidth);
+            var safeHeight = Mathf.Max(1, canvasHeight);
+            var result = new Sprite[sourceFrames.Length];
+
+            for (var i = 0; i < sourceFrames.Length; i++)
+            {
+                var sourceSprite = sourceFrames[i];
+                var extracted = ExtractSpriteTexture(sourceSprite);
+                if (sourceSprite == null || extracted == null)
+                {
+                    result[i] = sourceSprite;
+                    continue;
+                }
+
+                var canvasTexture = new Texture2D(safeWidth, safeHeight, TextureFormat.RGBA32, false)
+                {
+                    filterMode = FilterMode.Point,
+                    wrapMode = TextureWrapMode.Clamp,
+                };
+
+                var transparentPixels = new Color32[safeWidth * safeHeight];
+                canvasTexture.SetPixels32(transparentPixels);
+
+                var offsetX = Mathf.RoundToInt(anchorPixels.x - sourceSprite.pivot.x);
+                var offsetY = Mathf.RoundToInt(anchorPixels.y - sourceSprite.pivot.y);
+                var sourcePixels = extracted.GetPixels32();
+                for (var y = 0; y < extracted.height; y++)
+                {
+                    var targetY = offsetY + y;
+                    if (targetY < 0 || targetY >= safeHeight)
+                    {
+                        continue;
+                    }
+
+                    var sourceRowStart = y * extracted.width;
+                    for (var x = 0; x < extracted.width; x++)
+                    {
+                        var targetX = offsetX + x;
+                        if (targetX < 0 || targetX >= safeWidth)
+                        {
+                            continue;
+                        }
+
+                        transparentPixels[(targetY * safeWidth) + targetX] = sourcePixels[sourceRowStart + x];
+                    }
+                }
+
+                canvasTexture.SetPixels32(transparentPixels);
+                canvasTexture.Apply();
+
+                var pivotX = Mathf.Clamp01(outputPivotNormalized.x);
+                var pivotY = Mathf.Clamp01(outputPivotNormalized.y);
+                var fixedSprite = Sprite.Create(
+                    canvasTexture,
+                    new Rect(0f, 0f, safeWidth, safeHeight),
+                    new Vector2(pivotX, pivotY),
+                    sourceSprite.pixelsPerUnit,
+                    0,
+                    SpriteMeshType.FullRect);
+                fixedSprite.name = $"{sourceSprite.name}_FixedCanvas";
+                result[i] = fixedSprite;
+            }
+
+            return result;
         }
 
         private static Color32 EstimateBackgroundColor(Color32[] pixels, int width, int height)

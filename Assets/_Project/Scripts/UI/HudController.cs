@@ -48,6 +48,9 @@ namespace EJR.Game.UI
         private GameObject _resultPanel;
         private Text _resultText;
         private Button _restartButton;
+        private GameObject _pausePanel;
+        private Button _pauseResumeButton;
+        private Button _pauseQuitButton;
         private int _lastCurrentHp = int.MinValue;
         private int _lastMaxHp = int.MinValue;
         private int _lastLevel = int.MinValue;
@@ -74,6 +77,7 @@ namespace EJR.Game.UI
             BuildBossBar();
             BuildLevelUpPanel();
             BuildResultPanel();
+            BuildPausePanel();
         }
 
         public void SetTopBar(float currentHealth, float maxHealth, int level, int currentXp, int requiredXp, float remainingSeconds)
@@ -256,6 +260,45 @@ namespace EJR.Game.UI
             if (_resultPanel != null)
             {
                 _resultPanel.SetActive(false);
+            }
+        }
+
+        public bool IsPauseMenuVisible => _pausePanel != null && _pausePanel.activeSelf;
+
+        public void ShowPauseMenu(Action onResume, Action onQuit)
+        {
+            if (_pausePanel == null)
+            {
+                return;
+            }
+
+            _pausePanel.SetActive(true);
+
+            if (_pauseResumeButton != null)
+            {
+                _pauseResumeButton.onClick.RemoveAllListeners();
+                _pauseResumeButton.onClick.AddListener(() => onResume?.Invoke());
+            }
+
+            if (_pauseQuitButton != null)
+            {
+                _pauseQuitButton.onClick.RemoveAllListeners();
+                _pauseQuitButton.onClick.AddListener(() => onQuit?.Invoke());
+            }
+
+            var eventSystem = EventSystem.current;
+            if (eventSystem != null && _pauseResumeButton != null)
+            {
+                eventSystem.SetSelectedGameObject(null);
+                eventSystem.SetSelectedGameObject(_pauseResumeButton.gameObject);
+            }
+        }
+
+        public void HidePauseMenu()
+        {
+            if (_pausePanel != null)
+            {
+                _pausePanel.SetActive(false);
             }
         }
 
@@ -477,6 +520,29 @@ namespace EJR.Game.UI
             _resultText = CreateText(_resultPanel.transform, "ResultText", new Vector2(0f, 40f), "Game Over");
             _restartButton = CreateButton(_resultPanel.transform, "RestartButton", new Vector2(0f, -45f), new Vector2(220f, 55f));
             _restartButton.GetComponentInChildren<Text>().text = "Restart";
+        }
+
+        private void BuildPausePanel()
+        {
+            _pausePanel = CreatePanel(
+                _canvas.transform,
+                "PausePanel",
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                Vector2.zero,
+                new Vector2(360f, 240f),
+                new Color(0f, 0f, 0f, 0.88f));
+            _pausePanel.SetActive(false);
+
+            var title = CreateText(_pausePanel.transform, "PauseTitle", new Vector2(0f, 68f), "일시정지");
+            title.fontSize = 24;
+
+            _pauseResumeButton = CreateButton(_pausePanel.transform, "ResumeButton", new Vector2(0f, 8f), new Vector2(230f, 56f));
+            _pauseResumeButton.GetComponentInChildren<Text>().text = "이어하기";
+
+            _pauseQuitButton = CreateButton(_pausePanel.transform, "QuitButton", new Vector2(0f, -68f), new Vector2(230f, 56f));
+            _pauseQuitButton.GetComponentInChildren<Text>().text = "게임종료";
         }
 
         private GameObject CreatePanel(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 anchoredPosition, Vector2 size, Color color)

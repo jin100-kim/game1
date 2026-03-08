@@ -668,7 +668,7 @@ namespace EJR.Game.Gameplay
                 WeaponUpgradeId.SatelliteBeam => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.1f, 1.35f, 1.35f, 1.35f, 1.5f, 1.5f },
                 WeaponUpgradeId.Drone => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.45f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
                 WeaponUpgradeId.RifleTurret => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.45f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
-                WeaponUpgradeId.Aura => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.45f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
+                WeaponUpgradeId.Aura => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.15f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
                 _ => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.1f, 1.35f, 1.35f, 1.35f, 1.5f, 1.5f },
             };
         }
@@ -682,7 +682,7 @@ namespace EJR.Game.Gameplay
         {
             if (weaponId == WeaponUpgradeId.Aura)
             {
-                return new[] { 1f, 1f, 1f, 1.15f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f, 1.9f };
+                return new[] { 1f, 1f, 1f, 1.15f, 1.3f, 1.3f, 1.3f, 1.45f, 1.45f, 1.6f };
             }
 
             return new[] { 1f, 1f, 1f, 1.15f, 1.15f, 1.15f, 1.15f, 1.3f, 1.3f, 1.3f };
@@ -716,7 +716,7 @@ namespace EJR.Game.Gameplay
         private static string BuildCoreLabel(string weaponName, WeaponCoreElement coreElement, int currentLevel, int nextLevel)
         {
             var coreName = GetCoreName(coreElement);
-            return $"肄붿뼱 {weaponName} {coreName} LV{nextLevel}\n{GetCoreLevelDetailText(coreElement, nextLevel)}";
+            return $"\uCF54\uC5B4 {weaponName} {coreName} LV{nextLevel}\n{GetCoreDirectionHint(coreElement)}\n{GetCoreLevelDetailText(coreElement, nextLevel)}";
         }
 
         private static string GetCoreLevelDetailText(WeaponCoreElement coreElement, int level)
@@ -727,33 +727,33 @@ namespace EJR.Game.Gameplay
                 case WeaponCoreElement.Fire:
                     return clampedLevel switch
                     {
-                        1 => "??컻 ?꾩쟻 10%, 5? ?곸쨷 ????컻",
-                        2 => "??컻 ?꾩쟻 20%, 4? ?곸쨷 ????컻",
-                        _ => "??컻 ?꾩쟻 30%, 2? ?곸쨷 ????컻",
+                        1 => "\uD53C\uD574 \uB204\uC801 10%, 5\uD68C \uD0C0\uACA9 \uC2DC \uD3ED\uBC1C",
+                        2 => "\uD53C\uD574 \uB204\uC801 20%, 4\uD68C \uD0C0\uACA9 \uC2DC \uD3ED\uBC1C",
+                        _ => "\uD53C\uD574 \uB204\uC801 30%, 2\uD68C \uD0C0\uACA9 \uC2DC \uD3ED\uBC1C",
                     };
                 case WeaponCoreElement.Wind:
                     return clampedLevel switch
                     {
-                        1 => "?됰갚 0.1, ?쇳빐 -12%, 怨듭냽 +25%",
-                        2 => "?됰갚 0.2, ?쇳빐 -18%, 怨듭냽 +47.1%",
-                        _ => "?됰갚 0.3, ?쇳빐 -24%, 怨듭냽 +72.4%",
+                        1 => "\uB109\uBC31 0.1, \uD53C\uD574 -12%, \uACF5\uC18D +25%",
+                        2 => "\uB109\uBC31 0.2, \uD53C\uD574 -18%, \uACF5\uC18D +47.1%",
+                        _ => "\uB109\uBC31 0.3, \uD53C\uD574 -24%, \uACF5\uC18D +72.4%",
                     };
                 case WeaponCoreElement.Water:
                     return clampedLevel switch
                     {
-                        1 => "?뷀솕 30%(1.0珥?, ?쇳빐 +10%",
-                        2 => "?뷀솕 50%(1.0珥?, ?쇳빐 +20%",
-                        _ => "?뷀솕 80%(1.0珥?, ?쇳빐 +30%",
+                        1 => "\uB454\uD654 30%(1.0\uCD08), \uD53C\uD574 +10%",
+                        2 => "\uB454\uD654 50%(1.0\uCD08), \uD53C\uD574 +20%",
+                        _ => "\uB454\uD654 80%(1.0\uCD08), \uD53C\uD574 +30%",
                     };
                 case WeaponCoreElement.Light:
                     return clampedLevel switch
                     {
-                        1 => "異붽? ?쇳빐 10%(1.0珥?",
-                        2 => "異붽? ?쇳빐 20%(2.0珥?",
-                        _ => "異붽? ?쇳빐 30%(5.0珥?",
+                        1 => "\uCD94\uAC00 \uD53C\uD574 10%(1.0\uCD08)",
+                        2 => "\uCD94\uAC00 \uD53C\uD574 20%(2.0\uCD08)",
+                        _ => "\uCD94\uAC00 \uD53C\uD574 30%(5.0\uCD08)",
                     };
                 default:
-                    return "?④낵 ?놁쓬";
+                    return "\uD6A8\uACFC \uC5C6\uC74C";
             }
         }
 
@@ -761,11 +761,11 @@ namespace EJR.Game.Gameplay
         {
             return coreElement switch
             {
-                WeaponCoreElement.Fire => "愿묒뿭 ?쇳빐",
-                WeaponCoreElement.Water => "?뷀솕, ?쇳빐 利앷?",
-                WeaponCoreElement.Wind => "?됰갚, 怨듦꺽 ?띾룄 利앷?",
-                WeaponCoreElement.Light => "異붽? ?쇳빐",
-                _ => "?④낵 ?놁쓬",
+                WeaponCoreElement.Fire => "\uAD11\uC5ED \uD53C\uD574",
+                WeaponCoreElement.Water => "\uB454\uD654, \uD53C\uD574 \uC99D\uAC00",
+                WeaponCoreElement.Wind => "\uB109\uBC31, \uACF5\uACA9 \uC18D\uB3C4 \uC99D\uAC00",
+                WeaponCoreElement.Light => "\uCD94\uAC00 \uD53C\uD574",
+                _ => "\uD6A8\uACFC \uC5C6\uC74C",
             };
         }
     }

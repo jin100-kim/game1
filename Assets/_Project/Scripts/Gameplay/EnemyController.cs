@@ -47,6 +47,7 @@ namespace EJR.Game.Gameplay
         private const float BossPhase2HealthThreshold = 0.5f;
         private const float BossDashTelegraphLength = 6.5f;
         private const float BossDashTelegraphWidth = 0.12f;
+        private const float WindKnockbackCooldown = 0.5f;
         private static readonly Color BossDashTelegraphColor = new(1f, 0.28f, 0.22f, 0.78f);
         private const float StatusIndicatorScale = 0.08f;
         private const float StatusIndicatorHeightOffset = 0.22f;
@@ -82,6 +83,7 @@ namespace EJR.Game.Gameplay
         private float _activeSlowRemaining;
         private float _activeLightBonusMultiplier;
         private float _activeLightRemaining;
+        private float _lastWindKnockbackAt = -999f;
         private float _fireAccumulatedDamage;
         private int _fireAccumulatedHits;
         private int _fireTriggerHitCount = int.MaxValue;
@@ -94,6 +96,7 @@ namespace EJR.Game.Gameplay
         private int _bossDashTotalInPattern;
         private int _bossDashRemainingInPattern;
         private int _bossDashStartedInPattern;
+        private bool _bossUseDashPatternNext;
         private bool _bossUseEightWayNext = true;
         private float _bossShotTimer;
         private static Material _fireExplosionFxMaterial;
@@ -164,6 +167,7 @@ namespace EJR.Game.Gameplay
             _bossDashTotalInPattern = 0;
             _bossDashRemainingInPattern = 0;
             _bossDashStartedInPattern = 0;
+            _bossUseDashPatternNext = UnityEngine.Random.value < GetBossDashPatternChance();
             _bossUseEightWayNext = true;
             _bossShotTimer = 0f;
             _registry.Register(this);
@@ -568,8 +572,8 @@ namespace EJR.Game.Gameplay
 
         private void StartRandomBossPattern()
         {
-            var dashChance = GetBossDashPatternChance();
-            var useDashPattern = UnityEngine.Random.value < dashChance;
+            var useDashPattern = _bossUseDashPatternNext;
+            _bossUseDashPatternNext = !_bossUseDashPatternNext;
             if (useDashPattern)
             {
                 _bossDashTotalInPattern = GetBossDashCountForCurrentHealth();
@@ -1006,6 +1010,11 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
+            if (Time.time < _lastWindKnockbackAt + WindKnockbackCooldown)
+            {
+                return;
+            }
+
             var knockbackDistance = coreLevel switch
             {
                 1 => 0.1f,
@@ -1034,6 +1043,7 @@ namespace EJR.Game.Gameplay
             var next = (Vector2)transform.position + (away.normalized * knockbackDistance);
             transform.position = new Vector3(next.x, next.y, transform.position.z);
             _registry?.NotifyMoved(this, transform.position);
+            _lastWindKnockbackAt = Time.time;
         }
 
         private void ShowFireStackFx()

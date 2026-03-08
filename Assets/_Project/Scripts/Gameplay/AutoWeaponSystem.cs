@@ -22,8 +22,6 @@ namespace EJR.Game.Gameplay
         [SerializeField, Min(0.005f)] private float chainFxWidth = 0.05f;
         [SerializeField] private Color chainFxColor = new(0.45f, 0.85f, 1f, 0.95f);
         [SerializeField, Min(0.01f)] private float lightningFxDuration = 0.1f;
-        [SerializeField, Min(0.005f)] private float lightningFxWidth = 0.07f;
-        [SerializeField] private Color lightningFxColor = new(1f, 0.96f, 0.55f, 0.95f);
         [SerializeField, Min(0.01f)] private float auraFxDuration = 0.08f;
         [SerializeField, Min(0.005f)] private float auraFxWidth = 0.045f;
         [SerializeField] private Color auraFxColor = new(0.45f, 1f, 0.75f, 0.75f);
@@ -34,6 +32,11 @@ namespace EJR.Game.Gameplay
         [SerializeField, Range(8, 96)] private int ringFxSegments = 28;
         [SerializeField, Min(0.1f)] private float satelliteVisualAnimationFps = 12f;
         [SerializeField, Min(1)] private int satelliteVisualSortOrder = 33;
+        [SerializeField, Min(0.1f)] private float turretVisualAnimationFps = 12f;
+        [SerializeField, Min(0.05f)] private float turretVisualScale = 3f;
+        [SerializeField, Min(0.1f)] private float satelliteBeamVisualFps = 14f;
+        [SerializeField, Min(0.05f)] private float satelliteBeamVisualScale = 3f;
+        [SerializeField] private float satelliteBeamVisualYOffset = 0f;
         [Header("Debug Gizmos")]
         [SerializeField] private bool showSatelliteHitGizmos = true;
         [SerializeField] private Color satelliteHitGizmoColor = new(0.35f, 1f, 0.95f, 0.95f);
@@ -66,6 +69,10 @@ namespace EJR.Game.Gameplay
             public Vector2 Position;
             public float ExpiresAt;
             public float ShotCooldown;
+            public SpriteRenderer Renderer;
+            public Sprite IdleFrame;
+            public Sprite[] FireFrames;
+            public Coroutine FireAnimationCoroutine;
         }
 
         private WeaponConfig _config;
@@ -94,10 +101,11 @@ namespace EJR.Game.Gameplay
         private static Material _sharedFxMaterial;
         private static readonly float[] CommonWeaponAttackSpeedBonusByLevel = { 0f, 0f, 0.15f, 0.15f, 0.15f, 0.15f, 0.30f, 0.30f, 0.30f, 0.30f };
         private static readonly float[] CommonWeaponRangeByLevel = { 1f, 1f, 1f, 1.15f, 1.15f, 1.15f, 1.15f, 1.3f, 1.3f, 1.3f };
-        private static readonly float[] AuraRangeByLevel = { 1f, 1f, 1f, 1.15f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f, 1.9f };
+        private static readonly float[] AuraRangeByLevel = { 1f, 1f, 1f, 1.15f, 1.3f, 1.3f, 1.3f, 1.45f, 1.45f, 1.6f };
         private static readonly float[] RifleLikeDamageByLevel = { 1f, 1.15f, 1.15f, 1.15f, 1.1f, 1.35f, 1.35f, 1.35f, 1.5f, 1.5f };
         private static readonly float[] SniperDamageByLevel = { 1f, 1.15f, 1.15f, 1.15f, 1.5f, 1.65f, 1.65f, 1.65f, 1.8f, 2f };
         private static readonly float[] SmgLikeDamageByLevel = { 1f, 1.15f, 1.15f, 1.15f, 1.45f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f };
+        private static readonly float[] AuraDamageByLevel = { 1f, 1.15f, 1.15f, 1.15f, 1.15f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f };
         private static readonly int[] RifleExtraByLevel = { 0, 0, 0, 0, 1, 1, 1, 1, 1, 2 };
         private static readonly int[] SmgExtraByLevel = { 0, 0, 0, 0, 2, 2, 2, 2, 2, 4 };
         private static readonly int[] SniperExtraByLevel = { 0, 0, 0, 0, 1, 1, 1, 1, 1, 2 };
@@ -319,6 +327,17 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
+            if (weapon.WeaponId == WeaponUpgradeId.SatelliteBeam)
+            {
+                if (FireLightning(weapon, out var satelliteBeamDirection))
+                {
+                    weapon.Cooldown = GetLightningInterval(weapon);
+                    SetAimDirection(satelliteBeamDirection);
+                }
+
+                return;
+            }
+
             if (!TryResolveFireDirection(weapon, out var fireDirection))
             {
                 return;
@@ -344,10 +363,6 @@ namespace EJR.Game.Gameplay
                 case WeaponUpgradeId.ChainAttack:
                     FireChainAttack(weapon, fireDirection);
                     weapon.Cooldown = GetAttackInterval(weapon);
-                    break;
-                case WeaponUpgradeId.SatelliteBeam:
-                    FireLightning(weapon, fireDirection);
-                    weapon.Cooldown = GetLightningInterval(weapon);
                     break;
                 default:
                     FireRifle(weapon, fireDirection);
@@ -621,8 +636,9 @@ namespace EJR.Game.Gameplay
             Fired?.Invoke(firedDirection);
         }
 
-        private void FireLightning(WeaponRuntime weapon, Vector2 direction)
+        private bool FireLightning(WeaponRuntime weapon, out Vector2 firedDirection)
         {
+            firedDirection = _lastAimDirection;
             var range = GetWeaponRange(weapon);
             var origin = (Vector2)_owner.position;
             _candidateEnemies.Clear();
@@ -646,7 +662,7 @@ namespace EJR.Game.Gameplay
 
             if (_candidateEnemies.Count <= 0)
             {
-                return;
+                return false;
             }
 
             var targetCount = Mathf.Max(1, 1 + GetWeaponExtraCount(weapon));
@@ -670,17 +686,18 @@ namespace EJR.Game.Gameplay
 
                 firstTarget ??= target;
                 target.ReceiveWeaponDamage(damage, weapon.WeaponId, coreElement, coreLevel);
-                SpawnLightningStrikeFx(target.transform.position);
+                SpawnSatelliteBeamSpriteFx(target);
             }
 
             if (firstTarget == null)
             {
-                return;
+                return false;
             }
 
             var toTarget = (Vector2)(firstTarget.transform.position - _owner.position);
-            var firedDirection = toTarget.sqrMagnitude > 0.000001f ? toTarget.normalized : direction;
+            firedDirection = toTarget.sqrMagnitude > 0.000001f ? toTarget.normalized : _lastAimDirection;
             Fired?.Invoke(firedDirection);
+            return true;
         }
 
         private void UpdateSatellite(WeaponRuntime weapon)
@@ -837,6 +854,7 @@ namespace EJR.Game.Gameplay
                 var target = FindNearestUsableFrom(turret.Position, turretRange);
                 if (target == null)
                 {
+                    SetTurretIdle(turret);
                     turret.ShotCooldown = shotInterval * 0.6f;
                     continue;
                 }
@@ -844,9 +862,16 @@ namespace EJR.Game.Gameplay
                 var fireDirection = (Vector2)(target.transform.position - turret.Root.position);
                 if (fireDirection.sqrMagnitude <= 0.000001f)
                 {
+                    SetTurretIdle(turret);
                     turret.ShotCooldown = shotInterval;
                     continue;
                 }
+
+                if (turret.Renderer != null && Mathf.Abs(fireDirection.x) > 0.0001f)
+                {
+                    turret.Renderer.flipX = fireDirection.x < 0f;
+                }
+                PlayTurretFireAnimation(turret);
 
                 SpawnProjectile(
                     weapon.WeaponId,
@@ -880,12 +905,20 @@ namespace EJR.Game.Gameplay
             var turretObject = new GameObject("RifleTurret");
             turretObject.transform.SetParent(transform, false);
             turretObject.transform.position = new Vector3(position.x, position.y, 0f);
-            turretObject.transform.localScale = Vector3.one * 0.3f;
+            turretObject.transform.localScale = Vector3.one;
 
-            var turretRenderer = turretObject.AddComponent<SpriteRenderer>();
-            turretRenderer.sprite = RuntimeSpriteFactory.GetSquareSprite();
-            turretRenderer.color = new Color(0.7f, 0.9f, 1f, 0.9f);
+            var visualObject = new GameObject("Visual");
+            visualObject.transform.SetParent(turretObject.transform, false);
+
+            var turretRenderer = visualObject.AddComponent<SpriteRenderer>();
+            var turretFrames = RuntimeSpriteFactory.GetSexyTurretAnimationFrames();
+            var hasTurretAnimation = turretFrames != null && turretFrames.Length > 0;
+            var idleFrame = hasTurretAnimation ? turretFrames[0] : RuntimeSpriteFactory.GetSquareSprite();
+            var fireFrames = ExtractFireFrames(turretFrames);
+            turretRenderer.sprite = idleFrame;
+            turretRenderer.color = Color.white;
             turretRenderer.sortingOrder = 34;
+            visualObject.transform.localScale = Vector3.one * Mathf.Max(0.05f, turretVisualScale);
 
             var rangeFxObject = new GameObject("RifleTurretRangeFx");
             rangeFxObject.transform.SetParent(turretObject.transform, false);
@@ -901,7 +934,84 @@ namespace EJR.Game.Gameplay
                 Position = position,
                 ExpiresAt = Time.time + Mathf.Max(0.1f, _config.rifleTurretLifetime),
                 ShotCooldown = 0f,
+                Renderer = turretRenderer,
+                IdleFrame = idleFrame,
+                FireFrames = fireFrames,
+                FireAnimationCoroutine = null,
             });
+        }
+
+        private static Sprite[] ExtractFireFrames(Sprite[] allFrames)
+        {
+            if (allFrames == null || allFrames.Length <= 1)
+            {
+                return Array.Empty<Sprite>();
+            }
+
+            var fireFrames = new Sprite[allFrames.Length - 1];
+            Array.Copy(allFrames, 1, fireFrames, 0, fireFrames.Length);
+            return fireFrames;
+        }
+
+        private void SetTurretIdle(RifleTurretRuntime turret)
+        {
+            if (turret == null || turret.Renderer == null || turret.IdleFrame == null)
+            {
+                return;
+            }
+
+            if (turret.FireAnimationCoroutine == null)
+            {
+                turret.Renderer.sprite = turret.IdleFrame;
+            }
+        }
+
+        private void PlayTurretFireAnimation(RifleTurretRuntime turret)
+        {
+            if (turret == null || turret.Renderer == null)
+            {
+                return;
+            }
+
+            if (turret.FireFrames == null || turret.FireFrames.Length <= 0)
+            {
+                SetTurretIdle(turret);
+                return;
+            }
+
+            if (turret.FireAnimationCoroutine != null)
+            {
+                StopCoroutine(turret.FireAnimationCoroutine);
+            }
+
+            turret.FireAnimationCoroutine = StartCoroutine(PlayTurretFireAnimationRoutine(turret));
+        }
+
+        private System.Collections.IEnumerator PlayTurretFireAnimationRoutine(RifleTurretRuntime turret)
+        {
+            if (turret == null || turret.Renderer == null)
+            {
+                yield break;
+            }
+
+            var frameDuration = 1f / Mathf.Max(0.1f, turretVisualAnimationFps);
+            for (var i = 0; i < turret.FireFrames.Length; i++)
+            {
+                if (turret.Renderer == null)
+                {
+                    yield break;
+                }
+
+                turret.Renderer.sprite = turret.FireFrames[i];
+                yield return new WaitForSeconds(frameDuration);
+            }
+
+            if (turret.Renderer != null && turret.IdleFrame != null)
+            {
+                turret.Renderer.sprite = turret.IdleFrame;
+            }
+
+            turret.FireAnimationCoroutine = null;
         }
 
         private void DestroyTurretAt(int index)
@@ -914,6 +1024,12 @@ namespace EJR.Game.Gameplay
             var turret = _rifleTurrets[index];
             if (turret != null && turret.Root != null)
             {
+                if (turret.FireAnimationCoroutine != null)
+                {
+                    StopCoroutine(turret.FireAnimationCoroutine);
+                    turret.FireAnimationCoroutine = null;
+                }
+
                 Destroy(turret.Root.gameObject);
             }
 
@@ -1199,11 +1315,50 @@ namespace EJR.Game.Gameplay
             animator.Initialize(renderer, frames, katanaSlashFxFps, loop: false, destroyOnComplete: true);
         }
 
-        private void SpawnLightningStrikeFx(Vector3 targetPosition)
+        private void SpawnSatelliteBeamSpriteFx(EnemyController target)
         {
-            var top = targetPosition + new Vector3(0f, 1.6f, 0f);
-            SpawnLineFx(top, targetPosition, lightningFxColor, lightningFxWidth, lightningFxDuration, "LightningStrikeFx");
-            SpawnRingFx(targetPosition, 0.35f, lightningFxColor, 0.05f, lightningFxDuration, "LightningImpactFx");
+            if (target == null)
+            {
+                return;
+            }
+
+            var frames = RuntimeSpriteFactory.GetSexySatelliteBeamAnimationFrames();
+            if (frames == null || frames.Length <= 0)
+            {
+                return;
+            }
+
+            var targetCenter = target.transform.position;
+            var targetCollider = target.GetComponent<Collider2D>();
+            if (targetCollider != null)
+            {
+                targetCenter = targetCollider.bounds.center;
+            }
+
+            var frame = frames[0];
+            var ppu = Mathf.Max(0.0001f, frame.pixelsPerUnit);
+            var scale = Mathf.Max(0.05f, satelliteBeamVisualScale);
+            var halfHeight = (frame.rect.height / ppu) * 0.5f * scale;
+            var yOffset = halfHeight + satelliteBeamVisualYOffset;
+
+            var fxObject = new GameObject("SatelliteBeamFx");
+            fxObject.transform.SetParent(transform, false);
+            fxObject.transform.position = new Vector3(targetCenter.x, targetCenter.y + yOffset, -0.02f);
+            fxObject.transform.localScale = Vector3.one * scale;
+
+            var renderer = fxObject.AddComponent<SpriteRenderer>();
+            renderer.sprite = frames[0];
+            renderer.color = Color.white;
+            renderer.sortingOrder = 510;
+
+            if (frames.Length > 1)
+            {
+                var animator = fxObject.AddComponent<SpriteFxAnimator>();
+                animator.Initialize(renderer, frames, satelliteBeamVisualFps, loop: false, destroyOnComplete: true);
+                return;
+            }
+
+            Destroy(fxObject, Mathf.Max(0.02f, lightningFxDuration));
         }
 
         private void SpawnTracerFx(Vector3 from, Vector3 to)
@@ -1595,7 +1750,7 @@ namespace EJR.Game.Gameplay
                 WeaponUpgradeId.SatelliteBeam => RifleLikeDamageByLevel,
                 WeaponUpgradeId.Drone => SmgLikeDamageByLevel,
                 WeaponUpgradeId.RifleTurret => SmgLikeDamageByLevel,
-                WeaponUpgradeId.Aura => SmgLikeDamageByLevel,
+                WeaponUpgradeId.Aura => AuraDamageByLevel,
                 _ => RifleLikeDamageByLevel,
             };
         }
@@ -1607,7 +1762,8 @@ namespace EJR.Game.Gameplay
 
         private float GetRifleTurretRange(WeaponRuntime weapon)
         {
-            return Mathf.Max(0.4f, GetWeaponRange(weapon) * Mathf.Clamp(_config.rifleTurretRangeMultiplier, 0.1f, 3f));
+            var baseRange = GetWeaponRange(weapon) * Mathf.Clamp(_config.rifleTurretRangeMultiplier, 0.1f, 3f);
+            return Mathf.Max(0.4f, baseRange * (2f / 3f));
         }
 
         private float GetChainJumpRange(WeaponRuntime weapon, float effectiveChainRange)
