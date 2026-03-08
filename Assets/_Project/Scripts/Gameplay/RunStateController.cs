@@ -29,6 +29,7 @@ namespace EJR.Game.Gameplay
         [SerializeField] private bool enableDebugTimeSkip = true;
         [SerializeField, Min(1)] private int debugGrantLevelsPerPress = 1;
         [SerializeField, Min(1f)] private float debugAdvanceSeconds = 60f;
+        [SerializeField, Min(1)] private int debugSkipBossTargetLevel = 40;
 
         [Header("Debug Weapon Gizmos")]
         [SerializeField] private bool showWeaponAimGizmos = true;
@@ -51,8 +52,8 @@ namespace EJR.Game.Gameplay
             WeaponUpgradeId.Shotgun,
             WeaponUpgradeId.Katana,
             WeaponUpgradeId.ChainAttack,
-            WeaponUpgradeId.Lightning,
-            WeaponUpgradeId.Satellite,
+            WeaponUpgradeId.SatelliteBeam,
+            WeaponUpgradeId.Drone,
             WeaponUpgradeId.RifleTurret,
             WeaponUpgradeId.Aura,
         };
@@ -352,6 +353,8 @@ namespace EJR.Game.Gameplay
                     _bossWaveTriggered = true;
                     _remainingSeconds = 0f;
                 }
+
+                DebugRandomLevelUpToTarget(debugSkipBossTargetLevel);
             }
         }
 
@@ -365,6 +368,58 @@ namespace EJR.Game.Gameplay
             var grantCount = Mathf.Max(1, levelsToGrant);
             for (var i = 0; i < grantCount; i++)
             {
+                var required = Mathf.Max(1, _levelUp.RequiredExperience - _levelUp.CurrentExperience);
+                _levelUp.AddExperience(required);
+            }
+
+            UpdateHud();
+        }
+
+        private void DebugRandomLevelUpToTarget(int targetLevel)
+        {
+            if (_levelUp == null)
+            {
+                return;
+            }
+
+            var desiredLevel = Mathf.Max(_levelUp.Level, targetLevel);
+            var iterationGuard = 0;
+            const int maxIterations = 8192;
+
+            while (iterationGuard++ < maxIterations)
+            {
+                if (_isAwaitingStarterWeaponChoice)
+                {
+                    if (_currentOptions == null || _currentOptions.Length <= 0)
+                    {
+                        break;
+                    }
+
+                    SelectStarterWeaponOption(UnityEngine.Random.Range(0, _currentOptions.Length));
+                    continue;
+                }
+
+                if (_levelUp.IsAwaitingChoice)
+                {
+                    if (_currentOptions == null || _currentOptions.Length <= 0)
+                    {
+                        if (!_levelUp.RerollCurrentChoice())
+                        {
+                            break;
+                        }
+
+                        continue;
+                    }
+
+                    SelectLevelUpOption(UnityEngine.Random.Range(0, _currentOptions.Length));
+                    continue;
+                }
+
+                if (_levelUp.Level >= desiredLevel)
+                {
+                    break;
+                }
+
                 var required = Mathf.Max(1, _levelUp.RequiredExperience - _levelUp.CurrentExperience);
                 _levelUp.AddExperience(required);
             }
@@ -519,7 +574,7 @@ namespace EJR.Game.Gameplay
             _experienceSystem.Initialize(player.transform, playerConfig, _levelUp);
 
             var enemySpawner = systems.AddComponent<EnemySpawner>();
-            enemySpawner.Initialize(enemyConfig, player.transform, _playerHealth, _enemyRegistry, _experienceSystem, playerConfig.collisionRadius);
+            enemySpawner.Initialize(enemyConfig, player.transform, _playerHealth, _enemyRegistry, _experienceSystem, playerConfig.collisionRadius, arenaBounds);
             _enemySpawner = enemySpawner;
             if (enemySpawner.BossWaveStartSeconds > 0f)
             {
@@ -1044,7 +1099,7 @@ namespace EJR.Game.Gameplay
             _isAwaitingStarterWeaponChoice = true;
             _currentOptions = options;
             Time.timeScale = 0f;
-            _hud.ShowLevelUpOptions(options, SelectLevelUpOption, "Choose Start Weapon");
+            _hud.ShowLevelUpOptions(options, SelectLevelUpOption, "\uC2DC\uC791 \uBB34\uAE30 \uC120\uD0DD");
         }
 
         private LevelUpOption[] CreateStarterWeaponOptions()
@@ -1061,7 +1116,7 @@ namespace EJR.Game.Gameplay
                     1,
                     isNewAcquire: true,
                     isLockedBySlot: false,
-                    label: $"Start: {GetWeaponDisplayName(weaponId)} Lv1");
+                    label: $"\uC2DC\uC791: {GetWeaponDisplayName(weaponId)} Lv1");
             }
 
             return options;
@@ -1099,6 +1154,7 @@ namespace EJR.Game.Gameplay
             _isGameOver = true;
             Time.timeScale = 0f;
             _hud.HideLevelUpOptions();
+            _hud.HideBossBar();
             _hud.ShowResult(cleared, RestartRun);
         }
 
@@ -1135,6 +1191,25 @@ namespace EJR.Game.Gameplay
                 _remainingSeconds);
 
             _hud.SetBuildInfo(BuildWeaponSummary(), BuildStatSummary());
+            UpdateBossHud();
+        }
+
+        private void UpdateBossHud()
+        {
+            if (_hud == null || _enemySpawner == null || !_enemySpawner.IsBossWaveTriggered)
+            {
+                _hud?.HideBossBar();
+                return;
+            }
+
+            var boss = _enemySpawner.CurrentBoss;
+            if (boss == null)
+            {
+                _hud.HideBossBar();
+                return;
+            }
+
+            _hud.SetBossBar(boss.CurrentHealth, boss.MaxHealth, "BOSS");
         }
 
         private void ApplyBuildToRuntimeSystems()
@@ -1170,7 +1245,7 @@ namespace EJR.Game.Gameplay
         {
             if (_buildRuntime == null || _levelUp == null)
             {
-                return "Weapons\n1) Empty\n2) Locked (Lv10)\n3) Locked (Lv20)";
+                return $"Weapons\n1) Empty\n2) Locked (Lv{PlayerBuildRuntime.SecondWeaponUnlockLevel})\n3) Locked (Lv{PlayerBuildRuntime.ThirdWeaponUnlockLevel})";
             }
 
             var unlockedSlots = _buildRuntime.GetUnlockedWeaponSlots(_levelUp.Level);
@@ -1212,7 +1287,13 @@ namespace EJR.Game.Gameplay
         {
             if (_buildRuntime == null)
             {
-                return "Stats\n1) Empty\n2) Empty\n3) Empty";
+                var emptyLines = "Stats";
+                for (var slotIndex = 0; slotIndex < PlayerBuildRuntime.MaxStatSlots; slotIndex++)
+                {
+                    emptyLines += $"\n{slotIndex + 1}) Empty";
+                }
+
+                return emptyLines;
             }
 
             var lines = "Stats";
@@ -1238,16 +1319,16 @@ namespace EJR.Game.Gameplay
         {
             return weaponId switch
             {
-                WeaponUpgradeId.Smg => "SMG",
-                WeaponUpgradeId.SniperRifle => "Sniper",
-                WeaponUpgradeId.Shotgun => "Shotgun",
-                WeaponUpgradeId.Katana => "Katana",
-                WeaponUpgradeId.ChainAttack => "Chain",
-                WeaponUpgradeId.Lightning => "Lightning",
-                WeaponUpgradeId.Satellite => "Satellite",
-                WeaponUpgradeId.RifleTurret => "Rifle Turret",
-                WeaponUpgradeId.Aura => "Aura",
-                _ => "Rifle",
+                WeaponUpgradeId.Smg => "\uAE30\uAD00\uB2E8\uCD1D",
+                WeaponUpgradeId.SniperRifle => "\uC800\uACA9\uC18C\uCD1D",
+                WeaponUpgradeId.Shotgun => "\uC0B0\uD0C4\uCD1D",
+                WeaponUpgradeId.Katana => "\uCE74\uD0C0\uB098",
+                WeaponUpgradeId.ChainAttack => "\uCCB4\uC778\uC5B4\uD0DD",
+                WeaponUpgradeId.SatelliteBeam => "\uC704\uC131\uBE54",
+                WeaponUpgradeId.Drone => "\uB4DC\uB860",
+                WeaponUpgradeId.RifleTurret => "\uB77C\uC774\uD50C\uD3EC\uD0D1",
+                WeaponUpgradeId.Aura => "\uC624\uB77C",
+                _ => "\uB77C\uC774\uD50C",
             };
         }
 
@@ -1336,3 +1417,4 @@ namespace EJR.Game.Gameplay
         }
     }
 }
+

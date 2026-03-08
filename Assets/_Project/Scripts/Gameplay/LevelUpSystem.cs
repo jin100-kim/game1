@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using EJR.Game.Core;
 using UnityEngine;
@@ -29,8 +29,8 @@ namespace EJR.Game.Gameplay
             WeaponUpgradeId.Shotgun,
             WeaponUpgradeId.Katana,
             WeaponUpgradeId.ChainAttack,
-            WeaponUpgradeId.Lightning,
-            WeaponUpgradeId.Satellite,
+            WeaponUpgradeId.SatelliteBeam,
+            WeaponUpgradeId.Drone,
             WeaponUpgradeId.RifleTurret,
             WeaponUpgradeId.Aura,
         };
@@ -205,7 +205,7 @@ namespace EJR.Game.Gameplay
             {
                 var weaponId = _build.OwnedWeapons[i];
                 var currentLevel = _build.GetWeaponLevel(weaponId);
-                if (currentLevel >= PlayerBuildRuntime.MaxUpgradeLevel)
+                if (currentLevel >= PlayerBuildRuntime.MaxWeaponLevel)
                 {
                     continue;
                 }
@@ -219,14 +219,14 @@ namespace EJR.Game.Gameplay
                     nextLevel,
                     isNewAcquire: false,
                     isLockedBySlot: false,
-                    label: $"UP Weapon: {GetWeaponName(weaponId)} Lv{nextLevel}"));
+                    label: BuildWeaponUpgradeLabel(weaponId, currentLevel, nextLevel)));
             }
 
             for (var i = 0; i < _build.OwnedStats.Count; i++)
             {
                 var statId = _build.OwnedStats[i];
                 var currentLevel = _build.GetStatLevel(statId);
-                if (currentLevel >= PlayerBuildRuntime.MaxUpgradeLevel)
+                if (currentLevel >= PlayerBuildRuntime.MaxStatLevel)
                 {
                     continue;
                 }
@@ -240,7 +240,7 @@ namespace EJR.Game.Gameplay
                     nextLevel,
                     isNewAcquire: false,
                     isLockedBySlot: false,
-                    label: $"UP Stat: {GetStatName(statId)} Lv{nextLevel}"));
+                    label: BuildStatUpgradeLabel(statId, currentLevel, nextLevel)));
             }
 
             for (var i = 0; i < AllWeaponIds.Length; i++)
@@ -256,7 +256,7 @@ namespace EJR.Game.Gameplay
                         1,
                         isNewAcquire: true,
                         isLockedBySlot: false,
-                        label: $"NEW Weapon: {GetWeaponName(weaponId)} Lv1"));
+                        label: BuildNewWeaponLabel(weaponId)));
                 }
             }
 
@@ -278,7 +278,7 @@ namespace EJR.Game.Gameplay
                         1,
                         isNewAcquire: true,
                         isLockedBySlot: false,
-                        label: $"NEW Stat: {GetStatName(statId)} Lv1"));
+                        label: BuildNewStatLabel(statId)));
                 }
             }
 
@@ -317,7 +317,7 @@ namespace EJR.Game.Gameplay
                     1,
                     isNewAcquire: true,
                     isLockedBySlot: false,
-                    label: $"CORE {weaponName}: Fire Lv1",
+                    label: BuildCoreLabel(weaponName, WeaponCoreElement.Fire, 0, 1),
                     coreElement: WeaponCoreElement.Fire));
 
                 _candidates.Add(new LevelUpOption(
@@ -328,7 +328,7 @@ namespace EJR.Game.Gameplay
                     1,
                     isNewAcquire: true,
                     isLockedBySlot: false,
-                    label: $"CORE {weaponName}: Wind Lv1",
+                    label: BuildCoreLabel(weaponName, WeaponCoreElement.Wind, 0, 1),
                     coreElement: WeaponCoreElement.Wind));
 
                 _candidates.Add(new LevelUpOption(
@@ -339,7 +339,7 @@ namespace EJR.Game.Gameplay
                     1,
                     isNewAcquire: true,
                     isLockedBySlot: false,
-                    label: $"CORE {weaponName}: Light Lv1",
+                    label: BuildCoreLabel(weaponName, WeaponCoreElement.Light, 0, 1),
                     coreElement: WeaponCoreElement.Light));
 
                 _candidates.Add(new LevelUpOption(
@@ -350,7 +350,7 @@ namespace EJR.Game.Gameplay
                     1,
                     isNewAcquire: true,
                     isLockedBySlot: false,
-                    label: $"CORE {weaponName}: Water Lv1",
+                    label: BuildCoreLabel(weaponName, WeaponCoreElement.Water, 0, 1),
                     coreElement: WeaponCoreElement.Water));
 
                 ShuffleCandidates(_candidates);
@@ -384,7 +384,7 @@ namespace EJR.Game.Gameplay
                 nextCoreLevel,
                 isNewAcquire: false,
                 isLockedBySlot: false,
-                label: $"CORE {weaponName}: {GetCoreName(lockedElement)} Lv{nextCoreLevel}",
+                label: BuildCoreLabel(weaponName, lockedElement, currentCoreLevel, nextCoreLevel),
                 coreElement: lockedElement));
 
             return _workingOptions.ToArray();
@@ -449,16 +449,16 @@ namespace EJR.Game.Gameplay
         {
             return weaponId switch
             {
-                WeaponUpgradeId.Smg => "SMG",
-                WeaponUpgradeId.SniperRifle => "Sniper",
-                WeaponUpgradeId.Shotgun => "Shotgun",
-                WeaponUpgradeId.Katana => "Katana",
-                WeaponUpgradeId.ChainAttack => "Chain",
-                WeaponUpgradeId.Lightning => "Lightning",
-                WeaponUpgradeId.Satellite => "Satellite",
-                WeaponUpgradeId.RifleTurret => "Rifle Turret",
-                WeaponUpgradeId.Aura => "Aura",
-                _ => "Rifle",
+                WeaponUpgradeId.Smg => "\uAE30\uAD00\uB2E8\uCD1D",
+                WeaponUpgradeId.SniperRifle => "\uC800\uACA9\uC18C\uCD1D",
+                WeaponUpgradeId.Shotgun => "\uC0B0\uD0C4\uCD1D",
+                WeaponUpgradeId.Katana => "\uCE74\uD0C0\uB098",
+                WeaponUpgradeId.ChainAttack => "\uCCB4\uC778\uC5B4\uD0DD",
+                WeaponUpgradeId.SatelliteBeam => "\uC704\uC131\uBE54",
+                WeaponUpgradeId.Drone => "\uB4DC\uB860",
+                WeaponUpgradeId.RifleTurret => "\uB77C\uC774\uD50C\uD3EC\uD0D1",
+                WeaponUpgradeId.Aura => "\uC624\uB77C",
+                _ => "\uB77C\uC774\uD50C",
             };
         }
 
@@ -466,12 +466,12 @@ namespace EJR.Game.Gameplay
         {
             return statId switch
             {
-                StatUpgradeId.AttackPower => "Attack Power",
-                StatUpgradeId.AttackSpeed => "Attack Speed",
-                StatUpgradeId.MaxHealth => "Max Health",
-                StatUpgradeId.HealthRegen => "Health Regen",
-                StatUpgradeId.MoveSpeed => "Move Speed",
-                StatUpgradeId.AttackRange => "Attack Range",
+                StatUpgradeId.AttackPower => "\uACF5\uACA9\uB825",
+                StatUpgradeId.AttackSpeed => "\uACF5\uACA9\uC18D\uB3C4",
+                StatUpgradeId.MaxHealth => "\uCD5C\uB300\uCCB4\uB825",
+                StatUpgradeId.HealthRegen => "\uCCB4\uB825\uC7AC\uC0DD",
+                StatUpgradeId.MoveSpeed => "\uC774\uB3D9\uC18D\uB3C4",
+                StatUpgradeId.AttackRange => "\uC0AC\uAC70\uB9AC",
                 _ => statId.ToString(),
             };
         }
@@ -480,12 +480,294 @@ namespace EJR.Game.Gameplay
         {
             return coreElement switch
             {
-                WeaponCoreElement.Fire => "Fire",
-                WeaponCoreElement.Wind => "Wind",
-                WeaponCoreElement.Light => "Light",
-                WeaponCoreElement.Water => "Water",
-                _ => "Core",
+                WeaponCoreElement.Fire => "\uBD88",
+                WeaponCoreElement.Wind => "\uBC14\uB78C",
+                WeaponCoreElement.Light => "\uBE5B",
+                WeaponCoreElement.Water => "\uBB3C",
+                _ => "\uCF54\uC5B4",
+            };
+        }
+
+                private static string BuildWeaponUpgradeLabel(WeaponUpgradeId weaponId, int currentLevel, int nextLevel)
+        {
+            var weaponName = GetWeaponName(weaponId);
+            var currentDamage = GetWeaponDamageMultiplier(weaponId, currentLevel);
+            var nextDamage = GetWeaponDamageMultiplier(weaponId, nextLevel);
+            var currentCooldown = GetWeaponCooldownMultiplier(weaponId, currentLevel);
+            var nextCooldown = GetWeaponCooldownMultiplier(weaponId, nextLevel);
+            var currentRange = GetWeaponRangeMultiplier(weaponId, currentLevel);
+            var nextRange = GetWeaponRangeMultiplier(weaponId, nextLevel);
+
+            var header = $"강화 {weaponName} LV{nextLevel}";
+            var details = new List<string>(4);
+
+            if (!Mathf.Approximately(currentDamage, nextDamage))
+            {
+                var deltaDamagePercent = (nextDamage - currentDamage) * 100f;
+                details.Add($"피해 {FormatSignedPercent(deltaDamagePercent)}");
+            }
+
+            if (!Mathf.Approximately(currentCooldown, nextCooldown))
+            {
+                var currentAttackSpeedPercent = CooldownMultiplierToAttackSpeedPercent(currentCooldown);
+                var nextAttackSpeedPercent = CooldownMultiplierToAttackSpeedPercent(nextCooldown);
+                var deltaAttackSpeedPercent = nextAttackSpeedPercent - currentAttackSpeedPercent;
+                details.Add($"공속 {FormatSignedPercent(deltaAttackSpeedPercent)}");
+            }
+
+            if (!Mathf.Approximately(currentRange, nextRange))
+            {
+                var deltaRangePercent = (nextRange - currentRange) * 100f;
+                details.Add($"사거리 {FormatSignedPercent(deltaRangePercent)}");
+            }
+
+            var extra = GetWeaponLevelBonusDeltaText(weaponId, currentLevel, nextLevel);
+            if (!string.IsNullOrEmpty(extra))
+            {
+                details.Add(extra);
+            }
+
+            if (details.Count <= 0)
+            {
+                return header;
+            }
+
+            return $"{header}\n{string.Join(" | ", details)}";
+        }
+                private static string BuildNewWeaponLabel(WeaponUpgradeId weaponId)
+        {
+            var weaponName = GetWeaponName(weaponId);
+            return $"신규 {weaponName} LV1\n피해 +0% | 공속 +0% | 사거리 +0%";
+        }
+                private static string BuildStatUpgradeLabel(StatUpgradeId statId, int currentLevel, int nextLevel)
+        {
+            var statName = GetStatName(statId);
+            var detail = GetStatUpgradeDetailText(statId, currentLevel, nextLevel);
+            return $"강화 {statName} LV{nextLevel}\n{detail}";
+        }
+                private static string BuildNewStatLabel(StatUpgradeId statId)
+        {
+            var statName = GetStatName(statId);
+            var detail = GetStatUpgradeDetailText(statId, 0, 1);
+            return $"신규 {statName} LV1\n{detail}";
+        }
+        private static float GetWeaponDamageMultiplier(WeaponUpgradeId weaponId, int weaponLevel)
+        {
+            return GetValueFromLevelCurve(GetWeaponDamageCurve(weaponId), weaponLevel, 1f);
+        }
+
+        private static float GetWeaponCooldownMultiplier(WeaponUpgradeId weaponId, int weaponLevel)
+        {
+            var attackSpeedBonus = GetValueFromLevelCurve(GetWeaponAttackSpeedBonusCurve(weaponId), weaponLevel, 0f);
+            return 1f / (1f + Mathf.Max(0f, attackSpeedBonus));
+        }
+
+        private static float GetWeaponRangeMultiplier(WeaponUpgradeId weaponId, int weaponLevel)
+        {
+            return GetValueFromLevelCurve(GetWeaponRangeCurve(weaponId), weaponLevel, 1f);
+        }
+
+                private static string GetWeaponLevelBonusDeltaText(WeaponUpgradeId weaponId, int currentLevel, int nextLevel)
+        {
+            var currentExtra = GetWeaponExtraCount(weaponId, currentLevel);
+            var nextExtra = GetWeaponExtraCount(weaponId, nextLevel);
+            var delta = nextExtra - currentExtra;
+            if (delta <= 0)
+            {
+                return string.Empty;
+            }
+
+            return weaponId switch
+            {
+                WeaponUpgradeId.Rifle => $"추가 탄환 +{delta}",
+                WeaponUpgradeId.Smg => $"연사 수 +{delta}",
+                WeaponUpgradeId.SniperRifle => $"추가 관통 +{delta}",
+                WeaponUpgradeId.Shotgun => $"추가 탄환 +{delta}",
+                WeaponUpgradeId.Katana => $"추가 공격 +{delta}",
+                WeaponUpgradeId.ChainAttack => $"추가 연쇄 +{delta}",
+                WeaponUpgradeId.SatelliteBeam => $"추가 타겟 +{delta}",
+                WeaponUpgradeId.Drone => $"추가 드론 +{delta}",
+                WeaponUpgradeId.RifleTurret => $"추가 포탑 +{delta}",
+                _ => string.Empty,
+            };
+        }
+                private static string GetStatUpgradeDetailText(StatUpgradeId statId, int currentLevel, int nextLevel)
+        {
+            switch (statId)
+            {
+                case StatUpgradeId.AttackPower:
+                {
+                    var deltaPercent = (nextLevel - currentLevel) * 10f;
+                    return $"피해 {FormatSignedPercent(deltaPercent)}";
+                }
+                case StatUpgradeId.AttackSpeed:
+                {
+                    var deltaPercent = (nextLevel - currentLevel) * 5f;
+                    return $"공속 {FormatSignedPercent(deltaPercent)}";
+                }
+                case StatUpgradeId.MaxHealth:
+                {
+                    var delta = (nextLevel - currentLevel) * 20;
+                    return $"최대체력 +{delta:0}";
+                }
+                case StatUpgradeId.HealthRegen:
+                {
+                    var delta = (nextLevel - currentLevel) * 0.5f;
+                    return $"체력재생 +{delta:0.0}/초";
+                }
+                case StatUpgradeId.MoveSpeed:
+                {
+                    var deltaPercent = (nextLevel - currentLevel) * 6f;
+                    return $"이동속도 {FormatSignedPercent(deltaPercent)}";
+                }
+                case StatUpgradeId.AttackRange:
+                {
+                    var deltaPercent = (nextLevel - currentLevel) * 10f;
+                    return $"사거리 {FormatSignedPercent(deltaPercent)}";
+                }
+                default:
+                    return "수치 증가";
+            }
+        }
+        private static float MultiplierToPercent(float multiplier)
+        {
+            return (multiplier - 1f) * 100f;
+        }
+
+        private static float CooldownMultiplierToAttackSpeedPercent(float cooldownMultiplier)
+        {
+            return ((1f / Mathf.Max(0.0001f, cooldownMultiplier)) - 1f) * 100f;
+        }
+
+        private static string FormatSignedPercent(float value)
+        {
+            return value >= 0f ? $"+{value:0.#}%" : $"{value:0.#}%";
+        }
+
+        private static float GetValueFromLevelCurve(float[] curve, int weaponLevel, float fallback)
+        {
+            if (curve == null || curve.Length <= 0)
+            {
+                return fallback;
+            }
+
+            var index = Mathf.Clamp(weaponLevel, 1, 10) - 1;
+            return curve[index];
+        }
+
+        private static float[] GetWeaponDamageCurve(WeaponUpgradeId weaponId)
+        {
+            return weaponId switch
+            {
+                WeaponUpgradeId.Rifle => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.1f, 1.35f, 1.35f, 1.35f, 1.5f, 1.5f },
+                WeaponUpgradeId.Smg => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.45f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
+                WeaponUpgradeId.SniperRifle => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.5f, 1.65f, 1.65f, 1.65f, 1.8f, 2f },
+                WeaponUpgradeId.Shotgun => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.45f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
+                WeaponUpgradeId.Katana => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.1f, 1.35f, 1.35f, 1.35f, 1.5f, 1.5f },
+                WeaponUpgradeId.ChainAttack => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.45f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
+                WeaponUpgradeId.SatelliteBeam => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.1f, 1.35f, 1.35f, 1.35f, 1.5f, 1.5f },
+                WeaponUpgradeId.Drone => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.45f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
+                WeaponUpgradeId.RifleTurret => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.45f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
+                WeaponUpgradeId.Aura => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.45f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
+                _ => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.1f, 1.35f, 1.35f, 1.35f, 1.5f, 1.5f },
+            };
+        }
+
+        private static float[] GetWeaponAttackSpeedBonusCurve(WeaponUpgradeId _)
+        {
+            return new[] { 0f, 0f, 0.15f, 0.15f, 0.15f, 0.15f, 0.30f, 0.30f, 0.30f, 0.30f };
+        }
+
+        private static float[] GetWeaponRangeCurve(WeaponUpgradeId weaponId)
+        {
+            if (weaponId == WeaponUpgradeId.Aura)
+            {
+                return new[] { 1f, 1f, 1f, 1.15f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f, 1.9f };
+            }
+
+            return new[] { 1f, 1f, 1f, 1.15f, 1.15f, 1.15f, 1.15f, 1.3f, 1.3f, 1.3f };
+        }
+
+        private static int GetWeaponExtraCount(WeaponUpgradeId weaponId, int weaponLevel)
+        {
+            var curve = weaponId switch
+            {
+                WeaponUpgradeId.Rifle => new[] { 0, 0, 0, 0, 1, 1, 1, 1, 1, 2 },
+                WeaponUpgradeId.Smg => new[] { 0, 0, 0, 0, 2, 2, 2, 2, 2, 4 },
+                WeaponUpgradeId.SniperRifle => new[] { 0, 0, 0, 0, 1, 1, 1, 1, 1, 2 },
+                WeaponUpgradeId.Shotgun => new[] { 0, 0, 0, 0, 2, 2, 2, 2, 2, 4 },
+                WeaponUpgradeId.Katana => new[] { 0, 0, 0, 0, 1, 1, 1, 1, 1, 2 },
+                WeaponUpgradeId.ChainAttack => new[] { 0, 0, 0, 0, 2, 2, 2, 2, 2, 4 },
+                WeaponUpgradeId.SatelliteBeam => new[] { 0, 0, 0, 0, 1, 1, 1, 1, 1, 2 },
+                WeaponUpgradeId.Drone => new[] { 0, 0, 0, 0, 1, 1, 1, 1, 1, 2 },
+                WeaponUpgradeId.RifleTurret => new[] { 0, 0, 0, 0, 1, 1, 1, 1, 1, 2 },
+                _ => null,
+            };
+
+            if (curve == null || curve.Length <= 0)
+            {
+                return 0;
+            }
+
+            var index = Mathf.Clamp(weaponLevel, 1, 10) - 1;
+            return curve[index];
+        }
+
+        private static string BuildCoreLabel(string weaponName, WeaponCoreElement coreElement, int currentLevel, int nextLevel)
+        {
+            var coreName = GetCoreName(coreElement);
+            return $"肄붿뼱 {weaponName} {coreName} LV{nextLevel}\n{GetCoreLevelDetailText(coreElement, nextLevel)}";
+        }
+
+        private static string GetCoreLevelDetailText(WeaponCoreElement coreElement, int level)
+        {
+            var clampedLevel = Mathf.Clamp(level, 1, PlayerBuildRuntime.MaxCoreLevel);
+            switch (coreElement)
+            {
+                case WeaponCoreElement.Fire:
+                    return clampedLevel switch
+                    {
+                        1 => "??컻 ?꾩쟻 10%, 5? ?곸쨷 ????컻",
+                        2 => "??컻 ?꾩쟻 20%, 4? ?곸쨷 ????컻",
+                        _ => "??컻 ?꾩쟻 30%, 2? ?곸쨷 ????컻",
+                    };
+                case WeaponCoreElement.Wind:
+                    return clampedLevel switch
+                    {
+                        1 => "?됰갚 0.1, ?쇳빐 -12%, 怨듭냽 +25%",
+                        2 => "?됰갚 0.2, ?쇳빐 -18%, 怨듭냽 +47.1%",
+                        _ => "?됰갚 0.3, ?쇳빐 -24%, 怨듭냽 +72.4%",
+                    };
+                case WeaponCoreElement.Water:
+                    return clampedLevel switch
+                    {
+                        1 => "?뷀솕 30%(1.0珥?, ?쇳빐 +10%",
+                        2 => "?뷀솕 50%(1.0珥?, ?쇳빐 +20%",
+                        _ => "?뷀솕 80%(1.0珥?, ?쇳빐 +30%",
+                    };
+                case WeaponCoreElement.Light:
+                    return clampedLevel switch
+                    {
+                        1 => "異붽? ?쇳빐 10%(1.0珥?",
+                        2 => "異붽? ?쇳빐 20%(2.0珥?",
+                        _ => "異붽? ?쇳빐 30%(5.0珥?",
+                    };
+                default:
+                    return "?④낵 ?놁쓬";
+            }
+        }
+
+        private static string GetCoreDirectionHint(WeaponCoreElement coreElement)
+        {
+            return coreElement switch
+            {
+                WeaponCoreElement.Fire => "愿묒뿭 ?쇳빐",
+                WeaponCoreElement.Water => "?뷀솕, ?쇳빐 利앷?",
+                WeaponCoreElement.Wind => "?됰갚, 怨듦꺽 ?띾룄 利앷?",
+                WeaponCoreElement.Light => "異붽? ?쇳빐",
+                _ => "?④낵 ?놁쓬",
             };
         }
     }
 }
+

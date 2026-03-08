@@ -13,8 +13,8 @@ namespace EJR.Game.Gameplay
             Shotgun = 3,
             Katana = 4,
             ChainAttack = 5,
-            Lightning = 6,
-            Satellite = 7,
+            SatelliteBeam = 6,
+            Drone = 7,
             RifleTurret = 8,
             Aura = 9,
         }
@@ -22,8 +22,18 @@ namespace EJR.Game.Gameplay
         [Header("General")]
         public WeaponType weaponType = WeaponType.Rifle;
         [Min(0.05f)] public float attackInterval = 0.8f;
-        [Min(0.5f)] public float attackRange = 7.5f;
+        [Min(0.5f)] public float attackRange = 5f;
         [Min(1f)] public float projectileDamage = 12f;
+
+        [Header("Base Range by Weapon")]
+        [Min(0.5f)] public float rifleRange = 5f;
+        [Min(0.5f)] public float smgRange = 3.5f;
+        [Min(0.5f)] public float sniperRange = 7f;
+        [Min(0.5f)] public float shotgunRange = 3f;
+        [Min(0.5f)] public float chainAttackRange = 3f;
+        [Min(0.5f)] public float satelliteBeamRange = 4f;
+        [Min(0.2f)] public float droneRange = 1.5f;
+        [Min(0.2f)] public float rifleTurretRange = 4f;
 
         [Header("Rifle")]
         [Min(0.05f)] public float rifleAttackInterval = 0.7f;
@@ -47,28 +57,28 @@ namespace EJR.Game.Gameplay
         [Range(0.05f, 1f)] public float sniperMinimumDamageMultiplier = 0.35f;
 
         [Header("Shotgun")]
-        [Min(2)] public int shotgunPelletCount = 7;
+        [Min(2)] public int shotgunPelletCount = 4;
         [Range(1f, 120f)] public float shotgunSpreadAngle = 36f;
-        [Range(0.05f, 2f)] public float shotgunPelletDamageMultiplier = 0.3f;
+        [Range(0.05f, 2f)] public float shotgunPelletDamageMultiplier = 0.5f;
 
         [Header("Katana (Melee Cone)")]
-        [Min(0.25f)] public float katanaRange = 2.1f;
+        [Min(0.25f)] public float katanaRange = 1.6f;
         [Range(5f, 180f)] public float katanaConeAngle = 80f;
         [Min(0.1f)] public float katanaBaseDamage = 5f;
         [Range(0.05f, 3f)] public float katanaDamageMultiplier = 1f;
 
         [Header("Chain Attack")]
         [Min(1)] public int chainBaseJumps = 3;
-        [Min(0.1f)] public float chainJumpRange = 2.2f;
+        [Min(0.1f)] public float chainJumpRange = 3f;
         [Range(0f, 0.9f)] public float chainDamageDecayPerJump = 0.15f;
 
-        [Header("Lightning")]
+        [Header("Satellite Beam")]
         [Range(0.1f, 5f)] public float lightningDamageMultiplier = 1.25f;
         [Range(0.1f, 5f)] public float lightningIntervalMultiplier = 1.0f;
 
-        [Header("Satellite")]
+        [Header("Drone")]
         [Min(1)] public int satelliteBaseCount = 2;
-        [Min(0.2f)] public float satelliteOrbitRadius = 1.7f;
+        [Min(0.2f)] public float satelliteOrbitRadius = 1.2f;
         [Min(30f)] public float satelliteAngularSpeed = 220f;
         [Min(0.05f)] public float satelliteHitRadius = 0.32f;
         [Min(0.01f)] public float satelliteHitCooldownPerEnemy = 0.25f;
@@ -85,7 +95,7 @@ namespace EJR.Game.Gameplay
 
         [Header("Aura")]
         [Min(0.01f)] public float auraTickInterval = 0.25f;
-        [Min(0.1f)] public float auraRadius = 2.2f;
+        [Min(0.1f)] public float auraRadius = 1.5f;
         [Range(0.01f, 5f)] public float auraDamageMultiplier = 0.22f;
 
     }

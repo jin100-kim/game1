@@ -11,7 +11,9 @@ namespace EJR.Game.Gameplay
             None = 0,
             TelegraphDash = 1,
             Dashing = 2,
-            ProjectileVolley = 3,
+            DashPause = 3,
+            TelegraphProjectile = 4,
+            ProjectileVolley = 5,
         }
 
         private const float FireExplosionRadius = 0.725f;
@@ -26,17 +28,32 @@ namespace EJR.Game.Gameplay
         private const float FireStackFxScale = 2.7f;
         private const float FireBoomFxScale = 6f;
         private const float BossTelegraphDuration = 1f;
+        private const float BossEnragedTelegraphDuration = 0.8f;
         private const float BossDashDuration = 0.8f;
+        private const float BossShortDashDurationMultiplier = 0.5f;
+        private const float BossDashPauseDuration = 0.5f;
         private const float BossDashSpeedMultiplier = 6f;
         private const float BossProjectileSpeed = 7.2f;
         private const float BossProjectileLifetime = 4f;
         private const float BossProjectileHitRadius = 0.14f;
         private const float BossProjectileVisualScale = 0.22f;
         private const float BossProjectileDamageMultiplier = 0.8f;
-        private const float BossProjectileShotInterval = 0.2f;
-        private const int BossEightWayShots = 10;
-        private const int BossAimShots = 10;
+        private const float BossPhase1ProjectileShotInterval = 0.4f;
+        private const float BossPhase2ProjectileShotInterval = 0.1f;
+        private const int BossPhase1VolleyShots = 3;
+        private const int BossPhase2VolleyShots = 7;
+        private const float BossDashPatternChance = 0.5f;
         private const float BossAimSpreadDegrees = 15f;
+        private const float BossPhase2HealthThreshold = 0.5f;
+        private const float BossDashTelegraphLength = 6.5f;
+        private const float BossDashTelegraphWidth = 0.12f;
+        private static readonly Color BossDashTelegraphColor = new(1f, 0.28f, 0.22f, 0.78f);
+        private const float StatusIndicatorScale = 0.08f;
+        private const float StatusIndicatorHeightOffset = 0.22f;
+        private const float StatusIndicatorSpacing = 0.14f;
+        private static readonly Color FireIndicatorColor = new(1f, 0.45f, 0.1f, 0.95f);
+        private static readonly Color SlowIndicatorColor = new(0.38f, 0.86f, 1f, 0.95f);
+        private static readonly Color LightIndicatorColor = new(1f, 0.92f, 0.36f, 0.95f);
 
         public event Action<float, float> Changed;
 
@@ -55,6 +72,8 @@ namespace EJR.Game.Gameplay
         private float _contactCooldown;
         private float _playerCollisionRadius;
         private float _collisionRadius = 0.3f;
+        private Rect _arenaBounds;
+        private bool _hasArenaBounds;
         private int _experienceOnDeath = 1;
         private EnemySpriteAnimator _spriteAnimator;
         private bool _isDead;
@@ -72,11 +91,20 @@ namespace EJR.Game.Gameplay
         private Vector2 _bossDashDirection = Vector2.right;
         private int _bossEightWayShotsRemaining;
         private int _bossAimShotsRemaining;
+        private int _bossDashTotalInPattern;
+        private int _bossDashRemainingInPattern;
+        private int _bossDashStartedInPattern;
         private bool _bossUseEightWayNext = true;
         private float _bossShotTimer;
         private static Material _fireExplosionFxMaterial;
+        private static Material _bossDashTelegraphMaterial;
         private Transform _fireStackFxRoot;
         private SpriteFxAnimator _fireStackFxAnimator;
+        private LineRenderer _bossDashTelegraphLine;
+        private Transform _statusIndicatorRoot;
+        private SpriteRenderer _fireIndicatorRenderer;
+        private SpriteRenderer _slowIndicatorRenderer;
+        private SpriteRenderer _lightIndicatorRenderer;
 
         private readonly System.Collections.Generic.List<EnemyController> _nearbyBuffer = new(24);
 
@@ -97,7 +125,9 @@ namespace EJR.Game.Gameplay
             float playerCollisionRadius,
             float collisionRadius,
             float runtimeHealthMultiplier = 1f,
-            float runtimeMoveSpeedMultiplier = 1f)
+            float runtimeMoveSpeedMultiplier = 1f,
+            bool hasArenaBounds = false,
+            Rect arenaBounds = default)
         {
             _config = config;
             _visualKind = visualKind;
@@ -107,6 +137,8 @@ namespace EJR.Game.Gameplay
             _experienceSystem = experienceSystem;
             _playerCollisionRadius = Mathf.Max(0.05f, playerCollisionRadius);
             _collisionRadius = Mathf.Max(0.05f, collisionRadius);
+            _hasArenaBounds = hasArenaBounds;
+            _arenaBounds = arenaBounds;
             _spriteAnimator = GetComponentInChildren<EnemySpriteAnimator>();
 
             var healthMultiplier = statProfile != null ? Mathf.Max(0.1f, statProfile.healthMultiplier) : 1f;
@@ -124,11 +156,14 @@ namespace EJR.Game.Gameplay
 
             _health = _maxHealth;
             _bossPatternState = BossPatternState.None;
-            _bossPatternCooldown = IsBoss ? UnityEngine.Random.Range(1.2f, 2.1f) : float.MaxValue;
+            _bossPatternCooldown = IsBoss ? GetBossPatternCooldownForCurrentHealth() : float.MaxValue;
             _bossStateTimer = 0f;
             _bossDashDirection = Vector2.right;
             _bossEightWayShotsRemaining = 0;
             _bossAimShotsRemaining = 0;
+            _bossDashTotalInPattern = 0;
+            _bossDashRemainingInPattern = 0;
+            _bossDashStartedInPattern = 0;
             _bossUseEightWayNext = true;
             _bossShotTimer = 0f;
             _registry.Register(this);
@@ -141,6 +176,8 @@ namespace EJR.Game.Gameplay
             {
                 _registry.Unregister(this);
             }
+
+            HideBossDashTelegraphFx();
         }
 
         private void Update()
@@ -442,6 +479,8 @@ namespace EJR.Game.Gameplay
                     _activeLightBonusMultiplier = 0f;
                 }
             }
+
+            UpdateStatusIndicators();
         }
 
         private bool UpdateBossPattern(float deltaTime)
@@ -454,10 +493,21 @@ namespace EJR.Game.Gameplay
             switch (_bossPatternState)
             {
                 case BossPatternState.TelegraphDash:
+                    UpdateBossDashTelegraphFx();
                     _bossStateTimer -= deltaTime;
                     if (_bossStateTimer <= 0f)
                     {
+                        HideBossDashTelegraphFx();
                         BeginBossDash();
+                    }
+
+                    return true;
+
+                case BossPatternState.TelegraphProjectile:
+                    _bossStateTimer -= deltaTime;
+                    if (_bossStateTimer <= 0f)
+                    {
+                        BeginBossProjectileVolley();
                     }
 
                     return true;
@@ -466,17 +516,35 @@ namespace EJR.Game.Gameplay
                 {
                     var step = _bossDashDirection * (Mathf.Max(0.1f, _moveSpeed) * BossDashSpeedMultiplier) * deltaTime;
                     var next = (Vector2)transform.position + step;
-                    transform.position = new Vector3(next.x, next.y, transform.position.z);
+                    var clamped = ClampPositionToArena(new Vector3(next.x, next.y, transform.position.z));
+                    transform.position = clamped;
                     _registry?.NotifyMoved(this, transform.position);
 
                     _bossStateTimer -= deltaTime;
                     if (_bossStateTimer <= 0f)
                     {
-                        EndBossPattern();
+                        if (_bossDashRemainingInPattern > 0)
+                        {
+                            _bossPatternState = BossPatternState.DashPause;
+                            _bossStateTimer = BossDashPauseDuration;
+                        }
+                        else
+                        {
+                            EndBossPattern();
+                        }
                     }
 
                     return true;
                 }
+
+                case BossPatternState.DashPause:
+                    _bossStateTimer -= deltaTime;
+                    if (_bossStateTimer <= 0f)
+                    {
+                        BeginBossDash();
+                    }
+
+                    return true;
 
                 case BossPatternState.ProjectileVolley:
                     _bossShotTimer -= deltaTime;
@@ -500,36 +568,61 @@ namespace EJR.Game.Gameplay
 
         private void StartRandomBossPattern()
         {
-            var patternIndex = UnityEngine.Random.Range(0, 2);
-            switch (patternIndex)
+            var dashChance = GetBossDashPatternChance();
+            var useDashPattern = UnityEngine.Random.value < dashChance;
+            if (useDashPattern)
             {
-                case 0:
-                    _bossPatternState = BossPatternState.TelegraphDash;
-                    _bossStateTimer = BossTelegraphDuration;
-                    _spriteAnimator?.PlayHurtOneShot(BossTelegraphDuration);
-                    break;
-
-                default:
-                    _bossPatternState = BossPatternState.ProjectileVolley;
-                    _bossEightWayShotsRemaining = BossEightWayShots;
-                    _bossAimShotsRemaining = BossAimShots;
-                    _bossUseEightWayNext = true;
-                    _bossShotTimer = 0f;
-                    break;
+                _bossDashTotalInPattern = GetBossDashCountForCurrentHealth();
+                _bossDashRemainingInPattern = _bossDashTotalInPattern;
+                _bossDashStartedInPattern = 0;
+                _bossPatternState = BossPatternState.TelegraphDash;
+                var telegraphDuration = GetBossTelegraphDurationForCurrentHealth();
+                _bossStateTimer = telegraphDuration;
+                _spriteAnimator?.PlayHurtOneShot(telegraphDuration);
+                UpdateBossDashTelegraphFx();
+                return;
             }
+
+            HideBossDashTelegraphFx();
+            var projectileTelegraphDuration = GetBossTelegraphDurationForCurrentHealth();
+            _bossPatternState = BossPatternState.TelegraphProjectile;
+            _bossStateTimer = projectileTelegraphDuration;
+            _spriteAnimator?.PlayHurtOneShot(projectileTelegraphDuration);
+        }
+
+        private void BeginBossProjectileVolley()
+        {
+            HideBossDashTelegraphFx();
+            _bossPatternState = BossPatternState.ProjectileVolley;
+            _bossEightWayShotsRemaining = GetBossEightWayShotsForCurrentHealth();
+            _bossAimShotsRemaining = GetBossAimShotsForCurrentHealth();
+            _bossUseEightWayNext = true;
+            _bossShotTimer = 0f;
         }
 
         private void BeginBossDash()
         {
+            HideBossDashTelegraphFx();
+            if (_bossDashRemainingInPattern <= 0)
+            {
+                _bossDashRemainingInPattern = 1;
+            }
+
+            _bossDashStartedInPattern++;
+            _bossDashRemainingInPattern = Mathf.Max(0, _bossDashRemainingInPattern - 1);
             var toPlayer = (Vector2)(_target.position - transform.position);
             _bossDashDirection = toPlayer.sqrMagnitude > 0.000001f ? toPlayer.normalized : Vector2.right;
             _bossPatternState = BossPatternState.Dashing;
-            _bossStateTimer = BossDashDuration;
+            var useShortDash = _bossDashTotalInPattern >= 3;
+            var dashDuration = useShortDash
+                ? BossDashDuration * BossShortDashDurationMultiplier
+                : BossDashDuration;
+            _bossStateTimer = Mathf.Max(0.05f, dashDuration);
         }
 
         private void FireBossVolleyStep()
         {
-            var shotDuration = Mathf.Max(0.08f, BossProjectileShotInterval * 0.8f);
+            var shotDuration = Mathf.Max(0.08f, GetBossProjectileShotIntervalForCurrentHealth() * 0.8f);
             _spriteAnimator?.PlayAttackOneShot(shotDuration);
 
             var canFireEightWay = _bossEightWayShotsRemaining > 0;
@@ -567,7 +660,7 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            _bossShotTimer = BossProjectileShotInterval;
+            _bossShotTimer = GetBossProjectileShotIntervalForCurrentHealth();
         }
 
         private void FireBossEightWayBurst()
@@ -625,13 +718,200 @@ namespace EJR.Game.Gameplay
 
         private void EndBossPattern()
         {
+            HideBossDashTelegraphFx();
             _bossPatternState = BossPatternState.None;
             _bossStateTimer = 0f;
             _bossShotTimer = 0f;
             _bossEightWayShotsRemaining = 0;
             _bossAimShotsRemaining = 0;
+            _bossDashTotalInPattern = 0;
+            _bossDashRemainingInPattern = 0;
+            _bossDashStartedInPattern = 0;
             _bossUseEightWayNext = true;
-            _bossPatternCooldown = UnityEngine.Random.Range(2.4f, 4.2f);
+            _bossPatternCooldown = GetBossPatternCooldownForCurrentHealth();
+        }
+
+        private float GetBossHealthRatio()
+        {
+            if (_maxHealth <= 0.0001f)
+            {
+                return 1f;
+            }
+
+            return Mathf.Clamp01(_health / _maxHealth);
+        }
+
+        private float GetBossDashPatternChance()
+        {
+            return BossDashPatternChance;
+        }
+
+        private int GetBossDashCountForCurrentHealth()
+        {
+            var healthRatio = GetBossHealthRatio();
+            return healthRatio > BossPhase2HealthThreshold ? 1 : 3;
+        }
+
+        private int GetBossEightWayShotsForCurrentHealth()
+        {
+            var healthRatio = GetBossHealthRatio();
+            if (healthRatio > BossPhase2HealthThreshold)
+            {
+                return BossPhase1VolleyShots;
+            }
+
+            return BossPhase2VolleyShots;
+        }
+
+        private int GetBossAimShotsForCurrentHealth()
+        {
+            var healthRatio = GetBossHealthRatio();
+            if (healthRatio > BossPhase2HealthThreshold)
+            {
+                return BossPhase1VolleyShots;
+            }
+
+            return BossPhase2VolleyShots;
+        }
+
+        private float GetBossProjectileShotIntervalForCurrentHealth()
+        {
+            var healthRatio = GetBossHealthRatio();
+            if (healthRatio > BossPhase2HealthThreshold)
+            {
+                return BossPhase1ProjectileShotInterval;
+            }
+
+            return BossPhase2ProjectileShotInterval;
+        }
+
+        private float GetBossPatternCooldownForCurrentHealth()
+        {
+            var healthRatio = GetBossHealthRatio();
+            if (healthRatio > BossPhase2HealthThreshold)
+            {
+                return UnityEngine.Random.Range(2.8f, 4.6f);
+            }
+
+            return UnityEngine.Random.Range(1.3f, 2.4f);
+        }
+
+        private float GetBossTelegraphDurationForCurrentHealth()
+        {
+            var healthRatio = GetBossHealthRatio();
+            return healthRatio > BossPhase2HealthThreshold
+                ? BossTelegraphDuration
+                : BossEnragedTelegraphDuration;
+        }
+
+        private void UpdateBossDashTelegraphFx()
+        {
+            if (!IsBoss || _target == null)
+            {
+                HideBossDashTelegraphFx();
+                return;
+            }
+
+            EnsureBossDashTelegraphFx();
+            if (_bossDashTelegraphLine == null)
+            {
+                return;
+            }
+
+            var toPlayer = (Vector2)(_target.position - transform.position);
+            var direction = toPlayer.sqrMagnitude > 0.000001f ? toPlayer.normalized : Vector2.right;
+            var start = (Vector2)transform.position;
+            var end = start + (direction * BossDashTelegraphLength);
+
+            _bossDashTelegraphLine.enabled = true;
+            _bossDashTelegraphLine.SetPosition(0, new Vector3(start.x, start.y, -0.03f));
+            _bossDashTelegraphLine.SetPosition(1, new Vector3(end.x, end.y, -0.03f));
+        }
+
+        private void EnsureBossDashTelegraphFx()
+        {
+            if (_bossDashTelegraphLine != null)
+            {
+                return;
+            }
+
+            var fxObject = new GameObject("BossDashTelegraphFx");
+            fxObject.transform.SetParent(transform, false);
+
+            var lineRenderer = fxObject.AddComponent<LineRenderer>();
+            lineRenderer.useWorldSpace = true;
+            lineRenderer.loop = false;
+            lineRenderer.positionCount = 2;
+            lineRenderer.alignment = LineAlignment.View;
+            lineRenderer.numCapVertices = 2;
+            lineRenderer.numCornerVertices = 2;
+            lineRenderer.startWidth = BossDashTelegraphWidth;
+            lineRenderer.endWidth = BossDashTelegraphWidth;
+            lineRenderer.startColor = BossDashTelegraphColor;
+            lineRenderer.endColor = BossDashTelegraphColor;
+            lineRenderer.sortingOrder = 520;
+            lineRenderer.sharedMaterial = GetOrCreateBossDashTelegraphMaterial();
+            lineRenderer.enabled = false;
+
+            _bossDashTelegraphLine = lineRenderer;
+        }
+
+        private void HideBossDashTelegraphFx()
+        {
+            if (_bossDashTelegraphLine != null)
+            {
+                _bossDashTelegraphLine.enabled = false;
+            }
+        }
+
+        private static Material GetOrCreateBossDashTelegraphMaterial()
+        {
+            if (_bossDashTelegraphMaterial != null)
+            {
+                return _bossDashTelegraphMaterial;
+            }
+
+            var shader = Shader.Find("Sprites/Default");
+            if (shader == null)
+            {
+                shader = Shader.Find("Unlit/Color");
+            }
+
+            _bossDashTelegraphMaterial = new Material(shader)
+            {
+                name = "BossDashTelegraphMat",
+                hideFlags = HideFlags.HideAndDontSave,
+            };
+
+            return _bossDashTelegraphMaterial;
+        }
+
+        private Vector3 ClampPositionToArena(Vector3 candidate)
+        {
+            if (!_hasArenaBounds)
+            {
+                return candidate;
+            }
+
+            var margin = Mathf.Max(0f, CollisionRadius);
+            var minX = _arenaBounds.xMin + margin;
+            var maxX = _arenaBounds.xMax - margin;
+            var minY = _arenaBounds.yMin + margin;
+            var maxY = _arenaBounds.yMax - margin;
+
+            if (maxX < minX)
+            {
+                maxX = minX;
+            }
+
+            if (maxY < minY)
+            {
+                maxY = minY;
+            }
+
+            candidate.x = Mathf.Clamp(candidate.x, minX, maxX);
+            candidate.y = Mathf.Clamp(candidate.y, minY, maxY);
+            return candidate;
         }
 
         private void ApplyWeaponCoreOnHit(WeaponCoreElement coreElement, int coreLevel, float dealtDamage)
@@ -667,6 +947,7 @@ namespace EJR.Game.Gameplay
             _fireAccumulatedHits++;
             _fireTriggerHitCount = hitThreshold;
             ShowFireStackFx();
+            UpdateStatusIndicators();
 
             if (_fireAccumulatedHits >= _fireTriggerHitCount)
             {
@@ -691,6 +972,7 @@ namespace EJR.Game.Gameplay
             var slowMultiplier = Mathf.Clamp01(1f - slowPercent);
             _activeSlowMultiplier = Mathf.Min(_activeSlowMultiplier, slowMultiplier);
             _activeSlowRemaining = Mathf.Max(_activeSlowRemaining, duration);
+            UpdateStatusIndicators();
         }
 
         private void ApplyLightCore(int coreLevel)
@@ -704,6 +986,7 @@ namespace EJR.Game.Gameplay
 
             _activeLightBonusMultiplier = Mathf.Max(_activeLightBonusMultiplier, bonusMultiplier);
             _activeLightRemaining = Mathf.Max(_activeLightRemaining, duration);
+            UpdateStatusIndicators();
         }
 
         private static float GetLightBonusMultiplierForLevel(int coreLevel)
@@ -937,6 +1220,109 @@ namespace EJR.Game.Gameplay
             _fireAccumulatedHits = 0;
             _fireTriggerHitCount = int.MaxValue;
             HideFireStackFx();
+            UpdateStatusIndicators();
+        }
+
+        private void UpdateStatusIndicators()
+        {
+            var showSlow = _activeSlowRemaining > 0f && _activeSlowMultiplier < 0.999f;
+            var showLight = _activeLightRemaining > 0f && _activeLightBonusMultiplier > 0f;
+            var showFire = _fireAccumulatedHits > 0 && _fireAccumulatedDamage > 0f && _fireTriggerHitCount < int.MaxValue;
+            if (!showSlow && !showLight && !showFire)
+            {
+                if (_statusIndicatorRoot != null)
+                {
+                    _statusIndicatorRoot.gameObject.SetActive(false);
+                }
+
+                return;
+            }
+
+            EnsureStatusIndicatorObjects();
+            if (_statusIndicatorRoot == null)
+            {
+                return;
+            }
+
+            _statusIndicatorRoot.gameObject.SetActive(true);
+            var y = CollisionRadius + StatusIndicatorHeightOffset;
+            var activeCount = (showFire ? 1 : 0) + (showSlow ? 1 : 0) + (showLight ? 1 : 0);
+            var firstX = -StatusIndicatorSpacing * 0.5f * Mathf.Max(0, activeCount - 1);
+            var slotIndex = 0;
+
+            if (_fireIndicatorRenderer != null)
+            {
+                _fireIndicatorRenderer.enabled = showFire;
+                if (showFire)
+                {
+                    _fireIndicatorRenderer.transform.localPosition = new Vector3(firstX + (slotIndex * StatusIndicatorSpacing), y, -0.03f);
+                    slotIndex++;
+                }
+            }
+
+            if (_slowIndicatorRenderer != null)
+            {
+                _slowIndicatorRenderer.enabled = showSlow;
+                if (showSlow)
+                {
+                    _slowIndicatorRenderer.transform.localPosition = new Vector3(firstX + (slotIndex * StatusIndicatorSpacing), y, -0.03f);
+                    slotIndex++;
+                }
+            }
+
+            if (_lightIndicatorRenderer != null)
+            {
+                _lightIndicatorRenderer.enabled = showLight;
+                if (showLight)
+                {
+                    _lightIndicatorRenderer.transform.localPosition = new Vector3(firstX + (slotIndex * StatusIndicatorSpacing), y, -0.03f);
+                }
+            }
+        }
+
+        private void EnsureStatusIndicatorObjects()
+        {
+            if (_statusIndicatorRoot == null)
+            {
+                var rootObject = new GameObject("StatusIndicators");
+                rootObject.transform.SetParent(transform, false);
+                _statusIndicatorRoot = rootObject.transform;
+            }
+
+            if (_fireIndicatorRenderer == null)
+            {
+                _fireIndicatorRenderer = CreateStatusIndicator("FireIndicator", FireIndicatorColor);
+            }
+
+            if (_slowIndicatorRenderer == null)
+            {
+                _slowIndicatorRenderer = CreateStatusIndicator("SlowIndicator", SlowIndicatorColor);
+            }
+
+            if (_lightIndicatorRenderer == null)
+            {
+                _lightIndicatorRenderer = CreateStatusIndicator("LightIndicator", LightIndicatorColor);
+            }
+        }
+
+        private SpriteRenderer CreateStatusIndicator(string objectName, Color color)
+        {
+            if (_statusIndicatorRoot == null)
+            {
+                return null;
+            }
+
+            var indicatorObject = new GameObject(objectName);
+            indicatorObject.transform.SetParent(_statusIndicatorRoot, false);
+            indicatorObject.transform.localScale = Vector3.one * StatusIndicatorScale;
+            indicatorObject.transform.localPosition = new Vector3(0f, CollisionRadius + StatusIndicatorHeightOffset, -0.03f);
+
+            var renderer = indicatorObject.AddComponent<SpriteRenderer>();
+            renderer.sprite = RuntimeSpriteFactory.GetSquareSprite();
+            renderer.color = color;
+            renderer.sortingOrder = 49;
+            renderer.enabled = false;
+            return renderer;
         }
 
         private void OnDrawGizmos()

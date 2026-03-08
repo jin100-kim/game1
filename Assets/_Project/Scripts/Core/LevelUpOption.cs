@@ -15,8 +15,8 @@ namespace EJR.Game.Core
         Shotgun = 3,
         Katana = 4,
         ChainAttack = 5,
-        Lightning = 6,
-        Satellite = 7,
+        SatelliteBeam = 6,
+        Drone = 7,
         RifleTurret = 8,
         Aura = 9,
     }

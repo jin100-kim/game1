@@ -150,7 +150,7 @@ namespace EJR.Game.Tests.EditMode
                 AcquireWeapon(build, id);
             }
 
-            while (build.GetWeaponLevel(id) < PlayerBuildRuntime.MaxUpgradeLevel)
+            while (build.GetWeaponLevel(id) < PlayerBuildRuntime.MaxWeaponLevel)
             {
                 var current = build.GetWeaponLevel(id);
                 build.Apply(new LevelUpOption(
@@ -190,7 +190,7 @@ namespace EJR.Game.Tests.EditMode
                         label: string.Empty));
                 }
 
-                while (build.GetStatLevel(id) < PlayerBuildRuntime.MaxUpgradeLevel)
+                while (build.GetStatLevel(id) < PlayerBuildRuntime.MaxStatLevel)
                 {
                     var current = build.GetStatLevel(id);
                     build.Apply(new LevelUpOption(

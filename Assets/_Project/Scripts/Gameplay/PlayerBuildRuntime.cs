@@ -8,14 +8,15 @@ namespace EJR.Game.Gameplay
     public sealed class PlayerBuildRuntime
     {
         public const int MaxWeaponSlotsAbsolute = 3;
-        public const int MaxStatSlots = 3;
-        public const int MaxUpgradeLevel = 10;
+        public const int MaxStatSlots = 5;
+        public const int MaxWeaponLevel = 10;
+        public const int MaxStatLevel = 5;
         public const int MaxCoreLevel = 3;
-        public const int SecondWeaponUnlockLevel = 10;
-        public const int ThirdWeaponUnlockLevel = 20;
+        public const int SecondWeaponUnlockLevel = 5;
+        public const int ThirdWeaponUnlockLevel = 10;
 
         private readonly List<WeaponUpgradeId> _weaponOrder = new(3);
-        private readonly List<StatUpgradeId> _statOrder = new(3);
+        private readonly List<StatUpgradeId> _statOrder = new(5);
         private readonly Dictionary<WeaponUpgradeId, int> _weaponLevels = new();
         private readonly Dictionary<StatUpgradeId, int> _statLevels = new();
         private readonly Dictionary<WeaponUpgradeId, WeaponCoreElement> _weaponCoreElements = new();
@@ -146,13 +147,13 @@ namespace EJR.Game.Gameplay
         public bool CanLevelWeapon(WeaponUpgradeId id)
         {
             var level = GetWeaponLevel(id);
-            return level > 0 && level < MaxUpgradeLevel;
+            return level > 0 && level < MaxWeaponLevel;
         }
 
         public bool CanLevelStat(StatUpgradeId id)
         {
             var level = GetStatLevel(id);
-            return level > 0 && level < MaxUpgradeLevel;
+            return level > 0 && level < MaxStatLevel;
         }
 
         public void Apply(LevelUpOption option)
@@ -185,12 +186,12 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            if (level >= MaxUpgradeLevel)
+            if (level >= MaxWeaponLevel)
             {
                 return;
             }
 
-            _weaponLevels[id] = Mathf.Clamp(level + 1, 1, MaxUpgradeLevel);
+            _weaponLevels[id] = Mathf.Clamp(level + 1, 1, MaxWeaponLevel);
         }
 
         private void ApplyStat(StatUpgradeId id)
@@ -207,12 +208,12 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            if (level >= MaxUpgradeLevel)
+            if (level >= MaxStatLevel)
             {
                 return;
             }
 
-            _statLevels[id] = Mathf.Clamp(level + 1, 1, MaxUpgradeLevel);
+            _statLevels[id] = Mathf.Clamp(level + 1, 1, MaxStatLevel);
         }
 
         private void ApplyWeaponCore(WeaponUpgradeId weaponId, WeaponCoreElement coreElement)

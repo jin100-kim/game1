@@ -11,6 +11,8 @@ namespace EJR.Game.Gameplay
         private EnemyRegistry _registry;
         private ExperienceSystem _experienceSystem;
         private float _playerCollisionRadius;
+        private Rect _arenaBounds;
+        private bool _hasArenaBounds;
 
         private float _elapsedSeconds;
         private float _spawnTimer;
@@ -23,6 +25,7 @@ namespace EJR.Game.Gameplay
         public bool IsBossWaveTriggered => _bossWaveTriggered;
         public bool IsBossWaveCleared => _bossWaveTriggered && _bossEnemy == null;
         public float BossWaveStartSeconds => GetBossWaveStartSeconds();
+        public EnemyController CurrentBoss => _bossEnemy;
 
         public void Initialize(
             EnemyConfig config,
@@ -30,7 +33,8 @@ namespace EJR.Game.Gameplay
             PlayerHealth playerHealth,
             EnemyRegistry registry,
             ExperienceSystem experienceSystem,
-            float playerCollisionRadius)
+            float playerCollisionRadius,
+            Rect arenaBounds)
         {
             _config = config;
             _target = target;
@@ -38,6 +42,8 @@ namespace EJR.Game.Gameplay
             _registry = registry;
             _experienceSystem = experienceSystem;
             _playerCollisionRadius = Mathf.Max(0.05f, playerCollisionRadius);
+            _arenaBounds = arenaBounds;
+            _hasArenaBounds = arenaBounds.width > 0f && arenaBounds.height > 0f;
             _spawnTimer = 0f;
             _elapsedSeconds = 0f;
             _bossWaveTriggered = false;
@@ -190,19 +196,24 @@ namespace EJR.Game.Gameplay
                 _playerCollisionRadius,
                 collisionRadius,
                 runtimeHealthMultiplier,
-                runtimeMoveSpeedMultiplier);
+                runtimeMoveSpeedMultiplier,
+                _hasArenaBounds,
+                _arenaBounds);
 
-            var healthBar = enemyObject.AddComponent<WorldHealthBar>();
-            var healthBarYOffset = _config.visualYOffset + Mathf.Max(0.28f, visualWorldSize * 0.36f);
-            healthBar.Initialize(
-                new Vector3(0f, healthBarYOffset, 0f),
-                0.82f,
-                0.1f,
-                new Color(1f, 0.3f, 0.35f, 0.95f),
-                new Color(0f, 0f, 0f, 0.55f),
-                24);
-            healthBar.SetHealth(enemy.CurrentHealth, enemy.MaxHealth);
-            enemy.Changed += healthBar.SetHealth;
+            if (visualKind != RuntimeSpriteFactory.EnemyVisualKind.Boss)
+            {
+                var healthBar = enemyObject.AddComponent<WorldHealthBar>();
+                var healthBarYOffset = _config.visualYOffset + Mathf.Max(0.28f, visualWorldSize * 0.36f);
+                healthBar.Initialize(
+                    new Vector3(0f, healthBarYOffset, 0f),
+                    0.82f,
+                    0.1f,
+                    new Color(1f, 0.3f, 0.35f, 0.95f),
+                    new Color(0f, 0f, 0f, 0.55f),
+                    24);
+                healthBar.SetHealth(enemy.CurrentHealth, enemy.MaxHealth);
+                enemy.Changed += healthBar.SetHealth;
+            }
 
             return enemy;
         }

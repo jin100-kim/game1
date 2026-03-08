@@ -18,8 +18,11 @@ namespace EJR.Game.UI
         private const float LevelTitleHeight = 36f;
         private const float LevelButtonsTopGap = 20f;
         private const float LevelButtonWidth = 460f;
-        private const float LevelButtonHeight = 48f;
+        private const float LevelButtonHeight = 62f;
         private const float LevelButtonSpacing = 8f;
+        private const float BossBarRootWidth = 320f;
+        private const float BossBarRootHeight = 16f;
+        private const float BossBarPadding = 2f;
 
         private readonly Font _font;
 
@@ -30,6 +33,12 @@ namespace EJR.Game.UI
         private GameObject _buildPanel;
         private Text _weaponBuildText;
         private Text _statBuildText;
+        private GameObject _bossBarPanel;
+        private Text _bossNameText;
+        private Image _bossBarFill;
+        private RectTransform _bossBarFillRect;
+        private Text _bossBarValueText;
+        private float _bossBarFillMaxWidth;
 
         private GameObject _levelUpPanel;
         private Text _levelUpTitle;
@@ -47,6 +56,9 @@ namespace EJR.Game.UI
         private int _lastRemainingSeconds = int.MinValue;
         private string _lastWeaponBuildSummary = string.Empty;
         private string _lastStatBuildSummary = string.Empty;
+        private int _lastBossCurrentHp = int.MinValue;
+        private int _lastBossMaxHp = int.MinValue;
+        private string _lastBossLabel = string.Empty;
 
         public HudController()
         {
@@ -59,6 +71,7 @@ namespace EJR.Game.UI
             BuildCanvas();
             BuildTopBar();
             BuildBuildPanel();
+            BuildBossBar();
             BuildLevelUpPanel();
             BuildResultPanel();
         }
@@ -125,6 +138,58 @@ namespace EJR.Game.UI
                 _statBuildText.text = statsSummary;
                 _lastStatBuildSummary = statsSummary;
             }
+        }
+
+        public void SetBossBar(float currentHealth, float maxHealth, string bossLabel = "BOSS")
+        {
+            if (_bossBarPanel == null || _bossBarFill == null || _bossBarValueText == null || _bossNameText == null)
+            {
+                return;
+            }
+
+            if (!_bossBarPanel.activeSelf)
+            {
+                _bossBarPanel.SetActive(true);
+            }
+
+            var safeMax = Mathf.Max(1f, maxHealth);
+            var safeCurrent = Mathf.Clamp(currentHealth, 0f, safeMax);
+            var ratio = safeCurrent / safeMax;
+            if (_bossBarFillRect != null)
+            {
+                var size = _bossBarFillRect.sizeDelta;
+                size.x = _bossBarFillMaxWidth * ratio;
+                _bossBarFillRect.sizeDelta = size;
+            }
+
+            var currentHpInt = Mathf.CeilToInt(safeCurrent);
+            var maxHpInt = Mathf.CeilToInt(safeMax);
+            var label = string.IsNullOrWhiteSpace(bossLabel) ? "BOSS" : bossLabel;
+
+            if (!string.Equals(_lastBossLabel, label, StringComparison.Ordinal))
+            {
+                _bossNameText.text = label;
+                _lastBossLabel = label;
+            }
+
+            if (currentHpInt != _lastBossCurrentHp || maxHpInt != _lastBossMaxHp)
+            {
+                _bossBarValueText.text = $"{currentHpInt}/{maxHpInt}";
+                _lastBossCurrentHp = currentHpInt;
+                _lastBossMaxHp = maxHpInt;
+            }
+        }
+
+        public void HideBossBar()
+        {
+            if (_bossBarPanel != null && _bossBarPanel.activeSelf)
+            {
+                _bossBarPanel.SetActive(false);
+            }
+
+            _lastBossCurrentHp = int.MinValue;
+            _lastBossMaxHp = int.MinValue;
+            _lastBossLabel = string.Empty;
         }
 
         public void ShowLevelUpOptions(LevelUpOption[] options, Action<int> onSelected, string title = "Level Up - Choose One")
@@ -297,6 +362,58 @@ namespace EJR.Game.UI
                 "Stats");
         }
 
+        private void BuildBossBar()
+        {
+            _bossBarPanel = CreatePanel(
+                _canvas.transform,
+                "BossBarPanel",
+                new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f),
+                new Vector2(0f, -78f),
+                new Vector2(520f, 44f),
+                new Color(0f, 0f, 0f, 0.5f));
+            _bossBarPanel.SetActive(false);
+
+            _bossNameText = CreateText(_bossBarPanel.transform, "BossName", new Vector2(-198f, 0f), "BOSS");
+            _bossNameText.alignment = TextAnchor.MiddleLeft;
+            _bossNameText.fontSize = 17;
+            _bossNameText.rectTransform.sizeDelta = new Vector2(170f, 28f);
+
+            var barRoot = new GameObject("BossBarRoot");
+            barRoot.transform.SetParent(_bossBarPanel.transform, false);
+            var barRootRect = barRoot.AddComponent<RectTransform>();
+            barRootRect.anchorMin = new Vector2(0.5f, 0.5f);
+            barRootRect.anchorMax = new Vector2(0.5f, 0.5f);
+            barRootRect.pivot = new Vector2(0.5f, 0.5f);
+            barRootRect.anchoredPosition = new Vector2(28f, 0f);
+            barRootRect.sizeDelta = new Vector2(BossBarRootWidth, BossBarRootHeight);
+
+            var barBg = barRoot.AddComponent<Image>();
+            barBg.color = new Color(0.12f, 0.12f, 0.14f, 0.95f);
+
+            var barFillObject = new GameObject("BossBarFill");
+            barFillObject.transform.SetParent(barRoot.transform, false);
+            var barFillRect = barFillObject.AddComponent<RectTransform>();
+            barFillRect.anchorMin = new Vector2(0f, 0.5f);
+            barFillRect.anchorMax = new Vector2(0f, 0.5f);
+            barFillRect.pivot = new Vector2(0f, 0.5f);
+            barFillRect.anchoredPosition = new Vector2(BossBarPadding, 0f);
+            _bossBarFillMaxWidth = BossBarRootWidth - (BossBarPadding * 2f);
+            var fillHeight = BossBarRootHeight - (BossBarPadding * 2f);
+            barFillRect.sizeDelta = new Vector2(_bossBarFillMaxWidth, fillHeight);
+            _bossBarFillRect = barFillRect;
+
+            _bossBarFill = barFillObject.AddComponent<Image>();
+            _bossBarFill.type = Image.Type.Simple;
+            _bossBarFill.color = new Color(0.9f, 0.18f, 0.24f, 0.95f);
+
+            _bossBarValueText = CreateText(_bossBarPanel.transform, "BossHpText", new Vector2(205f, 0f), "0/0");
+            _bossBarValueText.alignment = TextAnchor.MiddleRight;
+            _bossBarValueText.fontSize = 15;
+            _bossBarValueText.rectTransform.sizeDelta = new Vector2(128f, 24f);
+        }
+
         private void BuildLevelUpPanel()
         {
             _levelUpPanel = CreatePanel(_canvas.transform, "LevelUpPanel", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(LevelPanelWidth, LevelPanelMinHeight), new Color(0f, 0f, 0f, 0.85f));
@@ -436,7 +553,9 @@ namespace EJR.Game.UI
             labelText.text = "Option";
             labelText.alignment = TextAnchor.MiddleCenter;
             labelText.color = Color.white;
-            labelText.fontSize = 18;
+            labelText.fontSize = 15;
+            labelText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            labelText.verticalOverflow = VerticalWrapMode.Overflow;
             labelText.raycastTarget = false;
 
             return button;

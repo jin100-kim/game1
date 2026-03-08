@@ -385,6 +385,7 @@ MonoBehaviour:
   enableDebugTimeSkip: 1
   debugGrantLevelsPerPress: 1
   debugAdvanceSeconds: 60
+  debugSkipBossTargetLevel: 40
   showWeaponAimGizmos: 1
   weaponGizmoPointRadius: 0.06
   weaponAimSmoothingDegreesPerSecond: 540

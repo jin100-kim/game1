@@ -39,10 +39,10 @@ namespace EJR.Game.Core
             // Keep this as "interval multiplier" so weapon systems can keep multiplying by it.
             var attackSpeedBonus = Mathf.Max(0f, attackSpeedLevel * 0.05f);
             AttackIntervalMultiplier = 1f / (1f + attackSpeedBonus);
-            MaxHealthBonus = maxHealthLevel * 12f;
-            HealthRegenPerSecond = healthRegenLevel * 0.6f;
+            MaxHealthBonus = maxHealthLevel * 20f;
+            HealthRegenPerSecond = healthRegenLevel * 0.5f;
             MoveSpeedMultiplier = 1f + (moveSpeedLevel * 0.06f);
-            AttackRangeMultiplier = 1f + (attackRangeLevel * 0.05f);
+            AttackRangeMultiplier = 1f + (attackRangeLevel * 0.10f);
         }
     }
 }

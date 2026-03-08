@@ -9,6 +9,7 @@ namespace EJR.Game.Gameplay
     {
         [SerializeField, Min(0)] private int projectilePoolPrewarmCount = 40;
         [SerializeField, Min(0.01f)] private float targetScanInterval = 0.08f;
+        [SerializeField, Min(0.5f)] private float projectileTravelRangeFactor = 1.35f;
         [SerializeField, Min(0.02f)] private float katanaRangeEffectDuration = 0.12f;
         [SerializeField, Min(0.01f)] private float katanaRangeEffectWidth = 0.05f;
         [SerializeField, Range(4, 40)] private int katanaRangeEffectSegments = 14;
@@ -91,6 +92,21 @@ namespace EJR.Game.Gameplay
         private readonly Dictionary<WeaponUpgradeId, int> _coreLevelByWeapon = new();
         private Transform _projectilePoolRoot;
         private static Material _sharedFxMaterial;
+        private static readonly float[] CommonWeaponAttackSpeedBonusByLevel = { 0f, 0f, 0.15f, 0.15f, 0.15f, 0.15f, 0.30f, 0.30f, 0.30f, 0.30f };
+        private static readonly float[] CommonWeaponRangeByLevel = { 1f, 1f, 1f, 1.15f, 1.15f, 1.15f, 1.15f, 1.3f, 1.3f, 1.3f };
+        private static readonly float[] AuraRangeByLevel = { 1f, 1f, 1f, 1.15f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f, 1.9f };
+        private static readonly float[] RifleLikeDamageByLevel = { 1f, 1.15f, 1.15f, 1.15f, 1.1f, 1.35f, 1.35f, 1.35f, 1.5f, 1.5f };
+        private static readonly float[] SniperDamageByLevel = { 1f, 1.15f, 1.15f, 1.15f, 1.5f, 1.65f, 1.65f, 1.65f, 1.8f, 2f };
+        private static readonly float[] SmgLikeDamageByLevel = { 1f, 1.15f, 1.15f, 1.15f, 1.45f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f };
+        private static readonly int[] RifleExtraByLevel = { 0, 0, 0, 0, 1, 1, 1, 1, 1, 2 };
+        private static readonly int[] SmgExtraByLevel = { 0, 0, 0, 0, 2, 2, 2, 2, 2, 4 };
+        private static readonly int[] SniperExtraByLevel = { 0, 0, 0, 0, 1, 1, 1, 1, 1, 2 };
+        private static readonly int[] ShotgunExtraByLevel = { 0, 0, 0, 0, 2, 2, 2, 2, 2, 4 };
+        private static readonly int[] KatanaExtraByLevel = { 0, 0, 0, 0, 1, 1, 1, 1, 1, 2 };
+        private static readonly int[] ChainExtraByLevel = { 0, 0, 0, 0, 2, 2, 2, 2, 2, 4 };
+        private static readonly int[] SatelliteBeamExtraByLevel = { 0, 0, 0, 0, 1, 1, 1, 1, 1, 2 };
+        private static readonly int[] DroneExtraByLevel = { 0, 0, 0, 0, 1, 1, 1, 1, 1, 2 };
+        private static readonly int[] TurretExtraByLevel = { 0, 0, 0, 0, 1, 1, 1, 1, 1, 2 };
 
         public event Action<Vector2> AimUpdated;
         public event Action<Vector2> Fired;
@@ -266,7 +282,7 @@ namespace EJR.Game.Gameplay
 
             switch (weapon.WeaponId)
             {
-                case WeaponUpgradeId.Satellite:
+                case WeaponUpgradeId.Drone:
                     UpdateSatellite(weapon);
                     return;
                 case WeaponUpgradeId.RifleTurret:
@@ -329,7 +345,7 @@ namespace EJR.Game.Gameplay
                     FireChainAttack(weapon, fireDirection);
                     weapon.Cooldown = GetAttackInterval(weapon);
                     break;
-                case WeaponUpgradeId.Lightning:
+                case WeaponUpgradeId.SatelliteBeam:
                     FireLightning(weapon, fireDirection);
                     weapon.Cooldown = GetLightningInterval(weapon);
                     break;
@@ -368,7 +384,7 @@ namespace EJR.Game.Gameplay
 
         private void StartSmgBurst(WeaponRuntime weapon, Vector2 direction)
         {
-            var count = Mathf.Max(1, _config.smgBurstCount);
+            var count = Mathf.Max(1, _config.smgBurstCount + GetWeaponExtraCount(weapon));
             weapon.BurstShotsRemaining = count;
             weapon.BurstShotCooldown = 0f;
             FireSmgBullet(weapon, direction);
@@ -383,21 +399,31 @@ namespace EJR.Game.Gameplay
         private void FireRifle(WeaponRuntime weapon, Vector2 direction)
         {
             var damage = GetWeaponBaseDamage(weapon);
+            var projectileSpeed = _config.projectileSpeed;
+            var projectileLifetime = GetLifetimeCappedByRange(weapon, projectileSpeed, _config.projectileLifetime);
             var coreElement = GetCoreElement(weapon.WeaponId);
             var coreLevel = GetCoreLevel(weapon.WeaponId);
-            SpawnProjectile(
-                weapon.WeaponId,
-                coreElement,
-                coreLevel,
-                direction,
-                damage,
-                _config.projectileSpeed,
-                _config.projectileLifetime,
-                _config.projectileHitRadius,
-                1,
-                0f,
-                1f,
-                new Color(1f, 0.95f, 0.35f));
+            var bulletCount = Mathf.Max(1, 1 + GetWeaponExtraCount(weapon));
+            var spreadHalfAngle = bulletCount <= 1 ? 0f : 6f;
+            for (var i = 0; i < bulletCount; i++)
+            {
+                var t = bulletCount <= 1 ? 0.5f : i / (float)(bulletCount - 1);
+                var angle = Mathf.Lerp(-spreadHalfAngle, spreadHalfAngle, t);
+                var bulletDirection = RotateDirection(direction, angle);
+                SpawnProjectile(
+                    weapon.WeaponId,
+                    coreElement,
+                    coreLevel,
+                    bulletDirection,
+                    damage,
+                    projectileSpeed,
+                    projectileLifetime,
+                    _config.projectileHitRadius,
+                    1,
+                    0f,
+                    1f,
+                    new Color(1f, 0.95f, 0.35f));
+            }
         }
 
         private void FireSmgBullet(WeaponRuntime weapon, Vector2 direction)
@@ -405,6 +431,8 @@ namespace EJR.Game.Gameplay
             var spread = UnityEngine.Random.Range(-_config.smgSpreadAngle, _config.smgSpreadAngle);
             var spreadDirection = RotateDirection(direction, spread);
             var damage = GetWeaponBaseDamage(weapon) * Mathf.Clamp(_config.smgShotDamageMultiplier, 0.05f, 2f);
+            var projectileSpeed = _config.projectileSpeed * 1.1f;
+            var projectileLifetime = GetLifetimeCappedByRange(weapon, projectileSpeed, _config.projectileLifetime * 0.8f);
             var coreElement = GetCoreElement(weapon.WeaponId);
             var coreLevel = GetCoreLevel(weapon.WeaponId);
             SpawnProjectile(
@@ -413,8 +441,8 @@ namespace EJR.Game.Gameplay
                 coreLevel,
                 spreadDirection,
                 damage,
-                _config.projectileSpeed * 1.1f,
-                _config.projectileLifetime * 0.8f,
+                projectileSpeed,
+                projectileLifetime,
                 _config.projectileHitRadius * 0.85f,
                 1,
                 0f,
@@ -425,18 +453,21 @@ namespace EJR.Game.Gameplay
         private void FireSniper(WeaponRuntime weapon, Vector2 direction)
         {
             var damage = GetWeaponBaseDamage(weapon) * 2f;
+            var projectileSpeed = _config.projectileSpeed * 1.6f;
+            var projectileLifetime = GetLifetimeCappedByRange(weapon, projectileSpeed, _config.projectileLifetime * 1.25f);
             var coreElement = GetCoreElement(weapon.WeaponId);
             var coreLevel = GetCoreLevel(weapon.WeaponId);
+            var maxHits = Mathf.Max(1, _config.sniperMaxHits + GetWeaponExtraCount(weapon));
             SpawnProjectile(
                 weapon.WeaponId,
                 coreElement,
                 coreLevel,
                 direction,
                 damage,
-                _config.projectileSpeed * 1.6f,
-                _config.projectileLifetime * 1.25f,
+                projectileSpeed,
+                projectileLifetime,
                 _config.projectileHitRadius * 0.95f,
-                Mathf.Max(1, _config.sniperMaxHits),
+                maxHits,
                 Mathf.Clamp(_config.sniperDamageFalloffPerHit, 0f, 0.9f),
                 Mathf.Clamp(_config.sniperMinimumDamageMultiplier, 0.05f, 1f),
                 new Color(0.6f, 0.95f, 1f));
@@ -444,10 +475,12 @@ namespace EJR.Game.Gameplay
 
         private void FireShotgun(WeaponRuntime weapon, Vector2 direction)
         {
-            var pelletCount = Mathf.Max(2, _config.shotgunPelletCount);
+            var pelletCount = Mathf.Max(2, _config.shotgunPelletCount + GetWeaponExtraCount(weapon));
             var spread = Mathf.Max(1f, _config.shotgunSpreadAngle);
             var halfSpread = spread * 0.5f;
             var damagePerPellet = GetWeaponBaseDamage(weapon) * Mathf.Clamp(_config.shotgunPelletDamageMultiplier, 0.05f, 2f);
+            var pelletSpeed = _config.projectileSpeed * 0.95f;
+            var pelletLifetime = GetLifetimeCappedByRange(weapon, pelletSpeed, _config.projectileLifetime * 0.75f, rangePaddingMultiplier: 1.25f);
             var coreElement = GetCoreElement(weapon.WeaponId);
             var coreLevel = GetCoreLevel(weapon.WeaponId);
 
@@ -459,8 +492,8 @@ namespace EJR.Game.Gameplay
                     coreLevel,
                     direction,
                     damagePerPellet,
-                    _config.projectileSpeed * 0.95f,
-                    _config.projectileLifetime * 0.75f,
+                    pelletSpeed,
+                    pelletLifetime,
                     _config.projectileHitRadius * 0.9f,
                     1,
                     0f,
@@ -480,8 +513,8 @@ namespace EJR.Game.Gameplay
                     coreLevel,
                     pelletDirection,
                     damagePerPellet,
-                    _config.projectileSpeed * 0.95f,
-                    _config.projectileLifetime * 0.75f,
+                    pelletSpeed,
+                    pelletLifetime,
                     _config.projectileHitRadius * 0.9f,
                     1,
                     0f,
@@ -497,38 +530,46 @@ namespace EJR.Game.Gameplay
             var damage = GetWeaponBaseDamage(weapon) * Mathf.Clamp(_config.katanaDamageMultiplier, 0.05f, 3f);
             var coreElement = GetCoreElement(weapon.WeaponId);
             var coreLevel = GetCoreLevel(weapon.WeaponId);
-
+            var totalSlashes = Mathf.Max(1, 1 + GetWeaponExtraCount(weapon));
+            var slashSpreadHalfAngle = totalSlashes <= 1 ? 0f : 10f;
             var origin = (Vector2)_owner.position;
-            SpawnKatanaSlashSpriteFx(origin, direction, range);
             var searchRadius = range + _registry.GetMaxCollisionRadius();
             _registry.GetNearby(origin, searchRadius, _nearbyEnemies);
 
-            for (var i = 0; i < _nearbyEnemies.Count; i++)
+            for (var slashIndex = 0; slashIndex < totalSlashes; slashIndex++)
             {
-                var enemy = _nearbyEnemies[i];
-                if (enemy == null)
-                {
-                    continue;
-                }
+                var t = totalSlashes <= 1 ? 0.5f : slashIndex / (float)(totalSlashes - 1);
+                var angleOffset = Mathf.Lerp(-slashSpreadHalfAngle, slashSpreadHalfAngle, t);
+                var slashDirection = RotateDirection(direction, angleOffset);
+                SpawnKatanaSlashSpriteFx(origin, slashDirection, range);
 
-                var toEnemy = (Vector2)enemy.transform.position - origin;
-                var centerDistance = toEnemy.magnitude;
-                if (centerDistance <= 0.0001f)
+                for (var i = 0; i < _nearbyEnemies.Count; i++)
                 {
-                    enemy.ReceiveWeaponDamage(damage, weapon.WeaponId, coreElement, coreLevel);
-                    continue;
-                }
+                    var enemy = _nearbyEnemies[i];
+                    if (enemy == null)
+                    {
+                        continue;
+                    }
 
-                var surfaceDistance = Mathf.Max(0f, centerDistance - enemy.CollisionRadius);
-                if (surfaceDistance > range)
-                {
-                    continue;
-                }
+                    var toEnemy = (Vector2)enemy.transform.position - origin;
+                    var centerDistance = toEnemy.magnitude;
+                    if (centerDistance <= 0.0001f)
+                    {
+                        enemy.ReceiveWeaponDamage(damage, weapon.WeaponId, coreElement, coreLevel);
+                        continue;
+                    }
 
-                var angle = Vector2.Angle(direction, toEnemy / centerDistance);
-                if (angle <= coneHalfAngle)
-                {
-                    enemy.ReceiveWeaponDamage(damage, weapon.WeaponId, coreElement, coreLevel);
+                    var surfaceDistance = Mathf.Max(0f, centerDistance - enemy.CollisionRadius);
+                    if (surfaceDistance > range)
+                    {
+                        continue;
+                    }
+
+                    var angle = Vector2.Angle(slashDirection, toEnemy / centerDistance);
+                    if (angle <= coneHalfAngle)
+                    {
+                        enemy.ReceiveWeaponDamage(damage, weapon.WeaponId, coreElement, coreLevel);
+                    }
                 }
             }
 
@@ -550,8 +591,8 @@ namespace EJR.Game.Gameplay
 
             var currentDamage = GetWeaponBaseDamage(weapon);
             var decay = Mathf.Clamp(_config.chainDamageDecayPerJump, 0f, 0.9f);
-            var jumpRange = Mathf.Max(0.1f, _config.chainJumpRange);
-            var maxHits = Mathf.Max(1, _config.chainBaseJumps + Mathf.FloorToInt((weapon.Level - 1) / 3f));
+            var jumpRange = GetChainJumpRange(weapon, range);
+            var maxHits = Mathf.Max(1, _config.chainBaseJumps + GetWeaponExtraCount(weapon));
             var coreElement = GetCoreElement(weapon.WeaponId);
             var coreLevel = GetCoreLevel(weapon.WeaponId);
 
@@ -583,26 +624,68 @@ namespace EJR.Game.Gameplay
         private void FireLightning(WeaponRuntime weapon, Vector2 direction)
         {
             var range = GetWeaponRange(weapon);
-            var target = FindRandomUsableInRange((Vector2)_owner.position, range);
-            if (target == null)
+            var origin = (Vector2)_owner.position;
+            _candidateEnemies.Clear();
+            var limitSq = Mathf.Max(0.01f, range) * Mathf.Max(0.01f, range);
+            var enemies = _registry.Enemies;
+            for (var i = 0; i < enemies.Count; i++)
+            {
+                var enemy = enemies[i];
+                if (!IsEnemyUsable(enemy))
+                {
+                    continue;
+                }
+
+                if (((Vector2)enemy.transform.position - origin).sqrMagnitude > limitSq)
+                {
+                    continue;
+                }
+
+                _candidateEnemies.Add(enemy);
+            }
+
+            if (_candidateEnemies.Count <= 0)
             {
                 return;
             }
 
+            var targetCount = Mathf.Max(1, 1 + GetWeaponExtraCount(weapon));
+            var hitCount = Mathf.Min(targetCount, _candidateEnemies.Count);
             var damage = GetWeaponBaseDamage(weapon) * Mathf.Clamp(_config.lightningDamageMultiplier, 0.1f, 5f);
             var coreElement = GetCoreElement(weapon.WeaponId);
             var coreLevel = GetCoreLevel(weapon.WeaponId);
-            target.ReceiveWeaponDamage(damage, weapon.WeaponId, coreElement, coreLevel);
-            SpawnLightningStrikeFx(target.transform.position);
+            EnemyController firstTarget = null;
+            for (var shot = 0; shot < hitCount; shot++)
+            {
+                var randomIndex = UnityEngine.Random.Range(0, _candidateEnemies.Count);
+                var target = _candidateEnemies[randomIndex];
+                var lastIndex = _candidateEnemies.Count - 1;
+                _candidateEnemies[randomIndex] = _candidateEnemies[lastIndex];
+                _candidateEnemies.RemoveAt(lastIndex);
 
-            var toTarget = (Vector2)(target.transform.position - _owner.position);
+                if (target == null)
+                {
+                    continue;
+                }
+
+                firstTarget ??= target;
+                target.ReceiveWeaponDamage(damage, weapon.WeaponId, coreElement, coreLevel);
+                SpawnLightningStrikeFx(target.transform.position);
+            }
+
+            if (firstTarget == null)
+            {
+                return;
+            }
+
+            var toTarget = (Vector2)(firstTarget.transform.position - _owner.position);
             var firedDirection = toTarget.sqrMagnitude > 0.000001f ? toTarget.normalized : direction;
             Fired?.Invoke(firedDirection);
         }
 
         private void UpdateSatellite(WeaponRuntime weapon)
         {
-            var satelliteCount = GetSatelliteCount();
+            var satelliteCount = GetSatelliteCount(weapon);
             EnsureSatelliteVisuals(weapon, satelliteCount);
             if (weapon.SatelliteVisuals.Count <= 0)
             {
@@ -618,7 +701,8 @@ namespace EJR.Game.Gameplay
                 weapon.OrbitAngleDegrees -= 360f;
             }
 
-            var orbitRadius = Mathf.Max(0.2f, _config.satelliteOrbitRadius) * (1f + (0.02f * tier));
+            var attackRangeMultiplier = _stats != null ? Mathf.Max(0.1f, _stats.AttackRangeMultiplier) : 1f;
+            var orbitRadius = Mathf.Max(0.2f, _config.satelliteOrbitRadius) * (1f + (0.02f * tier)) * attackRangeMultiplier;
             var hitRadius = Mathf.Max(0.05f, _config.satelliteHitRadius);
             var damage = GetWeaponBaseDamage(weapon) * Mathf.Clamp(_config.satelliteDamageMultiplier, 0.05f, 5f);
             var coreElement = GetCoreElement(weapon.WeaponId);
@@ -730,7 +814,7 @@ namespace EJR.Game.Gameplay
             var turretDamage = GetWeaponBaseDamage(weapon) * Mathf.Clamp(_config.rifleTurretDamageMultiplier, 0.05f, 5f);
             var shotInterval = GetRifleTurretShotInterval(weapon);
             var projectileSpeed = Mathf.Max(0.1f, _config.rifleTurretProjectileSpeed);
-            var projectileLifetime = Mathf.Max(0.1f, _config.rifleTurretProjectileLifetime);
+            var projectileLifetime = GetLifetimeCappedByRange(turretRange, projectileSpeed, Mathf.Max(0.1f, _config.rifleTurretProjectileLifetime), rangePaddingMultiplier: 1.1f);
             var projectileHitRadius = Mathf.Max(0.05f, _config.projectileHitRadius * 0.9f);
             var coreElement = GetCoreElement(weapon.WeaponId);
             var coreLevel = GetCoreLevel(weapon.WeaponId);
@@ -786,7 +870,8 @@ namespace EJR.Game.Gameplay
 
         private void DeployRifleTurret(Vector2 position, float turretRange)
         {
-            var maxCount = Mathf.Clamp(_config.rifleTurretMaxCount, 1, 6);
+            var turretWeapon = FindLoadoutWeapon(WeaponUpgradeId.RifleTurret);
+            var maxCount = Mathf.Clamp(_config.rifleTurretMaxCount + (turretWeapon != null ? GetWeaponExtraCount(turretWeapon) : 0), 1, 8);
             while (_rifleTurrets.Count >= maxCount)
             {
                 DestroyTurretAt(0);
@@ -912,7 +997,7 @@ namespace EJR.Game.Gameplay
                 0f);
         }
 
-        private int GetSatelliteCount()
+        private int GetSatelliteCount(WeaponRuntime weapon)
         {
             if (_config == null)
             {
@@ -925,7 +1010,7 @@ namespace EJR.Game.Gameplay
                 configuredCount = 2;
             }
 
-            return Mathf.Clamp(configuredCount, 1, 6);
+            return Mathf.Clamp(configuredCount + (weapon != null ? GetWeaponExtraCount(weapon) : 0), 1, 8);
         }
 
         private EnemyController FindRandomUsableInRange(Vector2 origin, float maxDistance)
@@ -1283,9 +1368,7 @@ namespace EJR.Game.Gameplay
 
         private float GetAttackInterval(WeaponRuntime weapon)
         {
-            var tier = Mathf.Max(0, weapon.Level - 1);
-            var weaponLevelMultiplier = Mathf.Max(0.35f, 1f - (0.03f * tier));
-            var statAttackSpeedMultiplier = _stats != null ? Mathf.Max(0.2f, _stats.AttackIntervalMultiplier) : 1f;
+            var intervalMultiplier = GetCombinedAttackIntervalMultiplier(weapon);
 
             var baseInterval = weapon.WeaponId == WeaponUpgradeId.Rifle
                 ? Mathf.Max(0.05f, _config.rifleAttackInterval)
@@ -1312,7 +1395,7 @@ namespace EJR.Game.Gameplay
                 baseInterval *= 1.05f;
             }
 
-            var nonCoreInterval = baseInterval * statAttackSpeedMultiplier * weaponLevelMultiplier;
+            var nonCoreInterval = baseInterval * intervalMultiplier;
             var withCoreApplied = ApplyCoreAttackIntervalToValue(nonCoreInterval, weapon);
             return Mathf.Max(0.05f, withCoreApplied);
         }
@@ -1324,28 +1407,19 @@ namespace EJR.Game.Gameplay
 
         private float GetAuraTickInterval(WeaponRuntime weapon)
         {
-            var tier = Mathf.Max(0, weapon.Level - 1);
-            var weaponLevelMultiplier = Mathf.Max(0.45f, 1f - (0.025f * tier));
-            var statAttackSpeedMultiplier = _stats != null ? Mathf.Max(0.2f, _stats.AttackIntervalMultiplier) : 1f;
-            var nonCoreInterval = Mathf.Max(0.01f, _config.auraTickInterval) * statAttackSpeedMultiplier * weaponLevelMultiplier;
+            var nonCoreInterval = Mathf.Max(0.01f, _config.auraTickInterval) * GetCombinedAttackIntervalMultiplier(weapon);
             return Mathf.Max(0.03f, ApplyCoreAttackIntervalToValue(nonCoreInterval, weapon));
         }
 
         private float GetSatelliteHitCooldown(WeaponRuntime weapon)
         {
-            var tier = Mathf.Max(0, weapon.Level - 1);
-            var weaponLevelMultiplier = Mathf.Max(0.35f, 1f - (0.025f * tier));
-            var statAttackSpeedMultiplier = _stats != null ? Mathf.Max(0.2f, _stats.AttackIntervalMultiplier) : 1f;
-            var nonCoreInterval = Mathf.Max(0.01f, _config.satelliteHitCooldownPerEnemy) * statAttackSpeedMultiplier * weaponLevelMultiplier;
+            var nonCoreInterval = Mathf.Max(0.01f, _config.satelliteHitCooldownPerEnemy) * GetCombinedAttackIntervalMultiplier(weapon);
             return Mathf.Max(0.03f, ApplyCoreAttackIntervalToValue(nonCoreInterval, weapon));
         }
 
         private float GetRifleTurretDeployInterval(WeaponRuntime weapon)
         {
-            var tier = Mathf.Max(0, weapon.Level - 1);
-            var weaponLevelMultiplier = Mathf.Max(0.4f, 1f - (0.03f * tier));
-            var statAttackSpeedMultiplier = _stats != null ? Mathf.Max(0.2f, _stats.AttackIntervalMultiplier) : 1f;
-            var nonCoreInterval = Mathf.Max(0.1f, _config.rifleTurretDeployInterval) * statAttackSpeedMultiplier * weaponLevelMultiplier;
+            var nonCoreInterval = Mathf.Max(0.1f, _config.rifleTurretDeployInterval) * GetCombinedAttackIntervalMultiplier(weapon);
             return Mathf.Max(0.1f, ApplyCoreAttackIntervalToValue(nonCoreInterval, weapon));
         }
 
@@ -1356,8 +1430,7 @@ namespace EJR.Game.Gameplay
 
         private float GetWeaponBaseDamage(WeaponRuntime weapon)
         {
-            var tier = Mathf.Max(0, weapon.Level - 1);
-            var weaponLevelMultiplier = 1f + (0.18f * tier);
+            var weaponLevelMultiplier = GetWeaponDamageMultiplier(weapon);
             var statDamageMultiplier = _stats != null ? Mathf.Max(0.1f, _stats.DamageMultiplier) : 1f;
             var weaponBaseDamage = weapon.WeaponId == WeaponUpgradeId.Rifle
                 ? Mathf.Max(0.1f, _config.rifleBaseDamage)
@@ -1391,9 +1464,9 @@ namespace EJR.Game.Gameplay
             {
                 WeaponCoreElement.Wind => coreLevel switch
                 {
-                    1 => 0.90f,
-                    2 => 0.85f,
-                    _ => 0.80f,
+                    1 => 0.88f,
+                    2 => 0.82f,
+                    _ => 0.76f,
                 },
                 WeaponCoreElement.Water => coreLevel switch
                 {
@@ -1423,26 +1496,108 @@ namespace EJR.Game.Gameplay
             return coreLevel switch
             {
                 1 => 0.80f,
-                2 => 0.65f,
-                _ => 0.50f,
+                2 => 0.68f,
+                _ => 0.58f,
             };
         }
 
         private float GetWeaponRange(WeaponRuntime weapon)
         {
-            var tier = Mathf.Max(0, weapon.Level - 1);
-            var levelMultiplier = 1f + (0.04f * tier);
+            var levelMultiplier = GetWeaponRangeMultiplier(weapon);
             var attackRangeMultiplier = _stats != null ? Mathf.Max(0.1f, _stats.AttackRangeMultiplier) : 1f;
 
             var baseRange = weapon.WeaponId switch
             {
+                WeaponUpgradeId.Rifle => Mathf.Max(0.5f, _config.rifleRange),
+                WeaponUpgradeId.Smg => Mathf.Max(0.5f, _config.smgRange),
+                WeaponUpgradeId.SniperRifle => Mathf.Max(0.5f, _config.sniperRange),
+                WeaponUpgradeId.Shotgun => Mathf.Max(0.5f, _config.shotgunRange),
                 WeaponUpgradeId.Katana => Mathf.Max(0.25f, _config.katanaRange),
+                WeaponUpgradeId.ChainAttack => Mathf.Max(0.5f, _config.chainAttackRange),
+                WeaponUpgradeId.SatelliteBeam => Mathf.Max(0.5f, _config.satelliteBeamRange),
                 WeaponUpgradeId.Aura => Mathf.Max(0.2f, _config.auraRadius),
-                WeaponUpgradeId.Satellite => Mathf.Max(0.2f, _config.satelliteOrbitRadius + _config.satelliteHitRadius),
+                WeaponUpgradeId.Drone => Mathf.Max(0.2f, _config.droneRange),
+                WeaponUpgradeId.RifleTurret => Mathf.Max(0.2f, _config.rifleTurretRange / Mathf.Clamp(_config.rifleTurretRangeMultiplier, 0.1f, 3f)),
                 _ => Mathf.Max(0.5f, _config.attackRange),
             };
 
             return Mathf.Max(0.25f, baseRange * attackRangeMultiplier * levelMultiplier);
+        }
+
+        private float GetCombinedAttackIntervalMultiplier(WeaponRuntime weapon)
+        {
+            var statAttackSpeedMultiplier = _stats != null ? Mathf.Max(0.2f, _stats.AttackIntervalMultiplier) : 1f;
+            var weaponAttackSpeedBonus = GetWeaponAttackSpeedBonus(weapon);
+            var weaponAttackSpeedMultiplier = 1f / (1f + Mathf.Max(0f, weaponAttackSpeedBonus));
+            return statAttackSpeedMultiplier * weaponAttackSpeedMultiplier;
+        }
+
+        private static int GetLevelIndex(WeaponRuntime weapon)
+        {
+            if (weapon == null)
+            {
+                return 0;
+            }
+
+            return Mathf.Clamp(weapon.Level, 1, 10) - 1;
+        }
+
+        private static float GetWeaponDamageMultiplier(WeaponRuntime weapon)
+        {
+            var curve = GetWeaponDamageCurve(weapon != null ? weapon.WeaponId : WeaponUpgradeId.Rifle);
+            return curve[GetLevelIndex(weapon)];
+        }
+
+        private static float GetWeaponAttackSpeedBonus(WeaponRuntime weapon)
+        {
+            return CommonWeaponAttackSpeedBonusByLevel[GetLevelIndex(weapon)];
+        }
+
+        private static float GetWeaponRangeMultiplier(WeaponRuntime weapon)
+        {
+            var isAura = weapon != null && weapon.WeaponId == WeaponUpgradeId.Aura;
+            return (isAura ? AuraRangeByLevel : CommonWeaponRangeByLevel)[GetLevelIndex(weapon)];
+        }
+
+        private static int GetWeaponExtraCount(WeaponRuntime weapon)
+        {
+            if (weapon == null)
+            {
+                return 0;
+            }
+
+            var index = GetLevelIndex(weapon);
+            return weapon.WeaponId switch
+            {
+                WeaponUpgradeId.Rifle => RifleExtraByLevel[index],
+                WeaponUpgradeId.Smg => SmgExtraByLevel[index],
+                WeaponUpgradeId.SniperRifle => SniperExtraByLevel[index],
+                WeaponUpgradeId.Shotgun => ShotgunExtraByLevel[index],
+                WeaponUpgradeId.Katana => KatanaExtraByLevel[index],
+                WeaponUpgradeId.ChainAttack => ChainExtraByLevel[index],
+                WeaponUpgradeId.SatelliteBeam => SatelliteBeamExtraByLevel[index],
+                WeaponUpgradeId.Drone => DroneExtraByLevel[index],
+                WeaponUpgradeId.RifleTurret => TurretExtraByLevel[index],
+                _ => 0,
+            };
+        }
+
+        private static float[] GetWeaponDamageCurve(WeaponUpgradeId weaponId)
+        {
+            return weaponId switch
+            {
+                WeaponUpgradeId.Rifle => RifleLikeDamageByLevel,
+                WeaponUpgradeId.Smg => SmgLikeDamageByLevel,
+                WeaponUpgradeId.SniperRifle => SniperDamageByLevel,
+                WeaponUpgradeId.Shotgun => SmgLikeDamageByLevel,
+                WeaponUpgradeId.Katana => RifleLikeDamageByLevel,
+                WeaponUpgradeId.ChainAttack => SmgLikeDamageByLevel,
+                WeaponUpgradeId.SatelliteBeam => RifleLikeDamageByLevel,
+                WeaponUpgradeId.Drone => SmgLikeDamageByLevel,
+                WeaponUpgradeId.RifleTurret => SmgLikeDamageByLevel,
+                WeaponUpgradeId.Aura => SmgLikeDamageByLevel,
+                _ => RifleLikeDamageByLevel,
+            };
         }
 
         private float GetAuraRange(WeaponRuntime weapon)
@@ -1453,6 +1608,29 @@ namespace EJR.Game.Gameplay
         private float GetRifleTurretRange(WeaponRuntime weapon)
         {
             return Mathf.Max(0.4f, GetWeaponRange(weapon) * Mathf.Clamp(_config.rifleTurretRangeMultiplier, 0.1f, 3f));
+        }
+
+        private float GetChainJumpRange(WeaponRuntime weapon, float effectiveChainRange)
+        {
+            var baseJumpRange = Mathf.Max(0.1f, _config.chainJumpRange);
+            var baseChainRange = Mathf.Max(0.1f, _config.chainAttackRange);
+            var rangeScale = Mathf.Max(0.1f, effectiveChainRange / baseChainRange);
+            return baseJumpRange * rangeScale;
+        }
+
+        private float GetLifetimeCappedByRange(WeaponRuntime weapon, float projectileSpeed, float requestedLifetime, float rangePaddingMultiplier = 1f)
+        {
+            return GetLifetimeCappedByRange(GetWeaponRange(weapon), projectileSpeed, requestedLifetime, rangePaddingMultiplier);
+        }
+
+        private float GetLifetimeCappedByRange(float effectiveRange, float projectileSpeed, float requestedLifetime, float rangePaddingMultiplier = 1f)
+        {
+            var clampedSpeed = Mathf.Max(0.1f, projectileSpeed);
+            var clampedRequestedLifetime = Mathf.Max(0.05f, requestedLifetime);
+            var clampedRange = Mathf.Max(0.1f, effectiveRange) * Mathf.Max(0.1f, rangePaddingMultiplier);
+            var travelDistance = clampedRange * Mathf.Max(0.5f, projectileTravelRangeFactor);
+            var lifetimeByRange = travelDistance / clampedSpeed;
+            return Mathf.Max(0.05f, Mathf.Min(clampedRequestedLifetime, lifetimeByRange));
         }
 
         private float GetMaximumLoadoutRange()
@@ -1468,6 +1646,20 @@ namespace EJR.Game.Gameplay
             }
 
             return maxRange;
+        }
+
+        private WeaponRuntime FindLoadoutWeapon(WeaponUpgradeId weaponId)
+        {
+            for (var i = 0; i < _loadout.Count; i++)
+            {
+                var weapon = _loadout[i];
+                if (weapon != null && weapon.WeaponId == weaponId)
+                {
+                    return weapon;
+                }
+            }
+
+            return null;
         }
 
         private WeaponCoreElement GetCoreElement(WeaponUpgradeId weaponId)
@@ -1659,7 +1851,7 @@ namespace EJR.Game.Gameplay
             for (var i = 0; i < _loadout.Count; i++)
             {
                 var weapon = _loadout[i];
-                if (weapon == null || weapon.WeaponId != WeaponUpgradeId.Satellite)
+                if (weapon == null || weapon.WeaponId != WeaponUpgradeId.Drone)
                 {
                     continue;
                 }
