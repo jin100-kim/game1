@@ -57,6 +57,7 @@ namespace EJR.Game.Gameplay
         private static readonly Color LightIndicatorColor = new(1f, 0.92f, 0.36f, 0.95f);
 
         public event Action<float, float> Changed;
+        public event Action BossProjectileVolleyStarted;
 
         private EnemyConfig _config;
         private Transform _target;
@@ -602,6 +603,7 @@ namespace EJR.Game.Gameplay
             _bossAimShotsRemaining = GetBossAimShotsForCurrentHealth();
             _bossUseEightWayNext = true;
             _bossShotTimer = 0f;
+            BossProjectileVolleyStarted?.Invoke();
         }
 
         private void BeginBossDash()

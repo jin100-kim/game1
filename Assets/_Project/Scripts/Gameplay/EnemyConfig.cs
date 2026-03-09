@@ -377,6 +377,7 @@ namespace EJR.Game.Gameplay
         [Min(1f)] public float spawnRampSeconds = 480f;
         [Min(0.1f)] public float minSpawnRadius = 8f;
         [Min(0.1f)] public float maxSpawnRadius = 12f;
+        [Min(0f)] public float offscreenSpawnPadding = 1.2f;
 
         [Header("Dynamic Density")]
         public bool enableDynamicDensity = true;

@@ -5,6 +5,8 @@ namespace EJR.Game.Gameplay
 {
     public sealed class EnemySpawner : MonoBehaviour
     {
+        private const int BossProjectileVolleySkeletonCount = 5;
+
         private EnemyConfig _config;
         private Transform _target;
         private PlayerHealth _playerHealth;
@@ -20,6 +22,7 @@ namespace EJR.Game.Gameplay
         private bool _wave1Triggered;
         private bool _wave2Triggered;
         private EnemyController _bossEnemy;
+        private Camera _spawnReferenceCamera;
 
         public float ElapsedSeconds => _elapsedSeconds;
         public bool IsBossWaveTriggered => _bossWaveTriggered;
@@ -50,6 +53,7 @@ namespace EJR.Game.Gameplay
             _wave1Triggered = false;
             _wave2Triggered = false;
             _bossEnemy = null;
+            _spawnReferenceCamera = Camera.main;
         }
 
         private void Update()
@@ -99,10 +103,16 @@ namespace EJR.Game.Gameplay
                 bossSpawnRadius * 0.9f,
                 bossSpawnRadius * 1.15f);
             _bossEnemy = SpawnEnemy(RuntimeSpriteFactory.EnemyVisualKind.Boss, bossPosition);
+            if (_bossEnemy != null)
+            {
+                _bossEnemy.BossProjectileVolleyStarted += HandleBossProjectileVolleyStarted;
+            }
 
             var skeletonCount = Mathf.Max(1, _config.bossWaveSkeletonCount);
+            var skeletonRadius = CalculateCollisionRadius(_config.GetStatProfile(RuntimeSpriteFactory.EnemyVisualKind.Skeleton));
             var minRadius = Mathf.Max(0.1f, _config.skeletonWaveMinRadius);
             var maxRadius = Mathf.Max(minRadius + 0.1f, _config.skeletonWaveMaxRadius);
+            ApplyOffscreenRadiusFloor(skeletonRadius, ref minRadius, ref maxRadius);
             var angleOffset = Random.value * Mathf.PI * 2f;
 
             for (var i = 0; i < skeletonCount; i++)
@@ -112,6 +122,31 @@ namespace EJR.Game.Gameplay
                 var radius = Random.Range(minRadius, maxRadius);
                 var ringPosition = _target.position + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius;
                 SpawnEnemy(RuntimeSpriteFactory.EnemyVisualKind.Skeleton, ringPosition);
+            }
+        }
+
+        private void HandleBossProjectileVolleyStarted()
+        {
+            if (!_bossWaveTriggered || _config == null || !_config.spawnSkeleton)
+            {
+                return;
+            }
+
+            var spawnCenter = _bossEnemy != null ? _bossEnemy.transform.position : _target.position;
+            var bossRadius = _bossEnemy != null ? Mathf.Max(0.1f, _bossEnemy.CollisionRadius) : 0.9f;
+            var skeletonRadius = CalculateCollisionRadius(_config.GetStatProfile(RuntimeSpriteFactory.EnemyVisualKind.Skeleton));
+            // Boss projectile pattern summons should appear near the boss, not off-screen.
+            var minRadius = Mathf.Max(0.8f, bossRadius + skeletonRadius + 0.15f);
+            var maxRadius = Mathf.Max(minRadius + 0.45f, minRadius + (bossRadius * 0.75f));
+            var angleOffset = Random.value * Mathf.PI * 2f;
+
+            for (var i = 0; i < BossProjectileVolleySkeletonCount; i++)
+            {
+                var t = i / (float)BossProjectileVolleySkeletonCount;
+                var angle = angleOffset + (Mathf.PI * 2f * t) + Random.Range(-0.14f, 0.14f);
+                var radius = Random.Range(minRadius, maxRadius);
+                var position = spawnCenter + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius;
+                SpawnEnemy(RuntimeSpriteFactory.EnemyVisualKind.Skeleton, position);
             }
         }
 
@@ -274,11 +309,16 @@ namespace EJR.Game.Gameplay
             float minRadius,
             float maxRadius)
         {
+            var candidateRadius = CalculateCollisionRadius(_config.GetStatProfile(visualKind));
+            var adjustedMinRadius = Mathf.Max(0.1f, minRadius);
+            var adjustedMaxRadius = Mathf.Max(adjustedMinRadius + 0.1f, maxRadius);
+            ApplyOffscreenRadiusFloor(candidateRadius, ref adjustedMinRadius, ref adjustedMaxRadius);
+
             for (var i = 0; i < count; i++)
             {
                 var t = total > 0 ? spawnIndex / (float)total : 0f;
                 var angle = angleOffset + (Mathf.PI * 2f * t) + Random.Range(-0.15f, 0.15f);
-                var radius = Random.Range(minRadius, maxRadius);
+                var radius = Random.Range(adjustedMinRadius, adjustedMaxRadius);
                 var position = _target.position + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius;
                 SpawnEnemy(visualKind, position);
                 spawnIndex++;
@@ -312,6 +352,7 @@ namespace EJR.Game.Gameplay
             var fallback = _target.position;
             var minRadius = Mathf.Max(0.1f, minSpawnRadius);
             var maxRadius = Mathf.Max(minRadius + 0.1f, maxSpawnRadius);
+            ApplyOffscreenRadiusFloor(candidateRadius, ref minRadius, ref maxRadius);
 
             for (var attempt = 0; attempt < maxTries; attempt++)
             {
@@ -327,6 +368,44 @@ namespace EJR.Game.Gameplay
             }
 
             return fallback;
+        }
+
+        private void ApplyOffscreenRadiusFloor(float candidateRadius, ref float minRadius, ref float maxRadius)
+        {
+            var offscreenMinRadius = GetMinimumOffscreenRadius(candidateRadius);
+            if (offscreenMinRadius <= 0f)
+            {
+                return;
+            }
+
+            minRadius = Mathf.Max(minRadius, offscreenMinRadius);
+            maxRadius = Mathf.Max(maxRadius, minRadius + 0.1f);
+        }
+
+        private float GetMinimumOffscreenRadius(float candidateRadius)
+        {
+            if (_spawnReferenceCamera == null)
+            {
+                _spawnReferenceCamera = Camera.main;
+            }
+
+            if (_spawnReferenceCamera == null)
+            {
+                return 0f;
+            }
+
+            var camera = _spawnReferenceCamera;
+            if (camera.orthographic)
+            {
+                var halfHeight = camera.orthographicSize;
+                var halfWidth = halfHeight * Mathf.Max(0.1f, camera.aspect);
+                var halfDiagonal = Mathf.Sqrt((halfWidth * halfWidth) + (halfHeight * halfHeight));
+                var padding = Mathf.Max(0f, _config != null ? _config.offscreenSpawnPadding : 0f);
+                return halfDiagonal + padding + _playerCollisionRadius + Mathf.Max(0.05f, candidateRadius);
+            }
+
+            // If perspective is used unexpectedly, skip the offscreen clamp rather than guessing wrong.
+            return 0f;
         }
 
         private bool IsSpawnClear(Vector3 candidate, float candidateRadius)
