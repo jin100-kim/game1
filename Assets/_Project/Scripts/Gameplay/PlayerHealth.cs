@@ -25,6 +25,28 @@ namespace EJR.Game.Gameplay
             Changed?.Invoke(CurrentHealth, MaxHealth);
         }
 
+        public void Restore(float currentHealth, float maxHealth = -1f)
+        {
+            if (maxHealth > 0f)
+            {
+                MaxHealth = Mathf.Max(1f, maxHealth);
+            }
+
+            CurrentHealth = Mathf.Clamp(currentHealth, 0f, MaxHealth);
+            Changed?.Invoke(CurrentHealth, MaxHealth);
+        }
+
+        public void GrantInvulnerability(float durationSeconds)
+        {
+            var duration = Mathf.Max(0f, durationSeconds);
+            if (duration <= 0f)
+            {
+                return;
+            }
+
+            _invulnerableUntil = Mathf.Max(_invulnerableUntil, Time.time + duration);
+        }
+
         public void SetMaxHealth(float newMaxHealth, bool healDelta)
         {
             var clampedMax = Mathf.Max(1f, newMaxHealth);

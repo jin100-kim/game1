@@ -20,6 +20,7 @@ namespace EJR.Game.Multiplayer
         public const string PlayerPrefabResourcePath = "Prefabs/MultiplayerPlayer";
         public const string SharedEnemyPrefabResourcePath = "Prefabs/MultiplayerSharedEnemy";
         public const string SharedProjectilePrefabResourcePath = "Prefabs/MultiplayerSharedProjectile";
+        public const string SharedExperienceOrbPrefabResourcePath = "Prefabs/MultiplayerSharedExperienceOrb";
 
         private const int MaxPlayers = 4;
         private const float SpawnRadius = 3.5f;
@@ -254,7 +255,8 @@ namespace EJR.Game.Multiplayer
             var playerPrefab = Resources.Load<GameObject>(PlayerPrefabResourcePath);
             var sharedEnemyPrefab = Resources.Load<GameObject>(SharedEnemyPrefabResourcePath);
             var sharedProjectilePrefab = Resources.Load<GameObject>(SharedProjectilePrefabResourcePath);
-            if (playerPrefab == null || sharedEnemyPrefab == null || sharedProjectilePrefab == null)
+            var sharedExperienceOrbPrefab = Resources.Load<GameObject>(SharedExperienceOrbPrefabResourcePath);
+            if (playerPrefab == null || sharedEnemyPrefab == null || sharedProjectilePrefab == null || sharedExperienceOrbPrefab == null)
             {
                 SetStatus("Missing multiplayer network prefabs.");
                 return false;
@@ -281,6 +283,7 @@ namespace EJR.Game.Multiplayer
             config.Prefabs.Add(new NetworkPrefab { Prefab = playerPrefab });
             config.Prefabs.Add(new NetworkPrefab { Prefab = sharedEnemyPrefab });
             config.Prefabs.Add(new NetworkPrefab { Prefab = sharedProjectilePrefab });
+            config.Prefabs.Add(new NetworkPrefab { Prefab = sharedExperienceOrbPrefab });
 
             _networkManager.NetworkConfig = config;
             _networkManager.ConnectionApprovalCallback = HandleConnectionApproval;
@@ -487,6 +490,16 @@ namespace EJR.Game.Multiplayer
                 response.CreatePlayerObject = false;
                 response.Pending = false;
                 response.Reason = "Room is full.";
+                return;
+            }
+
+            var coop = MultiplayerCoopController.Instance;
+            if (coop != null && !coop.AllowsJoin)
+            {
+                response.Approved = false;
+                response.CreatePlayerObject = false;
+                response.Pending = false;
+                response.Reason = "Run already in progress.";
                 return;
             }
 

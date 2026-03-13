@@ -134,6 +134,7 @@ namespace EJR.Game.Multiplayer
             _enemyController.SetTargetResolver(
                 () => coopController.ResolveClosestPlayerTransform(transform.position),
                 () => coopController.ResolveClosestPlayerHealth(transform.position));
+            _enemyController.SetExperienceOrbSpawner((position, value) => coopController.SpawnExperienceOrb(position, value));
         }
 
         private void HandleVisualKindChanged(int previousValue, int newValue)
@@ -143,6 +144,15 @@ namespace EJR.Game.Multiplayer
 
         private void HandleCurrentHealthChanged(float previousValue, float newValue)
         {
+            if (!IsServer && newValue < previousValue - 0.001f)
+            {
+                var popupPosition = transform.position + new Vector3(0f, 0.8f, 0f);
+                CombatTextSpawner.SpawnDamage(
+                    popupPosition,
+                    previousValue - newValue,
+                    CombatTextSpawner.EnemyDamagedColor);
+            }
+
             RefreshHealthBar(newValue, _maxHealth.Value, newValue < previousValue - 0.001f);
         }
 

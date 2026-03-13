@@ -11,6 +11,8 @@ namespace EJR.Game.Gameplay
         private Vector3 _offset = new Vector3(0f, 0f, -10f);
         private Vector3 _velocity;
 
+        public Transform Target => _target;
+
         public void Initialize(Transform target, Vector3 offset, float followSmoothTime)
         {
             _target = target;

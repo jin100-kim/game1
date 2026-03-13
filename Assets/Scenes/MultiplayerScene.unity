@@ -119,7 +119,7 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
---- !u!1 &349167149
+--- !u!1 &2049249206
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -127,8 +127,10 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 349167151}
-  - component: {fileID: 349167150}
+  - component: {fileID: 2049249208}
+  - component: {fileID: 2049249207}
+  - component: {fileID: 2049249209}
+  - component: {fileID: 2049249210}
   m_Layer: 0
   m_Name: MultiplayerSceneRoot
   m_TagString: Untagged
@@ -136,13 +138,13 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &349167150
+--- !u!114 &2049249207
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 349167149}
+  m_GameObject: {fileID: 2049249206}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0c4294170a6980b48a8671683bd0a0e6, type: 3}
@@ -154,13 +156,13 @@ MonoBehaviour:
     y: -7
     width: 24
     height: 14
---- !u!4 &349167151
+--- !u!4 &2049249208
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 349167149}
+  m_GameObject: {fileID: 2049249206}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -169,8 +171,60 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2049249209
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2049249206}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
+  GlobalObjectIdHash: 3457619922
+  InScenePlacedSourceGlobalObjectIdHash: 0
+  DeferredDespawnTick: 0
+  Ownership: 1
+  AlwaysReplicateAsRoot: 0
+  SynchronizeTransform: 1
+  ActiveSceneSynchronization: 0
+  SceneMigrationSynchronization: 0
+  SpawnWithObservers: 1
+  DontDestroyWithOwner: 0
+  AutoObjectParentSync: 1
+  SyncOwnerTransformWhenParented: 1
+  AllowOwnerToParent: 0
+--- !u!114 &2049249210
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2049249206}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7c3bf8a7f4dda1f4182eaa4359531ea0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: EJR.Game::EJR.Game.Multiplayer.MultiplayerCoopController
+  ShowTopMostFoldoutHeaderGroup: 1
+  arenaBounds:
+    serializedVersion: 2
+    x: -12
+    y: -7
+    width: 24
+    height: 14
+  lobbySpawnRadius: 3.5
+  runSpawnRadius: 2.2
+  defeatDelaySeconds: 2
+  resultReturnDelaySeconds: 4
+  reviveRadius: 1.2
+  reviveDurationSeconds: 1.25
+  reviveHealthFraction: 0.4
+  reviveInvulnerabilitySeconds: 1.5
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
-  - {fileID: 349167151}
+  - {fileID: 2049249208}

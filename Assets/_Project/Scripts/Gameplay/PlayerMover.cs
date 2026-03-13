@@ -39,6 +39,11 @@ namespace EJR.Game.Gameplay
             _moveInputReader = moveInputReader;
         }
 
+        public void SetMoveSpeedMultiplier(float speedMultiplier)
+        {
+            _speedMultiplier = Mathf.Max(0.1f, speedMultiplier);
+        }
+
         private void Awake()
         {
             if (moveSpeed <= 0f)

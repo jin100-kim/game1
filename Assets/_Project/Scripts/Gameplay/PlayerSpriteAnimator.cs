@@ -125,6 +125,15 @@ namespace EJR.Game.Gameplay
             }
         }
 
+        public void SetBaseColor(Color color)
+        {
+            _defaultColor = color;
+            if (_targetRenderer != null && _hurtFlashTimer <= 0f)
+            {
+                _targetRenderer.color = color;
+            }
+        }
+
         public void PlayHurt()
         {
             if (_isDying || _targetRenderer == null || _frames.Length == 0)
@@ -152,6 +161,22 @@ namespace EJR.Game.Gameplay
             _isDying = true;
             SetState(AnimationState.Die, reset: true);
             return _dieRange.Length / Mathf.Max(0.1f, _framesPerSecond);
+        }
+
+        public void ResetToAlive()
+        {
+            if (_targetRenderer == null || _frames.Length == 0)
+            {
+                return;
+            }
+
+            _isDying = false;
+            _hurtFlashTimer = 0f;
+            _hurtStateTimer = 0f;
+            _targetRenderer.color = _defaultColor;
+
+            var shouldMove = _lastVelocity.sqrMagnitude > MoveThreshold * MoveThreshold;
+            SetState(shouldMove ? AnimationState.Move : AnimationState.Idle, reset: true);
         }
 
         private void Update()

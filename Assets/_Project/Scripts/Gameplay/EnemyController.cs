@@ -67,6 +67,7 @@ namespace EJR.Game.Gameplay
         private Func<PlayerHealth> _playerHealthResolver;
         private EnemyRegistry _registry;
         private ExperienceSystem _experienceSystem;
+        private Action<Vector3, int> _experienceOrbSpawner;
         private RuntimeSpriteFactory.EnemyVisualKind _visualKind;
         private NetworkObject _networkObject;
 
@@ -121,6 +122,7 @@ namespace EJR.Game.Gameplay
         public float CollisionRadius => _collisionRadius;
         public RuntimeSpriteFactory.EnemyVisualKind VisualKind => _visualKind;
         public bool IsBoss => _visualKind == RuntimeSpriteFactory.EnemyVisualKind.Boss;
+        public bool IsDead => _isDead;
 
         public void Initialize(
             EnemyConfig config,
@@ -185,6 +187,11 @@ namespace EJR.Game.Gameplay
             _targetResolver = targetResolver;
             _playerHealthResolver = playerHealthResolver;
             RefreshResolvedTarget();
+        }
+
+        public void SetExperienceOrbSpawner(Action<Vector3, int> experienceOrbSpawner)
+        {
+            _experienceOrbSpawner = experienceOrbSpawner;
         }
 
         private void OnDisable()
@@ -488,7 +495,11 @@ namespace EJR.Game.Gameplay
             EndBossPattern();
             TriggerFireExplosionIfReady();
 
-            if (_experienceSystem != null)
+            if (_experienceOrbSpawner != null)
+            {
+                _experienceOrbSpawner.Invoke(transform.position, _experienceOnDeath);
+            }
+            else if (_experienceSystem != null)
             {
                 _experienceSystem.SpawnOrb(transform.position, _experienceOnDeath);
             }

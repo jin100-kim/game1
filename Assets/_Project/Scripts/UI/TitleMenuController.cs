@@ -17,6 +17,9 @@ namespace EJR.Game.UI
     {
         [SerializeField] private string gameplaySceneName = "SampleScene";
 
+        private const string FullscreenPreferenceKey = "settings.fullscreen";
+        private const int DefaultWindowWidth = 1600;
+        private const int DefaultWindowHeight = 900;
         private const float ButtonWidth = 320f;
         private const float ButtonHeight = 58f;
         private const float ButtonSpacing = 18f;
@@ -24,17 +27,23 @@ namespace EJR.Game.UI
         private Font _font;
         private GameObject _mainMenuPanel;
         private GameObject _multiplayerPanel;
+        private GameObject _optionsPanel;
         private Text _statusText;
         private Button _singlePlayButton;
         private Button _multiPlayButton;
+        private Button _optionsButton;
         private Button _hostButton;
         private Button _joinButton;
         private Button _backButton;
+        private Button _optionsBackButton;
         private InputField _joinCodeInput;
+        private Toggle _fullscreenToggle;
+        private bool _suppressDisplayToggleCallback;
 
         private void Awake()
         {
             _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            InitializeDisplaySettings();
             EnsureCamera();
             EnsureEventSystem();
             BuildMenu();
@@ -52,6 +61,7 @@ namespace EJR.Game.UI
 
         private void Start()
         {
+            SyncFullscreenToggle();
             ShowMainMenu();
             UpdateMultiplayerInteractivity();
 
@@ -195,10 +205,17 @@ namespace EJR.Game.UI
                 "\uBA40\uD2F0 \uD50C\uB808\uC774",
                 OnMultiPlayClicked);
 
+            _optionsButton = CreateButton(
+                _mainMenuPanel.transform,
+                "OptionsButton",
+                new Vector2(0f, 32f - ((ButtonHeight + ButtonSpacing) * 2f)),
+                "\uC635\uC158",
+                OnOptionsClicked);
+
             CreateButton(
                 _mainMenuPanel.transform,
                 "QuitButton",
-                new Vector2(0f, 32f - ((ButtonHeight + ButtonSpacing) * 2f)),
+                new Vector2(0f, 32f - ((ButtonHeight + ButtonSpacing) * 3f)),
                 "\uAC8C\uC784 \uC885\uB8CC",
                 OnQuitClicked);
 
@@ -298,6 +315,60 @@ namespace EJR.Game.UI
                 ShowMainMenu,
                 new Vector2(220f, 44f));
 
+            _optionsPanel = CreatePanel(
+                canvas.transform,
+                "OptionsPanel",
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -8f),
+                new Vector2(460f, 250f),
+                new Color(0f, 0f, 0f, 0.55f));
+            _optionsPanel.SetActive(false);
+
+            var optionsTitle = CreateText(
+                _optionsPanel.transform,
+                "OptionsTitle",
+                new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f),
+                new Vector2(0f, -30f),
+                new Vector2(320f, 30f),
+                "OPTIONS",
+                22,
+                FontStyle.Bold);
+            optionsTitle.color = new Color(0.96f, 0.74f, 0.18f, 1f);
+
+            var optionsDescription = CreateText(
+                _optionsPanel.transform,
+                "OptionsDescription",
+                new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f),
+                new Vector2(0f, -72f),
+                new Vector2(340f, 42f),
+                "\uAE30\uBCF8 \uAC12\uC740 \uCC3D\uBAA8\uB4DC\uC785\uB2C8\uB2E4.\n\uCCB4\uD06C\uD558\uBA74 \uC804\uCCB4\uD654\uBA74\uC73C\uB85C \uBCC0\uACBD\uB429\uB2C8\uB2E4.",
+                15,
+                FontStyle.Normal);
+            optionsDescription.color = new Color(0.78f, 0.84f, 0.92f, 1f);
+            optionsDescription.alignment = TextAnchor.MiddleCenter;
+
+            _fullscreenToggle = CreateToggle(
+                _optionsPanel.transform,
+                "FullscreenToggle",
+                new Vector2(0f, -140f),
+                new Vector2(280f, 36f),
+                "\uC804\uCCB4\uD654\uBA74",
+                OnFullscreenToggleChanged);
+
+            _optionsBackButton = CreateButton(
+                _optionsPanel.transform,
+                "OptionsBackButton",
+                new Vector2(0f, -192f),
+                "BACK",
+                ShowMainMenu,
+                new Vector2(220f, 44f));
+
             _statusText = CreateText(
                 canvas.transform,
                 "StatusText",
@@ -327,6 +398,11 @@ namespace EJR.Game.UI
         private void OnMultiPlayClicked()
         {
             _mainMenuPanel.SetActive(false);
+            if (_optionsPanel != null)
+            {
+                _optionsPanel.SetActive(false);
+            }
+
             _multiplayerPanel.SetActive(true);
             UpdateMultiplayerInteractivity();
             SetStatus("Create a Relay session or join with a code.");
@@ -336,6 +412,30 @@ namespace EJR.Game.UI
             {
                 eventSystem.SetSelectedGameObject(null);
                 eventSystem.SetSelectedGameObject(_hostButton.gameObject);
+            }
+        }
+
+        private void OnOptionsClicked()
+        {
+            _mainMenuPanel.SetActive(false);
+            if (_multiplayerPanel != null)
+            {
+                _multiplayerPanel.SetActive(false);
+            }
+
+            if (_optionsPanel != null)
+            {
+                _optionsPanel.SetActive(true);
+            }
+
+            SyncFullscreenToggle();
+            SetStatus("Display option updated here.");
+
+            var eventSystem = EventSystem.current;
+            if (eventSystem != null && _fullscreenToggle != null)
+            {
+                eventSystem.SetSelectedGameObject(null);
+                eventSystem.SetSelectedGameObject(_fullscreenToggle.gameObject);
             }
         }
 
@@ -398,6 +498,11 @@ namespace EJR.Game.UI
                 _multiplayerPanel.SetActive(false);
             }
 
+            if (_optionsPanel != null)
+            {
+                _optionsPanel.SetActive(false);
+            }
+
             UpdateMultiplayerInteractivity();
 
             var eventSystem = EventSystem.current;
@@ -423,6 +528,11 @@ namespace EJR.Game.UI
                 _multiPlayButton.interactable = interactable;
             }
 
+            if (_optionsButton != null)
+            {
+                _optionsButton.interactable = interactable;
+            }
+
             if (_hostButton != null)
             {
                 _hostButton.interactable = interactable;
@@ -438,9 +548,19 @@ namespace EJR.Game.UI
                 _backButton.interactable = interactable;
             }
 
+            if (_optionsBackButton != null)
+            {
+                _optionsBackButton.interactable = interactable;
+            }
+
             if (_joinCodeInput != null)
             {
                 _joinCodeInput.interactable = interactable;
+            }
+
+            if (_fullscreenToggle != null)
+            {
+                _fullscreenToggle.interactable = interactable;
             }
         }
 
@@ -466,6 +586,68 @@ namespace EJR.Game.UI
             {
                 _statusText.text = message ?? string.Empty;
             }
+        }
+
+        private void InitializeDisplaySettings()
+        {
+            var hasStoredValue = PlayerPrefs.HasKey(FullscreenPreferenceKey);
+            var useFullscreen = hasStoredValue && PlayerPrefs.GetInt(FullscreenPreferenceKey, 0) != 0;
+            if (!hasStoredValue)
+            {
+                PlayerPrefs.SetInt(FullscreenPreferenceKey, 0);
+                PlayerPrefs.Save();
+            }
+
+            ApplyDisplayMode(useFullscreen, persist: false);
+        }
+
+        private void ApplyDisplayMode(bool useFullscreen, bool persist)
+        {
+            if (persist)
+            {
+                PlayerPrefs.SetInt(FullscreenPreferenceKey, useFullscreen ? 1 : 0);
+                PlayerPrefs.Save();
+            }
+
+            if (useFullscreen)
+            {
+                var resolution = Screen.currentResolution;
+                var fullscreenWidth = Mathf.Max(1, resolution.width);
+                var fullscreenHeight = Mathf.Max(1, resolution.height);
+                Screen.SetResolution(fullscreenWidth, fullscreenHeight, FullScreenMode.FullScreenWindow);
+            }
+            else
+            {
+                var resolution = Screen.currentResolution;
+                var windowWidth = Mathf.Clamp(DefaultWindowWidth, 960, Mathf.Max(960, resolution.width));
+                var windowHeight = Mathf.Clamp(DefaultWindowHeight, 540, Mathf.Max(540, resolution.height));
+                Screen.SetResolution(windowWidth, windowHeight, FullScreenMode.Windowed);
+            }
+
+            SyncFullscreenToggle();
+        }
+
+        private void SyncFullscreenToggle()
+        {
+            if (_fullscreenToggle == null)
+            {
+                return;
+            }
+
+            _suppressDisplayToggleCallback = true;
+            _fullscreenToggle.SetIsOnWithoutNotify(PlayerPrefs.GetInt(FullscreenPreferenceKey, 0) != 0);
+            _suppressDisplayToggleCallback = false;
+        }
+
+        private void OnFullscreenToggleChanged(bool useFullscreen)
+        {
+            if (_suppressDisplayToggleCallback)
+            {
+                return;
+            }
+
+            ApplyDisplayMode(useFullscreen, persist: true);
+            SetStatus(useFullscreen ? "Display mode: Fullscreen." : "Display mode: Windowed.");
         }
 
         private GameObject CreateFullscreenPanel(Transform parent, string name, Color color)
@@ -648,6 +830,89 @@ namespace EJR.Game.UI
             inputField.placeholder = placeholder;
             inputField.text = initialText;
             return inputField;
+        }
+
+        private Toggle CreateToggle(
+            Transform parent,
+            string name,
+            Vector2 anchoredPosition,
+            Vector2 size,
+            string label,
+            UnityEngine.Events.UnityAction<bool> onValueChanged)
+        {
+            var toggleObject = new GameObject(name);
+            toggleObject.transform.SetParent(parent, false);
+
+            var rect = toggleObject.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = anchoredPosition;
+            rect.sizeDelta = size;
+
+            var toggle = toggleObject.AddComponent<Toggle>();
+
+            var backgroundObject = new GameObject("Background");
+            backgroundObject.transform.SetParent(toggleObject.transform, false);
+            var backgroundRect = backgroundObject.AddComponent<RectTransform>();
+            backgroundRect.anchorMin = new Vector2(0f, 0.5f);
+            backgroundRect.anchorMax = new Vector2(0f, 0.5f);
+            backgroundRect.pivot = new Vector2(0f, 0.5f);
+            backgroundRect.anchoredPosition = new Vector2(0f, 0f);
+            backgroundRect.sizeDelta = new Vector2(28f, 28f);
+
+            var backgroundImage = backgroundObject.AddComponent<Image>();
+            backgroundImage.color = new Color(0.12f, 0.16f, 0.22f, 0.95f);
+            backgroundObject.AddComponent<Outline>().effectColor = new Color(0.95f, 0.74f, 0.18f, 0.22f);
+
+            var checkmarkObject = new GameObject("Checkmark");
+            checkmarkObject.transform.SetParent(backgroundObject.transform, false);
+            var checkmarkRect = checkmarkObject.AddComponent<RectTransform>();
+            checkmarkRect.anchorMin = new Vector2(0.5f, 0.5f);
+            checkmarkRect.anchorMax = new Vector2(0.5f, 0.5f);
+            checkmarkRect.pivot = new Vector2(0.5f, 0.5f);
+            checkmarkRect.anchoredPosition = Vector2.zero;
+            checkmarkRect.sizeDelta = new Vector2(16f, 16f);
+
+            var checkmarkImage = checkmarkObject.AddComponent<Image>();
+            checkmarkImage.color = new Color(0.95f, 0.74f, 0.18f, 1f);
+
+            var labelObject = new GameObject("Label");
+            labelObject.transform.SetParent(toggleObject.transform, false);
+            var labelRect = labelObject.AddComponent<RectTransform>();
+            labelRect.anchorMin = new Vector2(0f, 0f);
+            labelRect.anchorMax = new Vector2(1f, 1f);
+            labelRect.pivot = new Vector2(0f, 0.5f);
+            labelRect.offsetMin = new Vector2(42f, 0f);
+            labelRect.offsetMax = new Vector2(0f, 0f);
+
+            var labelText = labelObject.AddComponent<Text>();
+            labelText.font = _font;
+            labelText.text = label;
+            labelText.fontSize = 18;
+            labelText.fontStyle = FontStyle.Bold;
+            labelText.alignment = TextAnchor.MiddleLeft;
+            labelText.color = new Color(0.97f, 0.98f, 1f, 1f);
+            labelText.raycastTarget = false;
+
+            toggle.targetGraphic = backgroundImage;
+            toggle.graphic = checkmarkImage;
+            toggle.isOn = false;
+
+            var colors = toggle.colors;
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(1f, 1f, 1f, 0.92f);
+            colors.selectedColor = colors.highlightedColor;
+            colors.pressedColor = new Color(0.88f, 0.88f, 0.88f, 0.88f);
+            colors.disabledColor = new Color(1f, 1f, 1f, 0.45f);
+            toggle.colors = colors;
+
+            if (onValueChanged != null)
+            {
+                toggle.onValueChanged.AddListener(onValueChanged);
+            }
+
+            return toggle;
         }
     }
 }

@@ -16,6 +16,7 @@ namespace EJR.Game.Editor
         private const string PlayerPrefabPath = "Assets/Resources/Prefabs/MultiplayerPlayer.prefab";
         private const string SharedEnemyPrefabPath = "Assets/Resources/Prefabs/MultiplayerSharedEnemy.prefab";
         private const string SharedProjectilePrefabPath = "Assets/Resources/Prefabs/MultiplayerSharedProjectile.prefab";
+        private const string SharedExperienceOrbPrefabPath = "Assets/Resources/Prefabs/MultiplayerSharedExperienceOrb.prefab";
         private const string MultiplayerScenePath = "Assets/Scenes/MultiplayerScene.unity";
         private const string MenuPath = "Tools/Multiplayer/Generate Multiplayer Assets";
 
@@ -34,6 +35,7 @@ namespace EJR.Game.Editor
             CreateOrUpdatePlayerPrefab();
             CreateOrUpdateSharedEnemyPrefab();
             CreateOrUpdateSharedProjectilePrefab();
+            CreateOrUpdateSharedExperienceOrbPrefab();
             CreateOrUpdateMultiplayerScene();
             AddSceneToBuildSettings(MultiplayerScenePath);
 
@@ -138,6 +140,37 @@ namespace EJR.Game.Editor
             }
         }
 
+        private static void CreateOrUpdateSharedExperienceOrbPrefab()
+        {
+            var root = new GameObject("MultiplayerSharedExperienceOrb");
+            try
+            {
+                root.AddComponent<SpriteRenderer>();
+                root.AddComponent<NetworkObject>();
+
+                var networkTransform = root.AddComponent<NetworkTransform>();
+                networkTransform.AuthorityMode = NetworkTransform.AuthorityModes.Server;
+                networkTransform.SyncPositionX = true;
+                networkTransform.SyncPositionY = true;
+                networkTransform.SyncPositionZ = false;
+                networkTransform.SyncRotAngleX = false;
+                networkTransform.SyncRotAngleY = false;
+                networkTransform.SyncRotAngleZ = false;
+                networkTransform.SyncScaleX = false;
+                networkTransform.SyncScaleY = false;
+                networkTransform.SyncScaleZ = false;
+                networkTransform.Interpolate = true;
+
+                root.AddComponent<MultiplayerSharedExperienceOrbActor>();
+
+                PrefabUtility.SaveAsPrefabAsset(root, SharedExperienceOrbPrefabPath);
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+        }
+
         private static void CreateOrUpdateMultiplayerScene()
         {
             var previousScene = SceneManager.GetActiveScene();
@@ -146,6 +179,8 @@ namespace EJR.Game.Editor
             try
             {
                 var root = new GameObject("MultiplayerSceneRoot");
+                root.AddComponent<NetworkObject>();
+                root.AddComponent<MultiplayerCoopController>();
                 root.AddComponent<MultiplayerGameController>();
                 EditorSceneManager.SaveScene(scene, MultiplayerScenePath);
             }

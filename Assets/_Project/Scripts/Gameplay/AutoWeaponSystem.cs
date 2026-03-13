@@ -1,12 +1,63 @@
 ﻿using System;
 using System.Collections.Generic;
 using EJR.Game.Core;
+using System.Linq;
 using UnityEngine;
 
 namespace EJR.Game.Gameplay
 {
     public sealed class AutoWeaponSystem : MonoBehaviour
     {
+        public readonly struct ProjectileSpawnRequest
+        {
+            public ProjectileSpawnRequest(
+                WeaponUpgradeId weaponId,
+                WeaponCoreElement coreElement,
+                int coreLevel,
+                Vector2 direction,
+                float damage,
+                float speed,
+                float lifetime,
+                float hitRadius,
+                int maxHits,
+                float damageFalloffPerHit,
+                float minimumDamageMultiplier,
+                Color color,
+                Vector3 spawnPosition,
+                float visualScale)
+            {
+                WeaponId = weaponId;
+                CoreElement = coreElement;
+                CoreLevel = coreLevel;
+                Direction = direction;
+                Damage = damage;
+                Speed = speed;
+                Lifetime = lifetime;
+                HitRadius = hitRadius;
+                MaxHits = maxHits;
+                DamageFalloffPerHit = damageFalloffPerHit;
+                MinimumDamageMultiplier = minimumDamageMultiplier;
+                Color = color;
+                SpawnPosition = spawnPosition;
+                VisualScale = visualScale;
+            }
+
+            public WeaponUpgradeId WeaponId { get; }
+            public WeaponCoreElement CoreElement { get; }
+            public int CoreLevel { get; }
+            public Vector2 Direction { get; }
+            public float Damage { get; }
+            public float Speed { get; }
+            public float Lifetime { get; }
+            public float HitRadius { get; }
+            public int MaxHits { get; }
+            public float DamageFalloffPerHit { get; }
+            public float MinimumDamageMultiplier { get; }
+            public Color Color { get; }
+            public Vector3 SpawnPosition { get; }
+            public float VisualScale { get; }
+        }
+
         [SerializeField, Min(0)] private int projectilePoolPrewarmCount = 40;
         [SerializeField, Min(0.01f)] private float targetScanInterval = 0.08f;
         [SerializeField, Min(0.5f)] private float projectileTravelRangeFactor = 1.35f;
@@ -14,6 +65,7 @@ namespace EJR.Game.Gameplay
         [SerializeField, Min(0.01f)] private float katanaRangeEffectWidth = 0.05f;
         [SerializeField, Range(4, 40)] private int katanaRangeEffectSegments = 14;
         [SerializeField] private Color katanaRangeEffectColor = new(0.2f, 1f, 0.9f, 0.9f);
+        [SerializeField, Min(0.01f)] private float katanaSlashSequenceInterval = 0.06f;
         [SerializeField, Min(0.01f)] private float katanaSlashFxFps = 18f;
         [SerializeField, Min(0.05f)] private float katanaSlashFxForwardOffset = 0.72f;
         [SerializeField] private Vector2 katanaSlashFxLocalOffset = new(-0.22f, -2.0f);
@@ -50,6 +102,8 @@ namespace EJR.Game.Gameplay
                 Cooldown = 0f;
                 BurstShotsRemaining = 0;
                 BurstShotCooldown = 0f;
+                BurstDirection = Vector2.right;
+                BurstTotalShots = 0;
                 OrbitAngleDegrees = UnityEngine.Random.Range(0f, 360f);
             }
 
@@ -58,6 +112,8 @@ namespace EJR.Game.Gameplay
             public float Cooldown { get; set; }
             public int BurstShotsRemaining { get; set; }
             public float BurstShotCooldown { get; set; }
+            public Vector2 BurstDirection { get; set; }
+            public int BurstTotalShots { get; set; }
             public float OrbitAngleDegrees { get; set; }
             public List<Transform> SatelliteVisuals { get; } = new(3);
             public Dictionary<EnemyController, float> SatelliteHitCooldownUntil { get; } = new();
@@ -80,6 +136,7 @@ namespace EJR.Game.Gameplay
         private EnemyRegistry _registry;
         private PlayerStatsRuntime _stats;
         private Func<Vector2, Vector3> _projectileSpawnResolver;
+        private Func<ProjectileSpawnRequest, bool> _projectileSpawnOverride;
         private bool _useProjectileBoundsCulling;
         private Rect _projectileCullBounds;
 
@@ -118,6 +175,13 @@ namespace EJR.Game.Gameplay
 
         public event Action<Vector2> AimUpdated;
         public event Action<Vector2> Fired;
+        public event Action<Vector2, Vector2, float> KatanaSlashFxRequested;
+        public event Action<Vector3[]> ChainFxRequested;
+        public event Action<Vector3, float> AuraPulseFxRequested;
+        public event Action<Vector3, float> SatelliteHitFxRequested;
+        public event Action<Vector3> SatelliteBeamFxRequested;
+        public event Action<Vector3, float, float> TurretDeployed;
+        public event Action<Vector3, Vector3> TurretTracerFxRequested;
 
         public void Initialize(
             WeaponConfig config,
@@ -125,6 +189,7 @@ namespace EJR.Game.Gameplay
             EnemyRegistry registry,
             PlayerStatsRuntime stats,
             Func<Vector2, Vector3> projectileSpawnResolver = null,
+            Func<ProjectileSpawnRequest, bool> projectileSpawnOverride = null,
             Rect? projectileCullBounds = null)
         {
             _config = config;
@@ -132,6 +197,7 @@ namespace EJR.Game.Gameplay
             _registry = registry;
             _stats = stats;
             _projectileSpawnResolver = projectileSpawnResolver;
+            _projectileSpawnOverride = projectileSpawnOverride;
             _useProjectileBoundsCulling = projectileCullBounds.HasValue;
             _projectileCullBounds = projectileCullBounds.GetValueOrDefault();
             _currentTarget = null;
@@ -333,6 +399,28 @@ namespace EJR.Game.Gameplay
                 {
                     weapon.Cooldown = GetLightningInterval(weapon);
                     SetAimDirection(satelliteBeamDirection);
+                }
+
+                return;
+            }
+
+            if (weapon.WeaponId == WeaponUpgradeId.Katana && weapon.BurstShotsRemaining > 0)
+            {
+                weapon.BurstShotCooldown -= Time.deltaTime;
+                if (weapon.BurstShotCooldown <= 0f)
+                {
+                    var slashIndex = Mathf.Max(0, weapon.BurstTotalShots - weapon.BurstShotsRemaining);
+                    ExecuteKatanaSlash(weapon, weapon.BurstDirection, slashIndex, Mathf.Max(1, weapon.BurstTotalShots));
+                    weapon.BurstShotsRemaining--;
+                    weapon.BurstShotCooldown = Mathf.Max(
+                        0.01f,
+                        ApplyCoreAttackIntervalToValue(Mathf.Max(0.01f, katanaSlashSequenceInterval), weapon));
+
+                    if (weapon.BurstShotsRemaining <= 0)
+                    {
+                        weapon.BurstTotalShots = 0;
+                        weapon.Cooldown = GetAttackInterval(weapon);
+                    }
                 }
 
                 return;
@@ -540,55 +628,81 @@ namespace EJR.Game.Gameplay
 
         private void FireKatana(WeaponRuntime weapon, Vector2 direction)
         {
+            var totalSlashes = Mathf.Max(1, 1 + GetWeaponExtraCount(weapon));
+            weapon.BurstDirection = direction.sqrMagnitude > 0.000001f
+                ? direction.normalized
+                : _lastAimDirection;
+            weapon.BurstTotalShots = totalSlashes;
+            weapon.BurstShotsRemaining = totalSlashes;
+            weapon.BurstShotCooldown = 0f;
+
+            ExecuteKatanaSlash(weapon, weapon.BurstDirection, 0, totalSlashes);
+            weapon.BurstShotsRemaining--;
+
+            if (weapon.BurstShotsRemaining <= 0)
+            {
+                weapon.BurstTotalShots = 0;
+                weapon.Cooldown = GetAttackInterval(weapon);
+                return;
+            }
+
+            weapon.BurstShotCooldown = Mathf.Max(
+                0.01f,
+                ApplyCoreAttackIntervalToValue(Mathf.Max(0.01f, katanaSlashSequenceInterval), weapon));
+        }
+
+        private void ExecuteKatanaSlash(WeaponRuntime weapon, Vector2 direction, int slashIndex, int totalSlashes)
+        {
+            if (_registry == null || _owner == null || weapon == null)
+            {
+                return;
+            }
+
             var range = GetWeaponRange(weapon);
             var coneHalfAngle = Mathf.Max(2f, _config.katanaConeAngle) * 0.5f;
             var damage = GetWeaponBaseDamage(weapon) * Mathf.Clamp(_config.katanaDamageMultiplier, 0.05f, 3f);
             var coreElement = GetCoreElement(weapon.WeaponId);
             var coreLevel = GetCoreLevel(weapon.WeaponId);
-            var totalSlashes = Mathf.Max(1, 1 + GetWeaponExtraCount(weapon));
             var slashSpreadHalfAngle = totalSlashes <= 1 ? 0f : 10f;
             var origin = (Vector2)_owner.position;
+            var t = totalSlashes <= 1 ? 0.5f : slashIndex / (float)(totalSlashes - 1);
+            var angleOffset = Mathf.Lerp(-slashSpreadHalfAngle, slashSpreadHalfAngle, t);
+            var slashDirection = RotateDirection(direction, angleOffset);
             var searchRadius = range + _registry.GetMaxCollisionRadius();
+
+            SpawnKatanaSlashSpriteFx(origin, slashDirection, range);
+            KatanaSlashFxRequested?.Invoke(origin, slashDirection, range);
+            Fired?.Invoke(slashDirection);
+
             _registry.GetNearby(origin, searchRadius, _nearbyEnemies);
-
-            for (var slashIndex = 0; slashIndex < totalSlashes; slashIndex++)
+            for (var i = 0; i < _nearbyEnemies.Count; i++)
             {
-                var t = totalSlashes <= 1 ? 0.5f : slashIndex / (float)(totalSlashes - 1);
-                var angleOffset = Mathf.Lerp(-slashSpreadHalfAngle, slashSpreadHalfAngle, t);
-                var slashDirection = RotateDirection(direction, angleOffset);
-                SpawnKatanaSlashSpriteFx(origin, slashDirection, range);
-
-                for (var i = 0; i < _nearbyEnemies.Count; i++)
+                var enemy = _nearbyEnemies[i];
+                if (enemy == null)
                 {
-                    var enemy = _nearbyEnemies[i];
-                    if (enemy == null)
-                    {
-                        continue;
-                    }
+                    continue;
+                }
 
-                    var toEnemy = (Vector2)enemy.transform.position - origin;
-                    var centerDistance = toEnemy.magnitude;
-                    if (centerDistance <= 0.0001f)
-                    {
-                        enemy.ReceiveWeaponDamage(damage, weapon.WeaponId, coreElement, coreLevel);
-                        continue;
-                    }
+                var toEnemy = (Vector2)enemy.transform.position - origin;
+                var centerDistance = toEnemy.magnitude;
+                if (centerDistance <= 0.0001f)
+                {
+                    enemy.ReceiveWeaponDamage(damage, weapon.WeaponId, coreElement, coreLevel);
+                    continue;
+                }
 
-                    var surfaceDistance = Mathf.Max(0f, centerDistance - enemy.CollisionRadius);
-                    if (surfaceDistance > range)
-                    {
-                        continue;
-                    }
+                var surfaceDistance = Mathf.Max(0f, centerDistance - enemy.CollisionRadius);
+                if (surfaceDistance > range)
+                {
+                    continue;
+                }
 
-                    var angle = Vector2.Angle(slashDirection, toEnemy / centerDistance);
-                    if (angle <= coneHalfAngle)
-                    {
-                        enemy.ReceiveWeaponDamage(damage, weapon.WeaponId, coreElement, coreLevel);
-                    }
+                var angle = Vector2.Angle(slashDirection, toEnemy / centerDistance);
+                if (angle <= coneHalfAngle)
+                {
+                    enemy.ReceiveWeaponDamage(damage, weapon.WeaponId, coreElement, coreLevel);
                 }
             }
-
-            Fired?.Invoke(direction);
         }
 
         private void FireChainAttack(WeaponRuntime weapon, Vector2 direction)
@@ -629,6 +743,7 @@ namespace EJR.Game.Gameplay
             if (_fxPoints.Count >= 2)
             {
                 SpawnPolylineFx(_fxPoints, chainFxColor, chainFxWidth, chainFxDuration, false, "ChainFx");
+                ChainFxRequested?.Invoke(_fxPoints.ToArray());
             }
 
             var toFirst = (Vector2)(firstTarget.transform.position - _owner.position);
@@ -686,7 +801,9 @@ namespace EJR.Game.Gameplay
 
                 firstTarget ??= target;
                 target.ReceiveWeaponDamage(damage, weapon.WeaponId, coreElement, coreLevel);
-                SpawnSatelliteBeamSpriteFx(target);
+                var targetCenter = ResolveTargetCenter(target);
+                SpawnSatelliteBeamSpriteFx(targetCenter);
+                SatelliteBeamFxRequested?.Invoke(targetCenter);
             }
 
             if (firstTarget == null)
@@ -765,6 +882,7 @@ namespace EJR.Game.Gameplay
                     weapon.SatelliteHitCooldownUntil[enemy] = Time.time + hitCooldown;
                     enemy.ReceiveWeaponDamage(damage, weapon.WeaponId, coreElement, coreLevel);
                     SpawnRingFx((Vector2)enemy.transform.position, hitRadius * 0.9f, auraFxColor, auraFxWidth, 0.06f, "SatelliteHitFx");
+                    SatelliteHitFxRequested?.Invoke(enemy.transform.position, hitRadius * 0.9f);
                 }
             }
         }
@@ -798,6 +916,7 @@ namespace EJR.Game.Gameplay
             var coreLevel = GetCoreLevel(weapon.WeaponId);
 
             SpawnRingFx(center, range, auraFxColor, auraFxWidth, auraFxDuration, "AuraFx");
+            AuraPulseFxRequested?.Invoke(center, range);
             _registry.GetNearby(center, range + _registry.GetMaxCollisionRadius(), _nearbyEnemies);
 
             for (var i = 0; i < _nearbyEnemies.Count; i++)
@@ -903,7 +1022,7 @@ namespace EJR.Game.Gameplay
             }
 
             var turretObject = new GameObject("RifleTurret");
-            turretObject.transform.SetParent(transform, false);
+            turretObject.transform.SetParent(null, true);
             turretObject.transform.position = new Vector3(position.x, position.y, 0f);
             turretObject.transform.localScale = Vector3.one;
 
@@ -939,6 +1058,11 @@ namespace EJR.Game.Gameplay
                 FireFrames = fireFrames,
                 FireAnimationCoroutine = null,
             });
+
+            TurretDeployed?.Invoke(
+                turretObject.transform.position,
+                turretRange,
+                Mathf.Max(0.1f, _config.rifleTurretLifetime));
         }
 
         private static Sprite[] ExtractFireFrames(Sprite[] allFrames)
@@ -1315,17 +1439,11 @@ namespace EJR.Game.Gameplay
             animator.Initialize(renderer, frames, katanaSlashFxFps, loop: false, destroyOnComplete: true);
         }
 
-        private void SpawnSatelliteBeamSpriteFx(EnemyController target)
+        private static Vector3 ResolveTargetCenter(EnemyController target)
         {
             if (target == null)
             {
-                return;
-            }
-
-            var frames = RuntimeSpriteFactory.GetSexySatelliteBeamAnimationFrames();
-            if (frames == null || frames.Length <= 0)
-            {
-                return;
+                return Vector3.zero;
             }
 
             var targetCenter = target.transform.position;
@@ -1333,6 +1451,17 @@ namespace EJR.Game.Gameplay
             if (targetCollider != null)
             {
                 targetCenter = targetCollider.bounds.center;
+            }
+
+            return targetCenter;
+        }
+
+        private void SpawnSatelliteBeamSpriteFx(Vector3 targetCenter)
+        {
+            var frames = RuntimeSpriteFactory.GetSexySatelliteBeamAnimationFrames();
+            if (frames == null || frames.Length <= 0)
+            {
+                return;
             }
 
             var frame = frames[0];
@@ -1364,6 +1493,7 @@ namespace EJR.Game.Gameplay
         private void SpawnTracerFx(Vector3 from, Vector3 to)
         {
             SpawnLineFx(from, to, turretTracerFxColor, turretTracerFxWidth, turretTracerFxDuration, "TurretTracerFx");
+            TurretTracerFxRequested?.Invoke(from, to);
         }
 
         private void SpawnLineFx(Vector3 from, Vector3 to, Color color, float width, float duration, string name)
@@ -1487,6 +1617,28 @@ namespace EJR.Game.Gameplay
 
             var spawnPosition = overrideSpawnPosition
                 ?? (_projectileSpawnResolver != null ? _projectileSpawnResolver(normalizedDirection) : _owner.position);
+
+            var spawnRequest = new ProjectileSpawnRequest(
+                weaponId,
+                coreElement,
+                coreLevel,
+                normalizedDirection,
+                Mathf.Max(0f, damage),
+                Mathf.Max(0.1f, speed),
+                Mathf.Max(0.05f, lifetime),
+                Mathf.Max(0.05f, hitRadius),
+                Mathf.Max(1, maxHits),
+                Mathf.Clamp(damageFalloffPerHit, 0f, 0.9f),
+                Mathf.Clamp(minimumDamageMultiplier, 0.05f, 1f),
+                color,
+                spawnPosition,
+                Mathf.Max(0.05f, _config.projectileVisualScale));
+
+            if (_projectileSpawnOverride != null && _projectileSpawnOverride.Invoke(spawnRequest))
+            {
+                Fired?.Invoke(normalizedDirection);
+                return;
+            }
 
             var projectile = GetPooledProjectile();
             var projectileTransform = projectile.transform;

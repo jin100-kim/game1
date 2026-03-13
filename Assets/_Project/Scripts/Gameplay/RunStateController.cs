@@ -699,7 +699,14 @@ namespace EJR.Game.Gameplay
             }
 
             var weaponSystem = systems.AddComponent<AutoWeaponSystem>();
-            weaponSystem.Initialize(weaponConfig, player.transform, _enemyRegistry, _playerStats, ResolveProjectileSpawnPoint, arenaBounds);
+            weaponSystem.Initialize(
+                weaponConfig,
+                player.transform,
+                _enemyRegistry,
+                _playerStats,
+                ResolveProjectileSpawnPoint,
+                projectileSpawnOverride: null,
+                projectileCullBounds: arenaBounds);
             weaponSystem.ConfigureLoadout(_buildRuntime, _playerStats);
             weaponSystem.AimUpdated += OnWeaponAimUpdated;
             weaponSystem.Fired += OnWeaponFired;
