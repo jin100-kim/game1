@@ -3,7 +3,12 @@
   "rootNamespace": "EJR.Game",
   "references": [
     "Unity.ugui",
-    "Unity.InputSystem"
+    "Unity.InputSystem",
+    "Unity.Netcode.Runtime",
+    "Unity.Networking.Transport",
+    "Unity.Services.Authentication",
+    "Unity.Services.Core",
+    "Unity.Services.Multiplayer"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

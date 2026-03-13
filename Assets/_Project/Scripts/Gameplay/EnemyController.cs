@@ -1,5 +1,6 @@
 using System;
 using EJR.Game.Core;
+using Unity.Netcode;
 using UnityEngine;
 
 namespace EJR.Game.Gameplay
@@ -62,9 +63,12 @@ namespace EJR.Game.Gameplay
         private EnemyConfig _config;
         private Transform _target;
         private PlayerHealth _playerHealth;
+        private Func<Transform> _targetResolver;
+        private Func<PlayerHealth> _playerHealthResolver;
         private EnemyRegistry _registry;
         private ExperienceSystem _experienceSystem;
         private RuntimeSpriteFactory.EnemyVisualKind _visualKind;
+        private NetworkObject _networkObject;
 
         private float _health;
         private float _maxHealth;
@@ -139,6 +143,7 @@ namespace EJR.Game.Gameplay
             _playerHealth = playerHealth;
             _registry = registry;
             _experienceSystem = experienceSystem;
+            _networkObject = GetComponent<NetworkObject>();
             _playerCollisionRadius = Mathf.Max(0.05f, playerCollisionRadius);
             _collisionRadius = Mathf.Max(0.05f, collisionRadius);
             _hasArenaBounds = hasArenaBounds;
@@ -175,6 +180,13 @@ namespace EJR.Game.Gameplay
             Changed?.Invoke(_health, _maxHealth);
         }
 
+        public void SetTargetResolver(Func<Transform> targetResolver, Func<PlayerHealth> playerHealthResolver)
+        {
+            _targetResolver = targetResolver;
+            _playerHealthResolver = playerHealthResolver;
+            RefreshResolvedTarget();
+        }
+
         private void OnDisable()
         {
             if (_registry != null)
@@ -187,6 +199,21 @@ namespace EJR.Game.Gameplay
 
         private void Update()
         {
+            if (_networkObject == null)
+            {
+                _networkObject = GetComponent<NetworkObject>();
+            }
+
+            if (_networkObject != null &&
+                _networkObject.IsSpawned &&
+                NetworkManager.Singleton != null &&
+                !NetworkManager.Singleton.IsServer)
+            {
+                return;
+            }
+
+            RefreshResolvedTarget();
+
             if (_isDead || _target == null || _config == null || _playerHealth == null)
             {
                 return;
@@ -432,6 +459,24 @@ namespace EJR.Game.Gameplay
             }
         }
 
+        private void RefreshResolvedTarget()
+        {
+            if (_targetResolver != null)
+            {
+                _target = _targetResolver.Invoke();
+            }
+
+            if (_playerHealthResolver != null)
+            {
+                _playerHealth = _playerHealthResolver.Invoke();
+            }
+
+            if (_target == null && _playerHealth != null)
+            {
+                _target = _playerHealth.transform;
+            }
+        }
+
         private void Die()
         {
             if (_isDead)
@@ -451,6 +496,17 @@ namespace EJR.Game.Gameplay
             if (_registry != null)
             {
                 _registry.Unregister(this);
+            }
+
+            if (_networkObject == null)
+            {
+                _networkObject = GetComponent<NetworkObject>();
+            }
+
+            if (_networkObject != null && _networkObject.IsSpawned)
+            {
+                _networkObject.Despawn(true);
+                return;
             }
 
             var destroyDelay = _spriteAnimator != null ? _spriteAnimator.PlayDie() : 0f;

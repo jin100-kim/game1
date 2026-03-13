@@ -1,4 +1,5 @@
 using EJR.Game.Core;
+using EJR.Game.Multiplayer;
 using EJR.Game.UI;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -92,6 +93,7 @@ namespace EJR.Game.Gameplay
         private bool _isPauseMenuOpen;
         private bool _bossWaveTriggered;
         private float _nextHudRefreshAt;
+        private bool _usingOwnedMultiplayerPlayer;
 
         private void Awake()
         {
@@ -114,7 +116,11 @@ namespace EJR.Game.Gameplay
 
         private void Update()
         {
-            HandlePauseMenuInput();
+            if (!_usingOwnedMultiplayerPlayer)
+            {
+                HandlePauseMenuInput();
+            }
+
             if (_isPauseMenuOpen)
             {
                 TryRefreshHud();
@@ -557,33 +563,56 @@ namespace EJR.Game.Gameplay
             _hud = new HudController();
             _hud.Initialize();
 
-            var player = GameObject.Find("Player");
-            if (player == null)
+            var ownedMultiplayerPlayer = MultiplayerPlayerActor.FindOwnedLocalPlayer();
+            _usingOwnedMultiplayerPlayer = ownedMultiplayerPlayer != null;
+
+            var player = _usingOwnedMultiplayerPlayer
+                ? ownedMultiplayerPlayer.gameObject
+                : GameObject.Find("Player");
+
+            if (!_usingOwnedMultiplayerPlayer && player == null)
             {
                 player = new GameObject("Player");
                 player.transform.position = Vector3.zero;
             }
 
             var rootRenderer = player.GetComponent<SpriteRenderer>();
-            if (rootRenderer != null)
+
+            Transform visualTransform;
+            SpriteRenderer playerRenderer;
+            if (_usingOwnedMultiplayerPlayer)
             {
-                Destroy(rootRenderer);
+                if (rootRenderer == null)
+                {
+                    rootRenderer = player.AddComponent<SpriteRenderer>();
+                }
+
+                visualTransform = player.transform;
+                playerRenderer = rootRenderer;
+                _weaponOrbitCenterLocal = new Vector2(0f, playerConfig.visualYOffset);
             }
-
-            var visualTransform = player.transform.Find(PlayerVisualObjectName);
-            if (visualTransform == null)
+            else
             {
-                visualTransform = new GameObject(PlayerVisualObjectName).transform;
-                visualTransform.SetParent(player.transform, false);
-            }
+                if (rootRenderer != null)
+                {
+                    Destroy(rootRenderer);
+                }
 
-            visualTransform.localPosition = new Vector3(0f, playerConfig.visualYOffset, 0f);
-            _weaponOrbitCenterLocal = new Vector2(visualTransform.localPosition.x, visualTransform.localPosition.y);
+                visualTransform = player.transform.Find(PlayerVisualObjectName);
+                if (visualTransform == null)
+                {
+                    visualTransform = new GameObject(PlayerVisualObjectName).transform;
+                    visualTransform.SetParent(player.transform, false);
+                }
 
-            var playerRenderer = visualTransform.GetComponent<SpriteRenderer>();
-            if (playerRenderer == null)
-            {
-                playerRenderer = visualTransform.gameObject.AddComponent<SpriteRenderer>();
+                visualTransform.localPosition = new Vector3(0f, playerConfig.visualYOffset, 0f);
+                _weaponOrbitCenterLocal = new Vector2(visualTransform.localPosition.x, visualTransform.localPosition.y);
+
+                playerRenderer = visualTransform.GetComponent<SpriteRenderer>();
+                if (playerRenderer == null)
+                {
+                    playerRenderer = visualTransform.gameObject.AddComponent<SpriteRenderer>();
+                }
             }
 
             var squareSprite = RuntimeSpriteFactory.GetSquareSprite();
