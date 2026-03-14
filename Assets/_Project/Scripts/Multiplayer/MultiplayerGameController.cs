@@ -1,5 +1,8 @@
+using System;
 using System.Text;
+using EJR.Game.Core;
 using EJR.Game.Gameplay;
+using EJR.Game.UI;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -19,6 +22,7 @@ namespace EJR.Game.Multiplayer
         private float _nextRefreshAt;
 
         private Canvas _canvas;
+        private GameObject _statusPanel;
         private GameObject _lobbyPanel;
         private GameObject _runPanel;
         private GameObject _choicePanel;
@@ -43,6 +47,8 @@ namespace EJR.Game.Multiplayer
         private Text _startButtonText;
         private readonly Button[] _choiceButtons = new Button[3];
         private readonly Text[] _choiceButtonTexts = new Text[3];
+        private HudController _gameplayHud;
+        private string _lastChoiceSignature = string.Empty;
 
         private void Awake()
         {
@@ -52,6 +58,9 @@ namespace EJR.Game.Multiplayer
             EnsureEventSystem();
             EnsureArenaVisuals();
             EnsureOverlay();
+            _gameplayHud = new HudController();
+            _gameplayHud.Initialize();
+            _gameplayHud.SetCanvasVisible(false);
             RefreshUi();
         }
 
@@ -158,8 +167,8 @@ namespace EJR.Game.Multiplayer
 
             canvasObject.AddComponent<GraphicRaycaster>();
 
-            var statusPanel = CreatePanel(canvasObject.transform, "StatusPanel", new Vector2(18f, -18f), new Vector2(460f, 112f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Color(0f, 0f, 0f, 0.44f));
-            _statusText = CreateText(statusPanel.transform, "StatusText", Vector2.zero, Vector2.zero, Vector2.one, 18, TextAnchor.UpperLeft);
+            _statusPanel = CreatePanel(canvasObject.transform, "StatusPanel", new Vector2(18f, -18f), new Vector2(460f, 112f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Color(0f, 0f, 0f, 0.44f));
+            _statusText = CreateText(_statusPanel.transform, "StatusText", Vector2.zero, Vector2.zero, Vector2.one, 18, TextAnchor.UpperLeft);
             _statusText.rectTransform.offsetMin = new Vector2(14f, 10f);
             _statusText.rectTransform.offsetMax = new Vector2(-14f, -10f);
 
@@ -248,6 +257,17 @@ namespace EJR.Game.Multiplayer
             MultiplayerPlayerCombatant[] allPlayers)
         {
             if (_statusText == null)
+            {
+                return;
+            }
+
+            var showStatus = coop == null || coop.Phase == MultiplayerRunPhase.Lobby;
+            if (_statusPanel != null)
+            {
+                _statusPanel.SetActive(showStatus);
+            }
+
+            if (!showStatus)
             {
                 return;
             }
@@ -348,100 +368,93 @@ namespace EJR.Game.Multiplayer
 
         private void RefreshRunUi(MultiplayerCoopController coop, MultiplayerPlayerCombatant localPlayer, MultiplayerPlayerCombatant[] allPlayers)
         {
-            if (_runPanel == null)
+            if (_runPanel != null)
+            {
+                _runPanel.SetActive(false);
+            }
+
+            if (_gameplayHud == null)
             {
                 return;
             }
 
             var showRun = coop != null && coop.Phase != MultiplayerRunPhase.Lobby;
-            _runPanel.SetActive(showRun);
+            _gameplayHud.SetCanvasVisible(showRun);
             if (!showRun)
             {
+                _gameplayHud.HideBossBar();
                 return;
             }
-
-            var aliveCount = 0;
-            var downedCount = 0;
-            for (var i = 0; i < allPlayers.Length; i++)
-            {
-                var player = allPlayers[i];
-                if (player == null)
-                {
-                    continue;
-                }
-
-                if (player.IsTargetable)
-                {
-                    aliveCount++;
-                }
-                else if (player.IsDowned)
-                {
-                    downedCount++;
-                }
-            }
-
-            _runTopText.text =
-                $"TEAM LV {coop.TeamLevel}  XP {coop.TeamExperience}/{coop.TeamRequiredExperience}\n" +
-                $"TIME {FormatTime(Mathf.CeilToInt(coop.RemainingSeconds))}\n" +
-                $"PLAYERS Alive {aliveCount} / Downed {downedCount}";
-
-            _bossText.text = coop.BossActive
-                ? $"BOSS {Mathf.CeilToInt(coop.BossCurrentHealth)}/{Mathf.CeilToInt(coop.BossMaxHealth)}"
-                : "BOSS --";
 
             if (localPlayer == null)
             {
-                _stateText.text = "Waiting for local player...";
-                _buildText.text = string.Empty;
                 return;
             }
 
-            if (localPlayer.IsDowned)
+            _gameplayHud.SetTopBar(
+                localPlayer.CurrentHealth,
+                Mathf.Max(1f, localPlayer.MaxHealth),
+                coop.TeamLevel,
+                coop.TeamExperience,
+                coop.TeamRequiredExperience,
+                coop.RemainingSeconds);
+            _gameplayHud.SetBuildInfo(localPlayer.WeaponSummary, localPlayer.StatSummary);
+            if (coop.BossActive)
             {
-                _stateText.text = $"DOWNED\nAuto revive {Mathf.RoundToInt(localPlayer.ReviveProgress * 100f)}%";
-            }
-            else if (coop.Phase == MultiplayerRunPhase.LevelChoice)
-            {
-                _stateText.text = "LEVEL UP\nChoose a reward to continue.";
-            }
-            else if (coop.Phase == MultiplayerRunPhase.Result)
-            {
-                _stateText.text = coop.ResultCleared ? "RESULT\nRun Complete" : "RESULT\nTeam Defeated";
+                _gameplayHud.SetBossBar(coop.BossCurrentHealth, coop.BossMaxHealth, "BOSS");
             }
             else
             {
-                _stateText.text = "RUNNING";
+                _gameplayHud.HideBossBar();
             }
-
-            _buildText.text = $"{localPlayer.WeaponSummary}\n\n{localPlayer.StatSummary}";
         }
 
         private void RefreshChoiceUi(MultiplayerPlayerCombatant localPlayer)
         {
-            if (_choicePanel == null)
+            if (_choicePanel != null)
+            {
+                _choicePanel.SetActive(false);
+            }
+
+            if (_gameplayHud == null)
             {
                 return;
             }
 
             var hasChoice = localPlayer != null && localPlayer.HasLocalPendingChoice;
-            _choicePanel.SetActive(hasChoice);
             if (!hasChoice)
+            {
+                _lastChoiceSignature = string.Empty;
+                _gameplayHud.HideLevelUpOptions();
+                return;
+            }
+
+            var optionCount = Mathf.Min(localPlayer.LocalPendingChoiceCount, 3);
+            var options = new LevelUpOption[optionCount];
+            var signatureBuilder = new StringBuilder(localPlayer.LocalPendingTitle);
+            for (var i = 0; i < optionCount; i++)
+            {
+                var label = localPlayer.GetLocalPendingChoiceLabel(i);
+                signatureBuilder.Append('|').Append(label);
+                options[i] = new LevelUpOption(
+                    UpgradeCategory.Stat,
+                    default,
+                    default,
+                    0,
+                    0,
+                    false,
+                    false,
+                    label);
+            }
+
+            var signature = signatureBuilder.ToString();
+            if (string.Equals(signature, _lastChoiceSignature, StringComparison.Ordinal))
             {
                 return;
             }
 
-            _choiceTitleText.text = localPlayer.LocalPendingTitle;
-            for (var i = 0; i < _choiceButtons.Length; i++)
-            {
-                var visible = i < localPlayer.LocalPendingChoiceCount;
-                _choiceButtons[i].gameObject.SetActive(visible);
-                if (!visible)
-                {
-                    continue;
-                }
-
-                _choiceButtonTexts[i].text = $"{i + 1}. {localPlayer.GetLocalPendingChoiceLabel(i)}";
-            }
+            _lastChoiceSignature = signature;
+            _gameplayHud.ShowLevelUpOptions(options, HandleChoiceClicked, localPlayer.LocalPendingTitle);
         }
 
         private void RefreshResultUi(MultiplayerCoopController coop)

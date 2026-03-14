@@ -65,7 +65,6 @@ namespace EJR.Game.Gameplay
         [SerializeField, Min(0.01f)] private float katanaRangeEffectWidth = 0.05f;
         [SerializeField, Range(4, 40)] private int katanaRangeEffectSegments = 14;
         [SerializeField] private Color katanaRangeEffectColor = new(0.2f, 1f, 0.9f, 0.9f);
-        [SerializeField, Min(0.01f)] private float katanaSlashSequenceInterval = 0.06f;
         [SerializeField, Min(0.01f)] private float katanaSlashFxFps = 18f;
         [SerializeField, Min(0.05f)] private float katanaSlashFxForwardOffset = 0.72f;
         [SerializeField] private Vector2 katanaSlashFxLocalOffset = new(-0.22f, -2.0f);
@@ -159,10 +158,10 @@ namespace EJR.Game.Gameplay
         private static readonly float[] CommonWeaponAttackSpeedBonusByLevel = { 0f, 0f, 0.15f, 0.15f, 0.15f, 0.15f, 0.30f, 0.30f, 0.30f, 0.30f };
         private static readonly float[] CommonWeaponRangeByLevel = { 1f, 1f, 1f, 1.15f, 1.15f, 1.15f, 1.15f, 1.3f, 1.3f, 1.3f };
         private static readonly float[] AuraRangeByLevel = { 1f, 1f, 1f, 1.15f, 1.3f, 1.3f, 1.3f, 1.45f, 1.45f, 1.6f };
-        private static readonly float[] RifleLikeDamageByLevel = { 1f, 1.15f, 1.15f, 1.15f, 1.1f, 1.35f, 1.35f, 1.35f, 1.5f, 1.5f };
+        private static readonly float[] RifleLikeDamageByLevel = { 1f, 1.15f, 1.15f, 1.15f, 1.05f, 1.2f, 1.2f, 1.2f, 1.35f, 1.35f };
         private static readonly float[] SniperDamageByLevel = { 1f, 1.15f, 1.15f, 1.15f, 1.5f, 1.65f, 1.65f, 1.65f, 1.8f, 2f };
-        private static readonly float[] SmgLikeDamageByLevel = { 1f, 1.15f, 1.15f, 1.15f, 1.45f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f };
-        private static readonly float[] AuraDamageByLevel = { 1f, 1.15f, 1.15f, 1.15f, 1.15f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f };
+        private static readonly float[] SmgLikeDamageByLevel = { 1f, 1.15f, 1.15f, 1.15f, 1.3f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f };
+        private static readonly float[] AuraDamageByLevel = { 1f, 1.15f, 1.15f, 1.15f, 1.3f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f };
         private static readonly int[] RifleExtraByLevel = { 0, 0, 0, 0, 1, 1, 1, 1, 1, 2 };
         private static readonly int[] SmgExtraByLevel = { 0, 0, 0, 0, 2, 2, 2, 2, 2, 4 };
         private static readonly int[] SniperExtraByLevel = { 0, 0, 0, 0, 1, 1, 1, 1, 1, 2 };
@@ -414,7 +413,7 @@ namespace EJR.Game.Gameplay
                     weapon.BurstShotsRemaining--;
                     weapon.BurstShotCooldown = Mathf.Max(
                         0.01f,
-                        ApplyCoreAttackIntervalToValue(Mathf.Max(0.01f, katanaSlashSequenceInterval), weapon));
+                        ApplyCoreAttackIntervalToValue(GetKatanaComboSlashInterval(), weapon));
 
                     if (weapon.BurstShotsRemaining <= 0)
                     {
@@ -507,17 +506,21 @@ namespace EJR.Game.Gameplay
             var coreElement = GetCoreElement(weapon.WeaponId);
             var coreLevel = GetCoreLevel(weapon.WeaponId);
             var bulletCount = Mathf.Max(1, 1 + GetWeaponExtraCount(weapon));
-            var spreadHalfAngle = bulletCount <= 1 ? 0f : 6f;
+            var normalizedDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : _lastAimDirection;
+            var spawnCenter = _projectileSpawnResolver != null
+                ? _projectileSpawnResolver(normalizedDirection)
+                : _owner.position;
+            var lateralDirection = new Vector2(-normalizedDirection.y, normalizedDirection.x);
+            var shotSpacing = _config != null ? Mathf.Max(0f, _config.rifleParallelShotSpacing) : 0.32f;
             for (var i = 0; i < bulletCount; i++)
             {
-                var t = bulletCount <= 1 ? 0.5f : i / (float)(bulletCount - 1);
-                var angle = Mathf.Lerp(-spreadHalfAngle, spreadHalfAngle, t);
-                var bulletDirection = RotateDirection(direction, angle);
+                var centeredIndex = i - ((bulletCount - 1) * 0.5f);
+                var spawnOffset = lateralDirection * (centeredIndex * shotSpacing);
                 SpawnProjectile(
                     weapon.WeaponId,
                     coreElement,
                     coreLevel,
-                    bulletDirection,
+                    normalizedDirection,
                     damage,
                     projectileSpeed,
                     projectileLifetime,
@@ -525,7 +528,8 @@ namespace EJR.Game.Gameplay
                     1,
                     0f,
                     1f,
-                    new Color(1f, 0.95f, 0.35f));
+                    new Color(1f, 0.95f, 0.35f),
+                    spawnCenter + (Vector3)spawnOffset);
             }
         }
 
@@ -648,7 +652,7 @@ namespace EJR.Game.Gameplay
 
             weapon.BurstShotCooldown = Mathf.Max(
                 0.01f,
-                ApplyCoreAttackIntervalToValue(Mathf.Max(0.01f, katanaSlashSequenceInterval), weapon));
+                ApplyCoreAttackIntervalToValue(GetKatanaComboSlashInterval(), weapon));
         }
 
         private void ExecuteKatanaSlash(WeaponRuntime weapon, Vector2 direction, int slashIndex, int totalSlashes)
@@ -703,6 +707,12 @@ namespace EJR.Game.Gameplay
                     enemy.ReceiveWeaponDamage(damage, weapon.WeaponId, coreElement, coreLevel);
                 }
             }
+        }
+
+        private float GetKatanaComboSlashInterval()
+        {
+            var configured = _config != null ? _config.katanaComboSlashInterval : 0.1f;
+            return Mathf.Max(0.01f, configured);
         }
 
         private void FireChainAttack(WeaponRuntime weapon, Vector2 direction)
@@ -1769,12 +1779,7 @@ namespace EJR.Game.Gameplay
 
             return coreElement switch
             {
-                WeaponCoreElement.Wind => coreLevel switch
-                {
-                    1 => 0.88f,
-                    2 => 0.82f,
-                    _ => 0.76f,
-                },
+                WeaponCoreElement.Wind => 1f,
                 WeaponCoreElement.Water => coreLevel switch
                 {
                     1 => 1.10f,
@@ -1802,9 +1807,9 @@ namespace EJR.Game.Gameplay
 
             return coreLevel switch
             {
-                1 => 0.80f,
-                2 => 0.68f,
-                _ => 0.58f,
+                1 => 1f / 1.10f,
+                2 => 1f / 1.20f,
+                _ => 1f / 1.30f,
             };
         }
 

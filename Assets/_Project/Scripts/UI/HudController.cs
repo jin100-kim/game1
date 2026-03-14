@@ -80,6 +80,23 @@ namespace EJR.Game.UI
             BuildPausePanel();
         }
 
+        public void SetCanvasVisible(bool visible)
+        {
+            if (_canvas == null)
+            {
+                return;
+            }
+
+            _canvas.gameObject.SetActive(visible);
+            if (!visible)
+            {
+                HideLevelUpOptions();
+                HideBossBar();
+                HidePauseMenu();
+                HideResult();
+            }
+        }
+
         public void SetTopBar(float currentHealth, float maxHealth, int level, int currentXp, int requiredXp, float remainingSeconds)
         {
             if (_healthText == null)
@@ -539,10 +556,10 @@ namespace EJR.Game.UI
             title.fontSize = 24;
 
             _pauseResumeButton = CreateButton(_pausePanel.transform, "ResumeButton", new Vector2(0f, 8f), new Vector2(230f, 56f));
-            _pauseResumeButton.GetComponentInChildren<Text>().text = "이어하기";
+            _pauseResumeButton.GetComponentInChildren<Text>().text = "계속하기";
 
             _pauseQuitButton = CreateButton(_pausePanel.transform, "QuitButton", new Vector2(0f, -68f), new Vector2(230f, 56f));
-            _pauseQuitButton.GetComponentInChildren<Text>().text = "게임종료";
+            _pauseQuitButton.GetComponentInChildren<Text>().text = "로비로";
         }
 
         private GameObject CreatePanel(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 anchoredPosition, Vector2 size, Color color)

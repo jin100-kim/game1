@@ -38,6 +38,7 @@ namespace EJR.Game.Gameplay
         [Header("Rifle")]
         [Min(0.05f)] public float rifleAttackInterval = 0.7f;
         [Min(0.1f)] public float rifleBaseDamage = 12f;
+        [Min(0f)] public float rifleParallelShotSpacing = 0.32f;
 
         [Header("Projectile Base")]
         [Min(0.5f)] public float projectileSpeed = 10f;
@@ -66,6 +67,7 @@ namespace EJR.Game.Gameplay
         [Range(5f, 180f)] public float katanaConeAngle = 80f;
         [Min(0.1f)] public float katanaBaseDamage = 5f;
         [Range(0.05f, 3f)] public float katanaDamageMultiplier = 1f;
+        [Min(0.01f)] public float katanaComboSlashInterval = 0.1f;
 
         [Header("Chain Attack")]
         [Min(1)] public int chainBaseJumps = 3;

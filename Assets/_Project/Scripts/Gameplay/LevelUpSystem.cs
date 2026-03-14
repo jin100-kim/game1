@@ -659,17 +659,17 @@ namespace EJR.Game.Gameplay
         {
             return weaponId switch
             {
-                WeaponUpgradeId.Rifle => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.1f, 1.35f, 1.35f, 1.35f, 1.5f, 1.5f },
-                WeaponUpgradeId.Smg => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.45f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
+                WeaponUpgradeId.Rifle => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.05f, 1.2f, 1.2f, 1.2f, 1.35f, 1.35f },
+                WeaponUpgradeId.Smg => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.3f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
                 WeaponUpgradeId.SniperRifle => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.5f, 1.65f, 1.65f, 1.65f, 1.8f, 2f },
-                WeaponUpgradeId.Shotgun => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.45f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
-                WeaponUpgradeId.Katana => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.1f, 1.35f, 1.35f, 1.35f, 1.5f, 1.5f },
-                WeaponUpgradeId.ChainAttack => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.45f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
-                WeaponUpgradeId.SatelliteBeam => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.1f, 1.35f, 1.35f, 1.35f, 1.5f, 1.5f },
-                WeaponUpgradeId.Drone => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.45f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
-                WeaponUpgradeId.RifleTurret => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.45f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
-                WeaponUpgradeId.Aura => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.15f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
-                _ => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.1f, 1.35f, 1.35f, 1.35f, 1.5f, 1.5f },
+                WeaponUpgradeId.Shotgun => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.3f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
+                WeaponUpgradeId.Katana => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.05f, 1.2f, 1.2f, 1.2f, 1.35f, 1.35f },
+                WeaponUpgradeId.ChainAttack => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.3f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
+                WeaponUpgradeId.SatelliteBeam => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.05f, 1.2f, 1.2f, 1.2f, 1.35f, 1.35f },
+                WeaponUpgradeId.Drone => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.3f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
+                WeaponUpgradeId.RifleTurret => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.3f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
+                WeaponUpgradeId.Aura => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.3f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
+                _ => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.05f, 1.2f, 1.2f, 1.2f, 1.35f, 1.35f },
             };
         }
 
@@ -722,6 +722,16 @@ namespace EJR.Game.Gameplay
         private static string GetCoreLevelDetailText(WeaponCoreElement coreElement, int level)
         {
             var clampedLevel = Mathf.Clamp(level, 1, PlayerBuildRuntime.MaxCoreLevel);
+            if (coreElement == WeaponCoreElement.Wind)
+            {
+                return clampedLevel switch
+                {
+                    1 => "넉백 0.1, 공속 +10%",
+                    2 => "넉백 0.2, 공속 +20%",
+                    _ => "넉백 0.3, 공속 +30%",
+                };
+            }
+
             switch (coreElement)
             {
                 case WeaponCoreElement.Fire:

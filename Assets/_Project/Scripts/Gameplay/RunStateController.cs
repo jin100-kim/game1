@@ -420,7 +420,7 @@ namespace EJR.Game.Gameplay
 
             _isPauseMenuOpen = true;
             Time.timeScale = 0f;
-            _hud.ShowPauseMenu(ResumeFromPauseMenu, QuitFromPauseMenu);
+            _hud.ShowPauseMenu(ResumeFromPauseMenu, ReturnToLobbyFromPauseMenu);
         }
 
         private void ResumeFromPauseMenu()
@@ -440,16 +440,12 @@ namespace EJR.Game.Gameplay
             UpdateHud();
         }
 
-        private void QuitFromPauseMenu()
+        private void ReturnToLobbyFromPauseMenu()
         {
             _isPauseMenuOpen = false;
             _hud?.HidePauseMenu();
             Time.timeScale = 1f;
-#if UNITY_EDITOR
-            UnityEditor.EditorApplication.isPlaying = false;
-#else
-            Application.Quit();
-#endif
+            SceneManager.LoadScene(0);
         }
 
         private void GrantDebugLevels(int levelsToGrant)

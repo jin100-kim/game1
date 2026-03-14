@@ -744,6 +744,12 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
+            var coop = MultiplayerCoopController.Instance;
+            if (coop != null && coop.Phase != MultiplayerRunPhase.Running)
+            {
+                return;
+            }
+
             EnsureDroneVisualCount();
             if (_droneVisuals.Count <= 0 || _droneOrbitRadius <= 0.0001f)
             {

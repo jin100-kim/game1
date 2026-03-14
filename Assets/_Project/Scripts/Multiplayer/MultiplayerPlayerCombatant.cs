@@ -87,6 +87,8 @@ namespace EJR.Game.Multiplayer
         public bool SelectionComplete => _selectionComplete.Value;
         public bool IsDowned => _isDowned.Value;
         public float ReviveProgress => _reviveProgress.Value;
+        public float CurrentHealth => _currentHealth.Value;
+        public float MaxHealth => _maxHealth.Value;
         public int SelectedCharacterId => _selectedCharacterId.Value;
         public int SelectedStarterWeaponIndex => _selectedStarterWeaponId.Value;
         public string WeaponSummary => _localWeaponSummary;
