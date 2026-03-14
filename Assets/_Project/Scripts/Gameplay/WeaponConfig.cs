@@ -67,7 +67,8 @@ namespace EJR.Game.Gameplay
         [Range(5f, 180f)] public float katanaConeAngle = 80f;
         [Min(0.1f)] public float katanaBaseDamage = 5f;
         [Range(0.05f, 3f)] public float katanaDamageMultiplier = 1f;
-        [Min(0.01f)] public float katanaComboSlashInterval = 0.1f;
+        [Min(1)] public int katanaBaseSlashCount = 3;
+        [Min(0.01f)] public float katanaComboSlashInterval = 0.2f;
 
         [Header("Chain Attack")]
         [Min(1)] public int chainBaseJumps = 3;

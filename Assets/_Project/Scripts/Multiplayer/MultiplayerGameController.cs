@@ -17,9 +17,13 @@ namespace EJR.Game.Multiplayer
     public sealed class MultiplayerGameController : MonoBehaviour
     {
         [SerializeField] private Rect arenaBounds = new Rect(-12f, -7f, 24f, 14f);
+        [SerializeField] private bool enableDebugAutoPlay = true;
+        [SerializeField] private bool startWithAutoPlayEnabled;
+        [SerializeField, Min(0.05f)] private float autoPlayChoiceDelay = 0.2f;
 
         private Font _font;
         private float _nextRefreshAt;
+        private float _nextAutoPlayChoiceAt;
 
         private Canvas _canvas;
         private GameObject _statusPanel;
@@ -49,24 +53,47 @@ namespace EJR.Game.Multiplayer
         private readonly Text[] _choiceButtonTexts = new Text[3];
         private HudController _gameplayHud;
         private string _lastChoiceSignature = string.Empty;
+        private AutoPlayAgent _autoPlayAgent;
+        private bool _autoPlayEnabled;
+        private PlayerMover _boundAutoPlayMover;
+        private string _debugRevealBuffer = string.Empty;
+
+        private const string DebugRevealCode = "admin";
 
         private void Awake()
         {
             _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             Application.runInBackground = true;
+            _autoPlayAgent = new AutoPlayAgent();
             EnsureCamera();
             EnsureEventSystem();
             EnsureArenaVisuals();
             EnsureOverlay();
             _gameplayHud = new HudController();
             _gameplayHud.Initialize();
+            _gameplayHud.ConfigureDebugTools(
+                null,
+                null,
+                null,
+                null,
+                () =>
+                {
+                    SetAutoPlayEnabled(!_autoPlayEnabled);
+                    RefreshUi();
+                });
             _gameplayHud.SetCanvasVisible(false);
+            _gameplayHud.SetDebugAccessVisible(false);
+            SetAutoPlayEnabled(startWithAutoPlayEnabled);
             RefreshUi();
         }
 
         private void Update()
         {
+            CaptureDebugRevealInput();
+            EnsureLocalAutoPlayBinding();
             EnsureLocalCameraFollow();
+
+            var localPlayer = MultiplayerPlayerCombatant.FindOwnedLocalPlayer();
 
             if (IsLeaveKeyPressed())
             {
@@ -74,12 +101,66 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
+            TryHandleAutoPlayChoice(localPlayer);
             HandleChoiceShortcutInput();
 
             if (Time.unscaledTime >= _nextRefreshAt)
             {
                 _nextRefreshAt = Time.unscaledTime + 0.1f;
                 RefreshUi();
+            }
+        }
+
+        private void CaptureDebugRevealInput()
+        {
+            if (_gameplayHud == null)
+            {
+                return;
+            }
+
+            var typed = Input.inputString;
+            if (string.IsNullOrEmpty(typed))
+            {
+                return;
+            }
+
+            for (var i = 0; i < typed.Length; i++)
+            {
+                var character = typed[i];
+                if (character == '\b')
+                {
+                    if (_debugRevealBuffer.Length > 0)
+                    {
+                        _debugRevealBuffer = _debugRevealBuffer.Substring(0, _debugRevealBuffer.Length - 1);
+                    }
+
+                    continue;
+                }
+
+                if (!char.IsLetter(character))
+                {
+                    if (!char.IsWhiteSpace(character))
+                    {
+                        _debugRevealBuffer = string.Empty;
+                    }
+
+                    continue;
+                }
+
+                _debugRevealBuffer += char.ToLowerInvariant(character);
+                if (_debugRevealBuffer.Length > DebugRevealCode.Length)
+                {
+                    _debugRevealBuffer = _debugRevealBuffer.Substring(_debugRevealBuffer.Length - DebugRevealCode.Length);
+                }
+
+                if (!string.Equals(_debugRevealBuffer, DebugRevealCode, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                _gameplayHud.SetDebugAccessVisible(true);
+                _debugRevealBuffer = string.Empty;
+                break;
             }
         }
 
@@ -101,6 +182,15 @@ namespace EJR.Game.Multiplayer
             if (follow == null || follow.Target != localActor.transform)
             {
                 localActor.RefreshOwnerCameraBinding();
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (_boundAutoPlayMover != null)
+            {
+                _boundAutoPlayMover.SetMoveInputReader(null);
+                _boundAutoPlayMover = null;
             }
         }
 
@@ -292,6 +382,7 @@ namespace EJR.Game.Multiplayer
                 $"PLAYERS {allPlayers.Length}/{session.SessionMaxPlayers}\n" +
                 $"ALIVE {aliveCount}\n" +
                 $"YOU {(localPlayer != null ? localPlayer.DisplayName : "CONNECTING")}\n" +
+                $"{(_autoPlayEnabled ? "AUTO PLAY ON\n" : string.Empty)}" +
                 $"{session.CurrentStatus}\n" +
                 "ESC : LEAVE";
         }
@@ -382,6 +473,7 @@ namespace EJR.Game.Multiplayer
             _gameplayHud.SetCanvasVisible(showRun);
             if (!showRun)
             {
+                _gameplayHud.SetModeHint(string.Empty);
                 _gameplayHud.HideBossBar();
                 return;
             }
@@ -398,6 +490,7 @@ namespace EJR.Game.Multiplayer
                 coop.TeamExperience,
                 coop.TeamRequiredExperience,
                 coop.RemainingSeconds);
+            _gameplayHud.SetModeHint(_autoPlayEnabled ? "AUTO PLAY ON" : string.Empty);
             _gameplayHud.SetBuildInfo(localPlayer.WeaponSummary, localPlayer.StatSummary);
             if (coop.BossActive)
             {
@@ -520,6 +613,107 @@ namespace EJR.Game.Multiplayer
                     return;
                 }
             }
+        }
+
+        private void SetAutoPlayEnabled(bool enabled)
+        {
+            _autoPlayEnabled = enabled && enableDebugAutoPlay;
+            if (_boundAutoPlayMover != null)
+            {
+                _boundAutoPlayMover.SetMoveInputReader(_autoPlayEnabled ? ReadAutoPlayMoveInput : null);
+            }
+
+            _nextAutoPlayChoiceAt = Time.unscaledTime + Mathf.Max(0.05f, autoPlayChoiceDelay);
+            _gameplayHud?.SetDebugAutoPlayState(_autoPlayEnabled);
+        }
+
+        private void EnsureLocalAutoPlayBinding()
+        {
+            var localPlayer = MultiplayerPlayerCombatant.FindOwnedLocalPlayer();
+            var localMover = localPlayer != null ? localPlayer.GetComponent<PlayerMover>() : null;
+            if (ReferenceEquals(localMover, _boundAutoPlayMover))
+            {
+                return;
+            }
+
+            if (_boundAutoPlayMover != null)
+            {
+                _boundAutoPlayMover.SetMoveInputReader(null);
+            }
+
+            _boundAutoPlayMover = localMover;
+            if (_boundAutoPlayMover != null && _autoPlayEnabled)
+            {
+                _boundAutoPlayMover.SetMoveInputReader(ReadAutoPlayMoveInput);
+            }
+        }
+
+        private Vector2 ReadAutoPlayMoveInput()
+        {
+            if (!_autoPlayEnabled)
+            {
+                return Vector2.zero;
+            }
+
+            var coop = MultiplayerCoopController.Instance;
+            var localPlayer = MultiplayerPlayerCombatant.FindOwnedLocalPlayer();
+            if (coop == null
+                || localPlayer == null
+                || coop.Phase != MultiplayerRunPhase.Running
+                || localPlayer.IsDowned)
+            {
+                return Vector2.zero;
+            }
+
+            var healthRatio = localPlayer.MaxHealth > 0f
+                ? localPlayer.CurrentHealth / localPlayer.MaxHealth
+                : 1f;
+
+            return _autoPlayAgent != null
+                ? _autoPlayAgent.EvaluateMove(localPlayer.transform.position, coop.ArenaBounds, healthRatio, coop.EnemyRegistry, ResolveNearestSharedOrbPosition)
+                : Vector2.zero;
+        }
+
+        private Vector3? ResolveNearestSharedOrbPosition(Vector3 fromPosition)
+        {
+            var bestDistanceSq = 9f * 9f;
+            Vector3? bestPosition = null;
+            var orbs = FindObjectsByType<MultiplayerSharedExperienceOrbActor>(FindObjectsSortMode.None);
+            for (var i = 0; i < orbs.Length; i++)
+            {
+                var orb = orbs[i];
+                if (orb == null || !orb.IsSpawned)
+                {
+                    continue;
+                }
+
+                var distanceSq = (orb.transform.position - fromPosition).sqrMagnitude;
+                if (distanceSq >= bestDistanceSq)
+                {
+                    continue;
+                }
+
+                bestDistanceSq = distanceSq;
+                bestPosition = orb.transform.position;
+            }
+
+            return bestPosition;
+        }
+
+        private void TryHandleAutoPlayChoice(MultiplayerPlayerCombatant localPlayer)
+        {
+            if (!_autoPlayEnabled || localPlayer == null || !localPlayer.HasLocalPendingChoice)
+            {
+                return;
+            }
+
+            if (Time.unscaledTime < _nextAutoPlayChoiceAt)
+            {
+                return;
+            }
+
+            _nextAutoPlayChoiceAt = Time.unscaledTime + Mathf.Max(0.05f, autoPlayChoiceDelay);
+            localPlayer.SubmitLevelChoice(0);
         }
 
         private GameObject CreatePanel(

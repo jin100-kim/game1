@@ -296,6 +296,7 @@ namespace EJR.Game.Multiplayer
             _isDowned.Value = false;
             _reviveProgress.Value = 0f;
             _serverChoiceSubmitted = false;
+            _weaponSystem?.ClearActiveProjectiles();
             ResetSpecialPresentationClientRpc();
             EnsureWeaponSystem(arenaBounds);
             ApplyBuildToRuntimeSystems();
@@ -323,6 +324,7 @@ namespace EJR.Game.Multiplayer
 
             if (_weaponSystem != null)
             {
+                _weaponSystem.ClearActiveProjectiles();
                 _weaponSystem.enabled = false;
                 _weaponSystem.ConfigureLoadout(_buildRuntime, _playerStats);
             }
@@ -434,6 +436,7 @@ namespace EJR.Game.Multiplayer
             {
                 _weaponSystem.AimUpdated -= HandleServerAimUpdated;
                 _weaponSystem.Fired -= HandleServerWeaponFired;
+                _weaponSystem.ProjectileVisualRequested -= HandleServerProjectileVisualRequested;
                 _weaponSystem.KatanaSlashFxRequested -= HandleServerKatanaSlashFxRequested;
                 _weaponSystem.ChainFxRequested -= HandleServerChainFxRequested;
                 _weaponSystem.AuraPulseFxRequested -= HandleServerAuraPulseFxRequested;
@@ -495,12 +498,12 @@ namespace EJR.Game.Multiplayer
                 transform,
                 coop != null ? coop.EnemyRegistry : null,
                 _playerStats,
-                projectileSpawnResolver: null,
-                projectileSpawnOverride: request => coop != null && coop.SpawnPlayerProjectile(request, OwnerClientId),
+                projectileSpawnResolver: ResolveProjectileSpawnPoint,
                 projectileCullBounds: arenaBounds);
 
             _weaponSystem.AimUpdated -= HandleServerAimUpdated;
             _weaponSystem.Fired -= HandleServerWeaponFired;
+            _weaponSystem.ProjectileVisualRequested -= HandleServerProjectileVisualRequested;
             _weaponSystem.KatanaSlashFxRequested -= HandleServerKatanaSlashFxRequested;
             _weaponSystem.ChainFxRequested -= HandleServerChainFxRequested;
             _weaponSystem.AuraPulseFxRequested -= HandleServerAuraPulseFxRequested;
@@ -510,6 +513,7 @@ namespace EJR.Game.Multiplayer
             _weaponSystem.TurretTracerFxRequested -= HandleServerTurretTracerFxRequested;
             _weaponSystem.AimUpdated += HandleServerAimUpdated;
             _weaponSystem.Fired += HandleServerWeaponFired;
+            _weaponSystem.ProjectileVisualRequested += HandleServerProjectileVisualRequested;
             _weaponSystem.KatanaSlashFxRequested += HandleServerKatanaSlashFxRequested;
             _weaponSystem.ChainFxRequested += HandleServerChainFxRequested;
             _weaponSystem.AuraPulseFxRequested += HandleServerAuraPulseFxRequested;
@@ -517,6 +521,17 @@ namespace EJR.Game.Multiplayer
             _weaponSystem.SatelliteBeamFxRequested += HandleServerSatelliteBeamFxRequested;
             _weaponSystem.TurretDeployed += HandleServerTurretDeployed;
             _weaponSystem.TurretTracerFxRequested += HandleServerTurretTracerFxRequested;
+        }
+
+        private Vector3 ResolveProjectileSpawnPoint(Vector2 aimDirection)
+        {
+            _playerActor ??= GetComponent<MultiplayerPlayerActor>();
+            if (_playerActor != null)
+            {
+                return _playerActor.ResolveProjectileSpawnPoint(aimDirection);
+            }
+
+            return transform.position;
         }
 
         private void ApplyBuildToRuntimeSystems()
@@ -865,14 +880,34 @@ namespace EJR.Game.Multiplayer
             _fireSequence.Value++;
         }
 
-        private void HandleServerKatanaSlashFxRequested(Vector2 origin, Vector2 direction, float range)
+        private void HandleServerProjectileVisualRequested(AutoWeaponSystem.ProjectileSpawnRequest request)
         {
             if (!IsServer)
             {
                 return;
             }
 
-            PlayKatanaSlashFxClientRpc(origin, direction, range);
+            var color = request.Color;
+            PlayProjectileVisualClientRpc(
+                request.SpawnPosition,
+                request.Direction,
+                request.Speed,
+                request.Lifetime,
+                request.VisualScale,
+                color.r,
+                color.g,
+                color.b,
+                color.a);
+        }
+
+        private void HandleServerKatanaSlashFxRequested(Vector2 origin, Vector2 direction, float range, int slashIndex)
+        {
+            if (!IsServer)
+            {
+                return;
+            }
+
+            PlayKatanaSlashFxClientRpc(origin, direction, range, slashIndex);
         }
 
         private void HandleServerChainFxRequested(Vector3[] points)
@@ -1058,7 +1093,16 @@ namespace EJR.Game.Multiplayer
         }
 
         [ClientRpc]
-        private void PlayKatanaSlashFxClientRpc(Vector2 origin, Vector2 direction, float range)
+        private void PlayProjectileVisualClientRpc(
+            Vector3 spawnPosition,
+            Vector2 direction,
+            float speed,
+            float lifetime,
+            float visualScale,
+            float colorR,
+            float colorG,
+            float colorB,
+            float colorA)
         {
             if (IsServer)
             {
@@ -1066,7 +1110,25 @@ namespace EJR.Game.Multiplayer
             }
 
             _playerActor ??= GetComponent<MultiplayerPlayerActor>();
-            _playerActor?.PlayKatanaSlashFx(origin, direction, range);
+            _playerActor?.PlayProjectileVisual(
+                spawnPosition,
+                direction,
+                speed,
+                lifetime,
+                visualScale,
+                new Color(colorR, colorG, colorB, colorA));
+        }
+
+        [ClientRpc]
+        private void PlayKatanaSlashFxClientRpc(Vector2 origin, Vector2 direction, float range, int slashIndex)
+        {
+            if (IsServer)
+            {
+                return;
+            }
+
+            _playerActor ??= GetComponent<MultiplayerPlayerActor>();
+            _playerActor?.PlayKatanaSlashFx(origin, direction, range, slashIndex);
         }
 
         [ClientRpc]

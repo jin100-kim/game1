@@ -154,7 +154,6 @@ namespace EJR.Game.Gameplay
         private readonly Dictionary<WeaponUpgradeId, WeaponCoreElement> _coreElementByWeapon = new();
         private readonly Dictionary<WeaponUpgradeId, int> _coreLevelByWeapon = new();
         private Transform _projectilePoolRoot;
-        private static Material _sharedFxMaterial;
         private static readonly float[] CommonWeaponAttackSpeedBonusByLevel = { 0f, 0f, 0.15f, 0.15f, 0.15f, 0.15f, 0.30f, 0.30f, 0.30f, 0.30f };
         private static readonly float[] CommonWeaponRangeByLevel = { 1f, 1f, 1f, 1.15f, 1.15f, 1.15f, 1.15f, 1.3f, 1.3f, 1.3f };
         private static readonly float[] AuraRangeByLevel = { 1f, 1f, 1f, 1.15f, 1.3f, 1.3f, 1.3f, 1.45f, 1.45f, 1.6f };
@@ -174,7 +173,8 @@ namespace EJR.Game.Gameplay
 
         public event Action<Vector2> AimUpdated;
         public event Action<Vector2> Fired;
-        public event Action<Vector2, Vector2, float> KatanaSlashFxRequested;
+        public event Action<ProjectileSpawnRequest> ProjectileVisualRequested;
+        public event Action<Vector2, Vector2, float, int> KatanaSlashFxRequested;
         public event Action<Vector3[]> ChainFxRequested;
         public event Action<Vector3, float> AuraPulseFxRequested;
         public event Action<Vector3, float> SatelliteHitFxRequested;
@@ -387,22 +387,6 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            if (weapon.Cooldown > 0f)
-            {
-                return;
-            }
-
-            if (weapon.WeaponId == WeaponUpgradeId.SatelliteBeam)
-            {
-                if (FireLightning(weapon, out var satelliteBeamDirection))
-                {
-                    weapon.Cooldown = GetLightningInterval(weapon);
-                    SetAimDirection(satelliteBeamDirection);
-                }
-
-                return;
-            }
-
             if (weapon.WeaponId == WeaponUpgradeId.Katana && weapon.BurstShotsRemaining > 0)
             {
                 weapon.BurstShotCooldown -= Time.deltaTime;
@@ -420,6 +404,22 @@ namespace EJR.Game.Gameplay
                         weapon.BurstTotalShots = 0;
                         weapon.Cooldown = GetAttackInterval(weapon);
                     }
+                }
+
+                return;
+            }
+
+            if (weapon.Cooldown > 0f)
+            {
+                return;
+            }
+
+            if (weapon.WeaponId == WeaponUpgradeId.SatelliteBeam)
+            {
+                if (FireLightning(weapon, out var satelliteBeamDirection))
+                {
+                    weapon.Cooldown = GetLightningInterval(weapon);
+                    SetAimDirection(satelliteBeamDirection);
                 }
 
                 return;
@@ -445,7 +445,6 @@ namespace EJR.Game.Gameplay
                     break;
                 case WeaponUpgradeId.Katana:
                     FireKatana(weapon, fireDirection);
-                    weapon.Cooldown = GetAttackInterval(weapon);
                     break;
                 case WeaponUpgradeId.ChainAttack:
                     FireChainAttack(weapon, fireDirection);
@@ -632,7 +631,8 @@ namespace EJR.Game.Gameplay
 
         private void FireKatana(WeaponRuntime weapon, Vector2 direction)
         {
-            var totalSlashes = Mathf.Max(1, 1 + GetWeaponExtraCount(weapon));
+            var baseSlashCount = _config != null ? Mathf.Max(1, _config.katanaBaseSlashCount) : 3;
+            var totalSlashes = Mathf.Max(1, baseSlashCount + GetWeaponExtraCount(weapon));
             weapon.BurstDirection = direction.sqrMagnitude > 0.000001f
                 ? direction.normalized
                 : _lastAimDirection;
@@ -674,8 +674,8 @@ namespace EJR.Game.Gameplay
             var slashDirection = RotateDirection(direction, angleOffset);
             var searchRadius = range + _registry.GetMaxCollisionRadius();
 
-            SpawnKatanaSlashSpriteFx(origin, slashDirection, range);
-            KatanaSlashFxRequested?.Invoke(origin, slashDirection, range);
+            SpawnKatanaSlashSpriteFx(origin, slashDirection, range, slashIndex);
+            KatanaSlashFxRequested?.Invoke(origin, slashDirection, range, slashIndex);
             Fired?.Invoke(slashDirection);
 
             _registry.GetNearby(origin, searchRadius, _nearbyEnemies);
@@ -1054,8 +1054,8 @@ namespace EJR.Game.Gameplay
             rangeFxObject.transform.localPosition = new Vector3(0f, 0f, -0.02f);
 
             var rangeRenderer = rangeFxObject.AddComponent<LineRenderer>();
-            ConfigureLineRenderer(rangeRenderer, turretRangeFxColor, 0.03f, true, false);
-            SetCircleLinePositions(rangeRenderer, Vector2.zero, turretRange, ringFxSegments, 0f);
+            WeaponFxRenderer.ConfigureLineRenderer(rangeRenderer, turretRangeFxColor, 0.03f, true, false);
+            WeaponFxRenderer.SetCircleLinePositions(rangeRenderer, Vector3.zero, turretRange, ringFxSegments, 0f);
 
             _rifleTurrets.Add(new RifleTurretRuntime
             {
@@ -1399,7 +1399,7 @@ namespace EJR.Game.Gameplay
             fxObject.transform.SetParent(transform, false);
 
             var lineRenderer = fxObject.AddComponent<LineRenderer>();
-            ConfigureLineRenderer(lineRenderer, katanaRangeEffectColor, katanaRangeEffectWidth, false, true);
+            WeaponFxRenderer.ConfigureLineRenderer(lineRenderer, katanaRangeEffectColor, katanaRangeEffectWidth, false, true);
 
             var totalPoints = segments + 3;
             lineRenderer.positionCount = totalPoints;
@@ -1418,35 +1418,19 @@ namespace EJR.Game.Gameplay
             Destroy(fxObject, Mathf.Max(0.02f, katanaRangeEffectDuration));
         }
 
-        private void SpawnKatanaSlashSpriteFx(Vector2 origin, Vector2 direction, float range)
+        private void SpawnKatanaSlashSpriteFx(Vector2 origin, Vector2 direction, float range, int slashIndex)
         {
-            var frames = RuntimeSpriteFactory.GetSexySwordAttackAnimationFrames();
-            if (frames == null || frames.Length <= 0)
-            {
-                return;
-            }
-
-            var normalizedDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : Vector2.right;
-            var fxObject = new GameObject("KatanaSlashFx");
-            fxObject.transform.SetParent(transform, false);
-
-            var forward = Mathf.Max(0.05f, katanaSlashFxForwardOffset);
-            var forwardAxis = normalizedDirection;
-            var leftAxis = new Vector2(-normalizedDirection.y, normalizedDirection.x);
-            var worldOffset = (forwardAxis * katanaSlashFxLocalOffset.x) + (leftAxis * katanaSlashFxLocalOffset.y);
-            var fxPosition = origin + (normalizedDirection * forward) + worldOffset;
-            fxObject.transform.position = new Vector3(fxPosition.x, fxPosition.y, -0.02f);
-            fxObject.transform.rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(normalizedDirection.y, normalizedDirection.x) * Mathf.Rad2Deg);
-            var scale = Mathf.Max(0.05f, katanaSlashFxScale) * Mathf.Max(0.8f, range * 0.4f);
-            fxObject.transform.localScale = Vector3.one * scale;
-
-            var renderer = fxObject.AddComponent<SpriteRenderer>();
-            renderer.sprite = frames[0];
-            renderer.color = Color.white;
-            renderer.sortingOrder = 510;
-
-            var animator = fxObject.AddComponent<SpriteFxAnimator>();
-            animator.Initialize(renderer, frames, katanaSlashFxFps, loop: false, destroyOnComplete: true);
+            WeaponFxRenderer.SpawnKatanaSlashFx(
+                transform,
+                origin,
+                direction,
+                range,
+                slashIndex,
+                katanaSlashFxForwardOffset,
+                katanaSlashFxLocalOffset,
+                katanaSlashFxScale,
+                katanaSlashFxFps,
+                510);
         }
 
         private static Vector3 ResolveTargetCenter(EnemyController target)
@@ -1468,36 +1452,14 @@ namespace EJR.Game.Gameplay
 
         private void SpawnSatelliteBeamSpriteFx(Vector3 targetCenter)
         {
-            var frames = RuntimeSpriteFactory.GetSexySatelliteBeamAnimationFrames();
-            if (frames == null || frames.Length <= 0)
-            {
-                return;
-            }
-
-            var frame = frames[0];
-            var ppu = Mathf.Max(0.0001f, frame.pixelsPerUnit);
-            var scale = Mathf.Max(0.05f, satelliteBeamVisualScale);
-            var halfHeight = (frame.rect.height / ppu) * 0.5f * scale;
-            var yOffset = halfHeight + satelliteBeamVisualYOffset;
-
-            var fxObject = new GameObject("SatelliteBeamFx");
-            fxObject.transform.SetParent(transform, false);
-            fxObject.transform.position = new Vector3(targetCenter.x, targetCenter.y + yOffset, -0.02f);
-            fxObject.transform.localScale = Vector3.one * scale;
-
-            var renderer = fxObject.AddComponent<SpriteRenderer>();
-            renderer.sprite = frames[0];
-            renderer.color = Color.white;
-            renderer.sortingOrder = 510;
-
-            if (frames.Length > 1)
-            {
-                var animator = fxObject.AddComponent<SpriteFxAnimator>();
-                animator.Initialize(renderer, frames, satelliteBeamVisualFps, loop: false, destroyOnComplete: true);
-                return;
-            }
-
-            Destroy(fxObject, Mathf.Max(0.02f, lightningFxDuration));
+            WeaponFxRenderer.SpawnSatelliteBeamFx(
+                transform,
+                targetCenter,
+                satelliteBeamVisualScale,
+                satelliteBeamVisualYOffset,
+                satelliteBeamVisualFps,
+                lightningFxDuration,
+                510);
         }
 
         private void SpawnTracerFx(Vector3 from, Vector3 to)
@@ -1508,103 +1470,27 @@ namespace EJR.Game.Gameplay
 
         private void SpawnLineFx(Vector3 from, Vector3 to, Color color, float width, float duration, string name)
         {
-            _fxPoints.Clear();
-            _fxPoints.Add(new Vector3(from.x, from.y, -0.02f));
-            _fxPoints.Add(new Vector3(to.x, to.y, -0.02f));
-            SpawnPolylineFx(_fxPoints, color, width, duration, false, name);
+            WeaponFxRenderer.SpawnLineFx(transform, from, to, color, width, duration, name);
         }
 
         private void SpawnRingFx(Vector2 center, float radius, Color color, float width, float duration, string name)
         {
-            var fxObject = new GameObject(name);
-            fxObject.transform.SetParent(transform, false);
-            var lineRenderer = fxObject.AddComponent<LineRenderer>();
-            ConfigureLineRenderer(lineRenderer, color, width, true, true);
-            SetCircleLinePositions(lineRenderer, center, radius, ringFxSegments, -0.02f);
-            Destroy(fxObject, Mathf.Max(0.02f, duration));
+            WeaponFxRenderer.SpawnRingFx(transform, center, radius, ringFxSegments, color, width, duration, name);
         }
 
         private void SpawnPolylineFx(List<Vector3> points, Color color, float width, float duration, bool loop, string name)
         {
-            if (points == null || points.Count <= 1)
-            {
-                return;
-            }
-
-            var fxObject = new GameObject(name);
-            fxObject.transform.SetParent(transform, false);
-            var lineRenderer = fxObject.AddComponent<LineRenderer>();
-            ConfigureLineRenderer(lineRenderer, color, width, loop, true);
-            lineRenderer.positionCount = points.Count;
-            for (var i = 0; i < points.Count; i++)
-            {
-                var p = points[i];
-                lineRenderer.SetPosition(i, new Vector3(p.x, p.y, -0.02f));
-            }
-
-            Destroy(fxObject, Mathf.Max(0.02f, duration));
+            WeaponFxRenderer.SpawnPolylineFx(transform, points, color, width, duration, loop, name);
         }
 
         private void ConfigureLineRenderer(LineRenderer lineRenderer, Color color, float width, bool loop, bool useWorldSpace)
         {
-            if (lineRenderer == null)
-            {
-                return;
-            }
-
-            lineRenderer.useWorldSpace = useWorldSpace;
-            lineRenderer.loop = loop;
-            lineRenderer.numCapVertices = 2;
-            lineRenderer.numCornerVertices = 2;
-            lineRenderer.alignment = LineAlignment.View;
-            lineRenderer.startWidth = Mathf.Max(0.001f, width);
-            lineRenderer.endWidth = Mathf.Max(0.001f, width);
-            lineRenderer.startColor = color;
-            lineRenderer.endColor = color;
-            lineRenderer.sortingOrder = 500;
-            lineRenderer.sharedMaterial = GetOrCreateSharedFxMaterial();
+            WeaponFxRenderer.ConfigureLineRenderer(lineRenderer, color, width, loop, useWorldSpace);
         }
 
         private void SetCircleLinePositions(LineRenderer lineRenderer, Vector2 center, float radius, int segments, float z)
         {
-            if (lineRenderer == null)
-            {
-                return;
-            }
-
-            var clampedRadius = Mathf.Max(0.01f, radius);
-            var clampedSegments = Mathf.Clamp(segments, 8, 96);
-            lineRenderer.positionCount = clampedSegments;
-
-            for (var i = 0; i < clampedSegments; i++)
-            {
-                var t = i / (float)clampedSegments;
-                var angle = t * Mathf.PI * 2f;
-                var p = center + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * clampedRadius;
-                lineRenderer.SetPosition(i, new Vector3(p.x, p.y, z));
-            }
-        }
-
-        private static Material GetOrCreateSharedFxMaterial()
-        {
-            if (_sharedFxMaterial != null)
-            {
-                return _sharedFxMaterial;
-            }
-
-            var shader = Shader.Find("Sprites/Default");
-            if (shader == null)
-            {
-                shader = Shader.Find("Unlit/Color");
-            }
-
-            _sharedFxMaterial = new Material(shader)
-            {
-                name = "WeaponFxMat",
-                hideFlags = HideFlags.HideAndDontSave,
-            };
-
-            return _sharedFxMaterial;
+            WeaponFxRenderer.SetCircleLinePositions(lineRenderer, center, radius, segments, z);
         }
 
         private void SpawnProjectile(
@@ -1646,6 +1532,7 @@ namespace EJR.Game.Gameplay
 
             if (_projectileSpawnOverride != null && _projectileSpawnOverride.Invoke(spawnRequest))
             {
+                ProjectileVisualRequested?.Invoke(spawnRequest);
                 Fired?.Invoke(normalizedDirection);
                 return;
             }
@@ -1680,7 +1567,28 @@ namespace EJR.Game.Gameplay
                 _useProjectileBoundsCulling,
                 _projectileCullBounds);
 
+            ProjectileVisualRequested?.Invoke(spawnRequest);
             Fired?.Invoke(normalizedDirection);
+        }
+
+        public void ClearActiveProjectiles()
+        {
+            if (_projectilePoolRoot == null)
+            {
+                return;
+            }
+
+            var activeProjectiles = _projectilePoolRoot.GetComponentsInChildren<Projectile>(includeInactive: false);
+            for (var i = 0; i < activeProjectiles.Length; i++)
+            {
+                var projectile = activeProjectiles[i];
+                if (projectile == null || !projectile.gameObject.activeSelf)
+                {
+                    continue;
+                }
+
+                ReturnProjectileToPool(projectile);
+            }
         }
 
         private float GetAttackInterval(WeaponRuntime weapon)

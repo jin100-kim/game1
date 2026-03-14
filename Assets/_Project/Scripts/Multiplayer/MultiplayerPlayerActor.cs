@@ -57,6 +57,7 @@ namespace EJR.Game.Multiplayer
         private const string DroneVisualRootObjectName = "DroneVisuals";
         private const string SpecialFxRootObjectName = "SpecialFx";
         private const string ReviveVisualRootObjectName = "ReviveVisuals";
+        private const string ProjectileVisualPoolRootObjectName = "ProjectileVisualPool";
         private const float WeaponAimFlipEpsilon = 0.01f;
 
         private readonly NetworkVariable<Vector2> _networkVelocity =
@@ -88,11 +89,13 @@ namespace EJR.Game.Multiplayer
         private Transform _specialFxRoot;
         private Transform _droneVisualRoot;
         private Transform _reviveVisualRoot;
+        private Transform _projectileVisualPoolRoot;
         private LineRenderer _reviveRadiusRenderer;
         private SpriteRenderer _reviveBarBackgroundRenderer;
         private SpriteRenderer _reviveBarFillRenderer;
         private readonly List<Transform> _droneVisuals = new(4);
         private readonly List<LocalTurretVisual> _localTurrets = new(4);
+        private readonly Queue<Projectile> _projectileVisualPool = new();
         private Vector2 _weaponAimDirection = Vector2.right;
         private float _droneOrbitRadius;
         private float _droneOrbitSpeedDegrees;
@@ -104,7 +107,6 @@ namespace EJR.Game.Multiplayer
         private Vector3 _lastPosition;
         private bool _weaponDrawBehind;
         private bool _initialized;
-        private static Material _sharedFxMaterial;
 
         public SpriteRenderer VisualRenderer
         {
@@ -161,6 +163,7 @@ namespace EJR.Game.Multiplayer
             ClearDroneVisuals();
             ClearLocalTurrets();
             ClearTransientFxObjects();
+            DestroyProjectileVisualPool();
 
             if (!IsOwner)
             {
@@ -247,6 +250,32 @@ namespace EJR.Game.Multiplayer
             ApplyWeaponAim(_weaponAimDirection, fromFireEvent: true);
         }
 
+        public Vector3 ResolveProjectileSpawnPoint(Vector2 aimDirection)
+        {
+            InitializeRuntime();
+
+            var normalizedDirection = NormalizeDirection(aimDirection, _weaponAimDirection);
+            var flipX = ResolveWeaponFlipX(normalizedDirection);
+            var rotationDegrees = CalculateWeaponRotationDegrees(normalizedDirection, flipX);
+            var localPosition = CalculateWeaponLocalPosition(normalizedDirection, flipX, rotationDegrees);
+
+            if (_weaponVisualTransform != null)
+            {
+                _weaponVisualTransform.localPosition = new Vector3(localPosition.x, localPosition.y, 0f);
+                _weaponVisualTransform.localRotation = Quaternion.Euler(0f, 0f, rotationDegrees);
+            }
+
+            if (_weaponVisualRenderer != null && _weaponVisualRenderer.sprite != null)
+            {
+                return WeaponVisualLayoutUtility.ResolveProjectileSpawnWorld(
+                    _weaponVisualTransform,
+                    _weaponVisualRenderer,
+                    flipX);
+            }
+
+            return _cachedTransform.TransformPoint(new Vector3(localPosition.x, localPosition.y, 0f));
+        }
+
         public void SetDroneOrbitVisualState(int count, float orbitRadius, float orbitSpeedDegrees)
         {
             if (IsServer)
@@ -274,6 +303,7 @@ namespace EJR.Game.Multiplayer
             ClearDroneVisuals();
             ClearLocalTurrets();
             ClearTransientFxObjects();
+            DestroyProjectileVisualPool();
         }
 
         public void SetReviveVisualState(bool isDowned, float progress, float requiredRadius)
@@ -285,7 +315,57 @@ namespace EJR.Game.Multiplayer
             UpdateReviveVisuals();
         }
 
-        public void PlayKatanaSlashFx(Vector2 origin, Vector2 direction, float range)
+        public void PlayProjectileVisual(
+            Vector3 spawnPosition,
+            Vector2 direction,
+            float speed,
+            float lifetime,
+            float visualScale,
+            Color color)
+        {
+            InitializeRuntime();
+            EnsureProjectileVisualPool();
+
+            var projectile = GetPooledProjectileVisual();
+            if (projectile == null)
+            {
+                return;
+            }
+
+            var projectileTransform = projectile.transform;
+            projectileTransform.SetPositionAndRotation(spawnPosition, Quaternion.identity);
+            projectileTransform.localScale = Vector3.one * Mathf.Max(0.05f, visualScale);
+
+            var renderer = projectile.GetComponent<SpriteRenderer>();
+            if (renderer != null)
+            {
+                renderer.enabled = true;
+                renderer.sprite = RuntimeSpriteFactory.GetSquareSprite();
+                renderer.color = color;
+                renderer.sortingLayerID = _spriteRenderer != null ? _spriteRenderer.sortingLayerID : renderer.sortingLayerID;
+                renderer.sortingOrder = 22;
+            }
+
+            var normalizedDirection = NormalizeDirection(direction, Vector2.right);
+            projectile.Initialize(
+                null,
+                new Vector3(normalizedDirection.x, normalizedDirection.y, 0f),
+                Mathf.Max(0.1f, speed),
+                0f,
+                Mathf.Max(0.05f, lifetime),
+                0.05f,
+                1,
+                0f,
+                1f,
+                WeaponUpgradeId.Rifle,
+                WeaponCoreElement.None,
+                0,
+                ReturnProjectileVisualToPool,
+                useBoundsCulling: true,
+                bounds: arenaBounds);
+        }
+
+        public void PlayKatanaSlashFx(Vector2 origin, Vector2 direction, float range, int slashIndex)
         {
             if (IsServer)
             {
@@ -294,32 +374,17 @@ namespace EJR.Game.Multiplayer
 
             EnsureSpecialFxRoot();
 
-            var frames = RuntimeSpriteFactory.GetSexySwordAttackAnimationFrames();
-            if (frames == null || frames.Length <= 0)
-            {
-                return;
-            }
-
-            var normalizedDirection = NormalizeDirection(direction, Vector2.right);
-            var fxObject = new GameObject("KatanaSlashFx");
-            fxObject.transform.SetParent(_specialFxRoot, false);
-
-            var forward = Mathf.Max(0.05f, katanaSlashFxForwardOffset);
-            var leftAxis = new Vector2(-normalizedDirection.y, normalizedDirection.x);
-            var worldOffset = (normalizedDirection * katanaSlashFxLocalOffset.x) + (leftAxis * katanaSlashFxLocalOffset.y);
-            var fxPosition = origin + (normalizedDirection * forward) + worldOffset;
-            fxObject.transform.position = new Vector3(fxPosition.x, fxPosition.y, -0.02f);
-            fxObject.transform.rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(normalizedDirection.y, normalizedDirection.x) * Mathf.Rad2Deg);
-            var scale = Mathf.Max(0.05f, katanaSlashFxScale) * Mathf.Max(0.8f, range * 0.4f);
-            fxObject.transform.localScale = Vector3.one * scale;
-
-            var renderer = fxObject.AddComponent<SpriteRenderer>();
-            renderer.sprite = frames[0];
-            renderer.color = Color.white;
-            renderer.sortingOrder = 35;
-
-            var animator = fxObject.AddComponent<SpriteFxAnimator>();
-            animator.Initialize(renderer, frames, katanaSlashFxFps, loop: false, destroyOnComplete: true);
+            WeaponFxRenderer.SpawnKatanaSlashFx(
+                _specialFxRoot,
+                origin,
+                NormalizeDirection(direction, Vector2.right),
+                range,
+                slashIndex,
+                katanaSlashFxForwardOffset,
+                katanaSlashFxLocalOffset,
+                katanaSlashFxScale,
+                katanaSlashFxFps,
+                35);
         }
 
         public void PlayChainFx(Vector3[] points)
@@ -361,30 +426,14 @@ namespace EJR.Game.Multiplayer
 
             EnsureSpecialFxRoot();
 
-            var frames = RuntimeSpriteFactory.GetSexySatelliteBeamAnimationFrames();
-            if (frames == null || frames.Length <= 0)
-            {
-                return;
-            }
-
-            var frame = frames[0];
-            var ppu = Mathf.Max(0.0001f, frame.pixelsPerUnit);
-            var scale = Mathf.Max(0.05f, satelliteBeamVisualScale);
-            var halfHeight = (frame.rect.height / ppu) * 0.5f * scale;
-            var yOffset = halfHeight + satelliteBeamVisualYOffset;
-
-            var fxObject = new GameObject("SatelliteBeamFx");
-            fxObject.transform.SetParent(_specialFxRoot, false);
-            fxObject.transform.position = new Vector3(targetCenter.x, targetCenter.y + yOffset, -0.02f);
-            fxObject.transform.localScale = Vector3.one * scale;
-
-            var renderer = fxObject.AddComponent<SpriteRenderer>();
-            renderer.sprite = frame;
-            renderer.color = Color.white;
-            renderer.sortingOrder = 36;
-
-            var animator = fxObject.AddComponent<SpriteFxAnimator>();
-            animator.Initialize(renderer, frames, satelliteBeamVisualFps, loop: false, destroyOnComplete: true);
+            WeaponFxRenderer.SpawnSatelliteBeamFx(
+                _specialFxRoot,
+                targetCenter,
+                satelliteBeamVisualScale,
+                satelliteBeamVisualYOffset,
+                satelliteBeamVisualFps,
+                0.1f,
+                36);
         }
 
         public void SpawnTurretVisual(Vector3 position, float turretRange, float lifetime)
@@ -416,8 +465,8 @@ namespace EJR.Game.Multiplayer
             rangeFxObject.transform.SetParent(turretObject.transform, false);
             rangeFxObject.transform.localPosition = new Vector3(0f, 0f, -0.02f);
             var rangeRenderer = rangeFxObject.AddComponent<LineRenderer>();
-            ConfigureLineRenderer(rangeRenderer, turretRangeFxColor, 0.03f, loop: true, useWorldSpace: false);
-            SetCircleLinePositions(rangeRenderer, Vector2.zero, turretRange, ringFxSegments, 0f);
+            WeaponFxRenderer.ConfigureLineRenderer(rangeRenderer, turretRangeFxColor, 0.03f, loop: true, useWorldSpace: false);
+            WeaponFxRenderer.SetCircleLinePositions(rangeRenderer, Vector3.zero, turretRange, ringFxSegments, 0f);
 
             _localTurrets.Add(new LocalTurretVisual
             {
@@ -686,6 +735,18 @@ namespace EJR.Game.Multiplayer
             }
         }
 
+        private void EnsureProjectileVisualPool()
+        {
+            if (_projectileVisualPoolRoot != null)
+            {
+                return;
+            }
+
+            var root = new GameObject(ProjectileVisualPoolRootObjectName);
+            root.transform.SetParent(null, false);
+            _projectileVisualPoolRoot = root.transform;
+        }
+
         private void EnsureDroneVisualCount()
         {
             EnsureDroneVisualRoot();
@@ -816,6 +877,80 @@ namespace EJR.Game.Multiplayer
             }
         }
 
+        private Projectile GetPooledProjectileVisual()
+        {
+            while (_projectileVisualPool.Count > 0)
+            {
+                var pooled = _projectileVisualPool.Dequeue();
+                if (pooled != null)
+                {
+                    pooled.gameObject.SetActive(true);
+                    return pooled;
+                }
+            }
+
+            var created = CreateProjectileVisualInstance();
+            if (created != null)
+            {
+                created.gameObject.SetActive(true);
+            }
+
+            return created;
+        }
+
+        private Projectile CreateProjectileVisualInstance()
+        {
+            EnsureProjectileVisualPool();
+            if (_projectileVisualPoolRoot == null)
+            {
+                return null;
+            }
+
+            var projectileObject = new GameObject("ProjectileVisual");
+            projectileObject.transform.SetParent(_projectileVisualPoolRoot, false);
+
+            var renderer = projectileObject.AddComponent<SpriteRenderer>();
+            renderer.sprite = RuntimeSpriteFactory.GetSquareSprite();
+            renderer.color = new Color(1f, 0.95f, 0.35f);
+            renderer.sortingOrder = 22;
+
+            var projectile = projectileObject.AddComponent<Projectile>();
+            projectileObject.SetActive(false);
+            return projectile;
+        }
+
+        private void ReturnProjectileVisualToPool(Projectile projectile)
+        {
+            if (projectile == null)
+            {
+                return;
+            }
+
+            EnsureProjectileVisualPool();
+            if (_projectileVisualPoolRoot == null)
+            {
+                Destroy(projectile.gameObject);
+                return;
+            }
+
+            var projectileObject = projectile.gameObject;
+            projectileObject.SetActive(false);
+            projectileObject.transform.SetParent(_projectileVisualPoolRoot, false);
+            _projectileVisualPool.Enqueue(projectile);
+        }
+
+        private void DestroyProjectileVisualPool()
+        {
+            _projectileVisualPool.Clear();
+            if (_projectileVisualPoolRoot == null)
+            {
+                return;
+            }
+
+            Destroy(_projectileVisualPoolRoot.gameObject);
+            _projectileVisualPoolRoot = null;
+        }
+
         private void UpdateReviveVisuals()
         {
             EnsureReviveVisualRoot();
@@ -834,9 +969,9 @@ namespace EJR.Game.Multiplayer
 
             if (_reviveRadiusRenderer != null)
             {
-                ConfigureLineRenderer(_reviveRadiusRenderer, reviveRadiusColor, reviveRadiusLineWidth, loop: true, useWorldSpace: false);
+            WeaponFxRenderer.ConfigureLineRenderer(_reviveRadiusRenderer, reviveRadiusColor, reviveRadiusLineWidth, loop: true, useWorldSpace: false);
                 _reviveRadiusRenderer.sortingOrder = 26;
-                SetCircleLinePositions(_reviveRadiusRenderer, Vector3.zero, _reviveRadius, ringFxSegments, -0.02f);
+            WeaponFxRenderer.SetCircleLinePositions(_reviveRadiusRenderer, Vector3.zero, _reviveRadius, ringFxSegments, -0.02f);
                 _reviveRadiusRenderer.enabled = true;
             }
 
@@ -982,106 +1117,30 @@ namespace EJR.Game.Multiplayer
 
         private void SpawnLineFx(Vector3 from, Vector3 to, Color color, float width, float duration, string name)
         {
-            var points = new[] { from, to };
-            SpawnPolylineFx(points, color, width, duration, loop: false, name);
+            EnsureSpecialFxRoot();
+            WeaponFxRenderer.SpawnLineFx(_specialFxRoot, from, to, color, width, duration, name);
         }
 
         private void SpawnRingFx(Vector3 center, float radius, Color color, float width, float duration, string name)
         {
             EnsureSpecialFxRoot();
-            var fxObject = new GameObject(name);
-            fxObject.transform.SetParent(_specialFxRoot, false);
-            var lineRenderer = fxObject.AddComponent<LineRenderer>();
-            ConfigureLineRenderer(lineRenderer, color, width, loop: true, useWorldSpace: true);
-            SetCircleLinePositions(lineRenderer, center, radius, ringFxSegments, -0.02f);
-            Destroy(fxObject, Mathf.Max(0.02f, duration));
+            WeaponFxRenderer.SpawnRingFx(_specialFxRoot, center, radius, ringFxSegments, color, width, duration, name);
         }
 
         private void SpawnPolylineFx(IReadOnlyList<Vector3> points, Color color, float width, float duration, bool loop, string name)
         {
-            if (points == null || points.Count <= 1)
-            {
-                return;
-            }
-
             EnsureSpecialFxRoot();
-            var fxObject = new GameObject(name);
-            fxObject.transform.SetParent(_specialFxRoot, false);
-            var lineRenderer = fxObject.AddComponent<LineRenderer>();
-            ConfigureLineRenderer(lineRenderer, color, width, loop, useWorldSpace: true);
-            lineRenderer.positionCount = points.Count;
-            for (var i = 0; i < points.Count; i++)
-            {
-                var point = points[i];
-                lineRenderer.SetPosition(i, new Vector3(point.x, point.y, -0.02f));
-            }
-
-            Destroy(fxObject, Mathf.Max(0.02f, duration));
+            WeaponFxRenderer.SpawnPolylineFx(_specialFxRoot, points, color, width, duration, loop, name);
         }
 
         private void ConfigureLineRenderer(LineRenderer lineRenderer, Color color, float width, bool loop, bool useWorldSpace)
         {
-            if (lineRenderer == null)
-            {
-                return;
-            }
-
-            lineRenderer.useWorldSpace = useWorldSpace;
-            lineRenderer.loop = loop;
-            lineRenderer.numCapVertices = 2;
-            lineRenderer.numCornerVertices = 2;
-            lineRenderer.alignment = LineAlignment.View;
-            lineRenderer.startWidth = Mathf.Max(0.001f, width);
-            lineRenderer.endWidth = Mathf.Max(0.001f, width);
-            lineRenderer.startColor = color;
-            lineRenderer.endColor = color;
-            lineRenderer.sortingOrder = 500;
-            lineRenderer.sharedMaterial = GetOrCreateSharedFxMaterial();
+            WeaponFxRenderer.ConfigureLineRenderer(lineRenderer, color, width, loop, useWorldSpace);
         }
 
         private static void SetCircleLinePositions(LineRenderer lineRenderer, Vector3 center, float radius, int segments, float z)
         {
-            if (lineRenderer == null)
-            {
-                return;
-            }
-
-            var clampedRadius = Mathf.Max(0.01f, radius);
-            var clampedSegments = Mathf.Clamp(segments, 8, 96);
-            lineRenderer.positionCount = clampedSegments;
-
-            for (var i = 0; i < clampedSegments; i++)
-            {
-                var t = i / (float)clampedSegments;
-                var angle = t * Mathf.PI * 2f;
-                var point = new Vector3(
-                    center.x + (Mathf.Cos(angle) * clampedRadius),
-                    center.y + (Mathf.Sin(angle) * clampedRadius),
-                    z);
-                lineRenderer.SetPosition(i, point);
-            }
-        }
-
-        private static Material GetOrCreateSharedFxMaterial()
-        {
-            if (_sharedFxMaterial != null)
-            {
-                return _sharedFxMaterial;
-            }
-
-            var shader = Shader.Find("Sprites/Default");
-            if (shader == null)
-            {
-                shader = Shader.Find("Unlit/Color");
-            }
-
-            _sharedFxMaterial = new Material(shader)
-            {
-                name = "MultiplayerWeaponFxMat",
-                hideFlags = HideFlags.HideAndDontSave,
-            };
-
-            return _sharedFxMaterial;
+            WeaponFxRenderer.SetCircleLinePositions(lineRenderer, center, radius, segments, z);
         }
 
         private static Vector3 GetSpriteCenterAlignOffset(Sprite sprite, float uniformScale)
@@ -1137,13 +1196,15 @@ namespace EJR.Game.Multiplayer
         {
             var weaponOffset = _playerConfig.weaponVisualOffset;
             var aimDistance = Mathf.Max(0.05f, _playerConfig.weaponAimDistance);
-            if (flipX)
-            {
-                weaponOffset.x = -weaponOffset.x;
-            }
-
-            var rotatedOffset = RotateOffsetByDegrees(weaponOffset, rotationDegrees);
-            return ResolveWeaponOrbitCenterLocal() + normalizedDirection * aimDistance + rotatedOffset;
+            var sprite = _weaponVisualRenderer != null ? _weaponVisualRenderer.sprite : null;
+            return WeaponVisualLayoutUtility.CalculateWeaponLocalPosition(
+                ResolveWeaponOrbitCenterLocal(),
+                normalizedDirection,
+                aimDistance,
+                weaponOffset,
+                flipX,
+                rotationDegrees,
+                sprite);
         }
 
         private Vector2 ResolveWeaponOrbitCenterLocal()
@@ -1205,16 +1266,6 @@ namespace EJR.Game.Multiplayer
             var offset = _weaponDrawBehind ? weaponBackSortingOffset : weaponFrontSortingOffset;
             _weaponVisualRenderer.sortingLayerID = _spriteRenderer.sortingLayerID;
             _weaponVisualRenderer.sortingOrder = _spriteRenderer.sortingOrder + offset;
-        }
-
-        private static Vector2 RotateOffsetByDegrees(Vector2 offset, float degrees)
-        {
-            var radians = degrees * Mathf.Deg2Rad;
-            var cosine = Mathf.Cos(radians);
-            var sine = Mathf.Sin(radians);
-            return new Vector2(
-                offset.x * cosine - offset.y * sine,
-                offset.x * sine + offset.y * cosine);
         }
 
         private static Vector2 NormalizeDirection(Vector2 direction, Vector2 fallback)

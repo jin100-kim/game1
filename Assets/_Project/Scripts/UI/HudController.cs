@@ -30,6 +30,7 @@ namespace EJR.Game.UI
         private Text _healthText;
         private Text _xpText;
         private Text _timeText;
+        private Text _modeHintText;
         private GameObject _buildPanel;
         private Text _weaponBuildText;
         private Text _statBuildText;
@@ -51,6 +52,26 @@ namespace EJR.Game.UI
         private GameObject _pausePanel;
         private Button _pauseResumeButton;
         private Button _pauseQuitButton;
+        private Button _debugAccessButton;
+        private GameObject _debugToolsPanel;
+        private Button _debugGrantLevelButton;
+        private Button _debugAdvanceTimeButton;
+        private Button _debugRerollButton;
+        private Button _debugSkipBossButton;
+        private Button _debugAutoPlayButton;
+        private Text _debugGrantLevelLabel;
+        private Text _debugAdvanceTimeLabel;
+        private Text _debugRerollLabel;
+        private Text _debugSkipBossLabel;
+        private Text _debugAutoPlayLabel;
+        private Func<string, bool> _debugUnlockValidator;
+        private Action _debugGrantLevelAction;
+        private Action _debugAdvanceTimeAction;
+        private Action _debugRerollAction;
+        private Action _debugSkipBossAction;
+        private Action _debugAutoPlayAction;
+        private bool _debugAccessVisible;
+        private bool _debugAutoPlayEnabled;
         private int _lastCurrentHp = int.MinValue;
         private int _lastMaxHp = int.MinValue;
         private int _lastLevel = int.MinValue;
@@ -78,6 +99,7 @@ namespace EJR.Game.UI
             BuildLevelUpPanel();
             BuildResultPanel();
             BuildPausePanel();
+            BuildDebugPanels();
         }
 
         public void SetCanvasVisible(bool visible)
@@ -94,6 +116,7 @@ namespace EJR.Game.UI
                 HideBossBar();
                 HidePauseMenu();
                 HideResult();
+                HideDebugPanels();
             }
         }
 
@@ -158,6 +181,67 @@ namespace EJR.Game.UI
             {
                 _statBuildText.text = statsSummary;
                 _lastStatBuildSummary = statsSummary;
+            }
+        }
+
+        public void SetModeHint(string modeHint)
+        {
+            if (_modeHintText == null)
+            {
+                return;
+            }
+
+            var hasHint = !string.IsNullOrWhiteSpace(modeHint);
+            _modeHintText.gameObject.SetActive(hasHint);
+            if (hasHint)
+            {
+                _modeHintText.text = modeHint;
+            }
+        }
+
+        public void ConfigureDebugTools(
+            Action onGrantLevel,
+            Action onAdvanceTime,
+            Action onReroll,
+            Action onSkipBoss,
+            Action onToggleAutoPlay)
+        {
+            _debugGrantLevelAction = onGrantLevel;
+            _debugAdvanceTimeAction = onAdvanceTime;
+            _debugRerollAction = onReroll;
+            _debugSkipBossAction = onSkipBoss;
+            _debugAutoPlayAction = onToggleAutoPlay;
+            RefreshDebugToolButtons();
+        }
+
+        public void SetDebugAccessVisible(bool visible)
+        {
+            _debugAccessVisible = visible;
+            if (_debugAccessButton != null)
+            {
+                _debugAccessButton.gameObject.SetActive(visible);
+            }
+
+            if (!visible)
+            {
+                HideDebugPanels();
+            }
+        }
+
+        public void SetDebugAutoPlayState(bool enabled)
+        {
+            _debugAutoPlayEnabled = enabled;
+            if (_debugAutoPlayLabel != null)
+            {
+                _debugAutoPlayLabel.text = enabled ? "Auto Play: ON" : "Auto Play: OFF";
+            }
+        }
+
+        public void HideDebugPanels()
+        {
+            if (_debugToolsPanel != null)
+            {
+                _debugToolsPanel.SetActive(false);
             }
         }
 
@@ -259,7 +343,7 @@ namespace EJR.Game.UI
             }
         }
 
-        public void ShowResult(bool cleared, Action onRestart)
+        public void ShowResult(bool cleared, Action onAction, string actionLabel = "Restart")
         {
             if (_resultPanel == null)
             {
@@ -269,7 +353,8 @@ namespace EJR.Game.UI
             _resultPanel.SetActive(true);
             _resultText.text = cleared ? "Run Complete" : "Game Over";
             _restartButton.onClick.RemoveAllListeners();
-            _restartButton.onClick.AddListener(() => onRestart?.Invoke());
+            _restartButton.onClick.AddListener(() => onAction?.Invoke());
+            _restartButton.GetComponentInChildren<Text>().text = string.IsNullOrEmpty(actionLabel) ? "Restart" : actionLabel;
         }
 
         public void HideResult()
@@ -389,10 +474,15 @@ namespace EJR.Game.UI
 
         private void BuildTopBar()
         {
-            var top = CreatePanel(_canvas.transform, "TopBar", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -10f), new Vector2(620f, 60f), new Color(0f, 0f, 0f, 0.35f));
+            var top = CreatePanel(_canvas.transform, "TopBar", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -10f), new Vector2(860f, 60f), new Color(0f, 0f, 0f, 0.35f));
             _healthText = CreateText(top.transform, "HealthText", new Vector2(-250f, 0f), "HP");
             _xpText = CreateText(top.transform, "XPText", new Vector2(-40f, 0f), "XP");
             _timeText = CreateText(top.transform, "TimeText", new Vector2(160f, 0f), "TIME");
+            _modeHintText = CreateText(top.transform, "ModeHintText", new Vector2(335f, 0f), string.Empty);
+            _modeHintText.fontSize = 16;
+            _modeHintText.alignment = TextAnchor.MiddleRight;
+            _modeHintText.rectTransform.sizeDelta = new Vector2(220f, 28f);
+            _modeHintText.gameObject.SetActive(false);
         }
 
         private void BuildBuildPanel()
@@ -560,6 +650,94 @@ namespace EJR.Game.UI
 
             _pauseQuitButton = CreateButton(_pausePanel.transform, "QuitButton", new Vector2(0f, -68f), new Vector2(230f, 56f));
             _pauseQuitButton.GetComponentInChildren<Text>().text = "로비로";
+        }
+
+        private void BuildDebugPanels()
+        {
+            _debugAccessButton = CreateButton(_canvas.transform, "DebugAccessButton", Vector2.zero, new Vector2(54f, 34f));
+            var accessRect = _debugAccessButton.GetComponent<RectTransform>();
+            accessRect.anchorMin = new Vector2(0f, 0f);
+            accessRect.anchorMax = new Vector2(0f, 0f);
+            accessRect.pivot = new Vector2(0f, 0f);
+            accessRect.anchoredPosition = new Vector2(14f, 14f);
+            _debugAccessButton.GetComponentInChildren<Text>().text = "DEV";
+            _debugAccessButton.onClick.RemoveAllListeners();
+            _debugAccessButton.onClick.AddListener(ToggleDebugEntry);
+            _debugAccessButton.gameObject.SetActive(false);
+
+            _debugToolsPanel = CreatePanel(
+                _canvas.transform,
+                "DebugToolsPanel",
+                new Vector2(0f, 0f),
+                new Vector2(0f, 0f),
+                new Vector2(0f, 0f),
+                new Vector2(14f, 56f),
+                new Vector2(280f, 272f),
+                new Color(0f, 0f, 0f, 0.82f));
+            _debugToolsPanel.SetActive(false);
+
+            var toolsTitle = CreateText(_debugToolsPanel.transform, "DebugToolsTitle", new Vector2(0f, 108f), "DEBUG TOOLS");
+            toolsTitle.fontSize = 18;
+
+            _debugGrantLevelButton = CreateButton(_debugToolsPanel.transform, "DebugGrantLevelButton", new Vector2(0f, 58f), new Vector2(220f, 36f));
+            _debugGrantLevelLabel = _debugGrantLevelButton.GetComponentInChildren<Text>();
+
+            _debugAdvanceTimeButton = CreateButton(_debugToolsPanel.transform, "DebugAdvanceTimeButton", new Vector2(0f, 16f), new Vector2(220f, 36f));
+            _debugAdvanceTimeLabel = _debugAdvanceTimeButton.GetComponentInChildren<Text>();
+
+            _debugRerollButton = CreateButton(_debugToolsPanel.transform, "DebugRerollButton", new Vector2(0f, -26f), new Vector2(220f, 36f));
+            _debugRerollLabel = _debugRerollButton.GetComponentInChildren<Text>();
+
+            _debugSkipBossButton = CreateButton(_debugToolsPanel.transform, "DebugSkipBossButton", new Vector2(0f, -68f), new Vector2(220f, 36f));
+            _debugSkipBossLabel = _debugSkipBossButton.GetComponentInChildren<Text>();
+
+            _debugAutoPlayButton = CreateButton(_debugToolsPanel.transform, "DebugAutoPlayButton", new Vector2(0f, -110f), new Vector2(220f, 36f));
+            _debugAutoPlayLabel = _debugAutoPlayButton.GetComponentInChildren<Text>();
+
+            RefreshDebugToolButtons();
+        }
+
+        private void ToggleDebugEntry()
+        {
+            if (!_debugAccessVisible)
+            {
+                return;
+            }
+
+            var nextVisible = _debugToolsPanel != null && !_debugToolsPanel.activeSelf;
+            HideDebugPanels();
+            if (_debugToolsPanel != null)
+            {
+                _debugToolsPanel.SetActive(nextVisible);
+            }
+        }
+
+        private void RefreshDebugToolButtons()
+        {
+            ConfigureDebugButton(_debugGrantLevelButton, _debugGrantLevelLabel, "Grant Level", _debugGrantLevelAction);
+            ConfigureDebugButton(_debugAdvanceTimeButton, _debugAdvanceTimeLabel, "Advance Time", _debugAdvanceTimeAction);
+            ConfigureDebugButton(_debugRerollButton, _debugRerollLabel, "Reroll Choice", _debugRerollAction);
+            ConfigureDebugButton(_debugSkipBossButton, _debugSkipBossLabel, "Skip To Boss", _debugSkipBossAction);
+            ConfigureDebugButton(_debugAutoPlayButton, _debugAutoPlayLabel, _debugAutoPlayEnabled ? "Auto Play: ON" : "Auto Play: OFF", _debugAutoPlayAction);
+        }
+
+        private static void ConfigureDebugButton(Button button, Text label, string text, Action action)
+        {
+            if (button == null || label == null)
+            {
+                return;
+            }
+
+            var isActive = action != null;
+            button.gameObject.SetActive(isActive);
+            if (!isActive)
+            {
+                return;
+            }
+
+            label.text = text;
+            button.onClick.RemoveAllListeners();
+            button.onClick.AddListener(() => action.Invoke());
         }
 
         private GameObject CreatePanel(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 anchoredPosition, Vector2 size, Color color)
