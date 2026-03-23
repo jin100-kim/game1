@@ -7,6 +7,12 @@ namespace EJR.Game.Gameplay
 {
     public sealed class Projectile : MonoBehaviour
     {
+        private const float FireballExplosionRadius = 1.05f;
+        private const float FireballExplosionDamageMultiplier = 0.8f;
+        private const float FireballBurnDuration = 2.5f;
+        private const float FireballBurnTickInterval = 0.5f;
+        private const float FireballBurnDamageMultiplier = 0.32f;
+        private static readonly Color FireballExplosionColor = new(1f, 0.45f, 0.12f, 0.9f);
         private EnemyRegistry _registry;
         private Vector3 _direction;
         private float _speed;
@@ -18,8 +24,6 @@ namespace EJR.Game.Gameplay
         private float _damageFalloffPerHit;
         private int _remainingHits;
         private WeaponUpgradeId _sourceWeaponId;
-        private WeaponCoreElement _sourceCoreElement;
-        private int _sourceCoreLevel;
         private Action<Projectile> _releaseToPool;
         private bool _isActive;
         private bool _useBoundsCulling;
@@ -39,8 +43,6 @@ namespace EJR.Game.Gameplay
             float damageFalloffPerHit,
             float minimumDamageMultiplier,
             WeaponUpgradeId sourceWeaponId,
-            WeaponCoreElement sourceCoreElement,
-            int sourceCoreLevel,
             Action<Projectile> releaseToPool,
             bool useBoundsCulling = false,
             Rect bounds = default)
@@ -56,8 +58,6 @@ namespace EJR.Game.Gameplay
             _remainingHits = Mathf.Max(1, maxHits);
             _damageFalloffPerHit = Mathf.Clamp01(damageFalloffPerHit);
             _sourceWeaponId = sourceWeaponId;
-            _sourceCoreElement = sourceCoreElement;
-            _sourceCoreLevel = Mathf.Max(0, sourceCoreLevel);
             _releaseToPool = releaseToPool;
             _useBoundsCulling = useBoundsCulling;
             _bounds = bounds;
@@ -110,12 +110,22 @@ namespace EJR.Game.Gameplay
 
                 try
                 {
-                    enemy.ReceiveWeaponDamage(_currentDamage, _sourceWeaponId, _sourceCoreElement, _sourceCoreLevel);
+                    enemy.ReceiveWeaponDamage(_currentDamage, _sourceWeaponId);
+                    if (_sourceWeaponId == WeaponUpgradeId.Smg)
+                    {
+                        TriggerFireballExplosion(transform.position);
+                    }
                 }
                 finally
                 {
                     _hitEnemies.Add(enemy);
                     _remainingHits--;
+                }
+
+                if (_sourceWeaponId == WeaponUpgradeId.Smg)
+                {
+                    Release();
+                    return;
                 }
 
                 if (_remainingHits <= 0)
@@ -157,6 +167,47 @@ namespace EJR.Game.Gameplay
         {
             _isActive = false;
             _hitEnemies.Clear();
+        }
+
+        private void TriggerFireballExplosion(Vector3 center)
+        {
+            var fxParent = transform.parent != null ? transform.parent : transform;
+            WeaponFxRenderer.SpawnRingFx(
+                fxParent,
+                center,
+                FireballExplosionRadius,
+                24,
+                FireballExplosionColor,
+                0.05f,
+                0.12f,
+                "FireballExplosionFx");
+
+            if (_registry == null)
+            {
+                return;
+            }
+
+            var searchRadius = FireballExplosionRadius + _registry.GetMaxCollisionRadius();
+            _registry.GetNearby(center, searchRadius, _nearbyEnemies);
+            var burnDamage = _baseDamage * FireballBurnDamageMultiplier;
+            var explosionDamage = _baseDamage * FireballExplosionDamageMultiplier;
+            for (var i = 0; i < _nearbyEnemies.Count; i++)
+            {
+                var enemy = _nearbyEnemies[i];
+                if (enemy == null)
+                {
+                    continue;
+                }
+
+                var limit = FireballExplosionRadius + enemy.CollisionRadius;
+                if ((enemy.transform.position - center).sqrMagnitude > limit * limit)
+                {
+                    continue;
+                }
+
+                enemy.ReceiveWeaponDamage(explosionDamage, _sourceWeaponId);
+                enemy.ApplyBurn(burnDamage, FireballBurnDuration, FireballBurnTickInterval);
+            }
         }
 
         private void Release()

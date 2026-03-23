@@ -16,10 +16,13 @@ namespace EJR.Game.Gameplay
 
         private float _speedMultiplier = 1f;
         private float _collisionRadius = DefaultCollisionRadius;
+        private float _facingTurnSpeedDegreesPerSecond = 1080f;
         private Func<Vector2> _moveInputReader;
         private EJR.Game.Core.PlayerStatsRuntime _stats;
 
         public Vector2 CurrentVelocity { get; private set; }
+        public Vector2 LastFacingDirection { get; private set; } = Vector2.right;
+        public Vector2 CurrentFacingDirection { get; private set; } = Vector2.right;
 
         public void Initialize(PlayerConfig config, EJR.Game.Core.PlayerStatsRuntime stats, Rect bounds)
         {
@@ -27,6 +30,7 @@ namespace EJR.Game.Gameplay
             {
                 moveSpeed = Mathf.Max(0.1f, config.moveSpeed);
                 _collisionRadius = Mathf.Max(0.05f, config.collisionRadius);
+                _facingTurnSpeedDegreesPerSecond = Mathf.Max(90f, config.facingTurnSpeedDegreesPerSecond);
             }
 
             _stats = stats;
@@ -65,6 +69,11 @@ namespace EJR.Game.Gameplay
             {
                 _collisionRadius = DefaultCollisionRadius;
             }
+
+            if (_facingTurnSpeedDegreesPerSecond <= 0f)
+            {
+                _facingTurnSpeedDegreesPerSecond = 1080f;
+            }
         }
 
         private void Update()
@@ -85,6 +94,16 @@ namespace EJR.Game.Gameplay
                 move.Normalize();
             }
 
+            if (move.sqrMagnitude > 0.000001f)
+            {
+                LastFacingDirection = move.normalized;
+            }
+
+            CurrentFacingDirection = RotateDirectionTowards(
+                CurrentFacingDirection,
+                LastFacingDirection,
+                _facingTurnSpeedDegreesPerSecond * Time.deltaTime);
+
             var previous = transform.position;
             var delta = (Vector3)move * (moveSpeed * _speedMultiplier * Time.deltaTime);
             var next = previous + delta;
@@ -103,6 +122,18 @@ namespace EJR.Game.Gameplay
         private void OnDisable()
         {
             CurrentVelocity = Vector2.zero;
+        }
+
+        private static Vector2 RotateDirectionTowards(Vector2 current, Vector2 target, float maxDegreesDelta)
+        {
+            var normalizedCurrent = current.sqrMagnitude > 0.000001f ? current.normalized : Vector2.right;
+            var normalizedTarget = target.sqrMagnitude > 0.000001f ? target.normalized : normalizedCurrent;
+
+            var currentAngle = Mathf.Atan2(normalizedCurrent.y, normalizedCurrent.x) * Mathf.Rad2Deg;
+            var targetAngle = Mathf.Atan2(normalizedTarget.y, normalizedTarget.x) * Mathf.Rad2Deg;
+            var nextAngle = Mathf.MoveTowardsAngle(currentAngle, targetAngle, Mathf.Max(0f, maxDegreesDelta));
+            var nextRadians = nextAngle * Mathf.Deg2Rad;
+            return new Vector2(Mathf.Cos(nextRadians), Mathf.Sin(nextRadians));
         }
 
         private static Vector2 ReadMovementInput()

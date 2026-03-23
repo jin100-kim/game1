@@ -31,6 +31,7 @@ namespace EJR.Game.Gameplay
         [Min(0)] public int hurtEndFrame = 18;
         [Min(0)] public int dieStartFrame = 19;
         [Min(0)] public int dieEndFrame = 23;
+        [Min(90f)] public float facingTurnSpeedDegreesPerSecond = 1080f;
 
         [Header("Weapon Visual")]
         public Vector2 weaponVisualOffset = Vector2.zero;

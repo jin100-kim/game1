@@ -11,18 +11,18 @@ namespace EJR.Game.UI
 {
     public sealed class HudController
     {
-        private const float LevelPanelWidth = 560f;
-        private const float LevelPanelMinHeight = 240f;
-        private const float LevelPanelTopPadding = 24f;
-        private const float LevelPanelBottomPadding = 24f;
-        private const float LevelTitleHeight = 36f;
-        private const float LevelButtonsTopGap = 20f;
-        private const float LevelButtonWidth = 460f;
-        private const float LevelButtonHeight = 62f;
-        private const float LevelButtonSpacing = 8f;
-        private const float BossBarRootWidth = 320f;
-        private const float BossBarRootHeight = 16f;
-        private const float BossBarPadding = 2f;
+        private const float LevelPanelWidth = 860f;
+        private const float LevelPanelMinHeight = 300f;
+        private const float LevelPanelTopPadding = 34f;
+        private const float LevelPanelBottomPadding = 34f;
+        private const float LevelTitleHeight = 44f;
+        private const float LevelButtonsTopGap = 24f;
+        private const float LevelButtonWidth = 760f;
+        private const float LevelButtonHeight = 68f;
+        private const float LevelButtonSpacing = 14f;
+        private const float BossBarRootWidth = 430f;
+        private const float BossBarRootHeight = 18f;
+        private const float BossBarPadding = 3f;
 
         private readonly Font _font;
 
@@ -192,11 +192,9 @@ namespace EJR.Game.UI
             }
 
             var hasHint = !string.IsNullOrWhiteSpace(modeHint);
-            _modeHintText.gameObject.SetActive(hasHint);
-            if (hasHint)
-            {
-                _modeHintText.text = modeHint;
-            }
+            _modeHintText.gameObject.SetActive(true);
+            _modeHintText.text = hasHint ? modeHint : "STANDARD";
+            _modeHintText.color = hasHint ? new Color(0.95f, 0.74f, 0.18f, 1f) : new Color(0.76f, 0.82f, 0.90f, 1f);
         }
 
         public void ConfigureDebugTools(
@@ -468,21 +466,79 @@ namespace EJR.Game.UI
             var canvasObject = new GameObject("HUD");
             _canvas = canvasObject.AddComponent<Canvas>();
             _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvasObject.AddComponent<CanvasScaler>();
+            _canvas.sortingOrder = 100;
+
+            var scaler = canvasObject.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight = 0.5f;
             canvasObject.AddComponent<GraphicRaycaster>();
         }
 
         private void BuildTopBar()
         {
-            var top = CreatePanel(_canvas.transform, "TopBar", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -10f), new Vector2(860f, 60f), new Color(0f, 0f, 0f, 0.35f));
-            _healthText = CreateText(top.transform, "HealthText", new Vector2(-250f, 0f), "HP");
-            _xpText = CreateText(top.transform, "XPText", new Vector2(-40f, 0f), "XP");
-            _timeText = CreateText(top.transform, "TimeText", new Vector2(160f, 0f), "TIME");
-            _modeHintText = CreateText(top.transform, "ModeHintText", new Vector2(335f, 0f), string.Empty);
+            var healthCard = CreatePanel(
+                _canvas.transform,
+                "HealthCard",
+                new Vector2(0f, 1f),
+                new Vector2(0f, 1f),
+                new Vector2(0f, 1f),
+                new Vector2(24f, -24f),
+                new Vector2(272f, 78f),
+                new Color(0.04f, 0.07f, 0.11f, 0.86f));
+            var xpCard = CreatePanel(
+                _canvas.transform,
+                "XpCard",
+                new Vector2(0f, 1f),
+                new Vector2(0f, 1f),
+                new Vector2(0f, 1f),
+                new Vector2(314f, -24f),
+                new Vector2(304f, 78f),
+                new Color(0.04f, 0.07f, 0.11f, 0.86f));
+            var timeCard = CreatePanel(
+                _canvas.transform,
+                "TimeCard",
+                new Vector2(1f, 1f),
+                new Vector2(1f, 1f),
+                new Vector2(1f, 1f),
+                new Vector2(-292f, -24f),
+                new Vector2(252f, 78f),
+                new Color(0.04f, 0.07f, 0.11f, 0.86f));
+            var hintCard = CreatePanel(
+                _canvas.transform,
+                "ModeHintCard",
+                new Vector2(1f, 1f),
+                new Vector2(1f, 1f),
+                new Vector2(1f, 1f),
+                new Vector2(-24f, -24f),
+                new Vector2(252f, 78f),
+                new Color(0.04f, 0.07f, 0.11f, 0.86f));
+
+            _healthText = CreateText(healthCard.transform, "HealthText", Vector2.zero, "HP");
+            _healthText.alignment = TextAnchor.MiddleLeft;
+            _healthText.rectTransform.sizeDelta = new Vector2(224f, 44f);
+            _healthText.rectTransform.anchoredPosition = new Vector2(0f, 0f);
+            _healthText.fontSize = 22;
+
+            _xpText = CreateText(xpCard.transform, "XPText", Vector2.zero, "XP");
+            _xpText.alignment = TextAnchor.MiddleLeft;
+            _xpText.rectTransform.sizeDelta = new Vector2(248f, 44f);
+            _xpText.rectTransform.anchoredPosition = new Vector2(0f, 0f);
+            _xpText.fontSize = 20;
+
+            _timeText = CreateText(timeCard.transform, "TimeText", Vector2.zero, "TIME");
+            _timeText.alignment = TextAnchor.MiddleLeft;
+            _timeText.rectTransform.sizeDelta = new Vector2(204f, 44f);
+            _timeText.rectTransform.anchoredPosition = new Vector2(0f, 0f);
+            _timeText.fontSize = 20;
+
+            _modeHintText = CreateText(hintCard.transform, "ModeHintText", Vector2.zero, "STANDARD");
             _modeHintText.fontSize = 16;
-            _modeHintText.alignment = TextAnchor.MiddleRight;
-            _modeHintText.rectTransform.sizeDelta = new Vector2(220f, 28f);
-            _modeHintText.gameObject.SetActive(false);
+            _modeHintText.alignment = TextAnchor.MiddleCenter;
+            _modeHintText.rectTransform.sizeDelta = new Vector2(204f, 44f);
+            _modeHintText.rectTransform.anchoredPosition = new Vector2(0f, 0f);
+            _modeHintText.color = new Color(0.76f, 0.82f, 0.90f, 1f);
         }
 
         private void BuildBuildPanel()
@@ -490,26 +546,50 @@ namespace EJR.Game.UI
             _buildPanel = CreatePanel(
                 _canvas.transform,
                 "BuildPanel",
-                new Vector2(1f, 1f),
-                new Vector2(1f, 1f),
-                new Vector2(1f, 1f),
-                new Vector2(-12f, -82f),
-                new Vector2(280f, 220f),
-                new Color(0f, 0f, 0f, 0.35f));
+                new Vector2(1f, 0.5f),
+                new Vector2(1f, 0.5f),
+                new Vector2(1f, 0.5f),
+                new Vector2(-24f, -16f),
+                new Vector2(384f, 436f),
+                new Color(0.03f, 0.05f, 0.09f, 0.88f));
+
+            var buildTitle = CreateText(_buildPanel.transform, "BuildTitle", new Vector2(0f, 182f), "BUILD");
+            buildTitle.fontSize = 22;
+            buildTitle.fontStyle = FontStyle.Bold;
+            buildTitle.color = new Color(0.95f, 0.74f, 0.18f, 1f);
+            buildTitle.rectTransform.sizeDelta = new Vector2(260f, 28f);
+
+            var weaponsCard = CreatePanel(_buildPanel.transform, "WeaponsCard", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 54f), new Vector2(336f, 156f), new Color(0.07f, 0.10f, 0.14f, 0.92f));
+            var weaponsTitle = CreateText(weaponsCard.transform, "WeaponsTitle", new Vector2(0f, 56f), "WEAPONS");
+            weaponsTitle.fontSize = 15;
+            weaponsTitle.fontStyle = FontStyle.Bold;
+            weaponsTitle.alignment = TextAnchor.MiddleLeft;
+            weaponsTitle.rectTransform.sizeDelta = new Vector2(280f, 24f);
+            weaponsTitle.color = new Color(0.72f, 0.79f, 0.89f, 1f);
 
             _weaponBuildText = CreateMultilineText(
-                _buildPanel.transform,
+                weaponsCard.transform,
                 "WeaponsBuildText",
-                new Vector2(0f, -8f),
-                new Vector2(260f, 100f),
+                new Vector2(0f, 34f),
+                new Vector2(296f, 92f),
                 "Weapons");
+            _weaponBuildText.fontSize = 14;
+
+            var statsCard = CreatePanel(_buildPanel.transform, "StatsCard", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -120f), new Vector2(336f, 184f), new Color(0.07f, 0.10f, 0.14f, 0.92f));
+            var statsTitle = CreateText(statsCard.transform, "StatsTitle", new Vector2(0f, 68f), "STATS");
+            statsTitle.fontSize = 15;
+            statsTitle.fontStyle = FontStyle.Bold;
+            statsTitle.alignment = TextAnchor.MiddleLeft;
+            statsTitle.rectTransform.sizeDelta = new Vector2(280f, 24f);
+            statsTitle.color = new Color(0.72f, 0.79f, 0.89f, 1f);
 
             _statBuildText = CreateMultilineText(
-                _buildPanel.transform,
+                statsCard.transform,
                 "StatsBuildText",
-                new Vector2(0f, -116f),
-                new Vector2(260f, 100f),
+                new Vector2(0f, 50f),
+                new Vector2(296f, 128f),
                 "Stats");
+            _statBuildText.fontSize = 14;
         }
 
         private void BuildBossBar()
@@ -520,15 +600,16 @@ namespace EJR.Game.UI
                 new Vector2(0.5f, 1f),
                 new Vector2(0.5f, 1f),
                 new Vector2(0.5f, 1f),
-                new Vector2(0f, -78f),
-                new Vector2(520f, 44f),
-                new Color(0f, 0f, 0f, 0.5f));
+                new Vector2(0f, -118f),
+                new Vector2(780f, 64f),
+                new Color(0.05f, 0.08f, 0.12f, 0.88f));
             _bossBarPanel.SetActive(false);
 
-            _bossNameText = CreateText(_bossBarPanel.transform, "BossName", new Vector2(-198f, 0f), "BOSS");
+            _bossNameText = CreateText(_bossBarPanel.transform, "BossName", new Vector2(-284f, 0f), "BOSS");
             _bossNameText.alignment = TextAnchor.MiddleLeft;
-            _bossNameText.fontSize = 17;
-            _bossNameText.rectTransform.sizeDelta = new Vector2(170f, 28f);
+            _bossNameText.fontSize = 19;
+            _bossNameText.rectTransform.sizeDelta = new Vector2(180f, 28f);
+            _bossNameText.color = new Color(0.95f, 0.74f, 0.18f, 1f);
 
             var barRoot = new GameObject("BossBarRoot");
             barRoot.transform.SetParent(_bossBarPanel.transform, false);
@@ -536,11 +617,11 @@ namespace EJR.Game.UI
             barRootRect.anchorMin = new Vector2(0.5f, 0.5f);
             barRootRect.anchorMax = new Vector2(0.5f, 0.5f);
             barRootRect.pivot = new Vector2(0.5f, 0.5f);
-            barRootRect.anchoredPosition = new Vector2(28f, 0f);
+            barRootRect.anchoredPosition = new Vector2(24f, 0f);
             barRootRect.sizeDelta = new Vector2(BossBarRootWidth, BossBarRootHeight);
 
             var barBg = barRoot.AddComponent<Image>();
-            barBg.color = new Color(0.12f, 0.12f, 0.14f, 0.95f);
+            barBg.color = new Color(0.14f, 0.15f, 0.18f, 0.95f);
 
             var barFillObject = new GameObject("BossBarFill");
             barFillObject.transform.SetParent(barRoot.transform, false);
@@ -558,26 +639,35 @@ namespace EJR.Game.UI
             _bossBarFill.type = Image.Type.Simple;
             _bossBarFill.color = new Color(0.9f, 0.18f, 0.24f, 0.95f);
 
-            _bossBarValueText = CreateText(_bossBarPanel.transform, "BossHpText", new Vector2(205f, 0f), "0/0");
+            _bossBarValueText = CreateText(_bossBarPanel.transform, "BossHpText", new Vector2(304f, 0f), "0/0");
             _bossBarValueText.alignment = TextAnchor.MiddleRight;
-            _bossBarValueText.fontSize = 15;
-            _bossBarValueText.rectTransform.sizeDelta = new Vector2(128f, 24f);
+            _bossBarValueText.fontSize = 16;
+            _bossBarValueText.rectTransform.sizeDelta = new Vector2(120f, 24f);
         }
 
         private void BuildLevelUpPanel()
         {
-            _levelUpPanel = CreatePanel(_canvas.transform, "LevelUpPanel", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(LevelPanelWidth, LevelPanelMinHeight), new Color(0f, 0f, 0f, 0.85f));
+            _levelUpPanel = CreatePanel(_canvas.transform, "LevelUpPanel", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(LevelPanelWidth, LevelPanelMinHeight), new Color(0.03f, 0.05f, 0.09f, 0.96f));
             _levelUpPanel.SetActive(false);
 
             _levelUpTitle = CreateText(_levelUpPanel.transform, "Title", Vector2.zero, "Level Up");
+            _levelUpTitle.fontSize = 30;
+            _levelUpTitle.fontStyle = FontStyle.Bold;
+            _levelUpTitle.color = new Color(0.95f, 0.74f, 0.18f, 1f);
+            _levelUpTitle.rectTransform.sizeDelta = new Vector2(720f, 72f);
             _levelButtons = new Button[10];
             _levelButtonTexts = new Text[10];
 
             for (var i = 0; i < _levelButtons.Length; i++)
             {
                 var button = CreateButton(_levelUpPanel.transform, $"OptionButton{i}", Vector2.zero, new Vector2(LevelButtonWidth, LevelButtonHeight));
+                var label = button.GetComponentInChildren<Text>();
+                label.alignment = TextAnchor.MiddleLeft;
+                label.fontSize = 18;
+                label.rectTransform.offsetMin = new Vector2(22f, 10f);
+                label.rectTransform.offsetMax = new Vector2(-22f, -10f);
                 _levelButtons[i] = button;
-                _levelButtonTexts[i] = button.GetComponentInChildren<Text>();
+                _levelButtonTexts[i] = label;
             }
 
             LayoutLevelUpPanel(3);
@@ -622,10 +712,12 @@ namespace EJR.Game.UI
 
         private void BuildResultPanel()
         {
-            _resultPanel = CreatePanel(_canvas.transform, "ResultPanel", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(380f, 200f), new Color(0f, 0f, 0f, 0.85f));
+            _resultPanel = CreatePanel(_canvas.transform, "ResultPanel", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(520f, 276f), new Color(0.03f, 0.05f, 0.09f, 0.96f));
             _resultPanel.SetActive(false);
-            _resultText = CreateText(_resultPanel.transform, "ResultText", new Vector2(0f, 40f), "Game Over");
-            _restartButton = CreateButton(_resultPanel.transform, "RestartButton", new Vector2(0f, -45f), new Vector2(220f, 55f));
+            _resultText = CreateText(_resultPanel.transform, "ResultText", new Vector2(0f, 62f), "Game Over");
+            _resultText.fontSize = 32;
+            _resultText.fontStyle = FontStyle.Bold;
+            _restartButton = CreateButton(_resultPanel.transform, "RestartButton", new Vector2(0f, -58f), new Vector2(264f, 56f));
             _restartButton.GetComponentInChildren<Text>().text = "Restart";
         }
 
@@ -638,28 +730,50 @@ namespace EJR.Game.UI
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
                 Vector2.zero,
-                new Vector2(360f, 240f),
-                new Color(0f, 0f, 0f, 0.88f));
+                new Vector2(480f, 294f),
+                new Color(0.03f, 0.05f, 0.09f, 0.96f));
             _pausePanel.SetActive(false);
 
             var title = CreateText(_pausePanel.transform, "PauseTitle", new Vector2(0f, 68f), "일시정지");
-            title.fontSize = 24;
+            title.text = "Paused";
+            title.fontSize = 30;
+            title.fontStyle = FontStyle.Bold;
+            title.color = new Color(0.95f, 0.74f, 0.18f, 1f);
 
-            _pauseResumeButton = CreateButton(_pausePanel.transform, "ResumeButton", new Vector2(0f, 8f), new Vector2(230f, 56f));
+            var subhead = CreateText(_pausePanel.transform, "PauseSubhead", new Vector2(0f, 42f), "Resume the run or return to the lobby.");
+            subhead.fontSize = 15;
+            subhead.color = new Color(0.78f, 0.84f, 0.92f, 1f);
+            subhead.rectTransform.sizeDelta = new Vector2(320f, 30f);
+
+            _pauseResumeButton = CreateButton(_pausePanel.transform, "ResumeButton", new Vector2(0f, -12f), new Vector2(252f, 56f));
+            _pauseResumeButton.GetComponentInChildren<Text>().text = "Resume";
             _pauseResumeButton.GetComponentInChildren<Text>().text = "계속하기";
 
-            _pauseQuitButton = CreateButton(_pausePanel.transform, "QuitButton", new Vector2(0f, -68f), new Vector2(230f, 56f));
+            _pauseQuitButton = CreateButton(_pausePanel.transform, "QuitButton", new Vector2(0f, -86f), new Vector2(272f, 56f));
+            if (_pauseQuitButton.targetGraphic is Image quitImage)
+            {
+                quitImage.color = new Color(0.31f, 0.15f, 0.18f, 0.98f);
+                var quitColors = _pauseQuitButton.colors;
+                quitColors.normalColor = quitImage.color;
+                quitColors.highlightedColor = new Color(0.40f, 0.20f, 0.24f, 1f);
+                quitColors.selectedColor = quitColors.highlightedColor;
+                quitColors.pressedColor = new Color(0.23f, 0.11f, 0.14f, 1f);
+                _pauseQuitButton.colors = quitColors;
+            }
+            _pauseQuitButton.GetComponentInChildren<Text>().text = "Return to Lobby";
             _pauseQuitButton.GetComponentInChildren<Text>().text = "로비로";
+            _pauseResumeButton.GetComponentInChildren<Text>().text = "Resume";
+            _pauseQuitButton.GetComponentInChildren<Text>().text = "Return to Lobby";
         }
 
         private void BuildDebugPanels()
         {
-            _debugAccessButton = CreateButton(_canvas.transform, "DebugAccessButton", Vector2.zero, new Vector2(54f, 34f));
+            _debugAccessButton = CreateButton(_canvas.transform, "DebugAccessButton", Vector2.zero, new Vector2(72f, 38f));
             var accessRect = _debugAccessButton.GetComponent<RectTransform>();
             accessRect.anchorMin = new Vector2(0f, 0f);
             accessRect.anchorMax = new Vector2(0f, 0f);
             accessRect.pivot = new Vector2(0f, 0f);
-            accessRect.anchoredPosition = new Vector2(14f, 14f);
+            accessRect.anchoredPosition = new Vector2(18f, 18f);
             _debugAccessButton.GetComponentInChildren<Text>().text = "DEV";
             _debugAccessButton.onClick.RemoveAllListeners();
             _debugAccessButton.onClick.AddListener(ToggleDebugEntry);
@@ -671,27 +785,29 @@ namespace EJR.Game.UI
                 new Vector2(0f, 0f),
                 new Vector2(0f, 0f),
                 new Vector2(0f, 0f),
-                new Vector2(14f, 56f),
-                new Vector2(280f, 272f),
-                new Color(0f, 0f, 0f, 0.82f));
+                new Vector2(18f, 68f),
+                new Vector2(320f, 300f),
+                new Color(0.03f, 0.05f, 0.09f, 0.94f));
             _debugToolsPanel.SetActive(false);
 
-            var toolsTitle = CreateText(_debugToolsPanel.transform, "DebugToolsTitle", new Vector2(0f, 108f), "DEBUG TOOLS");
+            var toolsTitle = CreateText(_debugToolsPanel.transform, "DebugToolsTitle", new Vector2(0f, 118f), "DEBUG TOOLS");
             toolsTitle.fontSize = 18;
+            toolsTitle.fontStyle = FontStyle.Bold;
+            toolsTitle.color = new Color(0.95f, 0.74f, 0.18f, 1f);
 
-            _debugGrantLevelButton = CreateButton(_debugToolsPanel.transform, "DebugGrantLevelButton", new Vector2(0f, 58f), new Vector2(220f, 36f));
+            _debugGrantLevelButton = CreateButton(_debugToolsPanel.transform, "DebugGrantLevelButton", new Vector2(0f, 66f), new Vector2(252f, 40f));
             _debugGrantLevelLabel = _debugGrantLevelButton.GetComponentInChildren<Text>();
 
-            _debugAdvanceTimeButton = CreateButton(_debugToolsPanel.transform, "DebugAdvanceTimeButton", new Vector2(0f, 16f), new Vector2(220f, 36f));
+            _debugAdvanceTimeButton = CreateButton(_debugToolsPanel.transform, "DebugAdvanceTimeButton", new Vector2(0f, 20f), new Vector2(252f, 40f));
             _debugAdvanceTimeLabel = _debugAdvanceTimeButton.GetComponentInChildren<Text>();
 
-            _debugRerollButton = CreateButton(_debugToolsPanel.transform, "DebugRerollButton", new Vector2(0f, -26f), new Vector2(220f, 36f));
+            _debugRerollButton = CreateButton(_debugToolsPanel.transform, "DebugRerollButton", new Vector2(0f, -26f), new Vector2(252f, 40f));
             _debugRerollLabel = _debugRerollButton.GetComponentInChildren<Text>();
 
-            _debugSkipBossButton = CreateButton(_debugToolsPanel.transform, "DebugSkipBossButton", new Vector2(0f, -68f), new Vector2(220f, 36f));
+            _debugSkipBossButton = CreateButton(_debugToolsPanel.transform, "DebugSkipBossButton", new Vector2(0f, -72f), new Vector2(252f, 40f));
             _debugSkipBossLabel = _debugSkipBossButton.GetComponentInChildren<Text>();
 
-            _debugAutoPlayButton = CreateButton(_debugToolsPanel.transform, "DebugAutoPlayButton", new Vector2(0f, -110f), new Vector2(220f, 36f));
+            _debugAutoPlayButton = CreateButton(_debugToolsPanel.transform, "DebugAutoPlayButton", new Vector2(0f, -118f), new Vector2(252f, 40f));
             _debugAutoPlayLabel = _debugAutoPlayButton.GetComponentInChildren<Text>();
 
             RefreshDebugToolButtons();
@@ -772,9 +888,11 @@ namespace EJR.Game.UI
             var text = textObject.AddComponent<Text>();
             text.font = _font;
             text.text = content;
-            text.color = Color.white;
+            text.color = new Color(0.96f, 0.98f, 1f, 1f);
             text.alignment = TextAnchor.MiddleCenter;
-            text.fontSize = 20;
+            text.fontSize = 19;
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            text.verticalOverflow = VerticalWrapMode.Overflow;
             text.raycastTarget = false;
             return text;
         }
@@ -792,14 +910,24 @@ namespace EJR.Game.UI
             rect.sizeDelta = size;
 
             var image = buttonObject.AddComponent<Image>();
-            image.color = new Color(0.2f, 0.2f, 0.2f, 1f);
+            image.color = new Color(0.15f, 0.20f, 0.28f, 0.98f);
 
             var button = buttonObject.AddComponent<Button>();
             button.targetGraphic = image;
             var colors = button.colors;
-            colors.highlightedColor = new Color(0.3f, 0.3f, 0.3f, 1f);
-            colors.pressedColor = new Color(0.15f, 0.15f, 0.15f, 1f);
+            colors.normalColor = image.color;
+            colors.selectedColor = new Color(0.23f, 0.30f, 0.40f, 1f);
+            colors.highlightedColor = colors.selectedColor;
+            colors.pressedColor = new Color(0.11f, 0.15f, 0.21f, 1f);
+            colors.disabledColor = new Color(0.18f, 0.18f, 0.20f, 0.74f);
             button.colors = colors;
+
+            var shadow = buttonObject.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.26f);
+            shadow.effectDistance = new Vector2(0f, -6f);
+            var outline = buttonObject.AddComponent<Outline>();
+            outline.effectColor = new Color(0.95f, 0.74f, 0.18f, 0.16f);
+            outline.effectDistance = new Vector2(1f, -1f);
 
             var label = new GameObject("Label");
             label.transform.SetParent(buttonObject.transform, false);
@@ -813,8 +941,8 @@ namespace EJR.Game.UI
             labelText.font = _font;
             labelText.text = "Option";
             labelText.alignment = TextAnchor.MiddleCenter;
-            labelText.color = Color.white;
-            labelText.fontSize = 15;
+            labelText.color = new Color(0.97f, 0.98f, 1f, 1f);
+            labelText.fontSize = 17;
             labelText.horizontalOverflow = HorizontalWrapMode.Wrap;
             labelText.verticalOverflow = VerticalWrapMode.Overflow;
             labelText.raycastTarget = false;
@@ -837,9 +965,9 @@ namespace EJR.Game.UI
             var text = textObject.AddComponent<Text>();
             text.font = _font;
             text.text = content;
-            text.color = Color.white;
+            text.color = new Color(0.94f, 0.96f, 1f, 1f);
             text.alignment = TextAnchor.UpperLeft;
-            text.fontSize = 16;
+            text.fontSize = 15;
             text.horizontalOverflow = HorizontalWrapMode.Wrap;
             text.verticalOverflow = VerticalWrapMode.Overflow;
             text.raycastTarget = false;

@@ -59,6 +59,7 @@ namespace EJR.Game.Gameplay
 
         public event Action<float, float> Changed;
         public event Action BossProjectileVolleyStarted;
+        public static event Action<EnemyController> Defeated;
 
         private EnemyConfig _config;
         private Transform _target;
@@ -93,6 +94,11 @@ namespace EJR.Game.Gameplay
         private float _fireAccumulatedDamage;
         private int _fireAccumulatedHits;
         private int _fireTriggerHitCount = int.MaxValue;
+        private float _burnDamagePerTick;
+        private float _burnTickInterval;
+        private float _burnTickTimer;
+        private float _burnRemaining;
+        private float _stunRemaining;
         private BossPatternState _bossPatternState;
         private float _bossPatternCooldown;
         private float _bossStateTimer;
@@ -227,10 +233,11 @@ namespace EJR.Game.Gameplay
             }
 
             TickCoreEffectDurations();
+            var isStunned = _stunRemaining > 0f;
 
             var previousPosition = transform.position;
             var handledByBossPattern = UpdateBossPattern(Time.deltaTime);
-            if (!handledByBossPattern)
+            if (!handledByBossPattern && !isStunned)
             {
                 var toPlayer = _target.position - transform.position;
                 var distance = toPlayer.magnitude;
@@ -267,7 +274,7 @@ namespace EJR.Game.Gameplay
             _contactCooldown -= Time.deltaTime;
             var minimumSeparationForContact = CollisionRadius + _playerCollisionRadius;
             var currentDistance = (_target.position - transform.position).magnitude;
-            if (currentDistance <= minimumSeparationForContact + 0.02f && _contactCooldown <= 0f)
+            if (!isStunned && currentDistance <= minimumSeparationForContact + 0.02f && _contactCooldown <= 0f)
             {
                 _contactCooldown = _contactDamageCooldown;
                 _playerHealth.TakeDamage(_contactDamage);
@@ -408,10 +415,10 @@ namespace EJR.Game.Gameplay
 
         public void ReceiveDamage(float damage)
         {
-            ReceiveWeaponDamage(damage, WeaponUpgradeId.Rifle, WeaponCoreElement.None, 0);
+            ReceiveWeaponDamage(damage, WeaponUpgradeId.Rifle);
         }
 
-        public void ReceiveWeaponDamage(float damage, WeaponUpgradeId sourceWeaponId, WeaponCoreElement coreElement, int coreLevel)
+        public void ReceiveWeaponDamage(float damage, WeaponUpgradeId sourceWeaponId)
         {
             if (_isDead)
             {
@@ -424,22 +431,7 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            var lightBonusMultiplier = 0f;
-            if (_activeLightRemaining > 0f && _activeLightBonusMultiplier > 0f)
-            {
-                lightBonusMultiplier = _activeLightBonusMultiplier;
-            }
-
-            if (coreElement == WeaponCoreElement.Light && coreLevel > 0)
-            {
-                var immediateLightMultiplier = GetLightBonusMultiplierForLevel(Mathf.Clamp(coreLevel, 1, PlayerBuildRuntime.MaxCoreLevel));
-                lightBonusMultiplier = Mathf.Max(lightBonusMultiplier, immediateLightMultiplier);
-            }
-
-            var lightBonusDamage = baseDamage * lightBonusMultiplier;
-
-            var appliedDamage = baseDamage + lightBonusDamage;
-            _health = Mathf.Max(0f, _health - appliedDamage);
+            _health = Mathf.Max(0f, _health - baseDamage);
             if (_health > 0f &&
                 _visualKind != RuntimeSpriteFactory.EnemyVisualKind.Boss &&
                 _visualKind != RuntimeSpriteFactory.EnemyVisualKind.Skeleton)
@@ -449,21 +441,36 @@ namespace EJR.Game.Gameplay
 
             var basePopupPosition = transform.position + new Vector3(0f, 0.8f, 0f);
             CombatTextSpawner.SpawnDamage(basePopupPosition, baseDamage, CombatTextSpawner.EnemyDamagedColor);
-            if (lightBonusDamage > 0f)
-            {
-                CombatTextSpawner.SpawnDamage(basePopupPosition + new Vector3(0f, 0.18f, 0f), lightBonusDamage, CombatTextSpawner.LightBonusColor);
-            }
             Changed?.Invoke(_health, MaxHealth);
-
-            if (coreLevel > 0)
-            {
-                ApplyWeaponCoreOnHit(coreElement, coreLevel, appliedDamage);
-            }
 
             if (_health <= 0f)
             {
                 Die();
             }
+        }
+
+        public void ApplyBurn(float damagePerTick, float duration, float tickInterval)
+        {
+            if (_isDead || damagePerTick <= 0f || duration <= 0f)
+            {
+                return;
+            }
+
+            _burnDamagePerTick = Mathf.Max(_burnDamagePerTick, damagePerTick);
+            _burnTickInterval = Mathf.Max(0.05f, tickInterval);
+            _burnTickTimer = _burnTickTimer > 0f ? Mathf.Min(_burnTickTimer, _burnTickInterval) : _burnTickInterval;
+            _burnRemaining = Mathf.Max(_burnRemaining, duration);
+            UpdateStatusIndicators();
+        }
+
+        public void ApplyStun(float durationSeconds)
+        {
+            if (_isDead || IsBoss)
+            {
+                return;
+            }
+
+            _stunRemaining = Mathf.Max(_stunRemaining, Mathf.Max(0f, durationSeconds));
         }
 
         private void RefreshResolvedTarget()
@@ -509,6 +516,8 @@ namespace EJR.Game.Gameplay
                 _registry.Unregister(this);
             }
 
+            Defeated?.Invoke(this);
+
             if (_networkObject == null)
             {
                 _networkObject = GetComponent<NetworkObject>();
@@ -532,6 +541,15 @@ namespace EJR.Game.Gameplay
 
         private void TickCoreEffectDurations()
         {
+            if (_stunRemaining > 0f)
+            {
+                _stunRemaining -= Time.deltaTime;
+                if (_stunRemaining <= 0f)
+                {
+                    _stunRemaining = 0f;
+                }
+            }
+
             if (_activeSlowRemaining > 0f)
             {
                 _activeSlowRemaining -= Time.deltaTime;
@@ -549,6 +567,26 @@ namespace EJR.Game.Gameplay
                 {
                     _activeLightRemaining = 0f;
                     _activeLightBonusMultiplier = 0f;
+                }
+            }
+
+            if (_burnRemaining > 0f && _burnDamagePerTick > 0f)
+            {
+                _burnRemaining -= Time.deltaTime;
+                _burnTickTimer -= Time.deltaTime;
+                var tickInterval = Mathf.Max(0.05f, _burnTickInterval);
+                while (_burnTickTimer <= 0f && _burnRemaining > 0f && !_isDead)
+                {
+                    _burnTickTimer += tickInterval;
+                    ReceiveWeaponDamage(_burnDamagePerTick, WeaponUpgradeId.Smg);
+                }
+
+                if (_burnRemaining <= 0f || _isDead)
+                {
+                    _burnRemaining = 0f;
+                    _burnDamagePerTick = 0f;
+                    _burnTickInterval = 0f;
+                    _burnTickTimer = 0f;
                 }
             }
 
@@ -987,26 +1025,6 @@ namespace EJR.Game.Gameplay
             return candidate;
         }
 
-        private void ApplyWeaponCoreOnHit(WeaponCoreElement coreElement, int coreLevel, float dealtDamage)
-        {
-            var clampedLevel = Mathf.Clamp(coreLevel, 1, PlayerBuildRuntime.MaxCoreLevel);
-            switch (coreElement)
-            {
-                case WeaponCoreElement.Fire:
-                    ApplyFireCore(clampedLevel, dealtDamage);
-                    break;
-                case WeaponCoreElement.Wind:
-                    ApplyWaterCore(clampedLevel);
-                    break;
-                case WeaponCoreElement.Light:
-                    ApplyLightCore(clampedLevel);
-                    break;
-                case WeaponCoreElement.Water:
-                    ApplyWindCore(clampedLevel);
-                    break;
-            }
-        }
-
         private void ApplyFireCore(int coreLevel, float dealtDamage)
         {
             var (accumulateRatio, hitThreshold) = coreLevel switch
@@ -1060,16 +1078,6 @@ namespace EJR.Game.Gameplay
             _activeLightBonusMultiplier = Mathf.Max(_activeLightBonusMultiplier, bonusMultiplier);
             _activeLightRemaining = Mathf.Max(_activeLightRemaining, duration);
             UpdateStatusIndicators();
-        }
-
-        private static float GetLightBonusMultiplierForLevel(int coreLevel)
-        {
-            return coreLevel switch
-            {
-                1 => 0.10f,
-                2 => 0.20f,
-                _ => 0.30f,
-            };
         }
 
         private void ApplyWaterCore(int coreLevel)
@@ -1306,7 +1314,8 @@ namespace EJR.Game.Gameplay
         {
             var showSlow = _activeSlowRemaining > 0f && _activeSlowMultiplier < 0.999f;
             var showLight = _activeLightRemaining > 0f && _activeLightBonusMultiplier > 0f;
-            var showFire = _fireAccumulatedHits > 0 && _fireAccumulatedDamage > 0f && _fireTriggerHitCount < int.MaxValue;
+            var showFire = (_fireAccumulatedHits > 0 && _fireAccumulatedDamage > 0f && _fireTriggerHitCount < int.MaxValue)
+                || (_burnRemaining > 0f && _burnDamagePerTick > 0f);
             if (!showSlow && !showLight && !showFire)
             {
                 if (_statusIndicatorRoot != null)

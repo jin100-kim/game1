@@ -61,6 +61,8 @@ namespace EJR.Game.Multiplayer
         private float _allDownAt = -1f;
         private float _resultReturnAt = -1f;
         private bool _bossWaveTriggered;
+        private bool _resultSessionEnding;
+        private int _teamEnemiesDefeated;
 
         public static MultiplayerCoopController Instance { get; private set; }
 
@@ -102,6 +104,7 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
+            EnemyController.Defeated += HandleEnemyDefeated;
             Time.timeScale = 1f;
             ReturnPlayersToLobby();
         }
@@ -110,6 +113,7 @@ namespace EJR.Game.Multiplayer
         {
             if (IsServer)
             {
+                EnemyController.Defeated -= HandleEnemyDefeated;
                 Time.timeScale = 1f;
             }
 
@@ -123,6 +127,7 @@ namespace EJR.Game.Multiplayer
         {
             if (IsServer)
             {
+                EnemyController.Defeated -= HandleEnemyDefeated;
                 Time.timeScale = 1f;
             }
 
@@ -162,7 +167,7 @@ namespace EJR.Game.Multiplayer
                 case MultiplayerRunPhase.Result:
                     if (_resultReturnAt > 0f && Time.unscaledTime >= _resultReturnAt)
                     {
-                        ReturnPlayersToLobby();
+                        LeaveSessionAfterResult();
                     }
                     break;
             }
@@ -476,9 +481,16 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
+            DeliverRunSummaryClientRpc(
+                cleared,
+                _teamLevel.Value,
+                _elapsedSeconds,
+                _teamEnemiesDefeated,
+                _bossWaveTriggered);
             _resultCleared.Value = cleared;
             _phase.Value = (int)MultiplayerRunPhase.Result;
             _resultReturnAt = Time.unscaledTime + Mathf.Max(1f, resultReturnDelaySeconds);
+            _resultSessionEnding = false;
             Time.timeScale = 0f;
         }
 
@@ -504,6 +516,8 @@ namespace EJR.Game.Multiplayer
             _allDownAt = -1f;
             _resultReturnAt = -1f;
             _bossWaveTriggered = false;
+            _resultSessionEnding = false;
+            _teamEnemiesDefeated = 0;
             _currentBoss = null;
             _teamLevel.Value = 1;
             _teamExperience.Value = 0;
@@ -530,6 +544,8 @@ namespace EJR.Game.Multiplayer
             _allDownAt = -1f;
             _resultReturnAt = -1f;
             _bossWaveTriggered = false;
+            _resultSessionEnding = false;
+            _teamEnemiesDefeated = 0;
             _currentBoss = null;
             _teamLevel.Value = 1;
             _teamExperience.Value = 0;
@@ -900,6 +916,45 @@ namespace EJR.Game.Multiplayer
             }
 
             BeginRun();
+        }
+
+        [ClientRpc]
+        private void DeliverRunSummaryClientRpc(bool cleared, int teamLevel, float elapsedSeconds, int enemiesDefeated, bool bossReached)
+        {
+            var summary = MetaProgressionService.BuildRunRewardSummary(
+                "Co-op",
+                cleared,
+                teamLevel,
+                elapsedSeconds,
+                enemiesDefeated,
+                bossReached);
+            MetaProgressionService.RecordRunSummary(summary);
+        }
+
+        private void HandleEnemyDefeated(EnemyController enemy)
+        {
+            if (!IsServer || enemy == null)
+            {
+                return;
+            }
+
+            if (Phase != MultiplayerRunPhase.Running && Phase != MultiplayerRunPhase.LevelChoice)
+            {
+                return;
+            }
+
+            _teamEnemiesDefeated++;
+        }
+
+        private void LeaveSessionAfterResult()
+        {
+            if (!IsServer || _resultSessionEnding)
+            {
+                return;
+            }
+
+            _resultSessionEnding = true;
+            MultiplayerSessionController.EnsureInstance().LeaveSession(_resultCleared.Value ? "Multiplayer run complete." : "Team defeated.");
         }
     }
 }

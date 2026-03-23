@@ -87,6 +87,34 @@ namespace EJR.Game.Gameplay
             Changed?.Invoke(CurrentHealth, MaxHealth);
         }
 
+        public bool TrySpendHealth(float amount, bool allowFatal = false)
+        {
+            if (amount <= 0f)
+            {
+                return true;
+            }
+
+            if (CurrentHealth <= 0f)
+            {
+                return false;
+            }
+
+            var minimumHealth = allowFatal ? 0f : 1f;
+            if (CurrentHealth - amount < minimumHealth - 0.0001f)
+            {
+                return false;
+            }
+
+            CurrentHealth = Mathf.Max(minimumHealth, CurrentHealth - amount);
+            Changed?.Invoke(CurrentHealth, MaxHealth);
+            if (CurrentHealth <= 0f)
+            {
+                Died?.Invoke();
+            }
+
+            return true;
+        }
+
         public void TakeDamage(float damage)
         {
             if (CurrentHealth <= 0f || IsInvulnerable)

@@ -60,6 +60,9 @@ namespace EJR.Game.Core
         private static readonly VisualAssetDescriptor SexySwordDescriptor = new(
             "Aseprite/sexySword",
             "Assets/Resources/Aseprite/sexySword.aseprite");
+        private static readonly VisualAssetDescriptor SexyBfSwordDescriptor = new(
+            "Aseprite/SexyBFsword",
+            "Assets/Resources/Aseprite/SexyBFsword.aseprite");
         private static readonly VisualAssetDescriptor SexyFireDescriptor = new(
             "Aseprite/sexyFire",
             "Assets/Resources/Aseprite/sexyFire.aseprite");
@@ -79,6 +82,7 @@ namespace EJR.Game.Core
         private static Sprite[] _sexySwordFrames;
         private static Sprite[] _sexySwordAttackFrames;
         private static Sprite[] _sexySwordAttackFlippedFrames;
+        private static Sprite[] _sexyBfSwordFrames;
         private static Sprite[] _sexyFireFrames;
         private static Sprite[] _sexyFireStackFrames;
         private static Sprite[] _sexyFireBoomFrames;
@@ -230,6 +234,27 @@ namespace EJR.Game.Core
 
             _sexySwordAttackFlippedFrames = flippedFrames;
             return _sexySwordAttackFlippedFrames;
+        }
+
+        public static Sprite[] GetSexyBfSwordAnimationFrames()
+        {
+            if (_sexyBfSwordFrames != null && _sexyBfSwordFrames.Length > 0)
+            {
+                return _sexyBfSwordFrames;
+            }
+
+            var sourceFrames = LoadSourceFrames(SexyBfSwordDescriptor.ResourcePath, SexyBfSwordDescriptor.AssetPath);
+            if (sourceFrames.Length <= 0)
+            {
+                _sexyBfSwordFrames = Array.Empty<Sprite>();
+                return _sexyBfSwordFrames;
+            }
+
+            _sexyBfSwordFrames = CreateFixedCanvasCenteredSprites(
+                sourceFrames,
+                WeaponFrameCanvasSize,
+                WeaponFrameCanvasSize);
+            return _sexyBfSwordFrames;
         }
 
         public static Sprite[] GetSexyFireAnimationFrames()

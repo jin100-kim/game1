@@ -77,6 +77,7 @@ namespace EJR.Game.Multiplayer
         }
 
         private PlayerConfig _playerConfig;
+        private WeaponConfig _weaponConfig;
         private PlayerMover _playerMover;
         private PlayerSpriteAnimator _playerSpriteAnimator;
         private SpriteRenderer _rootSpriteRenderer;
@@ -97,6 +98,7 @@ namespace EJR.Game.Multiplayer
         private readonly List<LocalTurretVisual> _localTurrets = new(4);
         private readonly Queue<Projectile> _projectileVisualPool = new();
         private Vector2 _weaponAimDirection = Vector2.right;
+        private Vector2 _facingDirection = Vector2.right;
         private float _droneOrbitRadius;
         private float _droneOrbitSpeedDegrees;
         private int _droneVisualCount;
@@ -147,6 +149,7 @@ namespace EJR.Game.Multiplayer
             _droneOrbitSeedDegrees = (OwnerClientId % 8UL) * 37.5f;
             SetWeaponVisible(false);
             SetWeaponAim(_weaponAimDirection);
+            SetFacingDirection(_facingDirection);
 
             if (IsOwner)
             {
@@ -205,6 +208,12 @@ namespace EJR.Game.Multiplayer
                 var velocity = CalculateVelocity();
                 _networkVelocity.Value = velocity;
                 _playerSpriteAnimator.SetMotion(velocity);
+                SetFacingDirection(_playerMover != null ? _playerMover.CurrentFacingDirection : _facingDirection);
+            }
+
+            if (_weaponVisualRenderer != null && _weaponVisualRenderer.enabled)
+            {
+                ApplyHeldWeaponFacing(_facingDirection);
             }
 
             UpdateDroneVisuals();
@@ -223,14 +232,20 @@ namespace EJR.Game.Multiplayer
             _weaponVisualRenderer.enabled = isVisible;
             if (_weaponSpriteAnimator != null)
             {
-                _weaponSpriteAnimator.enabled = isVisible;
+                _weaponSpriteAnimator.enabled = false;
             }
         }
 
         public void SetWeaponAim(Vector2 direction)
         {
             _weaponAimDirection = NormalizeDirection(direction, _weaponAimDirection);
-            ApplyWeaponAim(_weaponAimDirection, fromFireEvent: false);
+        }
+
+        public void SetFacingDirection(Vector2 direction)
+        {
+            _facingDirection = NormalizeDirection(direction, _facingDirection);
+            _playerSpriteAnimator?.SetLookDirection(_facingDirection);
+            ApplyHeldWeaponFacing(_facingDirection);
         }
 
         public void RefreshOwnerCameraBinding()
@@ -247,7 +262,6 @@ namespace EJR.Game.Multiplayer
         public void PlayWeaponAttack(Vector2 direction)
         {
             _weaponAimDirection = NormalizeDirection(direction, _weaponAimDirection);
-            ApplyWeaponAim(_weaponAimDirection, fromFireEvent: true);
         }
 
         public Vector3 ResolveProjectileSpawnPoint(Vector2 aimDirection)
@@ -255,24 +269,7 @@ namespace EJR.Game.Multiplayer
             InitializeRuntime();
 
             var normalizedDirection = NormalizeDirection(aimDirection, _weaponAimDirection);
-            var flipX = ResolveWeaponFlipX(normalizedDirection);
-            var rotationDegrees = CalculateWeaponRotationDegrees(normalizedDirection, flipX);
-            var localPosition = CalculateWeaponLocalPosition(normalizedDirection, flipX, rotationDegrees);
-
-            if (_weaponVisualTransform != null)
-            {
-                _weaponVisualTransform.localPosition = new Vector3(localPosition.x, localPosition.y, 0f);
-                _weaponVisualTransform.localRotation = Quaternion.Euler(0f, 0f, rotationDegrees);
-            }
-
-            if (_weaponVisualRenderer != null && _weaponVisualRenderer.sprite != null)
-            {
-                return WeaponVisualLayoutUtility.ResolveProjectileSpawnWorld(
-                    _weaponVisualTransform,
-                    _weaponVisualRenderer,
-                    flipX);
-            }
-
+            var localPosition = CalculateProjectileSpawnLocalPosition(normalizedDirection);
             return _cachedTransform.TransformPoint(new Vector3(localPosition.x, localPosition.y, 0f));
         }
 
@@ -358,8 +355,6 @@ namespace EJR.Game.Multiplayer
                 0f,
                 1f,
                 WeaponUpgradeId.Rifle,
-                WeaponCoreElement.None,
-                0,
                 ReturnProjectileVisualToPool,
                 useBoundsCulling: true,
                 bounds: arenaBounds);
@@ -502,6 +497,7 @@ namespace EJR.Game.Multiplayer
             _playerMover = GetComponent<PlayerMover>();
             _playerSpriteAnimator = GetComponent<PlayerSpriteAnimator>();
             _playerConfig = ScriptableObject.CreateInstance<PlayerConfig>();
+            _weaponConfig = ScriptableObject.CreateInstance<WeaponConfig>();
 
             var frames = RuntimeSpriteFactory.GetPlayerAnimationFrames();
             var baseSprite = frames.Length > 0 ? frames[0] : RuntimeSpriteFactory.GetSquareSprite();
@@ -515,7 +511,7 @@ namespace EJR.Game.Multiplayer
             _playerMover.Initialize(_playerConfig, null, arenaBounds);
             _playerSpriteAnimator.Initialize(_spriteRenderer, frames, _playerConfig);
             EnsureWeaponVisual();
-            ApplyWeaponAim(_weaponAimDirection, fromFireEvent: false);
+            SetFacingDirection(_facingDirection);
 
             _initialized = true;
         }
@@ -574,7 +570,7 @@ namespace EJR.Game.Multiplayer
             }
 
             var squareSprite = RuntimeSpriteFactory.GetSquareSprite();
-            var weaponFrames = RuntimeSpriteFactory.GetWeaponFire1AnimationFrames();
+            var weaponFrames = RuntimeSpriteFactory.GetSexyBfSwordAnimationFrames();
             var weaponSprite = weaponFrames.Length > 0 ? weaponFrames[0] : squareSprite;
 
             _weaponVisualRenderer.sprite = weaponSprite;
@@ -582,21 +578,11 @@ namespace EJR.Game.Multiplayer
             _weaponVisualRenderer.sortingLayerID = _spriteRenderer.sortingLayerID;
             _weaponVisualRenderer.sortingOrder = _spriteRenderer.sortingOrder + weaponFrontSortingOffset;
 
-            var weaponVisualSize = Mathf.Max(0.05f, _playerConfig.weaponVisualScale);
+            var weaponVisualSize = _weaponConfig != null ? Mathf.Max(0.05f, _weaponConfig.bfSwordVisualScale) : 0.95f;
             ApplyVisualScale(_weaponVisualTransform, weaponSprite, weaponVisualSize);
-
-            if (_weaponSpriteAnimator == null)
-            {
-                _weaponSpriteAnimator = _weaponVisualTransform.GetComponent<WeaponSpriteAnimator>();
-                if (_weaponSpriteAnimator == null)
-                {
-                    _weaponSpriteAnimator = _weaponVisualTransform.gameObject.AddComponent<WeaponSpriteAnimator>();
-                }
-            }
-
-            _weaponSpriteAnimator.Initialize(_weaponVisualRenderer, weaponFrames, _playerConfig);
+            ApplyBfSwordVisualWidthScale(_weaponVisualTransform);
+            _weaponSpriteAnimator = null;
             _weaponVisualRenderer.enabled = false;
-            _weaponSpriteAnimator.enabled = false;
         }
 
         private void EnsureVisualRoot()
@@ -1169,33 +1155,27 @@ namespace EJR.Game.Multiplayer
             return fireFrames;
         }
 
-        private void ApplyWeaponAim(Vector2 aimDirection, bool fromFireEvent)
+        private void ApplyHeldWeaponFacing(Vector2 direction)
         {
             if (_weaponVisualTransform == null || _weaponVisualRenderer == null)
             {
                 return;
             }
 
-            var normalizedDirection = NormalizeDirection(aimDirection, Vector2.right);
-            _playerSpriteAnimator?.SetLookDirection(normalizedDirection);
+            var normalizedDirection = NormalizeDirection(direction, Vector2.right);
             var flipX = ResolveWeaponFlipX(normalizedDirection);
             var rotationDegrees = CalculateWeaponRotationDegrees(normalizedDirection, flipX);
-            var localPosition = CalculateWeaponLocalPosition(normalizedDirection, flipX, rotationDegrees);
+            var localPosition = CalculateHeldWeaponLocalPosition(normalizedDirection, flipX, rotationDegrees);
             _weaponVisualTransform.localPosition = new Vector3(localPosition.x, localPosition.y, 0f);
             _weaponVisualRenderer.flipX = flipX;
             UpdateWeaponSorting(normalizedDirection);
             _weaponVisualTransform.localRotation = Quaternion.Euler(0f, 0f, rotationDegrees);
-
-            if (fromFireEvent)
-            {
-                _weaponSpriteAnimator?.PlayAttack(normalizedDirection);
-            }
         }
 
-        private Vector2 CalculateWeaponLocalPosition(Vector2 normalizedDirection, bool flipX, float rotationDegrees)
+        private Vector2 CalculateHeldWeaponLocalPosition(Vector2 normalizedDirection, bool flipX, float rotationDegrees)
         {
-            var weaponOffset = _playerConfig.weaponVisualOffset;
-            var aimDistance = Mathf.Max(0.05f, _playerConfig.weaponAimDistance);
+            var weaponOffset = _weaponConfig != null ? _weaponConfig.bfSwordVisualLocalOffset : new Vector2(0f, -0.08f);
+            var aimDistance = _weaponConfig != null ? Mathf.Max(0f, _weaponConfig.bfSwordForwardOffset) : 0.48f;
             var sprite = _weaponVisualRenderer != null ? _weaponVisualRenderer.sprite : null;
             return WeaponVisualLayoutUtility.CalculateWeaponLocalPosition(
                 ResolveWeaponOrbitCenterLocal(),
@@ -1205,6 +1185,13 @@ namespace EJR.Game.Multiplayer
                 flipX,
                 rotationDegrees,
                 sprite);
+        }
+
+        private Vector2 CalculateProjectileSpawnLocalPosition(Vector2 normalizedDirection)
+        {
+            var orbitCenterLocal = ResolveWeaponOrbitCenterLocal();
+            var aimDistance = _playerConfig != null ? Mathf.Max(0.05f, _playerConfig.weaponAimDistance) : 0.4f;
+            return orbitCenterLocal + (normalizedDirection * aimDistance);
         }
 
         private Vector2 ResolveWeaponOrbitCenterLocal()
@@ -1296,6 +1283,18 @@ namespace EJR.Game.Multiplayer
             }
 
             targetTransform.localScale = Vector3.one * (clampedSize / spriteSize);
+        }
+
+        private void ApplyBfSwordVisualWidthScale(Transform targetTransform)
+        {
+            if (targetTransform == null)
+            {
+                return;
+            }
+
+            var widthMultiplier = _weaponConfig != null ? Mathf.Max(0.05f, _weaponConfig.bfSwordVisualWidthMultiplier) : 0.5f;
+            var localScale = targetTransform.localScale;
+            targetTransform.localScale = new Vector3(localScale.x, localScale.y * widthMultiplier, localScale.z);
         }
     }
 }

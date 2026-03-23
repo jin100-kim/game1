@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using EJR.Game.Core;
 using UnityEngine;
@@ -7,20 +7,6 @@ namespace EJR.Game.Gameplay
 {
     public sealed class LevelUpSystem
     {
-        private readonly struct PendingCoreChoice
-        {
-            public PendingCoreChoice(WeaponUpgradeId weaponId, int targetCoreLevel, WeaponCoreElement lockedElement)
-            {
-                WeaponId = weaponId;
-                TargetCoreLevel = targetCoreLevel;
-                LockedElement = lockedElement;
-            }
-
-            public WeaponUpgradeId WeaponId { get; }
-            public int TargetCoreLevel { get; }
-            public WeaponCoreElement LockedElement { get; }
-        }
-
         private static readonly WeaponUpgradeId[] AllWeaponIds =
         {
             WeaponUpgradeId.Rifle,
@@ -28,14 +14,14 @@ namespace EJR.Game.Gameplay
             WeaponUpgradeId.SniperRifle,
             WeaponUpgradeId.Shotgun,
             WeaponUpgradeId.Katana,
+            WeaponUpgradeId.BfSword,
             WeaponUpgradeId.ChainAttack,
             WeaponUpgradeId.SatelliteBeam,
-            WeaponUpgradeId.Drone,
             WeaponUpgradeId.RifleTurret,
             WeaponUpgradeId.Aura,
         };
 
-        private static readonly StatUpgradeId[] AllStatIds =
+        private static readonly StatUpgradeId[] AllGlobalStatIds =
         {
             StatUpgradeId.AttackPower,
             StatUpgradeId.AttackSpeed,
@@ -43,28 +29,31 @@ namespace EJR.Game.Gameplay
             StatUpgradeId.HealthRegen,
             StatUpgradeId.MoveSpeed,
             StatUpgradeId.AttackRange,
+            StatUpgradeId.Luck,
         };
 
         private readonly List<LevelUpOption> _workingOptions = new(3);
         private readonly List<LevelUpOption> _candidates = new(24);
-        private readonly Queue<PendingCoreChoice> _pendingCoreChoices = new();
         private int _pendingChoices;
         private bool _awaitingChoice;
-        private bool _awaitingCoreChoice;
         private PlayerBuildRuntime _build;
+        private LevelUpBalanceConfig _balanceConfig;
+        private Func<WeaponUpgradeId, bool> _weaponUnlockPredicate;
 
         public int Level { get; private set; } = 1;
         public int CurrentExperience { get; private set; }
         public int RequiredExperience { get; private set; } = ProgressionMath.RequiredExperienceForLevel(1);
         public bool IsAwaitingChoice => _awaitingChoice;
-        public bool HasPendingChoices => _pendingChoices > 0 || _pendingCoreChoices.Count > 0;
+        public bool HasPendingChoices => _pendingChoices > 0;
 
         public event Action<int, int, int> ExperienceChanged;
         public event Action<LevelUpOption[]> OptionsGenerated;
 
-        public void Initialize(PlayerBuildRuntime build)
+        public void Initialize(PlayerBuildRuntime build, LevelUpBalanceConfig balanceConfig = null, Func<WeaponUpgradeId, bool> weaponUnlockPredicate = null)
         {
             _build = build;
+            _balanceConfig = balanceConfig ?? LevelUpBalanceConfig.CreateRuntimeDefault();
+            _weaponUnlockPredicate = weaponUnlockPredicate ?? (_ => true);
         }
 
         public void AddExperience(int amount)
@@ -75,7 +64,6 @@ namespace EJR.Game.Gameplay
             }
 
             CurrentExperience += amount;
-
             while (CurrentExperience >= RequiredExperience)
             {
                 CurrentExperience -= RequiredExperience;
@@ -90,30 +78,15 @@ namespace EJR.Game.Gameplay
 
         public void ApplyOption(int optionIndex, IReadOnlyList<LevelUpOption> options)
         {
-            if (!_awaitingChoice || _build == null || options == null || options.Count == 0)
+            if (!_awaitingChoice || _build == null || options == null || options.Count <= 0)
             {
                 return;
             }
 
             optionIndex = Mathf.Clamp(optionIndex, 0, options.Count - 1);
-            var selectedOption = options[optionIndex];
-            _build.Apply(selectedOption);
-
-            if (_awaitingCoreChoice)
-            {
-                if (_pendingCoreChoices.Count > 0)
-                {
-                    _pendingCoreChoices.Dequeue();
-                }
-            }
-            else
-            {
-                _pendingChoices = Mathf.Max(0, _pendingChoices - 1);
-                TryQueueCoreChoiceAfterWeaponUpgrade(selectedOption);
-            }
-
+            _build.Apply(options[optionIndex]);
+            _pendingChoices = Mathf.Max(0, _pendingChoices - 1);
             _awaitingChoice = false;
-            _awaitingCoreChoice = false;
 
             TryOpenNextChoice();
             ExperienceChanged?.Invoke(CurrentExperience, RequiredExperience, Level);
@@ -126,17 +99,8 @@ namespace EJR.Game.Gameplay
                 return false;
             }
 
-            LevelUpOption[] nextOptions;
-            if (_awaitingCoreChoice && _pendingCoreChoices.Count > 0)
-            {
-                nextOptions = GenerateCoreOptions(_pendingCoreChoices.Peek());
-            }
-            else
-            {
-                nextOptions = GenerateOptions(Level);
-            }
-
-            if (nextOptions == null || nextOptions.Length == 0)
+            var nextOptions = GenerateOptions(Level);
+            if (nextOptions.Length <= 0)
             {
                 return false;
             }
@@ -152,43 +116,20 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            while (true)
+            while (_pendingChoices > 0)
             {
-                if (_pendingCoreChoices.Count > 0)
+                var options = GenerateOptions(Level);
+                if (options.Length > 0)
                 {
-                    var coreOptions = GenerateCoreOptions(_pendingCoreChoices.Peek());
-                    if (coreOptions.Length > 0)
-                    {
-                        _awaitingChoice = true;
-                        _awaitingCoreChoice = true;
-                        OptionsGenerated?.Invoke(coreOptions);
-                        return;
-                    }
-
-                    _pendingCoreChoices.Dequeue();
-                    continue;
+                    _awaitingChoice = true;
+                    OptionsGenerated?.Invoke(options);
+                    return;
                 }
 
-                if (_pendingChoices > 0)
-                {
-                    var options = GenerateOptions(Level);
-                    if (options.Length > 0)
-                    {
-                        _awaitingChoice = true;
-                        _awaitingCoreChoice = false;
-                        OptionsGenerated?.Invoke(options);
-                        return;
-                    }
-
-                    _pendingChoices--;
-                    continue;
-                }
-
-                break;
+                _pendingChoices--;
             }
 
             _awaitingChoice = false;
-            _awaitingCoreChoice = false;
         }
 
         private LevelUpOption[] GenerateOptions(int playerLevel)
@@ -204,82 +145,30 @@ namespace EJR.Game.Gameplay
             for (var i = 0; i < _build.OwnedWeapons.Count; i++)
             {
                 var weaponId = _build.OwnedWeapons[i];
+                if (!_build.CanLevelWeapon(weaponId))
+                {
+                    continue;
+                }
+
                 var currentLevel = _build.GetWeaponLevel(weaponId);
-                if (currentLevel >= PlayerBuildRuntime.MaxWeaponLevel)
-                {
-                    continue;
-                }
-
                 var nextLevel = currentLevel + 1;
-                _candidates.Add(new LevelUpOption(
-                    UpgradeCategory.Weapon,
-                    weaponId,
-                    default,
-                    currentLevel,
-                    nextLevel,
-                    isNewAcquire: false,
-                    isLockedBySlot: false,
-                    label: BuildWeaponUpgradeLabel(weaponId, currentLevel, nextLevel)));
-            }
-
-            for (var i = 0; i < _build.OwnedStats.Count; i++)
-            {
-                var statId = _build.OwnedStats[i];
-                var currentLevel = _build.GetStatLevel(statId);
-                if (currentLevel >= PlayerBuildRuntime.MaxStatLevel)
-                {
-                    continue;
-                }
-
-                var nextLevel = currentLevel + 1;
-                _candidates.Add(new LevelUpOption(
-                    UpgradeCategory.Stat,
-                    default,
-                    statId,
-                    currentLevel,
-                    nextLevel,
-                    isNewAcquire: false,
-                    isLockedBySlot: false,
-                    label: BuildStatUpgradeLabel(statId, currentLevel, nextLevel)));
+                _candidates.Add(nextLevel == 5 || nextLevel == 10
+                    ? CreateWeaponMilestoneOption(weaponId, currentLevel, nextLevel)
+                    : CreateWeaponRollOption(weaponId, currentLevel, nextLevel));
             }
 
             for (var i = 0; i < AllWeaponIds.Length; i++)
             {
                 var weaponId = AllWeaponIds[i];
-                if (_build.CanAcquireWeapon(weaponId, playerLevel))
+                if ((_weaponUnlockPredicate?.Invoke(weaponId) ?? true) && _build.CanAcquireWeapon(weaponId, playerLevel))
                 {
-                    _candidates.Add(new LevelUpOption(
-                        UpgradeCategory.Weapon,
-                        weaponId,
-                        default,
-                        0,
-                        1,
-                        isNewAcquire: true,
-                        isLockedBySlot: false,
-                        label: BuildNewWeaponLabel(weaponId)));
+                    _candidates.Add(CreateWeaponAcquireOption(weaponId));
                 }
             }
 
-            if (_build.OwnedStats.Count < PlayerBuildRuntime.MaxStatSlots)
+            for (var i = 0; i < AllGlobalStatIds.Length; i++)
             {
-                for (var i = 0; i < AllStatIds.Length; i++)
-                {
-                    var statId = AllStatIds[i];
-                    if (_build.HasStat(statId))
-                    {
-                        continue;
-                    }
-
-                    _candidates.Add(new LevelUpOption(
-                        UpgradeCategory.Stat,
-                        default,
-                        statId,
-                        0,
-                        1,
-                        isNewAcquire: true,
-                        isLockedBySlot: false,
-                        label: BuildNewStatLabel(statId)));
-                }
+                _candidates.Add(CreateGlobalStatRollOption(AllGlobalStatIds[i]));
             }
 
             if (_candidates.Count <= 0)
@@ -297,143 +186,60 @@ namespace EJR.Game.Gameplay
             return _workingOptions.ToArray();
         }
 
-        private LevelUpOption[] GenerateCoreOptions(PendingCoreChoice coreChoice)
+        private LevelUpOption CreateWeaponAcquireOption(WeaponUpgradeId weaponId)
         {
-            _workingOptions.Clear();
-            if (_build == null || !_build.HasWeapon(coreChoice.WeaponId))
-            {
-                return Array.Empty<LevelUpOption>();
-            }
-
-            var weaponName = GetWeaponName(coreChoice.WeaponId);
-            if (coreChoice.TargetCoreLevel <= 1)
-            {
-                _candidates.Clear();
-                _candidates.Add(new LevelUpOption(
-                    UpgradeCategory.WeaponCore,
-                    coreChoice.WeaponId,
-                    default,
-                    0,
-                    1,
-                    isNewAcquire: true,
-                    isLockedBySlot: false,
-                    label: BuildCoreLabel(weaponName, WeaponCoreElement.Fire, 0, 1),
-                    coreElement: WeaponCoreElement.Fire));
-
-                _candidates.Add(new LevelUpOption(
-                    UpgradeCategory.WeaponCore,
-                    coreChoice.WeaponId,
-                    default,
-                    0,
-                    1,
-                    isNewAcquire: true,
-                    isLockedBySlot: false,
-                    label: BuildCoreLabel(weaponName, WeaponCoreElement.Wind, 0, 1),
-                    coreElement: WeaponCoreElement.Wind));
-
-                _candidates.Add(new LevelUpOption(
-                    UpgradeCategory.WeaponCore,
-                    coreChoice.WeaponId,
-                    default,
-                    0,
-                    1,
-                    isNewAcquire: true,
-                    isLockedBySlot: false,
-                    label: BuildCoreLabel(weaponName, WeaponCoreElement.Light, 0, 1),
-                    coreElement: WeaponCoreElement.Light));
-
-                _candidates.Add(new LevelUpOption(
-                    UpgradeCategory.WeaponCore,
-                    coreChoice.WeaponId,
-                    default,
-                    0,
-                    1,
-                    isNewAcquire: true,
-                    isLockedBySlot: false,
-                    label: BuildCoreLabel(weaponName, WeaponCoreElement.Water, 0, 1),
-                    coreElement: WeaponCoreElement.Water));
-
-                ShuffleCandidates(_candidates);
-                var optionCount = Mathf.Min(3, _candidates.Count);
-                for (var i = 0; i < optionCount; i++)
-                {
-                    _workingOptions.Add(_candidates[i]);
-                }
-
-                return _workingOptions.ToArray();
-            }
-
-            var lockedElement = coreChoice.LockedElement;
-            if (lockedElement == WeaponCoreElement.None)
-            {
-                lockedElement = _build.GetWeaponCoreElement(coreChoice.WeaponId);
-            }
-
-            if (lockedElement == WeaponCoreElement.None)
-            {
-                return Array.Empty<LevelUpOption>();
-            }
-
-            var currentCoreLevel = Mathf.Max(1, _build.GetWeaponCoreLevel(coreChoice.WeaponId));
-            var nextCoreLevel = Mathf.Clamp(currentCoreLevel + 1, 1, PlayerBuildRuntime.MaxCoreLevel);
-            _workingOptions.Add(new LevelUpOption(
-                UpgradeCategory.WeaponCore,
-                coreChoice.WeaponId,
-                default,
-                currentCoreLevel,
-                nextCoreLevel,
-                isNewAcquire: false,
-                isLockedBySlot: false,
-                label: BuildCoreLabel(weaponName, lockedElement, currentCoreLevel, nextCoreLevel),
-                coreElement: lockedElement));
-
-            return _workingOptions.ToArray();
+            var title = $"New {SharedGameCatalog.GetWeaponDisplayName(weaponId)} Lv1";
+            var description = "Acquire weapon";
+            return LevelUpOption.CreateWeaponAcquire(weaponId, title, description, ComposeLabel(title, description, OptionRarity.Common, hideRarity: true));
         }
 
-        private void TryQueueCoreChoiceAfterWeaponUpgrade(LevelUpOption selectedOption)
+        private LevelUpOption CreateWeaponRollOption(WeaponUpgradeId weaponId, int currentLevel, int nextLevel)
         {
-            if (_build == null || selectedOption.Category != UpgradeCategory.Weapon)
-            {
-                return;
-            }
-
-            var weaponId = selectedOption.WeaponId;
-            var weaponLevel = _build.GetWeaponLevel(weaponId);
-            if (weaponLevel <= 0)
-            {
-                return;
-            }
-
-            if (weaponLevel == 3 && _build.CanChooseInitialCore(weaponId))
-            {
-                EnqueueCoreChoice(weaponId, targetCoreLevel: 1, WeaponCoreElement.None);
-                return;
-            }
-
-            var coreLevel = _build.GetWeaponCoreLevel(weaponId);
-            if (weaponLevel == 6 && coreLevel == 1)
-            {
-                EnqueueCoreChoice(weaponId, targetCoreLevel: 2, _build.GetWeaponCoreElement(weaponId));
-                return;
-            }
-
-            if (weaponLevel == 10 && coreLevel == 2)
-            {
-                EnqueueCoreChoice(weaponId, targetCoreLevel: 3, _build.GetWeaponCoreElement(weaponId));
-            }
+            var rarity = _balanceConfig.RollRarity(_build != null ? _build.GlobalLuckTotal : 0f);
+            var rollKind = (WeaponRollKind)UnityEngine.Random.Range(0, 3);
+            var value = _balanceConfig.GetWeaponRollValue(rollKind, rarity);
+            var title = $"Upgrade {SharedGameCatalog.GetWeaponDisplayName(weaponId)} Lv{nextLevel}";
+            var description = BuildWeaponRollDescription(rollKind, value);
+            return LevelUpOption.CreateWeaponRoll(
+                weaponId,
+                rollKind,
+                rarity,
+                value,
+                currentLevel,
+                nextLevel,
+                title,
+                description,
+                ComposeLabel(title, description, rarity));
         }
 
-        private void EnqueueCoreChoice(WeaponUpgradeId weaponId, int targetCoreLevel, WeaponCoreElement lockedElement)
+        private LevelUpOption CreateWeaponMilestoneOption(WeaponUpgradeId weaponId, int currentLevel, int nextLevel)
         {
-            foreach (var pending in _pendingCoreChoices)
-            {
-                if (pending.WeaponId == weaponId && pending.TargetCoreLevel == targetCoreLevel)
-                {
-                    return;
-                }
-            }
+            var title = $"{SharedGameCatalog.GetWeaponDisplayName(weaponId)} Lv{nextLevel}";
+            var description = GetWeaponMilestoneDescription(weaponId, nextLevel);
+            return LevelUpOption.CreateWeaponMilestone(
+                weaponId,
+                GetWeaponMilestoneKind(weaponId, nextLevel),
+                GetWeaponMilestoneValue(weaponId, nextLevel),
+                currentLevel,
+                nextLevel,
+                title,
+                description,
+                ComposeSpecialLabel(title, description));
+        }
 
-            _pendingCoreChoices.Enqueue(new PendingCoreChoice(weaponId, targetCoreLevel, lockedElement));
+        private LevelUpOption CreateGlobalStatRollOption(StatUpgradeId statId)
+        {
+            var rarity = _balanceConfig.RollRarity(_build != null ? _build.GlobalLuckTotal : 0f);
+            var value = _balanceConfig.GetGlobalRollValue(statId, rarity);
+            var title = $"Global {SharedGameCatalog.GetStatDisplayName(statId)}";
+            var description = BuildGlobalStatDescription(statId, value);
+            return LevelUpOption.CreateGlobalStatRoll(
+                statId,
+                rarity,
+                value,
+                title,
+                description,
+                ComposeLabel(title, description, rarity));
         }
 
         private static void ShuffleCandidates(List<LevelUpOption> items)
@@ -445,339 +251,118 @@ namespace EJR.Game.Gameplay
             }
         }
 
-        private static string GetWeaponName(WeaponUpgradeId weaponId)
+        private static string ComposeLabel(string title, string description, OptionRarity rarity, bool hideRarity = false)
         {
-            return weaponId switch
+            return hideRarity
+                ? $"{title}\n{description}"
+                : $"{title}\n{GetRarityRichText(rarity)}\n{description}";
+        }
+
+        private static string ComposeSpecialLabel(string title, string description)
+        {
+            return $"{title}\n{GetRarityRichText(OptionRarity.Special)}\n{description}";
+        }
+
+        private static string GetRarityRichText(OptionRarity rarity)
+        {
+            var color = rarity switch
             {
-                WeaponUpgradeId.Smg => "\uAE30\uAD00\uB2E8\uCD1D",
-                WeaponUpgradeId.SniperRifle => "\uC800\uACA9\uC18C\uCD1D",
-                WeaponUpgradeId.Shotgun => "\uC0B0\uD0C4\uCD1D",
-                WeaponUpgradeId.Katana => "\uCE74\uD0C0\uB098",
-                WeaponUpgradeId.ChainAttack => "\uCCB4\uC778\uC5B4\uD0DD",
-                WeaponUpgradeId.SatelliteBeam => "\uC704\uC131\uBE54",
-                WeaponUpgradeId.Drone => "\uB4DC\uB860",
-                WeaponUpgradeId.RifleTurret => "\uB77C\uC774\uD50C\uD3EC\uD0D1",
-                WeaponUpgradeId.Aura => "\uC624\uB77C",
-                _ => "\uB77C\uC774\uD50C",
+                OptionRarity.Rare => "#66A8FF",
+                OptionRarity.Epic => "#B781FF",
+                OptionRarity.Legendary => "#FFB14A",
+                OptionRarity.Special => "#FFD64D",
+                _ => "#C8C8C8",
+            };
+
+            var text = rarity switch
+            {
+                OptionRarity.Rare => "Rare",
+                OptionRarity.Epic => "Epic",
+                OptionRarity.Legendary => "Legendary",
+                OptionRarity.Special => "SPECIAL",
+                _ => "Common",
+            };
+
+            return $"<color={color}>{text}</color>";
+        }
+
+        private static string BuildWeaponRollDescription(WeaponRollKind rollKind, float value)
+        {
+            return rollKind switch
+            {
+                WeaponRollKind.AttackSpeedPercent => $"Attack Speed +{value:0.#}%",
+                WeaponRollKind.RangePercent => $"Range +{value:0.#}%",
+                _ => $"Damage +{value:0.#}%",
             };
         }
 
-        private static string GetStatName(StatUpgradeId statId)
+        private static string BuildGlobalStatDescription(StatUpgradeId statId, float value)
         {
             return statId switch
             {
-                StatUpgradeId.AttackPower => "\uACF5\uACA9\uB825",
-                StatUpgradeId.AttackSpeed => "\uACF5\uACA9\uC18D\uB3C4",
-                StatUpgradeId.MaxHealth => "\uCD5C\uB300\uCCB4\uB825",
-                StatUpgradeId.HealthRegen => "\uCCB4\uB825\uC7AC\uC0DD",
-                StatUpgradeId.MoveSpeed => "\uC774\uB3D9\uC18D\uB3C4",
-                StatUpgradeId.AttackRange => "\uC0AC\uAC70\uB9AC",
-                _ => statId.ToString(),
+                StatUpgradeId.MaxHealth => $"Max Health +{value:0}",
+                StatUpgradeId.HealthRegen => $"Health Regen +{value:0.##}/s",
+                StatUpgradeId.Luck => $"Luck +{value:0.##}",
+                StatUpgradeId.AttackSpeed => $"Attack Speed +{value:0.#}%",
+                StatUpgradeId.MoveSpeed => $"Move Speed +{value:0.#}%",
+                StatUpgradeId.AttackRange => $"Attack Range +{value:0.#}%",
+                _ => $"Attack Power +{value:0.#}%",
             };
         }
 
-        private static string GetCoreName(WeaponCoreElement coreElement)
-        {
-            return coreElement switch
-            {
-                WeaponCoreElement.Fire => "\uBD88",
-                WeaponCoreElement.Wind => "\uBC14\uB78C",
-                WeaponCoreElement.Light => "\uBE5B",
-                WeaponCoreElement.Water => "\uBB3C",
-                _ => "\uCF54\uC5B4",
-            };
-        }
-
-                private static string BuildWeaponUpgradeLabel(WeaponUpgradeId weaponId, int currentLevel, int nextLevel)
-        {
-            var weaponName = GetWeaponName(weaponId);
-            var currentDamage = GetWeaponDamageMultiplier(weaponId, currentLevel);
-            var nextDamage = GetWeaponDamageMultiplier(weaponId, nextLevel);
-            var currentCooldown = GetWeaponCooldownMultiplier(weaponId, currentLevel);
-            var nextCooldown = GetWeaponCooldownMultiplier(weaponId, nextLevel);
-            var currentRange = GetWeaponRangeMultiplier(weaponId, currentLevel);
-            var nextRange = GetWeaponRangeMultiplier(weaponId, nextLevel);
-
-            var header = $"강화 {weaponName} LV{nextLevel}";
-            var details = new List<string>(4);
-
-            if (!Mathf.Approximately(currentDamage, nextDamage))
-            {
-                var deltaDamagePercent = (nextDamage - currentDamage) * 100f;
-                details.Add($"피해 {FormatSignedPercent(deltaDamagePercent)}");
-            }
-
-            if (!Mathf.Approximately(currentCooldown, nextCooldown))
-            {
-                var currentAttackSpeedPercent = CooldownMultiplierToAttackSpeedPercent(currentCooldown);
-                var nextAttackSpeedPercent = CooldownMultiplierToAttackSpeedPercent(nextCooldown);
-                var deltaAttackSpeedPercent = nextAttackSpeedPercent - currentAttackSpeedPercent;
-                details.Add($"공속 {FormatSignedPercent(deltaAttackSpeedPercent)}");
-            }
-
-            if (!Mathf.Approximately(currentRange, nextRange))
-            {
-                var deltaRangePercent = (nextRange - currentRange) * 100f;
-                details.Add($"사거리 {FormatSignedPercent(deltaRangePercent)}");
-            }
-
-            var extra = GetWeaponLevelBonusDeltaText(weaponId, currentLevel, nextLevel);
-            if (!string.IsNullOrEmpty(extra))
-            {
-                details.Add(extra);
-            }
-
-            if (details.Count <= 0)
-            {
-                return header;
-            }
-
-            return $"{header}\n{string.Join(" | ", details)}";
-        }
-                private static string BuildNewWeaponLabel(WeaponUpgradeId weaponId)
-        {
-            var weaponName = GetWeaponName(weaponId);
-            return $"신규 {weaponName} LV1\n피해 +0% | 공속 +0% | 사거리 +0%";
-        }
-                private static string BuildStatUpgradeLabel(StatUpgradeId statId, int currentLevel, int nextLevel)
-        {
-            var statName = GetStatName(statId);
-            var detail = GetStatUpgradeDetailText(statId, currentLevel, nextLevel);
-            return $"강화 {statName} LV{nextLevel}\n{detail}";
-        }
-                private static string BuildNewStatLabel(StatUpgradeId statId)
-        {
-            var statName = GetStatName(statId);
-            var detail = GetStatUpgradeDetailText(statId, 0, 1);
-            return $"신규 {statName} LV1\n{detail}";
-        }
-        private static float GetWeaponDamageMultiplier(WeaponUpgradeId weaponId, int weaponLevel)
-        {
-            return GetValueFromLevelCurve(GetWeaponDamageCurve(weaponId), weaponLevel, 1f);
-        }
-
-        private static float GetWeaponCooldownMultiplier(WeaponUpgradeId weaponId, int weaponLevel)
-        {
-            var attackSpeedBonus = GetValueFromLevelCurve(GetWeaponAttackSpeedBonusCurve(weaponId), weaponLevel, 0f);
-            return 1f / (1f + Mathf.Max(0f, attackSpeedBonus));
-        }
-
-        private static float GetWeaponRangeMultiplier(WeaponUpgradeId weaponId, int weaponLevel)
-        {
-            return GetValueFromLevelCurve(GetWeaponRangeCurve(weaponId), weaponLevel, 1f);
-        }
-
-                private static string GetWeaponLevelBonusDeltaText(WeaponUpgradeId weaponId, int currentLevel, int nextLevel)
-        {
-            var currentExtra = GetWeaponExtraCount(weaponId, currentLevel);
-            var nextExtra = GetWeaponExtraCount(weaponId, nextLevel);
-            var delta = nextExtra - currentExtra;
-            if (delta <= 0)
-            {
-                return string.Empty;
-            }
-
-            return weaponId switch
-            {
-                WeaponUpgradeId.Rifle => $"추가 탄환 +{delta}",
-                WeaponUpgradeId.Smg => $"연사 수 +{delta}",
-                WeaponUpgradeId.SniperRifle => $"추가 관통 +{delta}",
-                WeaponUpgradeId.Shotgun => $"추가 탄환 +{delta}",
-                WeaponUpgradeId.Katana => $"추가 공격 +{delta}",
-                WeaponUpgradeId.ChainAttack => $"추가 연쇄 +{delta}",
-                WeaponUpgradeId.SatelliteBeam => $"추가 타겟 +{delta}",
-                WeaponUpgradeId.Drone => $"추가 드론 +{delta}",
-                WeaponUpgradeId.RifleTurret => $"추가 포탑 +{delta}",
-                _ => string.Empty,
-            };
-        }
-                private static string GetStatUpgradeDetailText(StatUpgradeId statId, int currentLevel, int nextLevel)
-        {
-            switch (statId)
-            {
-                case StatUpgradeId.AttackPower:
-                {
-                    var deltaPercent = (nextLevel - currentLevel) * 10f;
-                    return $"피해 {FormatSignedPercent(deltaPercent)}";
-                }
-                case StatUpgradeId.AttackSpeed:
-                {
-                    var deltaPercent = (nextLevel - currentLevel) * 5f;
-                    return $"공속 {FormatSignedPercent(deltaPercent)}";
-                }
-                case StatUpgradeId.MaxHealth:
-                {
-                    var delta = (nextLevel - currentLevel) * 20;
-                    return $"최대체력 +{delta:0}";
-                }
-                case StatUpgradeId.HealthRegen:
-                {
-                    var delta = (nextLevel - currentLevel) * 0.5f;
-                    return $"체력재생 +{delta:0.0}/초";
-                }
-                case StatUpgradeId.MoveSpeed:
-                {
-                    var deltaPercent = (nextLevel - currentLevel) * 6f;
-                    return $"이동속도 {FormatSignedPercent(deltaPercent)}";
-                }
-                case StatUpgradeId.AttackRange:
-                {
-                    var deltaPercent = (nextLevel - currentLevel) * 10f;
-                    return $"사거리 {FormatSignedPercent(deltaPercent)}";
-                }
-                default:
-                    return "수치 증가";
-            }
-        }
-        private static float MultiplierToPercent(float multiplier)
-        {
-            return (multiplier - 1f) * 100f;
-        }
-
-        private static float CooldownMultiplierToAttackSpeedPercent(float cooldownMultiplier)
-        {
-            return ((1f / Mathf.Max(0.0001f, cooldownMultiplier)) - 1f) * 100f;
-        }
-
-        private static string FormatSignedPercent(float value)
-        {
-            return value >= 0f ? $"+{value:0.#}%" : $"{value:0.#}%";
-        }
-
-        private static float GetValueFromLevelCurve(float[] curve, int weaponLevel, float fallback)
-        {
-            if (curve == null || curve.Length <= 0)
-            {
-                return fallback;
-            }
-
-            var index = Mathf.Clamp(weaponLevel, 1, 10) - 1;
-            return curve[index];
-        }
-
-        private static float[] GetWeaponDamageCurve(WeaponUpgradeId weaponId)
+        private static WeaponMilestoneKind GetWeaponMilestoneKind(WeaponUpgradeId weaponId, int nextLevel)
         {
             return weaponId switch
             {
-                WeaponUpgradeId.Rifle => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.05f, 1.2f, 1.2f, 1.2f, 1.35f, 1.35f },
-                WeaponUpgradeId.Smg => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.3f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
-                WeaponUpgradeId.SniperRifle => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.5f, 1.65f, 1.65f, 1.65f, 1.8f, 2f },
-                WeaponUpgradeId.Shotgun => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.3f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
-                WeaponUpgradeId.Katana => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.05f, 1.2f, 1.2f, 1.2f, 1.35f, 1.35f },
-                WeaponUpgradeId.ChainAttack => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.3f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
-                WeaponUpgradeId.SatelliteBeam => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.05f, 1.2f, 1.2f, 1.2f, 1.35f, 1.35f },
-                WeaponUpgradeId.Drone => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.3f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
-                WeaponUpgradeId.RifleTurret => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.3f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
-                WeaponUpgradeId.Aura => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.3f, 1.45f, 1.45f, 1.45f, 1.6f, 1.6f },
-                _ => new[] { 1f, 1.15f, 1.15f, 1.15f, 1.05f, 1.2f, 1.2f, 1.2f, 1.35f, 1.35f },
+                WeaponUpgradeId.Rifle => WeaponMilestoneKind.ExtraProjectile,
+                WeaponUpgradeId.Smg => WeaponMilestoneKind.ExtraProjectile,
+                WeaponUpgradeId.SniperRifle => WeaponMilestoneKind.ExtraProjectile,
+                WeaponUpgradeId.Shotgun => WeaponMilestoneKind.ExtraPellets,
+                WeaponUpgradeId.Katana => WeaponMilestoneKind.ExtraSlashes,
+                WeaponUpgradeId.BfSword when nextLevel == 5 => WeaponMilestoneKind.BfSwordWidth,
+                WeaponUpgradeId.BfSword => WeaponMilestoneKind.BfSwordLength,
+                WeaponUpgradeId.ChainAttack => WeaponMilestoneKind.ExtraChains,
+                WeaponUpgradeId.SatelliteBeam => WeaponMilestoneKind.ExtraSlashes,
+                WeaponUpgradeId.RifleTurret => WeaponMilestoneKind.ExtraTurrets,
+                WeaponUpgradeId.Aura => WeaponMilestoneKind.AuraRadius,
+                _ => WeaponMilestoneKind.ExtraProjectile,
             };
         }
 
-        private static float[] GetWeaponAttackSpeedBonusCurve(WeaponUpgradeId _)
+        private static float GetWeaponMilestoneValue(WeaponUpgradeId weaponId, int nextLevel)
         {
-            return new[] { 0f, 0f, 0.15f, 0.15f, 0.15f, 0.15f, 0.30f, 0.30f, 0.30f, 0.30f };
-        }
-
-        private static float[] GetWeaponRangeCurve(WeaponUpgradeId weaponId)
-        {
-            if (weaponId == WeaponUpgradeId.Aura)
+            return weaponId switch
             {
-                return new[] { 1f, 1f, 1f, 1.15f, 1.3f, 1.3f, 1.3f, 1.45f, 1.45f, 1.6f };
-            }
-
-            return new[] { 1f, 1f, 1f, 1.15f, 1.15f, 1.15f, 1.15f, 1.3f, 1.3f, 1.3f };
-        }
-
-        private static int GetWeaponExtraCount(WeaponUpgradeId weaponId, int weaponLevel)
-        {
-            var curve = weaponId switch
-            {
-                WeaponUpgradeId.Rifle => new[] { 0, 0, 0, 0, 1, 1, 1, 1, 1, 2 },
-                WeaponUpgradeId.Smg => new[] { 0, 0, 0, 0, 2, 2, 2, 2, 2, 4 },
-                WeaponUpgradeId.SniperRifle => new[] { 0, 0, 0, 0, 1, 1, 1, 1, 1, 2 },
-                WeaponUpgradeId.Shotgun => new[] { 0, 0, 0, 0, 2, 2, 2, 2, 2, 4 },
-                WeaponUpgradeId.Katana => new[] { 0, 0, 0, 0, 1, 1, 1, 1, 1, 2 },
-                WeaponUpgradeId.ChainAttack => new[] { 0, 0, 0, 0, 2, 2, 2, 2, 2, 4 },
-                WeaponUpgradeId.SatelliteBeam => new[] { 0, 0, 0, 0, 1, 1, 1, 1, 1, 2 },
-                WeaponUpgradeId.Drone => new[] { 0, 0, 0, 0, 1, 1, 1, 1, 1, 2 },
-                WeaponUpgradeId.RifleTurret => new[] { 0, 0, 0, 0, 1, 1, 1, 1, 1, 2 },
-                _ => null,
-            };
-
-            if (curve == null || curve.Length <= 0)
-            {
-                return 0;
-            }
-
-            var index = Mathf.Clamp(weaponLevel, 1, 10) - 1;
-            return curve[index];
-        }
-
-        private static string BuildCoreLabel(string weaponName, WeaponCoreElement coreElement, int currentLevel, int nextLevel)
-        {
-            var coreName = GetCoreName(coreElement);
-            return $"\uCF54\uC5B4 {weaponName} {coreName} LV{nextLevel}\n{GetCoreDirectionHint(coreElement)}\n{GetCoreLevelDetailText(coreElement, nextLevel)}";
-        }
-
-        private static string GetCoreLevelDetailText(WeaponCoreElement coreElement, int level)
-        {
-            var clampedLevel = Mathf.Clamp(level, 1, PlayerBuildRuntime.MaxCoreLevel);
-            if (coreElement == WeaponCoreElement.Wind)
-            {
-                return clampedLevel switch
-                {
-                    1 => "넉백 0.1, 공속 +10%",
-                    2 => "넉백 0.2, 공속 +20%",
-                    _ => "넉백 0.3, 공속 +30%",
-                };
-            }
-
-            switch (coreElement)
-            {
-                case WeaponCoreElement.Fire:
-                    return clampedLevel switch
-                    {
-                        1 => "\uD53C\uD574 \uB204\uC801 10%, 5\uD68C \uD0C0\uACA9 \uC2DC \uD3ED\uBC1C",
-                        2 => "\uD53C\uD574 \uB204\uC801 20%, 4\uD68C \uD0C0\uACA9 \uC2DC \uD3ED\uBC1C",
-                        _ => "\uD53C\uD574 \uB204\uC801 30%, 2\uD68C \uD0C0\uACA9 \uC2DC \uD3ED\uBC1C",
-                    };
-                case WeaponCoreElement.Wind:
-                    return clampedLevel switch
-                    {
-                        1 => "\uB109\uBC31 0.1, \uD53C\uD574 -12%, \uACF5\uC18D +25%",
-                        2 => "\uB109\uBC31 0.2, \uD53C\uD574 -18%, \uACF5\uC18D +47.1%",
-                        _ => "\uB109\uBC31 0.3, \uD53C\uD574 -24%, \uACF5\uC18D +72.4%",
-                    };
-                case WeaponCoreElement.Water:
-                    return clampedLevel switch
-                    {
-                        1 => "\uB454\uD654 30%(1.0\uCD08), \uD53C\uD574 +10%",
-                        2 => "\uB454\uD654 50%(1.0\uCD08), \uD53C\uD574 +20%",
-                        _ => "\uB454\uD654 80%(1.0\uCD08), \uD53C\uD574 +30%",
-                    };
-                case WeaponCoreElement.Light:
-                    return clampedLevel switch
-                    {
-                        1 => "\uCD94\uAC00 \uD53C\uD574 10%(1.0\uCD08)",
-                        2 => "\uCD94\uAC00 \uD53C\uD574 20%(2.0\uCD08)",
-                        _ => "\uCD94\uAC00 \uD53C\uD574 30%(5.0\uCD08)",
-                    };
-                default:
-                    return "\uD6A8\uACFC \uC5C6\uC74C";
-            }
-        }
-
-        private static string GetCoreDirectionHint(WeaponCoreElement coreElement)
-        {
-            return coreElement switch
-            {
-                WeaponCoreElement.Fire => "\uAD11\uC5ED \uD53C\uD574",
-                WeaponCoreElement.Water => "\uB454\uD654, \uD53C\uD574 \uC99D\uAC00",
-                WeaponCoreElement.Wind => "\uB109\uBC31, \uACF5\uACA9 \uC18D\uB3C4 \uC99D\uAC00",
-                WeaponCoreElement.Light => "\uCD94\uAC00 \uD53C\uD574",
-                _ => "\uD6A8\uACFC \uC5C6\uC74C",
+                WeaponUpgradeId.Smg => 1f,
+                WeaponUpgradeId.SniperRifle => 1f,
+                WeaponUpgradeId.Shotgun => 2f,
+                WeaponUpgradeId.ChainAttack => 2f,
+                WeaponUpgradeId.BfSword when nextLevel == 5 => 20f,
+                WeaponUpgradeId.BfSword => 25f,
+                WeaponUpgradeId.SatelliteBeam => 25f,
+                WeaponUpgradeId.Aura => 20f,
+                _ => 1f,
             };
         }
+
+        private static string GetWeaponMilestoneDescription(WeaponUpgradeId weaponId, int nextLevel)
+        {
+            return weaponId switch
+            {
+                WeaponUpgradeId.Rifle => "Extra Projectile +1",
+                WeaponUpgradeId.Smg => "Fireball +1",
+                WeaponUpgradeId.SniperRifle => "Bat Count +1",
+                WeaponUpgradeId.Shotgun => "Pellets +2",
+                WeaponUpgradeId.Katana => "Extra Slash +1",
+                WeaponUpgradeId.BfSword when nextLevel == 5 => "Blade Width +20%",
+                WeaponUpgradeId.BfSword => "Blade Length +25%",
+                WeaponUpgradeId.ChainAttack => "Chain Count +2",
+                WeaponUpgradeId.SatelliteBeam => "Stun Power +25%",
+                WeaponUpgradeId.RifleTurret => "Turret Count +1",
+                WeaponUpgradeId.Aura => "Aura Radius +20%",
+                _ => "Special Upgrade",
+            };
+        }
+
     }
 }
-

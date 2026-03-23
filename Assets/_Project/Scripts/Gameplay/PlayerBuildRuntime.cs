@@ -8,36 +8,100 @@ namespace EJR.Game.Gameplay
     public sealed class PlayerBuildRuntime
     {
         public const int MaxWeaponSlotsAbsolute = 3;
-        public const int MaxStatSlots = 5;
         public const int MaxWeaponLevel = 10;
-        public const int MaxStatLevel = 5;
-        public const int MaxCoreLevel = 3;
         public const int SecondWeaponUnlockLevel = 5;
         public const int ThirdWeaponUnlockLevel = 10;
 
+        private readonly struct WeaponBonusTotals
+        {
+            public WeaponBonusTotals(
+                float damageBonusPercent,
+                float attackSpeedBonusPercent,
+                float rangeBonusPercent,
+                bool milestone5Taken,
+                bool milestone10Taken)
+            {
+                DamageBonusPercent = damageBonusPercent;
+                AttackSpeedBonusPercent = attackSpeedBonusPercent;
+                RangeBonusPercent = rangeBonusPercent;
+                Milestone5Taken = milestone5Taken;
+                Milestone10Taken = milestone10Taken;
+            }
+
+            public float DamageBonusPercent { get; }
+            public float AttackSpeedBonusPercent { get; }
+            public float RangeBonusPercent { get; }
+            public bool Milestone5Taken { get; }
+            public bool Milestone10Taken { get; }
+        }
+
         private readonly List<WeaponUpgradeId> _weaponOrder = new(3);
-        private readonly List<StatUpgradeId> _statOrder = new(5);
         private readonly Dictionary<WeaponUpgradeId, int> _weaponLevels = new();
-        private readonly Dictionary<StatUpgradeId, int> _statLevels = new();
-        private readonly Dictionary<WeaponUpgradeId, WeaponCoreElement> _weaponCoreElements = new();
-        private readonly Dictionary<WeaponUpgradeId, int> _weaponCoreLevels = new();
+        private readonly Dictionary<WeaponUpgradeId, WeaponBonusTotals> _weaponBonuses = new();
+
+        private float _metaAttackPowerPercentTotal;
+        private float _metaAttackSpeedPercentTotal;
+        private float _metaMaxHealthFlatTotal;
+        private float _metaHealthRegenPerSecondTotal;
+        private float _metaMoveSpeedPercentTotal;
+        private float _metaAttackRangePercentTotal;
+        private float _metaLuckTotal;
+
+        private float _runAttackPowerPercentTotal;
+        private float _runAttackSpeedPercentTotal;
+        private float _runMaxHealthFlatTotal;
+        private float _runHealthRegenPerSecondTotal;
+        private float _runMoveSpeedPercentTotal;
+        private float _runAttackRangePercentTotal;
+        private float _runLuckTotal;
 
         public IReadOnlyList<WeaponUpgradeId> OwnedWeapons => _weaponOrder;
-        public IReadOnlyList<StatUpgradeId> OwnedStats => _statOrder;
+
+        public float GlobalAttackPowerPercentTotal => _metaAttackPowerPercentTotal + _runAttackPowerPercentTotal;
+        public float GlobalAttackSpeedPercentTotal => _metaAttackSpeedPercentTotal + _runAttackSpeedPercentTotal;
+        public float GlobalMaxHealthFlatTotal => _metaMaxHealthFlatTotal + _runMaxHealthFlatTotal;
+        public float GlobalHealthRegenPerSecondTotal => _metaHealthRegenPerSecondTotal + _runHealthRegenPerSecondTotal;
+        public float GlobalMoveSpeedPercentTotal => _metaMoveSpeedPercentTotal + _runMoveSpeedPercentTotal;
+        public float GlobalAttackRangePercentTotal => _metaAttackRangePercentTotal + _runAttackRangePercentTotal;
+        public float GlobalLuckTotal => _metaLuckTotal + _runLuckTotal;
 
         public void InitializeDefaults(bool grantStarterRifle = true)
         {
             _weaponOrder.Clear();
-            _statOrder.Clear();
             _weaponLevels.Clear();
-            _statLevels.Clear();
-            _weaponCoreElements.Clear();
-            _weaponCoreLevels.Clear();
+            _weaponBonuses.Clear();
+
+            _metaAttackPowerPercentTotal = 0f;
+            _metaAttackSpeedPercentTotal = 0f;
+            _metaMaxHealthFlatTotal = 0f;
+            _metaHealthRegenPerSecondTotal = 0f;
+            _metaMoveSpeedPercentTotal = 0f;
+            _metaAttackRangePercentTotal = 0f;
+            _metaLuckTotal = 0f;
+
+            _runAttackPowerPercentTotal = 0f;
+            _runAttackSpeedPercentTotal = 0f;
+            _runMaxHealthFlatTotal = 0f;
+            _runHealthRegenPerSecondTotal = 0f;
+            _runMoveSpeedPercentTotal = 0f;
+            _runAttackRangePercentTotal = 0f;
+            _runLuckTotal = 0f;
+
             if (grantStarterRifle)
             {
-                _weaponOrder.Add(WeaponUpgradeId.Rifle);
-                _weaponLevels[WeaponUpgradeId.Rifle] = 1;
+                AcquireWeaponInternal(WeaponUpgradeId.Rifle);
             }
+        }
+
+        public void ApplyMetaBonuses(MetaBonusValues bonuses)
+        {
+            _metaAttackPowerPercentTotal = Mathf.Max(0f, bonuses.attackPowerPercent);
+            _metaAttackSpeedPercentTotal = Mathf.Max(0f, bonuses.attackSpeedPercent);
+            _metaMaxHealthFlatTotal = Mathf.Max(0f, bonuses.maxHealthFlat);
+            _metaHealthRegenPerSecondTotal = Mathf.Max(0f, bonuses.healthRegenPerSecond);
+            _metaMoveSpeedPercentTotal = Mathf.Max(0f, bonuses.moveSpeedPercent);
+            _metaAttackRangePercentTotal = Mathf.Max(0f, bonuses.attackRangePercent);
+            _metaLuckTotal = Mathf.Max(0f, bonuses.luck);
         }
 
         public int GetUnlockedWeaponSlots(int playerLevel)
@@ -60,67 +124,9 @@ namespace EJR.Game.Gameplay
             return _weaponLevels.ContainsKey(id);
         }
 
-        public bool HasStat(StatUpgradeId id)
-        {
-            return _statLevels.ContainsKey(id);
-        }
-
         public int GetWeaponLevel(WeaponUpgradeId id)
         {
             return _weaponLevels.TryGetValue(id, out var level) ? level : 0;
-        }
-
-        public int GetStatLevel(StatUpgradeId id)
-        {
-            return _statLevels.TryGetValue(id, out var level) ? level : 0;
-        }
-
-        public bool HasWeaponCore(WeaponUpgradeId id)
-        {
-            return _weaponCoreElements.ContainsKey(id) && GetWeaponCoreLevel(id) > 0;
-        }
-
-        public WeaponCoreElement GetWeaponCoreElement(WeaponUpgradeId id)
-        {
-            return _weaponCoreElements.TryGetValue(id, out var element) ? element : WeaponCoreElement.None;
-        }
-
-        public int GetWeaponCoreLevel(WeaponUpgradeId id)
-        {
-            return _weaponCoreLevels.TryGetValue(id, out var level) ? level : 0;
-        }
-
-        public bool CanChooseInitialCore(WeaponUpgradeId id)
-        {
-            var weaponLevel = GetWeaponLevel(id);
-            if (weaponLevel < 3)
-            {
-                return false;
-            }
-
-            return !HasWeaponCore(id);
-        }
-
-        public bool CanUpgradeCore(WeaponUpgradeId id)
-        {
-            var coreLevel = GetWeaponCoreLevel(id);
-            if (coreLevel <= 0 || coreLevel >= MaxCoreLevel)
-            {
-                return false;
-            }
-
-            var requiredWeaponLevel = GetRequiredWeaponLevelForCoreLevel(coreLevel + 1);
-            return GetWeaponLevel(id) >= requiredWeaponLevel;
-        }
-
-        public static int GetRequiredWeaponLevelForCoreLevel(int coreLevel)
-        {
-            return coreLevel switch
-            {
-                1 => 3,
-                2 => 6,
-                _ => 10,
-            };
         }
 
         public bool CanAcquireWeapon(WeaponUpgradeId id, int playerLevel)
@@ -130,18 +136,8 @@ namespace EJR.Game.Gameplay
                 return false;
             }
 
-            var unlocked = Mathf.Clamp(GetUnlockedWeaponSlots(playerLevel), 1, MaxWeaponSlotsAbsolute);
-            return _weaponOrder.Count < unlocked;
-        }
-
-        public bool CanAcquireStat(StatUpgradeId id)
-        {
-            if (HasStat(id))
-            {
-                return false;
-            }
-
-            return _statOrder.Count < MaxStatSlots;
+            var unlockedSlots = Mathf.Clamp(GetUnlockedWeaponSlots(playerLevel), 1, MaxWeaponSlotsAbsolute);
+            return _weaponOrder.Count < unlockedSlots;
         }
 
         public bool CanLevelWeapon(WeaponUpgradeId id)
@@ -150,125 +146,229 @@ namespace EJR.Game.Gameplay
             return level > 0 && level < MaxWeaponLevel;
         }
 
-        public bool CanLevelStat(StatUpgradeId id)
+        public float GetWeaponDamageBonusPercentTotal(WeaponUpgradeId id)
         {
-            var level = GetStatLevel(id);
-            return level > 0 && level < MaxStatLevel;
+            return GetWeaponBonuses(id).DamageBonusPercent;
+        }
+
+        public float GetWeaponAttackSpeedBonusPercentTotal(WeaponUpgradeId id)
+        {
+            return GetWeaponBonuses(id).AttackSpeedBonusPercent;
+        }
+
+        public float GetWeaponRangeBonusPercentTotal(WeaponUpgradeId id)
+        {
+            return GetWeaponBonuses(id).RangeBonusPercent;
+        }
+
+        public bool HasWeaponMilestone5(WeaponUpgradeId id)
+        {
+            return GetWeaponBonuses(id).Milestone5Taken;
+        }
+
+        public bool HasWeaponMilestone10(WeaponUpgradeId id)
+        {
+            return GetWeaponBonuses(id).Milestone10Taken;
+        }
+
+        public int GetWeaponMilestoneCount(WeaponUpgradeId id)
+        {
+            var bonuses = GetWeaponBonuses(id);
+            var count = 0;
+            if (bonuses.Milestone5Taken)
+            {
+                count++;
+            }
+
+            if (bonuses.Milestone10Taken)
+            {
+                count++;
+            }
+
+            return count;
+        }
+
+        public int GetWeaponExtraCountBonus(WeaponUpgradeId id)
+        {
+            var milestones = GetWeaponMilestoneCount(id);
+            return id switch
+            {
+                WeaponUpgradeId.Rifle => milestones,
+                WeaponUpgradeId.Smg => milestones,
+                WeaponUpgradeId.SniperRifle => milestones,
+                WeaponUpgradeId.Shotgun => milestones * 2,
+                WeaponUpgradeId.Katana => milestones,
+                WeaponUpgradeId.ChainAttack => milestones * 2,
+                WeaponUpgradeId.RifleTurret => milestones,
+                _ => 0,
+            };
+        }
+
+        public float GetBfSwordWidthMultiplier()
+        {
+            return 1f + (HasWeaponMilestone5(WeaponUpgradeId.BfSword) ? 0.20f : 0f);
+        }
+
+        public float GetBfSwordLengthMultiplier()
+        {
+            return 1f + (HasWeaponMilestone10(WeaponUpgradeId.BfSword) ? 0.25f : 0f);
+        }
+
+        public float GetAuraMilestoneRangeMultiplier()
+        {
+            return 1f + (GetWeaponMilestoneCount(WeaponUpgradeId.Aura) * 0.20f);
+        }
+
+        public float GetGlobalStatTotal(StatUpgradeId statId)
+        {
+            return statId switch
+            {
+                StatUpgradeId.AttackPower => GlobalAttackPowerPercentTotal,
+                StatUpgradeId.AttackSpeed => GlobalAttackSpeedPercentTotal,
+                StatUpgradeId.MaxHealth => GlobalMaxHealthFlatTotal,
+                StatUpgradeId.HealthRegen => GlobalHealthRegenPerSecondTotal,
+                StatUpgradeId.MoveSpeed => GlobalMoveSpeedPercentTotal,
+                StatUpgradeId.AttackRange => GlobalAttackRangePercentTotal,
+                StatUpgradeId.Luck => GlobalLuckTotal,
+                _ => 0f,
+            };
         }
 
         public void Apply(LevelUpOption option)
         {
-            switch (option.Category)
+            switch (option.Domain)
             {
-                case UpgradeCategory.Weapon:
-                    ApplyWeapon(option.WeaponId);
+                case LevelUpOptionDomain.WeaponAcquire:
+                    AcquireWeaponInternal(option.WeaponId);
                     break;
-                case UpgradeCategory.Stat:
-                    ApplyStat(option.StatId);
+                case LevelUpOptionDomain.WeaponLevelRoll:
+                    ApplyWeaponLevelRoll(option);
                     break;
-                case UpgradeCategory.WeaponCore:
-                    ApplyWeaponCore(option.WeaponId, option.CoreElement);
+                case LevelUpOptionDomain.WeaponMilestone:
+                    ApplyWeaponMilestone(option);
+                    break;
+                case LevelUpOptionDomain.GlobalStatRoll:
+                    ApplyGlobalStatRoll(option);
                     break;
             }
         }
 
-        private void ApplyWeapon(WeaponUpgradeId id)
+        private void AcquireWeaponInternal(WeaponUpgradeId weaponId)
         {
-            if (!_weaponLevels.TryGetValue(id, out var level))
-            {
-                if (_weaponOrder.Count >= MaxWeaponSlotsAbsolute)
-                {
-                    return;
-                }
-
-                _weaponOrder.Add(id);
-                _weaponLevels[id] = 1;
-                return;
-            }
-
-            if (level >= MaxWeaponLevel)
+            if (_weaponLevels.ContainsKey(weaponId))
             {
                 return;
             }
 
-            _weaponLevels[id] = Mathf.Clamp(level + 1, 1, MaxWeaponLevel);
+            if (_weaponOrder.Count >= MaxWeaponSlotsAbsolute)
+            {
+                return;
+            }
+
+            _weaponOrder.Add(weaponId);
+            _weaponLevels[weaponId] = 1;
+            _weaponBonuses[weaponId] = default;
         }
 
-        private void ApplyStat(StatUpgradeId id)
+        private void ApplyWeaponLevelRoll(LevelUpOption option)
         {
-            if (!_statLevels.TryGetValue(id, out var level))
-            {
-                if (_statOrder.Count >= MaxStatSlots)
-                {
-                    return;
-                }
-
-                _statOrder.Add(id);
-                _statLevels[id] = 1;
-                return;
-            }
-
-            if (level >= MaxStatLevel)
+            if (!HasWeapon(option.WeaponId))
             {
                 return;
             }
 
-            _statLevels[id] = Mathf.Clamp(level + 1, 1, MaxStatLevel);
+            var currentLevel = GetWeaponLevel(option.WeaponId);
+            if (currentLevel <= 0 || currentLevel >= MaxWeaponLevel)
+            {
+                return;
+            }
+
+            _weaponLevels[option.WeaponId] = Mathf.Clamp(currentLevel + 1, 1, MaxWeaponLevel);
+
+            var bonuses = GetWeaponBonuses(option.WeaponId);
+            var damageBonus = bonuses.DamageBonusPercent;
+            var attackSpeedBonus = bonuses.AttackSpeedBonusPercent;
+            var rangeBonus = bonuses.RangeBonusPercent;
+
+            switch (option.WeaponRollKind)
+            {
+                case WeaponRollKind.AttackSpeedPercent:
+                    attackSpeedBonus += option.PrimaryValue;
+                    break;
+                case WeaponRollKind.RangePercent:
+                    rangeBonus += option.PrimaryValue;
+                    break;
+                default:
+                    damageBonus += option.PrimaryValue;
+                    break;
+            }
+
+            _weaponBonuses[option.WeaponId] = new WeaponBonusTotals(
+                damageBonus,
+                attackSpeedBonus,
+                rangeBonus,
+                bonuses.Milestone5Taken,
+                bonuses.Milestone10Taken);
         }
 
-        private void ApplyWeaponCore(WeaponUpgradeId weaponId, WeaponCoreElement coreElement)
+        private void ApplyWeaponMilestone(LevelUpOption option)
         {
-            if (!HasWeapon(weaponId))
+            if (!HasWeapon(option.WeaponId))
             {
                 return;
             }
 
-            var weaponLevel = GetWeaponLevel(weaponId);
-            var currentCoreLevel = GetWeaponCoreLevel(weaponId);
-            if (currentCoreLevel <= 0)
-            {
-                if (weaponLevel < GetRequiredWeaponLevelForCoreLevel(1))
-                {
-                    return;
-                }
-
-                if (coreElement == WeaponCoreElement.None)
-                {
-                    return;
-                }
-
-                _weaponCoreElements[weaponId] = coreElement;
-                _weaponCoreLevels[weaponId] = 1;
-                return;
-            }
-
-            if (currentCoreLevel >= MaxCoreLevel)
+            var currentLevel = GetWeaponLevel(option.WeaponId);
+            if (currentLevel <= 0 || currentLevel >= MaxWeaponLevel)
             {
                 return;
             }
 
-            var lockedElement = GetWeaponCoreElement(weaponId);
-            if (lockedElement == WeaponCoreElement.None)
-            {
-                return;
-            }
+            var nextLevel = Mathf.Clamp(currentLevel + 1, 1, MaxWeaponLevel);
+            _weaponLevels[option.WeaponId] = nextLevel;
 
-            var requestedElement = coreElement == WeaponCoreElement.None ? lockedElement : coreElement;
-            if (requestedElement != lockedElement)
-            {
-                // Multi-core mixing is intentionally disabled for now.
-                return;
-            }
+            var bonuses = GetWeaponBonuses(option.WeaponId);
+            _weaponBonuses[option.WeaponId] = new WeaponBonusTotals(
+                bonuses.DamageBonusPercent,
+                bonuses.AttackSpeedBonusPercent,
+                bonuses.RangeBonusPercent,
+                bonuses.Milestone5Taken || nextLevel == 5,
+                bonuses.Milestone10Taken || nextLevel == 10);
+        }
 
-            var nextCoreLevel = currentCoreLevel + 1;
-            var requiredWeaponLevel = GetRequiredWeaponLevelForCoreLevel(nextCoreLevel);
-            if (weaponLevel < requiredWeaponLevel)
+        private void ApplyGlobalStatRoll(LevelUpOption option)
+        {
+            switch (option.StatId)
             {
-                return;
+                case StatUpgradeId.AttackPower:
+                    _runAttackPowerPercentTotal += option.PrimaryValue;
+                    break;
+                case StatUpgradeId.AttackSpeed:
+                    _runAttackSpeedPercentTotal += option.PrimaryValue;
+                    break;
+                case StatUpgradeId.MaxHealth:
+                    _runMaxHealthFlatTotal += option.PrimaryValue;
+                    break;
+                case StatUpgradeId.HealthRegen:
+                    _runHealthRegenPerSecondTotal += option.PrimaryValue;
+                    break;
+                case StatUpgradeId.MoveSpeed:
+                    _runMoveSpeedPercentTotal += option.PrimaryValue;
+                    break;
+                case StatUpgradeId.AttackRange:
+                    _runAttackRangePercentTotal += option.PrimaryValue;
+                    break;
+                case StatUpgradeId.Luck:
+                    _runLuckTotal += option.PrimaryValue;
+                    break;
             }
+        }
 
-            _weaponCoreElements[weaponId] = lockedElement;
-            _weaponCoreLevels[weaponId] = Mathf.Clamp(nextCoreLevel, 1, MaxCoreLevel);
+        private WeaponBonusTotals GetWeaponBonuses(WeaponUpgradeId id)
+        {
+            return _weaponBonuses.TryGetValue(id, out var bonuses)
+                ? bonuses
+                : default;
         }
     }
 }

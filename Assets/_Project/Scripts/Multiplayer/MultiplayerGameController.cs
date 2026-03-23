@@ -529,14 +529,12 @@ namespace EJR.Game.Multiplayer
             {
                 var label = localPlayer.GetLocalPendingChoiceLabel(i);
                 signatureBuilder.Append('|').Append(label);
-                options[i] = new LevelUpOption(
-                    UpgradeCategory.Stat,
-                    default,
-                    default,
-                    0,
-                    0,
-                    false,
-                    false,
+                options[i] = LevelUpOption.CreateGlobalStatRoll(
+                    StatUpgradeId.AttackPower,
+                    OptionRarity.Common,
+                    0f,
+                    string.Empty,
+                    string.Empty,
                     label);
             }
 
@@ -564,7 +562,7 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
-            _resultText.text = coop.ResultCleared ? "Run Complete\nReturning to lobby..." : "Team Defeated\nReturning to lobby...";
+            _resultText.text = coop.ResultCleared ? "Run Complete\nReturning to title..." : "Team Defeated\nReturning to title...";
         }
 
         private void HandleCharacterClicked()

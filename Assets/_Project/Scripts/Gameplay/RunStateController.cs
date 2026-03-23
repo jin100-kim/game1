@@ -16,6 +16,7 @@ namespace EJR.Game.Gameplay
         [SerializeField] private PlayerConfig playerConfig;
         [SerializeField] private WeaponConfig weaponConfig;
         [SerializeField] private EnemyConfig enemyConfig;
+        [SerializeField] private LevelUpBalanceConfig levelUpBalanceConfig;
 
         [Header("Run")]
         [SerializeField] private Rect arenaBounds = new Rect(-12f, -7f, 24f, 14f);
@@ -51,20 +52,6 @@ namespace EJR.Game.Gameplay
         private const string PlayerVisualObjectName = "Visual";
         private const string WeaponVisualObjectName = "WeaponVisual";
         private const float WeaponAimFlipEpsilon = 0.01f;
-        private static readonly WeaponUpgradeId[] StarterWeaponIds =
-        {
-            WeaponUpgradeId.Rifle,
-            WeaponUpgradeId.Smg,
-            WeaponUpgradeId.SniperRifle,
-            WeaponUpgradeId.Shotgun,
-            WeaponUpgradeId.Katana,
-            WeaponUpgradeId.ChainAttack,
-            WeaponUpgradeId.SatelliteBeam,
-            WeaponUpgradeId.Drone,
-            WeaponUpgradeId.RifleTurret,
-            WeaponUpgradeId.Aura,
-        };
-
         private PlayerHealth _playerHealth;
         private PlayerStatsRuntime _playerStats;
 
@@ -105,6 +92,9 @@ namespace EJR.Game.Gameplay
         private float _nextAutoPlayChoiceAt;
         private AutoPlayAgent _autoPlayAgent;
         private string _debugRevealBuffer = string.Empty;
+        private int _selectedSingleCharacterId;
+        private WeaponUpgradeId _selectedSingleStarterWeaponId = WeaponUpgradeId.Rifle;
+        private int _enemiesDefeated;
 
         private const string DebugRevealCode = "admin";
 
@@ -146,6 +136,7 @@ namespace EJR.Game.Gameplay
             if (!_isGameOver && _playerSpriteAnimator != null && _playerMover != null)
             {
                 _playerSpriteAnimator.SetMotion(_playerMover.CurrentVelocity);
+                UpdateFacingPresentation();
             }
 
             if (!_isGameOver && IsAnyChoiceAwaiting() && _currentOptions != null)
@@ -169,14 +160,7 @@ namespace EJR.Game.Gameplay
             {
                 if (IsRestartKeyDown())
                 {
-                    if (_lastRunCleared)
-                    {
-                        RestartRun();
-                    }
-                    else
-                    {
-                        ReturnToLobby();
-                    }
+                    ReturnToLobby();
                 }
 
                 return;
@@ -295,6 +279,8 @@ namespace EJR.Game.Gameplay
                 _weaponSystem.Fired -= OnWeaponFired;
             }
 
+            EnemyController.Defeated -= HandleEnemyDefeated;
+
             Time.timeScale = 1f;
         }
 
@@ -322,6 +308,7 @@ namespace EJR.Game.Gameplay
             playerConfig ??= ScriptableObject.CreateInstance<PlayerConfig>();
             weaponConfig ??= ScriptableObject.CreateInstance<WeaponConfig>();
             enemyConfig ??= ScriptableObject.CreateInstance<EnemyConfig>();
+            levelUpBalanceConfig ??= LevelUpBalanceConfig.CreateRuntimeDefault();
         }
 
         private void CaptureDebugRevealInput()
@@ -438,7 +425,7 @@ namespace EJR.Game.Gameplay
             _isPauseMenuOpen = false;
             _hud?.HidePauseMenu();
             Time.timeScale = 1f;
-            SceneManager.LoadScene(0);
+            SceneManager.LoadScene(MultiplayerSessionController.TitleSceneName);
         }
 
         private void GrantDebugLevels(int levelsToGrant)
@@ -542,14 +529,18 @@ namespace EJR.Game.Gameplay
 
         private void BuildRuntimeGraph()
         {
+            MetaProgressionService.EnsureLoaded();
             _autoPlayAgent = new AutoPlayAgent();
             _buildRuntime = new PlayerBuildRuntime();
             _buildRuntime.InitializeDefaults(grantStarterRifle: false);
+            _selectedSingleCharacterId = MetaProgressionService.GetSingleSelectedCharacterId();
+            _selectedSingleStarterWeaponId = MetaProgressionService.GetSingleSelectedStarterWeapon();
+            _buildRuntime.ApplyMetaBonuses(MetaProgressionService.GetCombinedRunStartBonuses(_selectedSingleCharacterId));
 
             _playerStats = new PlayerStatsRuntime();
             _playerStats.RecalculateFromBuild(_buildRuntime);
             _levelUp = new LevelUpSystem();
-            _levelUp.Initialize(_buildRuntime);
+            _levelUp.Initialize(_buildRuntime, levelUpBalanceConfig, MetaProgressionService.IsWeaponUnlocked);
             _hud = new HudController();
             _hud.Initialize();
             _hud.ConfigureDebugTools(
@@ -651,7 +642,7 @@ namespace EJR.Game.Gameplay
             var hasPlayerAnimation = playerFrames.Length > 1 && !ReferenceEquals(playerSprite, squareSprite);
 
             playerRenderer.sprite = playerSprite;
-            playerRenderer.color = hasPlayerAnimation ? Color.white : new Color(0.35f, 0.75f, 1f);
+            playerRenderer.color = hasPlayerAnimation ? SharedGameCatalog.GetCharacter(_selectedSingleCharacterId).Color : new Color(0.35f, 0.75f, 1f);
             var visualWorldSize = Mathf.Max(0.1f, playerConfig.visualScale * Mathf.Max(0.1f, playerConfig.visualScaleMultiplier));
             ApplyVisualScale(visualTransform, playerSprite, visualWorldSize);
             _playerTransform = player.transform;
@@ -735,17 +726,25 @@ namespace EJR.Game.Gameplay
                 player.transform,
                 _enemyRegistry,
                 _playerStats,
+                _playerHealth,
                 ResolveProjectileSpawnPoint,
                 projectileSpawnOverride: null,
-                projectileCullBounds: arenaBounds);
+                projectileCullBounds: arenaBounds,
+                facingDirectionResolver: () => _playerMover != null ? _playerMover.CurrentFacingDirection : Vector2.right);
             weaponSystem.ConfigureLoadout(_buildRuntime, _playerStats);
             weaponSystem.AimUpdated += OnWeaponAimUpdated;
             weaponSystem.Fired += OnWeaponFired;
             _weaponSystem = weaponSystem;
             _targetWeaponAimDirection = Vector2.right;
             _smoothedWeaponAimDirection = Vector2.right;
+            _buildRuntime.Apply(LevelUpOption.CreateWeaponAcquire(
+                _selectedSingleStarterWeaponId,
+                $"{SharedGameCatalog.GetWeaponDisplayName(_selectedSingleStarterWeaponId)} Lv1",
+                "Acquire weapon",
+                SharedGameCatalog.GetWeaponDisplayName(_selectedSingleStarterWeaponId)));
             ApplyBuildToRuntimeSystems();
-            BeginStarterWeaponChoiceIfNeeded();
+            ApplySelectedCharacterPresentation(isDowned: false);
+            _enemiesDefeated = 0;
         }
 
         private void SetAutoPlayEnabled(bool enabled)
@@ -838,6 +837,7 @@ namespace EJR.Game.Gameplay
                 var score = options[i].WeaponId switch
                 {
                     WeaponUpgradeId.Rifle => 48,
+                    WeaponUpgradeId.BfSword => 47,
                     WeaponUpgradeId.Smg => 44,
                     WeaponUpgradeId.Drone => 43,
                     WeaponUpgradeId.SatelliteBeam => 42,
@@ -873,18 +873,35 @@ namespace EJR.Game.Gameplay
             for (var i = 0; i < options.Length; i++)
             {
                 var option = options[i];
-                var score = option.Category switch
+                var rarityScore = option.Rarity switch
                 {
-                    UpgradeCategory.WeaponCore => 60 + option.NextLevel,
-                    UpgradeCategory.Weapon => (option.IsNewAcquire ? 46 : 40) + option.NextLevel,
-                    UpgradeCategory.Stat => option.StatId switch
+                    OptionRarity.Legendary => 24,
+                    OptionRarity.Epic => 16,
+                    OptionRarity.Rare => 8,
+                    OptionRarity.Special => 20,
+                    _ => 0,
+                };
+
+                var score = option.Domain switch
+                {
+                    LevelUpOptionDomain.WeaponMilestone => 64 + option.NextLevel,
+                    LevelUpOptionDomain.WeaponAcquire => 48,
+                    LevelUpOptionDomain.WeaponLevelRoll => 40 + option.NextLevel + rarityScore + (option.WeaponRollKind switch
                     {
-                        StatUpgradeId.AttackPower => 40 + option.NextLevel,
-                        StatUpgradeId.AttackSpeed => 38 + option.NextLevel,
-                        StatUpgradeId.AttackRange => 28 + option.NextLevel,
-                        StatUpgradeId.MaxHealth => 22 + option.NextLevel + Mathf.RoundToInt((1f - healthRatio) * 22f),
-                        StatUpgradeId.HealthRegen => 18 + option.NextLevel + Mathf.RoundToInt((1f - healthRatio) * 12f),
-                        StatUpgradeId.MoveSpeed => 16 + option.NextLevel,
+                        WeaponRollKind.DamagePercent => 8,
+                        WeaponRollKind.AttackSpeedPercent => 7,
+                        WeaponRollKind.RangePercent => 4,
+                        _ => 0,
+                    }),
+                    LevelUpOptionDomain.GlobalStatRoll => option.StatId switch
+                    {
+                        StatUpgradeId.AttackPower => 26 + rarityScore,
+                        StatUpgradeId.AttackSpeed => 24 + rarityScore,
+                        StatUpgradeId.AttackRange => 18 + rarityScore,
+                        StatUpgradeId.MaxHealth => 14 + rarityScore + Mathf.RoundToInt((1f - healthRatio) * 18f),
+                        StatUpgradeId.HealthRegen => 12 + rarityScore + Mathf.RoundToInt((1f - healthRatio) * 10f),
+                        StatUpgradeId.MoveSpeed => 10 + rarityScore,
+                        StatUpgradeId.Luck => 8 + rarityScore,
                         _ => 10,
                     },
                     _ => 0,
@@ -934,38 +951,24 @@ namespace EJR.Game.Gameplay
             weaponRenderer.sortingOrder = playerRenderer.sortingOrder + weaponFrontSortingOffset;
 
             var squareSprite = RuntimeSpriteFactory.GetSquareSprite();
-            var weaponFrames = RuntimeSpriteFactory.GetWeaponFire1AnimationFrames();
+            var weaponFrames = RuntimeSpriteFactory.GetSexyBfSwordAnimationFrames();
             var weaponSprite = weaponFrames.Length > 0 ? weaponFrames[0] : squareSprite;
-            var hasWeaponAnimation = weaponFrames.Length > 1 && !ReferenceEquals(weaponSprite, squareSprite);
 
             weaponRenderer.sprite = weaponSprite;
-            weaponRenderer.color = hasWeaponAnimation ? Color.white : new Color(1f, 0.95f, 0.35f);
+            weaponRenderer.color = Color.white;
 
-            var weaponVisualSize = playerConfig != null ? Mathf.Max(0.05f, playerConfig.weaponVisualScale) : 0.45f;
+            var weaponVisualSize = weaponConfig != null ? Mathf.Max(0.05f, weaponConfig.bfSwordVisualScale) : 0.95f;
             ApplyVisualScale(weaponTransform, weaponSprite, weaponVisualSize);
-            ApplyWeaponAim(_lastWeaponAimDirection, fromFireEvent: false);
+            ApplyBfSwordVisualWidthScale(weaponTransform);
+            ApplyHeldWeaponFacing(_playerMover != null ? _playerMover.CurrentFacingDirection : Vector2.right);
 
             var weaponAnimator = playerTransform.GetComponent<WeaponSpriteAnimator>();
-            if (hasWeaponAnimation)
+            if (weaponAnimator != null)
             {
-                if (weaponAnimator == null)
-                {
-                    weaponAnimator = playerTransform.gameObject.AddComponent<WeaponSpriteAnimator>();
-                }
-
-                weaponAnimator.enabled = true;
-                weaponAnimator.Initialize(weaponRenderer, weaponFrames, playerConfig);
-                _weaponSpriteAnimator = weaponAnimator;
+                weaponAnimator.enabled = false;
             }
-            else
-            {
-                if (weaponAnimator != null)
-                {
-                    weaponAnimator.enabled = false;
-                }
 
-                _weaponSpriteAnimator = null;
-            }
+            _weaponSpriteAnimator = null;
         }
 
         private void EnsureArenaBoundaryVisual()
@@ -1006,6 +1009,18 @@ namespace EJR.Game.Gameplay
             targetTransform.localScale = new Vector3(uniformScale, uniformScale, 1f);
         }
 
+        private void ApplyBfSwordVisualWidthScale(Transform targetTransform)
+        {
+            if (targetTransform == null)
+            {
+                return;
+            }
+
+            var widthMultiplier = weaponConfig != null ? Mathf.Max(0.05f, weaponConfig.bfSwordVisualWidthMultiplier) : 0.5f;
+            var localScale = targetTransform.localScale;
+            targetTransform.localScale = new Vector3(localScale.x, localScale.y * widthMultiplier, localScale.z);
+        }
+
         private void OnWeaponAimUpdated(Vector2 direction)
         {
             _targetWeaponAimDirection = NormalizeAimDirection(direction, _targetWeaponAimDirection);
@@ -1016,35 +1031,36 @@ namespace EJR.Game.Gameplay
             var normalized = NormalizeAimDirection(direction, _targetWeaponAimDirection);
             _targetWeaponAimDirection = normalized;
             _smoothedWeaponAimDirection = normalized;
-            ApplyWeaponAim(normalized, fromFireEvent: true);
+            _lastWeaponAimDirection = normalized;
         }
 
-        private void ApplyWeaponAim(Vector2 direction, bool fromFireEvent)
+        private void UpdateFacingPresentation()
         {
-            if (_weaponVisualTransform == null)
+            if (_playerMover == null)
             {
                 return;
             }
 
-            var normalizedDirection = NormalizeAimDirection(direction, _lastWeaponAimDirection);
-            _lastWeaponAimDirection = normalizedDirection;
-            _playerSpriteAnimator?.SetLookDirection(normalizedDirection);
+            var facingDirection = NormalizeAimDirection(_playerMover.CurrentFacingDirection, Vector2.right);
+            _playerSpriteAnimator?.SetLookDirection(facingDirection);
+            ApplyHeldWeaponFacing(facingDirection);
+        }
+
+        private void ApplyHeldWeaponFacing(Vector2 direction)
+        {
+            if (_weaponVisualTransform == null || _weaponVisualRenderer == null)
+            {
+                return;
+            }
+
+            var normalizedDirection = NormalizeAimDirection(direction, Vector2.right);
             var flipX = ResolveWeaponFlipX(normalizedDirection);
             var rotationDegrees = CalculateWeaponRotationDegrees(normalizedDirection, flipX);
-            var localPosition = CalculateWeaponLocalPosition(_playerTransform, normalizedDirection, flipX, rotationDegrees);
+            var localPosition = CalculateHeldWeaponLocalPosition(_playerTransform, normalizedDirection, flipX, rotationDegrees);
             _weaponVisualTransform.localPosition = new Vector3(localPosition.x, localPosition.y, 0f);
-            if (_weaponVisualRenderer != null)
-            {
-                _weaponVisualRenderer.flipX = flipX;
-            }
-
+            _weaponVisualRenderer.flipX = flipX;
             UpdateWeaponSorting(normalizedDirection);
             _weaponVisualTransform.localRotation = Quaternion.Euler(0f, 0f, rotationDegrees);
-
-            if (fromFireEvent)
-            {
-                _weaponSpriteAnimator?.PlayAttack(normalizedDirection);
-            }
         }
 
         private Vector3 ResolveProjectileSpawnPoint(Vector2 aimDirection)
@@ -1054,27 +1070,15 @@ namespace EJR.Game.Gameplay
                 return Vector3.zero;
             }
 
-            if (_weaponVisualRenderer != null
-                && _weaponVisualRenderer.enabled
-                && _weaponVisualRenderer.sprite != null)
-            {
-                return WeaponVisualLayoutUtility.ResolveProjectileSpawnWorld(
-                    _weaponVisualTransform,
-                    _weaponVisualRenderer,
-                    _weaponVisualRenderer.flipX);
-            }
-
             var normalizedDirection = NormalizeAimDirection(aimDirection, _lastWeaponAimDirection);
-            var flipX = ResolveWeaponFlipX(normalizedDirection);
-            var rotationDegrees = CalculateWeaponRotationDegrees(normalizedDirection, flipX);
-            var localPosition = CalculateWeaponLocalPosition(_playerTransform, normalizedDirection, flipX, rotationDegrees);
+            var localPosition = CalculateProjectileSpawnLocalPosition(_playerTransform, normalizedDirection);
             return _playerTransform.TransformPoint(new Vector3(localPosition.x, localPosition.y, 0f));
         }
 
-        private Vector2 CalculateWeaponLocalPosition(Transform playerRoot, Vector2 normalizedDirection, bool flipX, float rotationDegrees)
+        private Vector2 CalculateHeldWeaponLocalPosition(Transform playerRoot, Vector2 normalizedDirection, bool flipX, float rotationDegrees)
         {
-            var weaponOffset = playerConfig != null ? playerConfig.weaponVisualOffset : new Vector2(0.42f, -0.08f);
-            var aimDistance = playerConfig != null ? Mathf.Max(0.05f, playerConfig.weaponAimDistance) : 0.55f;
+            var weaponOffset = weaponConfig != null ? weaponConfig.bfSwordVisualLocalOffset : new Vector2(0f, -0.08f);
+            var aimDistance = weaponConfig != null ? Mathf.Max(0f, weaponConfig.bfSwordForwardOffset) : 0.48f;
             var orbitCenterLocal = ResolveWeaponOrbitCenterLocal(playerRoot);
             var sprite = _weaponVisualRenderer != null ? _weaponVisualRenderer.sprite : null;
             return WeaponVisualLayoutUtility.CalculateWeaponLocalPosition(
@@ -1085,6 +1089,13 @@ namespace EJR.Game.Gameplay
                 flipX,
                 rotationDegrees,
                 sprite);
+        }
+
+        private Vector2 CalculateProjectileSpawnLocalPosition(Transform playerRoot, Vector2 normalizedDirection)
+        {
+            var orbitCenterLocal = ResolveWeaponOrbitCenterLocal(playerRoot);
+            var aimDistance = playerConfig != null ? Mathf.Max(0.05f, playerConfig.weaponAimDistance) : 0.4f;
+            return orbitCenterLocal + (normalizedDirection * aimDistance);
         }
 
         private bool ResolveWeaponFlipX(Vector2 normalizedDirection)
@@ -1180,11 +1191,6 @@ namespace EJR.Game.Gameplay
 
         private void UpdateWeaponAimSmoothing()
         {
-            if (_weaponVisualTransform == null)
-            {
-                return;
-            }
-
             var from = NormalizeAimDirection(_smoothedWeaponAimDirection, _lastWeaponAimDirection);
             var to = NormalizeAimDirection(_targetWeaponAimDirection, from);
             var maxRadiansDelta = Mathf.Max(1f, weaponAimSmoothingDegreesPerSecond) * Mathf.Deg2Rad * Time.deltaTime;
@@ -1195,7 +1201,7 @@ namespace EJR.Game.Gameplay
                 0f);
             var next = new Vector2(next3.x, next3.y);
             _smoothedWeaponAimDirection = NormalizeAimDirection(next, to);
-            ApplyWeaponAim(_smoothedWeaponAimDirection, fromFireEvent: false);
+            _lastWeaponAimDirection = _smoothedWeaponAimDirection;
         }
 
         private void OnDrawGizmos()
@@ -1222,7 +1228,7 @@ namespace EJR.Game.Gameplay
             var aimDistance = playerConfig != null ? Mathf.Max(0.05f, playerConfig.weaponAimDistance) : 0.55f;
             var flipX = ResolveWeaponFlipX(aimDirection);
             var rotationDegrees = CalculateWeaponRotationDegrees(aimDirection, flipX);
-            var weaponLocal = CalculateWeaponLocalPosition(player, aimDirection, flipX, rotationDegrees);
+            var weaponLocal = CalculateProjectileSpawnLocalPosition(player, aimDirection);
 
             var orbitCenterWorld = player.TransformPoint(new Vector3(orbitCenterLocal.x, orbitCenterLocal.y, 0f));
             var radiusEndWorld = player.TransformPoint(new Vector3(
@@ -1254,7 +1260,6 @@ namespace EJR.Game.Gameplay
             Gizmos.DrawSphere(projectileSpawnWorld, pointRadius * 0.85f);
             Gizmos.DrawLine(weaponWorld, projectileSpawnWorld);
 
-            DrawWeaponSpriteRectGizmo(player);
         }
 
         private void DrawWeaponSpriteRectGizmo(Transform playerRoot)
@@ -1333,6 +1338,7 @@ namespace EJR.Game.Gameplay
             _playerHealth.Died += OnPlayerDied;
             _levelUp.ExperienceChanged += (_, _, _) => UpdateHud();
             _levelUp.OptionsGenerated += OnLevelUpRequested;
+            EnemyController.Defeated += HandleEnemyDefeated;
         }
 
         private void OnPlayerHealthChanged(float currentHealth, float maxHealth)
@@ -1344,7 +1350,18 @@ namespace EJR.Game.Gameplay
         private void OnPlayerDied()
         {
             _playerSpriteAnimator?.PlayDie();
+            ApplySelectedCharacterPresentation(isDowned: true);
             EndRun(cleared: false);
+        }
+
+        private void HandleEnemyDefeated(EnemyController enemy)
+        {
+            if (enemy == null || _isGameOver)
+            {
+                return;
+            }
+
+            _enemiesDefeated++;
         }
 
         private void OnLevelUpRequested(LevelUpOption[] options)
@@ -1410,19 +1427,16 @@ namespace EJR.Game.Gameplay
 
         private LevelUpOption[] CreateStarterWeaponOptions()
         {
-            var options = new LevelUpOption[StarterWeaponIds.Length];
-            for (var i = 0; i < StarterWeaponIds.Length; i++)
+            var options = new LevelUpOption[SharedGameCatalog.StarterWeaponCount];
+            for (var i = 0; i < SharedGameCatalog.StarterWeaponCount; i++)
             {
-                var weaponId = StarterWeaponIds[i];
-                options[i] = new LevelUpOption(
-                    UpgradeCategory.Weapon,
+                var weaponId = SharedGameCatalog.GetStarterWeaponByIndex(i);
+                var title = $"\uC2DC\uC791: {GetWeaponDisplayName(weaponId)} Lv1";
+                options[i] = LevelUpOption.CreateWeaponAcquire(
                     weaponId,
-                    default,
-                    0,
-                    1,
-                    isNewAcquire: true,
-                    isLockedBySlot: false,
-                    label: $"\uC2DC\uC791: {GetWeaponDisplayName(weaponId)} Lv1");
+                    title,
+                    "Acquire weapon",
+                    $"{title}\nAcquire weapon");
             }
 
             return options;
@@ -1461,13 +1475,20 @@ namespace EJR.Game.Gameplay
             _lastRunCleared = cleared;
             _isPauseMenuOpen = false;
             Time.timeScale = 0f;
+            MetaProgressionService.RecordRunSummary(MetaProgressionService.BuildRunRewardSummary(
+                "Single",
+                cleared,
+                _levelUp != null ? _levelUp.Level : 1,
+                _enemySpawner != null ? _enemySpawner.ElapsedSeconds : 0f,
+                _enemiesDefeated,
+                _bossWaveTriggered));
             _hud.HideLevelUpOptions();
             _hud.HidePauseMenu();
             _hud.HideBossBar();
             _hud.ShowResult(
                 cleared,
-                cleared ? RestartRun : ReturnToLobby,
-                cleared ? "Restart" : "로비로");
+                ReturnToLobby,
+                "로비로");
         }
 
         private void TriggerBossWave()
@@ -1490,7 +1511,7 @@ namespace EJR.Game.Gameplay
         private void ReturnToLobby()
         {
             Time.timeScale = 1f;
-            SceneManager.LoadScene(0);
+            SceneManager.LoadScene(MultiplayerSessionController.TitleSceneName);
         }
 
         private void UpdateHud()
@@ -1586,12 +1607,18 @@ namespace EJR.Game.Gameplay
                 {
                     var weaponId = _buildRuntime.OwnedWeapons[slotIndex];
                     var level = _buildRuntime.GetWeaponLevel(weaponId);
-                    var coreLevel = _buildRuntime.GetWeaponCoreLevel(weaponId);
-                    var coreElement = _buildRuntime.GetWeaponCoreElement(weaponId);
-                    var coreSuffix = coreLevel > 0
-                        ? $" [{GetCoreDisplayName(coreElement)} C{coreLevel}]"
-                        : string.Empty;
-                    lines += $"\n{slotNumber}) {GetWeaponDisplayName(weaponId)} Lv{level}{coreSuffix}";
+                    var damageBonus = _buildRuntime.GetWeaponDamageBonusPercentTotal(weaponId);
+                    var attackSpeedBonus = _buildRuntime.GetWeaponAttackSpeedBonusPercentTotal(weaponId);
+                    var rangeBonus = _buildRuntime.GetWeaponRangeBonusPercentTotal(weaponId);
+                    var milestoneCount = _buildRuntime.GetWeaponMilestoneCount(weaponId);
+                    var bonusSummary = $" [D+{damageBonus:0.#} AS+{attackSpeedBonus:0.#} R+{rangeBonus:0.#}";
+                    if (milestoneCount > 0)
+                    {
+                        bonusSummary += $" FX+{milestoneCount}";
+                    }
+
+                    bonusSummary += "]";
+                    lines += $"\n{slotNumber}) {GetWeaponDisplayName(weaponId)} Lv{level}{bonusSummary}";
                 }
                 else
                 {
@@ -1606,75 +1633,41 @@ namespace EJR.Game.Gameplay
         {
             if (_buildRuntime == null)
             {
-                var emptyLines = "Stats";
-                for (var slotIndex = 0; slotIndex < PlayerBuildRuntime.MaxStatSlots; slotIndex++)
-                {
-                    emptyLines += $"\n{slotIndex + 1}) Empty";
-                }
-
-                return emptyLines;
+                return "Global Stats";
             }
 
-            var lines = "Stats";
-            for (var slotIndex = 0; slotIndex < PlayerBuildRuntime.MaxStatSlots; slotIndex++)
-            {
-                var slotNumber = slotIndex + 1;
-                if (slotIndex < _buildRuntime.OwnedStats.Count)
-                {
-                    var statId = _buildRuntime.OwnedStats[slotIndex];
-                    var level = _buildRuntime.GetStatLevel(statId);
-                    lines += $"\n{slotNumber}) {GetStatDisplayName(statId)} Lv{level}";
-                }
-                else
-                {
-                    lines += $"\n{slotNumber}) Empty";
-                }
-            }
-
+            var lines = "Global Stats";
+            lines += $"\nAttack Power +{_buildRuntime.GlobalAttackPowerPercentTotal:0.#}%";
+            lines += $"\nAttack Speed +{_buildRuntime.GlobalAttackSpeedPercentTotal:0.#}%";
+            lines += $"\nMax Health +{_buildRuntime.GlobalMaxHealthFlatTotal:0}";
+            lines += $"\nHealth Regen +{_buildRuntime.GlobalHealthRegenPerSecondTotal:0.##}/s";
+            lines += $"\nMove Speed +{_buildRuntime.GlobalMoveSpeedPercentTotal:0.#}%";
+            lines += $"\nAttack Range +{_buildRuntime.GlobalAttackRangePercentTotal:0.#}%";
+            lines += $"\nLuck {_buildRuntime.GlobalLuckTotal:0.##}";
             return lines;
         }
 
         private static string GetWeaponDisplayName(WeaponUpgradeId weaponId)
         {
-            return weaponId switch
-            {
-                WeaponUpgradeId.Smg => "\uAE30\uAD00\uB2E8\uCD1D",
-                WeaponUpgradeId.SniperRifle => "\uC800\uACA9\uC18C\uCD1D",
-                WeaponUpgradeId.Shotgun => "\uC0B0\uD0C4\uCD1D",
-                WeaponUpgradeId.Katana => "\uCE74\uD0C0\uB098",
-                WeaponUpgradeId.ChainAttack => "\uCCB4\uC778\uC5B4\uD0DD",
-                WeaponUpgradeId.SatelliteBeam => "\uC704\uC131\uBE54",
-                WeaponUpgradeId.Drone => "\uB4DC\uB860",
-                WeaponUpgradeId.RifleTurret => "\uB77C\uC774\uD50C\uD3EC\uD0D1",
-                WeaponUpgradeId.Aura => "\uC624\uB77C",
-                _ => "\uB77C\uC774\uD50C",
-            };
+            return SharedGameCatalog.GetWeaponDisplayName(weaponId);
         }
 
         private static string GetStatDisplayName(StatUpgradeId statId)
         {
-            return statId switch
-            {
-                StatUpgradeId.AttackPower => "Attack Power",
-                StatUpgradeId.AttackSpeed => "Attack Speed",
-                StatUpgradeId.MaxHealth => "Max Health",
-                StatUpgradeId.HealthRegen => "Health Regen",
-                StatUpgradeId.MoveSpeed => "Move Speed",
-                StatUpgradeId.AttackRange => "Attack Range",
-                _ => statId.ToString(),
-            };
+            return SharedGameCatalog.GetStatDisplayName(statId);
         }
 
-        private static string GetCoreDisplayName(WeaponCoreElement coreElement)
+        private void ApplySelectedCharacterPresentation(bool isDowned)
         {
-            return coreElement switch
+            if (_playerVisualRenderer == null)
             {
-                WeaponCoreElement.Fire => "Fire",
-                WeaponCoreElement.Wind => "Wind",
-                WeaponCoreElement.Light => "Light",
-                WeaponCoreElement.Water => "Water",
-                _ => "Core",
-            };
+                return;
+            }
+
+            var color = SharedGameCatalog.GetCharacter(_selectedSingleCharacterId).Color;
+            color.a = isDowned ? 0.35f : 1f;
+            _playerVisualRenderer.color = color;
+            _playerSpriteAnimator?.SetBaseColor(color);
         }
 
         private void TryRefreshHud()
@@ -1700,39 +1693,17 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            var hasGunWeapon = HasAnyGunWeapon(_buildRuntime);
-            _weaponVisualRenderer.enabled = hasGunWeapon;
+            var showHeldWeapon = _buildRuntime.HasWeapon(WeaponUpgradeId.BfSword);
+            _weaponVisualRenderer.enabled = showHeldWeapon;
             if (_weaponSpriteAnimator != null)
             {
-                _weaponSpriteAnimator.enabled = hasGunWeapon;
+                _weaponSpriteAnimator.enabled = false;
             }
-        }
 
-        private static bool HasAnyGunWeapon(PlayerBuildRuntime buildRuntime)
-        {
-            if (buildRuntime == null)
+            if (showHeldWeapon)
             {
-                return false;
+                ApplyHeldWeaponFacing(_playerMover != null ? _playerMover.CurrentFacingDirection : Vector2.right);
             }
-
-            var ownedWeapons = buildRuntime.OwnedWeapons;
-            for (var i = 0; i < ownedWeapons.Count; i++)
-            {
-                if (IsGunWeapon(ownedWeapons[i]))
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        private static bool IsGunWeapon(WeaponUpgradeId weaponId)
-        {
-            return weaponId == WeaponUpgradeId.Rifle
-                   || weaponId == WeaponUpgradeId.Smg
-                   || weaponId == WeaponUpgradeId.SniperRifle
-                   || weaponId == WeaponUpgradeId.Shotgun;
         }
     }
 }

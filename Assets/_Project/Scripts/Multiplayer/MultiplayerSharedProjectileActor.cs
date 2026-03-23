@@ -25,8 +25,6 @@ namespace EJR.Game.Multiplayer
         private float _damageFalloffPerHit;
         private int _remainingHits = 1;
         private WeaponUpgradeId _weaponId = WeaponUpgradeId.Rifle;
-        private WeaponCoreElement _coreElement = WeaponCoreElement.None;
-        private int _coreLevel;
 
         private void Awake()
         {
@@ -56,8 +54,6 @@ namespace EJR.Game.Multiplayer
             _damageFalloffPerHit = Mathf.Clamp(request.DamageFalloffPerHit, 0f, 0.9f);
             _remainingHits = Mathf.Max(1, request.MaxHits);
             _weaponId = request.WeaponId;
-            _coreElement = request.CoreElement;
-            _coreLevel = Mathf.Max(0, request.CoreLevel);
             _hitEnemies.Clear();
             if (_spriteRenderer != null)
             {
@@ -104,7 +100,7 @@ namespace EJR.Game.Multiplayer
                     continue;
                 }
 
-                enemy.ReceiveWeaponDamage(_currentDamage, _weaponId, _coreElement, _coreLevel);
+                enemy.ReceiveWeaponDamage(_currentDamage, _weaponId);
                 _hitEnemies.Add(enemy);
                 _remainingHits--;
 

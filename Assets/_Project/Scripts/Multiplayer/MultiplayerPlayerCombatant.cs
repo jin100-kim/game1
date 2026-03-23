@@ -44,6 +44,9 @@ namespace EJR.Game.Multiplayer
         private readonly NetworkVariable<Vector2> _aimDirection =
             new(Vector2.right, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
+        private readonly NetworkVariable<Vector2> _facingDirection =
+            new(Vector2.right, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+
         private readonly NetworkVariable<Vector2> _fireDirection =
             new(Vector2.right, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
@@ -74,6 +77,7 @@ namespace EJR.Game.Multiplayer
         private PlayerBuildRuntime _buildRuntime;
         private PlayerStatsRuntime _playerStats;
         private LevelUpSystem _levelUp;
+        private LevelUpBalanceConfig _levelUpBalanceConfig;
         private LevelUpOption[] _serverPendingOptions = Array.Empty<LevelUpOption>();
         private string[] _localPendingLabels = Array.Empty<string>();
         private string _localPendingTitle = string.Empty;
@@ -81,6 +85,9 @@ namespace EJR.Game.Multiplayer
         private string _localStatSummary = "Stats";
         private bool _serverChoiceSubmitted;
         private bool _serverInitialized;
+        private int _unlockedWeaponMask;
+        private int _unlockedCharacterMask;
+        private MetaBonusValues _metaRunStartBonuses;
 
         public PlayerHealth ServerPlayerHealth => _playerHealth;
         public bool IsReady => _isReady.Value;
@@ -132,6 +139,7 @@ namespace EJR.Game.Multiplayer
 
             _playerConfig = ScriptableObject.CreateInstance<PlayerConfig>();
             _weaponConfig = ScriptableObject.CreateInstance<WeaponConfig>();
+            _levelUpBalanceConfig = LevelUpBalanceConfig.CreateRuntimeDefault();
 
             _healthBar.Initialize(
                 new Vector3(0f, 0.82f, 0f),
@@ -154,6 +162,7 @@ namespace EJR.Game.Multiplayer
             _reviveProgress.OnValueChanged += HandleReviveProgressChanged;
             _moveSpeedMultiplier.OnValueChanged += HandleMoveSpeedMultiplierChanged;
             _aimDirection.OnValueChanged += HandleAimDirectionChanged;
+            _facingDirection.OnValueChanged += HandleFacingDirectionChanged;
             _fireDirection.OnValueChanged += HandleFireDirectionChanged;
             _fireSequence.OnValueChanged += HandleFireSequenceChanged;
             _showGunWeapon.OnValueChanged += HandleShowGunWeaponChanged;
@@ -165,6 +174,7 @@ namespace EJR.Game.Multiplayer
             ApplyCharacterPresentation(_selectedCharacterId.Value, _isDowned.Value);
             _playerMover.SetMoveSpeedMultiplier(_moveSpeedMultiplier.Value);
             ApplyWeaponPresentation();
+            _playerActor?.SetFacingDirection(_facingDirection.Value);
             ApplyDronePresentation();
             ApplyRevivePresentation();
             RefreshMoverState();
@@ -172,6 +182,11 @@ namespace EJR.Game.Multiplayer
             if (IsServer)
             {
                 InitializeServerState();
+            }
+
+            if (IsOwner)
+            {
+                PushLocalMetaProfileToServer();
             }
         }
 
@@ -184,6 +199,7 @@ namespace EJR.Game.Multiplayer
             _reviveProgress.OnValueChanged -= HandleReviveProgressChanged;
             _moveSpeedMultiplier.OnValueChanged -= HandleMoveSpeedMultiplierChanged;
             _aimDirection.OnValueChanged -= HandleAimDirectionChanged;
+            _facingDirection.OnValueChanged -= HandleFacingDirectionChanged;
             _fireDirection.OnValueChanged -= HandleFireDirectionChanged;
             _fireSequence.OnValueChanged -= HandleFireSequenceChanged;
             _showGunWeapon.OnValueChanged -= HandleShowGunWeaponChanged;
@@ -205,6 +221,17 @@ namespace EJR.Game.Multiplayer
             }
 
             RefreshMoverState();
+
+            if (IsOwner)
+            {
+                var facingDirection = NormalizeDirection(_playerMover != null ? _playerMover.CurrentFacingDirection : Vector2.right);
+                if ((_facingDirection.Value - facingDirection).sqrMagnitude > 0.000001f)
+                {
+                    _facingDirection.Value = facingDirection;
+                }
+
+                _playerActor?.SetFacingDirection(facingDirection);
+            }
 
             if (!IsServer)
             {
@@ -246,7 +273,9 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
-            SetLobbyCharacterServerRpc(_selectedCharacterId.Value + 1);
+            var nextCharacterId = MetaProgressionService.GetNextUnlockedCharacterId(_selectedCharacterId.Value);
+            MetaProgressionService.SetSingleSelectedCharacterId(nextCharacterId);
+            SetLobbyCharacterServerRpc(nextCharacterId);
         }
 
         public void RequestNextStarterWeaponSelection()
@@ -256,7 +285,10 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
-            SetLobbyStarterWeaponServerRpc(_selectedStarterWeaponId.Value + 1);
+            var currentWeapon = MultiplayerCatalog.GetStarterWeaponByIndex(_selectedStarterWeaponId.Value);
+            var nextWeapon = MetaProgressionService.GetNextUnlockedStarterWeapon(currentWeapon);
+            MetaProgressionService.SetSingleSelectedStarterWeapon(nextWeapon);
+            SetLobbyStarterWeaponServerRpc(MultiplayerCatalog.GetStarterWeaponIndex(nextWeapon));
         }
 
         public void RequestToggleReady()
@@ -403,6 +435,10 @@ namespace EJR.Game.Multiplayer
             _isReady.Value = false;
             _isDowned.Value = false;
             _reviveProgress.Value = 0f;
+            _facingDirection.Value = Vector2.right;
+            _unlockedWeaponMask = 0;
+            _unlockedCharacterMask = 0;
+            _metaRunStartBonuses = default;
             _droneVisualCount.Value = 0;
             _droneOrbitRadius.Value = 0f;
             _droneOrbitSpeedDegrees.Value = 0f;
@@ -421,7 +457,7 @@ namespace EJR.Game.Multiplayer
             }
 
             _levelUp = new LevelUpSystem();
-            _levelUp.Initialize(_buildRuntime);
+            _levelUp.Initialize(_buildRuntime, _levelUpBalanceConfig, IsWeaponUnlockedForThisPlayer);
             _levelUp.OptionsGenerated += HandleServerOptionsGenerated;
         }
 
@@ -456,6 +492,7 @@ namespace EJR.Game.Multiplayer
         private void ResetBuildRuntimeForLobby()
         {
             _buildRuntime.InitializeDefaults(grantStarterRifle: false);
+            _buildRuntime.ApplyMetaBonuses(_metaRunStartBonuses);
             _playerStats.RecalculateFromBuild(_buildRuntime);
             RecreateLevelSystem();
             UpdateBuildSummaries();
@@ -464,21 +501,50 @@ namespace EJR.Game.Multiplayer
         private void ResetBuildRuntimeForRun()
         {
             _buildRuntime.InitializeDefaults(grantStarterRifle: false);
+            _buildRuntime.ApplyMetaBonuses(_metaRunStartBonuses);
             var starterWeapon = MultiplayerCatalog.GetStarterWeaponByIndex(_selectedStarterWeaponId.Value);
-            _buildRuntime.Apply(new LevelUpOption(
-                UpgradeCategory.Weapon,
+            _buildRuntime.Apply(LevelUpOption.CreateWeaponAcquire(
                 starterWeapon,
-                default,
-                0,
-                1,
-                isNewAcquire: true,
-                isLockedBySlot: false,
-                label: MultiplayerCatalog.GetWeaponDisplayName(starterWeapon)));
+                $"{MultiplayerCatalog.GetWeaponDisplayName(starterWeapon)} Lv1",
+                "Acquire weapon",
+                MultiplayerCatalog.GetWeaponDisplayName(starterWeapon)));
 
             _playerStats.RecalculateFromBuild(_buildRuntime);
             RecreateLevelSystem();
             ApplyBuildToRuntimeSystems();
             UpdateBuildSummaries();
+        }
+
+        private bool IsWeaponUnlockedForThisPlayer(WeaponUpgradeId weaponId)
+        {
+            return _unlockedWeaponMask == 0 || SharedGameCatalog.IsWeaponInMask(_unlockedWeaponMask, weaponId);
+        }
+
+        private bool IsCharacterUnlockedForThisPlayer(int characterId)
+        {
+            return _unlockedCharacterMask == 0 || SharedGameCatalog.IsCharacterInMask(_unlockedCharacterMask, characterId);
+        }
+
+        private void PushLocalMetaProfileToServer()
+        {
+            MetaProgressionService.EnsureLoaded();
+
+            var selectedCharacterId = MetaProgressionService.GetSingleSelectedCharacterId();
+            var selectedStarterWeapon = MetaProgressionService.GetSingleSelectedStarterWeapon();
+            var bonuses = MetaProgressionService.GetCombinedRunStartBonuses(selectedCharacterId);
+
+            SubmitMetaProfileServerRpc(
+                MetaProgressionService.GetUnlockedWeaponMask(),
+                MetaProgressionService.GetUnlockedCharacterMask(),
+                bonuses.attackPowerPercent,
+                bonuses.attackSpeedPercent,
+                bonuses.maxHealthFlat,
+                bonuses.healthRegenPerSecond,
+                bonuses.moveSpeedPercent,
+                bonuses.attackRangePercent,
+                bonuses.luck,
+                selectedCharacterId,
+                MultiplayerCatalog.GetStarterWeaponIndex(selectedStarterWeapon));
         }
 
         private void EnsureWeaponSystem(Rect arenaBounds)
@@ -498,8 +564,10 @@ namespace EJR.Game.Multiplayer
                 transform,
                 coop != null ? coop.EnemyRegistry : null,
                 _playerStats,
+                _playerHealth,
                 projectileSpawnResolver: ResolveProjectileSpawnPoint,
-                projectileCullBounds: arenaBounds);
+                projectileCullBounds: arenaBounds,
+                facingDirectionResolver: () => NormalizeDirection(_facingDirection.Value));
 
             _weaponSystem.AimUpdated -= HandleServerAimUpdated;
             _weaponSystem.Fired -= HandleServerWeaponFired;
@@ -550,7 +618,7 @@ namespace EJR.Game.Multiplayer
 
             _moveSpeedMultiplier.Value = _playerStats != null ? _playerStats.MoveSpeedMultiplier : 1f;
             _playerMover.SetMoveSpeedMultiplier(_moveSpeedMultiplier.Value);
-            _showGunWeapon.Value = HasAnyGunWeapon(_buildRuntime);
+            _showGunWeapon.Value = _buildRuntime != null && _buildRuntime.HasWeapon(WeaponUpgradeId.BfSword);
             _droneVisualCount.Value = GetDroneVisualCount(_buildRuntime);
             _droneOrbitRadius.Value = GetDroneOrbitRadius(_buildRuntime, _playerStats);
             _droneOrbitSpeedDegrees.Value = GetDroneOrbitSpeedDegrees(_buildRuntime, _playerStats);
@@ -600,19 +668,23 @@ namespace EJR.Game.Multiplayer
                 {
                     var weaponId = _buildRuntime.OwnedWeapons[slotIndex];
                     var level = _buildRuntime.GetWeaponLevel(weaponId);
-                    var coreLevel = _buildRuntime.GetWeaponCoreLevel(weaponId);
+                    var damageBonus = _buildRuntime.GetWeaponDamageBonusPercentTotal(weaponId);
+                    var attackSpeedBonus = _buildRuntime.GetWeaponAttackSpeedBonusPercentTotal(weaponId);
+                    var rangeBonus = _buildRuntime.GetWeaponRangeBonusPercentTotal(weaponId);
+                    var milestoneCount = _buildRuntime.GetWeaponMilestoneCount(weaponId);
                     builder.Append('\n').Append(slotNumber).Append(") ")
                         .Append(MultiplayerCatalog.GetWeaponDisplayName(weaponId))
-                        .Append(" Lv").Append(level);
+                        .Append(" Lv").Append(level)
+                        .Append(" [D+").Append(damageBonus.ToString("0.#"))
+                        .Append(" AS+").Append(attackSpeedBonus.ToString("0.#"))
+                        .Append(" R+").Append(rangeBonus.ToString("0.#"));
 
-                    if (coreLevel > 0)
+                    if (milestoneCount > 0)
                     {
-                        builder.Append(" [")
-                            .Append(MultiplayerCatalog.GetCoreDisplayName(_buildRuntime.GetWeaponCoreElement(weaponId)))
-                            .Append(" C")
-                            .Append(coreLevel)
-                            .Append(']');
+                        builder.Append(" FX+").Append(milestoneCount);
                     }
+
+                    builder.Append(']');
                 }
                 else
                 {
@@ -625,26 +697,19 @@ namespace EJR.Game.Multiplayer
 
         private string BuildStatSummary()
         {
-            var builder = new StringBuilder("Stats");
-            for (var slotIndex = 0; slotIndex < PlayerBuildRuntime.MaxStatSlots; slotIndex++)
+            if (_buildRuntime == null)
             {
-                var slotNumber = slotIndex + 1;
-                if (_buildRuntime != null && slotIndex < _buildRuntime.OwnedStats.Count)
-                {
-                    var statId = _buildRuntime.OwnedStats[slotIndex];
-                    builder.Append('\n')
-                        .Append(slotNumber)
-                        .Append(") ")
-                        .Append(MultiplayerCatalog.GetStatDisplayName(statId))
-                        .Append(" Lv")
-                        .Append(_buildRuntime.GetStatLevel(statId));
-                }
-                else
-                {
-                    builder.Append('\n').Append(slotNumber).Append(") Empty");
-                }
+                return "Global Stats";
             }
 
+            var builder = new StringBuilder("Global Stats");
+            builder.Append('\n').Append("Attack Power +").Append(_buildRuntime.GlobalAttackPowerPercentTotal.ToString("0.#")).Append('%');
+            builder.Append('\n').Append("Attack Speed +").Append(_buildRuntime.GlobalAttackSpeedPercentTotal.ToString("0.#")).Append('%');
+            builder.Append('\n').Append("Max Health +").Append(_buildRuntime.GlobalMaxHealthFlatTotal.ToString("0"));
+            builder.Append('\n').Append("Health Regen +").Append(_buildRuntime.GlobalHealthRegenPerSecondTotal.ToString("0.##")).Append("/s");
+            builder.Append('\n').Append("Move Speed +").Append(_buildRuntime.GlobalMoveSpeedPercentTotal.ToString("0.#")).Append('%');
+            builder.Append('\n').Append("Attack Range +").Append(_buildRuntime.GlobalAttackRangePercentTotal.ToString("0.#")).Append('%');
+            builder.Append('\n').Append("Luck ").Append(_buildRuntime.GlobalLuckTotal.ToString("0.##"));
             return builder.ToString();
         }
 
@@ -732,6 +797,11 @@ namespace EJR.Game.Multiplayer
             _playerActor?.SetWeaponAim(newValue);
         }
 
+        private void HandleFacingDirectionChanged(Vector2 previousValue, Vector2 newValue)
+        {
+            _playerActor?.SetFacingDirection(newValue);
+        }
+
         private void HandleFireDirectionChanged(Vector2 previousValue, Vector2 newValue)
         {
             _playerActor?.SetWeaponAim(newValue);
@@ -802,6 +872,7 @@ namespace EJR.Game.Multiplayer
             color.a = isDowned ? 0.35f : 1f;
             targetRenderer.color = color;
             _playerSpriteAnimator?.SetBaseColor(color);
+            _playerActor?.SetFacingDirection(_facingDirection.Value);
         }
 
         private void ApplyWeaponPresentation()
@@ -813,6 +884,7 @@ namespace EJR.Game.Multiplayer
 
             var showWeapon = _showGunWeapon.Value && !_isDowned.Value;
             _playerActor?.SetWeaponVisible(showWeapon);
+            _playerActor?.SetFacingDirection(_facingDirection.Value);
             _playerActor?.SetWeaponAim(_aimDirection.Value);
         }
 
@@ -971,6 +1043,56 @@ namespace EJR.Game.Multiplayer
         }
 
         [ServerRpc]
+        private void SubmitMetaProfileServerRpc(
+            int unlockedWeaponMask,
+            int unlockedCharacterMask,
+            float attackPowerPercent,
+            float attackSpeedPercent,
+            float maxHealthFlat,
+            float healthRegenPerSecond,
+            float moveSpeedPercent,
+            float attackRangePercent,
+            float luck,
+            int preferredCharacterId,
+            int preferredStarterWeaponIndex)
+        {
+            _unlockedWeaponMask = unlockedWeaponMask;
+            _unlockedCharacterMask = unlockedCharacterMask;
+            _metaRunStartBonuses = new MetaBonusValues
+            {
+                attackPowerPercent = attackPowerPercent,
+                attackSpeedPercent = attackSpeedPercent,
+                maxHealthFlat = maxHealthFlat,
+                healthRegenPerSecond = healthRegenPerSecond,
+                moveSpeedPercent = moveSpeedPercent,
+                attackRangePercent = attackRangePercent,
+                luck = luck,
+            };
+
+            if (MultiplayerCoopController.Instance != null && MultiplayerCoopController.Instance.Phase == MultiplayerRunPhase.Lobby)
+            {
+                if (IsCharacterUnlockedForThisPlayer(preferredCharacterId))
+                {
+                    _selectedCharacterId.Value = MultiplayerCatalog.NormalizeCharacterId(preferredCharacterId);
+                }
+
+                var preferredWeapon = MultiplayerCatalog.GetStarterWeaponByIndex(preferredStarterWeaponIndex);
+                if (IsWeaponUnlockedForThisPlayer(preferredWeapon))
+                {
+                    _selectedStarterWeaponId.Value = MultiplayerCatalog.NormalizeStarterWeaponIndex(preferredStarterWeaponIndex);
+                }
+
+                _selectionComplete.Value = true;
+                _isReady.Value = false;
+            }
+
+            if (_serverInitialized)
+            {
+                ResetBuildRuntimeForLobby();
+            }
+        }
+
+        [ServerRpc]
         private void SetLobbyCharacterServerRpc(int characterId)
         {
             var coop = MultiplayerCoopController.Instance;
@@ -979,7 +1101,13 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
-            _selectedCharacterId.Value = MultiplayerCatalog.NormalizeCharacterId(characterId);
+            characterId = MultiplayerCatalog.NormalizeCharacterId(characterId);
+            if (!IsCharacterUnlockedForThisPlayer(characterId))
+            {
+                return;
+            }
+
+            _selectedCharacterId.Value = characterId;
             _selectionComplete.Value = true;
             _isReady.Value = false;
         }
@@ -993,7 +1121,14 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
-            _selectedStarterWeaponId.Value = MultiplayerCatalog.NormalizeStarterWeaponIndex(starterWeaponIndex);
+            var normalizedIndex = MultiplayerCatalog.NormalizeStarterWeaponIndex(starterWeaponIndex);
+            var weaponId = MultiplayerCatalog.GetStarterWeaponByIndex(normalizedIndex);
+            if (!IsWeaponUnlockedForThisPlayer(weaponId))
+            {
+                return;
+            }
+
+            _selectedStarterWeaponId.Value = normalizedIndex;
             _selectionComplete.Value = true;
             _isReady.Value = false;
         }
@@ -1214,28 +1349,6 @@ namespace EJR.Game.Multiplayer
             };
         }
 
-        private static bool HasAnyGunWeapon(PlayerBuildRuntime buildRuntime)
-        {
-            if (buildRuntime == null)
-            {
-                return false;
-            }
-
-            var ownedWeapons = buildRuntime.OwnedWeapons;
-            for (var i = 0; i < ownedWeapons.Count; i++)
-            {
-                if (ownedWeapons[i] == WeaponUpgradeId.Rifle
-                    || ownedWeapons[i] == WeaponUpgradeId.Smg
-                    || ownedWeapons[i] == WeaponUpgradeId.SniperRifle
-                    || ownedWeapons[i] == WeaponUpgradeId.Shotgun)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
         private int GetDroneVisualCount(PlayerBuildRuntime buildRuntime)
         {
             if (buildRuntime == null)
@@ -1250,7 +1363,7 @@ namespace EJR.Game.Multiplayer
             }
 
             var baseCount = _weaponConfig != null ? Mathf.Max(1, _weaponConfig.satelliteBaseCount) : 2;
-            return Mathf.Clamp(baseCount + GetWeaponExtraCount(WeaponUpgradeId.Drone, droneLevel), 1, 8);
+            return Mathf.Clamp(baseCount + buildRuntime.GetWeaponExtraCountBonus(WeaponUpgradeId.Drone), 1, 8);
         }
 
         private float GetDroneOrbitRadius(PlayerBuildRuntime buildRuntime, PlayerStatsRuntime stats)
@@ -1260,10 +1373,10 @@ namespace EJR.Game.Multiplayer
                 return 0f;
             }
 
-            var tier = Mathf.Max(0, buildRuntime.GetWeaponLevel(WeaponUpgradeId.Drone) - 1);
             var baseRadius = _weaponConfig != null ? Mathf.Max(0.2f, _weaponConfig.satelliteOrbitRadius) : 1.2f;
             var attackRangeMultiplier = stats != null ? Mathf.Max(0.1f, stats.AttackRangeMultiplier) : 1f;
-            return baseRadius * (1f + (0.02f * tier)) * attackRangeMultiplier;
+            var weaponRangeMultiplier = 1f + (Mathf.Max(0f, buildRuntime.GetWeaponRangeBonusPercentTotal(WeaponUpgradeId.Drone)) / 100f);
+            return baseRadius * weaponRangeMultiplier * attackRangeMultiplier;
         }
 
         private float GetDroneOrbitSpeedDegrees(PlayerBuildRuntime buildRuntime, PlayerStatsRuntime stats)
@@ -1273,20 +1386,10 @@ namespace EJR.Game.Multiplayer
                 return 0f;
             }
 
-            var tier = Mathf.Max(0, buildRuntime.GetWeaponLevel(WeaponUpgradeId.Drone) - 1);
             var baseSpeed = _weaponConfig != null ? Mathf.Max(30f, _weaponConfig.satelliteAngularSpeed) : 220f;
             var attackSpeedScale = stats != null ? Mathf.Max(0.2f, 1f / stats.AttackIntervalMultiplier) : 1f;
-            return baseSpeed * (1f + (0.02f * tier)) * attackSpeedScale;
-        }
-
-        private static int GetWeaponExtraCount(WeaponUpgradeId weaponId, int weaponLevel)
-        {
-            var levelIndex = Mathf.Clamp(weaponLevel - 1, 0, DroneExtraByLevel.Length - 1);
-            return weaponId switch
-            {
-                WeaponUpgradeId.Drone => DroneExtraByLevel[levelIndex],
-                _ => 0,
-            };
+            var weaponAttackSpeedScale = 1f + (Mathf.Max(0f, buildRuntime.GetWeaponAttackSpeedBonusPercentTotal(WeaponUpgradeId.Drone)) / 100f);
+            return baseSpeed * weaponAttackSpeedScale * attackSpeedScale;
         }
 
         private static Vector2 NormalizeDirection(Vector2 direction)
@@ -1313,7 +1416,5 @@ namespace EJR.Game.Multiplayer
 
             return _spriteRenderer;
         }
-
-        private static readonly int[] DroneExtraByLevel = { 0, 0, 0, 0, 1, 1, 1, 1, 1, 2 };
     }
 }

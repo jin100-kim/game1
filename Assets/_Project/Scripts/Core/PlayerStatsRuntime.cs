@@ -12,6 +12,7 @@ namespace EJR.Game.Core
         public float AttackRangeMultiplier { get; private set; } = 1f;
         public float MaxHealthBonus { get; private set; }
         public float HealthRegenPerSecond { get; private set; }
+        public float Luck { get; private set; }
 
         public void RecalculateFromBuild(PlayerBuildRuntime build)
         {
@@ -21,28 +22,21 @@ namespace EJR.Game.Core
             AttackRangeMultiplier = 1f;
             MaxHealthBonus = 0f;
             HealthRegenPerSecond = 0f;
+            Luck = 0f;
 
             if (build == null)
             {
                 return;
             }
 
-            var attackPowerLevel = build.GetStatLevel(StatUpgradeId.AttackPower);
-            var attackSpeedLevel = build.GetStatLevel(StatUpgradeId.AttackSpeed);
-            var maxHealthLevel = build.GetStatLevel(StatUpgradeId.MaxHealth);
-            var healthRegenLevel = build.GetStatLevel(StatUpgradeId.HealthRegen);
-            var moveSpeedLevel = build.GetStatLevel(StatUpgradeId.MoveSpeed);
-            var attackRangeLevel = build.GetStatLevel(StatUpgradeId.AttackRange);
-
-            DamageMultiplier += attackPowerLevel * 0.10f;
-            // Cooldown model: finalCooldown = baseCooldown / (1 + attackSpeedBonus)
-            // Keep this as "interval multiplier" so weapon systems can keep multiplying by it.
-            var attackSpeedBonus = Mathf.Max(0f, attackSpeedLevel * 0.05f);
-            AttackIntervalMultiplier = 1f / (1f + attackSpeedBonus);
-            MaxHealthBonus = maxHealthLevel * 20f;
-            HealthRegenPerSecond = healthRegenLevel * 0.5f;
-            MoveSpeedMultiplier = 1f + (moveSpeedLevel * 0.06f);
-            AttackRangeMultiplier = 1f + (attackRangeLevel * 0.10f);
+            DamageMultiplier = 1f + (Mathf.Max(0f, build.GlobalAttackPowerPercentTotal) / 100f);
+            var globalAttackSpeedBonus = Mathf.Max(0f, build.GlobalAttackSpeedPercentTotal) / 100f;
+            AttackIntervalMultiplier = 1f / (1f + globalAttackSpeedBonus);
+            MoveSpeedMultiplier = 1f + (Mathf.Max(0f, build.GlobalMoveSpeedPercentTotal) / 100f);
+            AttackRangeMultiplier = 1f + (Mathf.Max(0f, build.GlobalAttackRangePercentTotal) / 100f);
+            MaxHealthBonus = Mathf.Max(0f, build.GlobalMaxHealthFlatTotal);
+            HealthRegenPerSecond = Mathf.Max(0f, build.GlobalHealthRegenPerSecondTotal);
+            Luck = Mathf.Max(0f, build.GlobalLuckTotal);
         }
     }
 }
