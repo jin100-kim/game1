@@ -1,0 +1,388 @@
+using System.Collections.Generic;
+using EJR.Game.Core;
+using UnityEngine;
+using UnityEngine.Audio;
+
+namespace EJR.Game.Audio
+{
+    [DisallowMultipleComponent]
+    public sealed class AudioService : MonoBehaviour
+    {
+        private sealed class ActiveVoice
+        {
+            public AudioSource Source;
+            public AudioCueCatalog.Entry Entry;
+            public float VolumeScale;
+            public AudioBus Bus;
+        }
+
+        private const string CatalogResourcePath = "AudioCueCatalog";
+        private const string MasterVolumeKey = "settings.audio.master";
+        private const string BgmVolumeKey = "settings.audio.bgm";
+        private const string SfxVolumeKey = "settings.audio.sfx";
+        private const float DefaultMasterVolume = 1f;
+        private const float DefaultBgmVolume = 0.75f;
+        private const float DefaultSfxVolume = 0.9f;
+        private const int SfxVoicePoolSize = 12;
+        private const int UiVoicePoolSize = 4;
+
+        private static AudioService s_instance;
+
+        private readonly Dictionary<AudioCueId, float> _lastCuePlayedAt = new();
+        private readonly List<ActiveVoice> _sfxVoices = new(SfxVoicePoolSize);
+        private readonly List<ActiveVoice> _uiVoices = new(UiVoicePoolSize);
+
+        private AudioCueCatalog _catalog;
+        private AudioSource _musicSource;
+        private AudioCueId _activeMusicCue = AudioCueId.None;
+        private float _masterVolume = DefaultMasterVolume;
+        private float _bgmVolume = DefaultBgmVolume;
+        private float _sfxVolume = DefaultSfxVolume;
+
+        public static AudioService Instance => EnsureInstance();
+        public static bool HasInstance => s_instance != null;
+
+        public float MasterVolume => _masterVolume;
+        public float BgmVolume => _bgmVolume;
+        public float SfxVolume => _sfxVolume;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void Bootstrap()
+        {
+            EnsureInstance();
+        }
+
+        public static AudioService EnsureInstance()
+        {
+            if (s_instance != null)
+            {
+                return s_instance;
+            }
+
+            s_instance = FindFirstObjectByType<AudioService>();
+            if (s_instance != null)
+            {
+                return s_instance;
+            }
+
+            var root = new GameObject("AudioService");
+            s_instance = root.AddComponent<AudioService>();
+            return s_instance;
+        }
+
+        private void Awake()
+        {
+            if (s_instance != null && s_instance != this)
+            {
+                Destroy(gameObject);
+                return;
+            }
+
+            s_instance = this;
+            DontDestroyOnLoad(gameObject);
+            _catalog = Resources.Load<AudioCueCatalog>(CatalogResourcePath);
+            LoadSettings();
+            BuildSources();
+            ApplySettingsToLiveSources();
+        }
+
+        private void Update()
+        {
+            CleanupInactiveVoices(_sfxVoices);
+            CleanupInactiveVoices(_uiVoices);
+        }
+
+        public void PlayUi(AudioCueId cueId)
+        {
+            PlayCue(cueId, _uiVoices, AudioBus.Ui, 1f);
+        }
+
+        public void PlaySfx(AudioCueId cueId, float volumeScale = 1f)
+        {
+            PlayCue(cueId, _sfxVoices, AudioBus.Sfx, volumeScale);
+        }
+
+        public void PlayWeaponSound(WeaponSoundRequest request)
+        {
+            switch (request.WeaponId)
+            {
+                case WeaponUpgradeId.Rifle:
+                    PlaySfx(AudioCueId.WeaponRifle);
+                    break;
+                case WeaponUpgradeId.Shotgun:
+                    PlaySfx(AudioCueId.WeaponShotgun);
+                    break;
+                case WeaponUpgradeId.Smg:
+                    PlaySfx(AudioCueId.WeaponFireball);
+                    break;
+                case WeaponUpgradeId.Katana:
+                    PlaySfx(AudioCueId.WeaponKatana);
+                    break;
+                case WeaponUpgradeId.BfSword:
+                    if (request.Kind == WeaponSoundKind.Turn || request.Kind == WeaponSoundKind.Primary)
+                    {
+                        PlaySfx(AudioCueId.WeaponBfSword);
+                    }
+                    break;
+                case WeaponUpgradeId.ChainAttack:
+                    PlaySfx(AudioCueId.WeaponChainAttack);
+                    break;
+                case WeaponUpgradeId.RifleTurret:
+                    if (request.Kind == WeaponSoundKind.Deploy)
+                    {
+                        PlaySfx(AudioCueId.WeaponTurretDeploy);
+                    }
+                    else
+                    {
+                        PlaySfx(AudioCueId.WeaponRifle, 0.92f);
+                    }
+                    break;
+                case WeaponUpgradeId.SniperRifle:
+                    if (request.Kind == WeaponSoundKind.Latch)
+                    {
+                        PlaySfx(AudioCueId.WeaponBatLatch);
+                    }
+                    else
+                    {
+                        PlaySfx(AudioCueId.WeaponBatFlap);
+                    }
+                    break;
+            }
+        }
+
+        public void PlayMusic(AudioCueId cueId)
+        {
+            if (_musicSource == null)
+            {
+                return;
+            }
+
+            if (!_catalogReady || !_catalog.TryGetEntry(cueId, out var entry) || entry.clip == null)
+            {
+                return;
+            }
+
+            if (_activeMusicCue == cueId && _musicSource.isPlaying && _musicSource.clip == entry.clip)
+            {
+                RefreshMusicSource(entry);
+                return;
+            }
+
+            _activeMusicCue = cueId;
+            _musicSource.clip = entry.clip;
+            _musicSource.loop = true;
+            _musicSource.pitch = 1f;
+            _musicSource.outputAudioMixerGroup = entry.mixerGroup != null ? entry.mixerGroup : _catalog.GetBusGroup(AudioBus.Bgm);
+            _musicSource.volume = ComputeFinalVolume(entry, AudioBus.Bgm, 1f);
+            _musicSource.Play();
+        }
+
+        public void StopMusic()
+        {
+            _activeMusicCue = AudioCueId.None;
+            if (_musicSource != null)
+            {
+                _musicSource.Stop();
+            }
+        }
+
+        public void SetMasterVolume(float value)
+        {
+            _masterVolume = Mathf.Clamp01(value);
+            PlayerPrefs.SetFloat(MasterVolumeKey, _masterVolume);
+            PlayerPrefs.Save();
+            ApplySettingsToLiveSources();
+        }
+
+        public void SetBgmVolume(float value)
+        {
+            _bgmVolume = Mathf.Clamp01(value);
+            PlayerPrefs.SetFloat(BgmVolumeKey, _bgmVolume);
+            PlayerPrefs.Save();
+            ApplySettingsToLiveSources();
+        }
+
+        public void SetSfxVolume(float value)
+        {
+            _sfxVolume = Mathf.Clamp01(value);
+            PlayerPrefs.SetFloat(SfxVolumeKey, _sfxVolume);
+            PlayerPrefs.Save();
+            ApplySettingsToLiveSources();
+        }
+
+        private bool _catalogReady => _catalog != null;
+
+        private void LoadSettings()
+        {
+            _masterVolume = Mathf.Clamp01(PlayerPrefs.GetFloat(MasterVolumeKey, DefaultMasterVolume));
+            _bgmVolume = Mathf.Clamp01(PlayerPrefs.GetFloat(BgmVolumeKey, DefaultBgmVolume));
+            _sfxVolume = Mathf.Clamp01(PlayerPrefs.GetFloat(SfxVolumeKey, DefaultSfxVolume));
+        }
+
+        private void BuildSources()
+        {
+            _musicSource = CreateSource("Music", _catalog != null ? _catalog.GetBusGroup(AudioBus.Bgm) : null);
+            _musicSource.loop = true;
+
+            for (var i = 0; i < SfxVoicePoolSize; i++)
+            {
+                _sfxVoices.Add(new ActiveVoice
+                {
+                    Source = CreateSource($"SfxVoice{i + 1}", _catalog != null ? _catalog.GetBusGroup(AudioBus.Sfx) : null),
+                    Bus = AudioBus.Sfx,
+                    VolumeScale = 1f,
+                });
+            }
+
+            for (var i = 0; i < UiVoicePoolSize; i++)
+            {
+                _uiVoices.Add(new ActiveVoice
+                {
+                    Source = CreateSource($"UiVoice{i + 1}", _catalog != null ? _catalog.GetBusGroup(AudioBus.Ui) : null),
+                    Bus = AudioBus.Ui,
+                    VolumeScale = 1f,
+                });
+            }
+        }
+
+        private AudioSource CreateSource(string name, AudioMixerGroup outputGroup)
+        {
+            var sourceObject = new GameObject(name);
+            sourceObject.transform.SetParent(transform, false);
+            var source = sourceObject.AddComponent<AudioSource>();
+            source.playOnAwake = false;
+            source.spatialBlend = 0f;
+            source.loop = false;
+            source.outputAudioMixerGroup = outputGroup;
+            return source;
+        }
+
+        private void PlayCue(AudioCueId cueId, List<ActiveVoice> pool, AudioBus fallbackBus, float volumeScale)
+        {
+            if (!_catalogReady || !_catalog.TryGetEntry(cueId, out var entry) || entry.clip == null)
+            {
+                return;
+            }
+
+            if (!CanPlayCue(cueId, entry, pool))
+            {
+                return;
+            }
+
+            var voice = GetAvailableVoice(pool);
+            if (voice == null)
+            {
+                return;
+            }
+
+            voice.Entry = entry;
+            voice.Bus = entry.bus;
+            voice.VolumeScale = volumeScale;
+            voice.Source.clip = entry.clip;
+            voice.Source.loop = entry.loop;
+            voice.Source.pitch = 1f + Random.Range(-entry.pitchVariance, entry.pitchVariance);
+            voice.Source.outputAudioMixerGroup = entry.mixerGroup != null ? entry.mixerGroup : _catalog.GetBusGroup(entry.bus);
+            voice.Source.volume = ComputeFinalVolume(entry, fallbackBus, volumeScale);
+            voice.Source.Play();
+            _lastCuePlayedAt[cueId] = Time.unscaledTime;
+        }
+
+        private bool CanPlayCue(AudioCueId cueId, AudioCueCatalog.Entry entry, List<ActiveVoice> pool)
+        {
+            if (_lastCuePlayedAt.TryGetValue(cueId, out var lastPlayedAt)
+                && entry.minRetriggerInterval > 0f
+                && Time.unscaledTime < lastPlayedAt + entry.minRetriggerInterval)
+            {
+                return false;
+            }
+
+            var activeCount = 0;
+            for (var i = 0; i < pool.Count; i++)
+            {
+                var voice = pool[i];
+                if (voice.Entry != null && voice.Entry.cueId == cueId && voice.Source != null && voice.Source.isPlaying)
+                {
+                    activeCount++;
+                }
+            }
+
+            return activeCount < Mathf.Max(1, entry.maxVoices);
+        }
+
+        private static ActiveVoice GetAvailableVoice(List<ActiveVoice> pool)
+        {
+            for (var i = 0; i < pool.Count; i++)
+            {
+                var voice = pool[i];
+                if (voice.Source == null || voice.Source.isPlaying)
+                {
+                    continue;
+                }
+
+                return voice;
+            }
+
+            return pool.Count > 0 ? pool[0] : null;
+        }
+
+        private void CleanupInactiveVoices(List<ActiveVoice> pool)
+        {
+            for (var i = 0; i < pool.Count; i++)
+            {
+                var voice = pool[i];
+                if (voice.Source == null || voice.Source.isPlaying)
+                {
+                    continue;
+                }
+
+                voice.Entry = null;
+                voice.VolumeScale = 1f;
+            }
+        }
+
+        private void ApplySettingsToLiveSources()
+        {
+            if (_musicSource != null && _catalogReady && _catalog.TryGetEntry(_activeMusicCue, out var musicEntry))
+            {
+                RefreshMusicSource(musicEntry);
+            }
+
+            RefreshVoicePool(_sfxVoices);
+            RefreshVoicePool(_uiVoices);
+        }
+
+        private void RefreshMusicSource(AudioCueCatalog.Entry entry)
+        {
+            if (_musicSource == null || entry == null)
+            {
+                return;
+            }
+
+            _musicSource.outputAudioMixerGroup = entry.mixerGroup != null ? entry.mixerGroup : _catalog.GetBusGroup(AudioBus.Bgm);
+            _musicSource.volume = ComputeFinalVolume(entry, AudioBus.Bgm, 1f);
+        }
+
+        private void RefreshVoicePool(List<ActiveVoice> pool)
+        {
+            for (var i = 0; i < pool.Count; i++)
+            {
+                var voice = pool[i];
+                if (voice.Source == null || voice.Entry == null)
+                {
+                    continue;
+                }
+
+                voice.Source.outputAudioMixerGroup = voice.Entry.mixerGroup != null ? voice.Entry.mixerGroup : _catalog.GetBusGroup(voice.Entry.bus);
+                voice.Source.volume = ComputeFinalVolume(voice.Entry, voice.Bus, voice.VolumeScale);
+            }
+        }
+
+        private float ComputeFinalVolume(AudioCueCatalog.Entry entry, AudioBus fallbackBus, float volumeScale)
+        {
+            var bus = entry != null ? entry.bus : fallbackBus;
+            var busVolume = bus == AudioBus.Bgm ? _bgmVolume : _sfxVolume;
+            var cueVolume = entry != null ? Mathf.Clamp01(entry.volume) : 1f;
+            return Mathf.Clamp01(_masterVolume * busVolume * cueVolume * Mathf.Clamp01(volumeScale));
+        }
+    }
+}

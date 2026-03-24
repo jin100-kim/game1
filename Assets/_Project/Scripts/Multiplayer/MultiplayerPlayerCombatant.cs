@@ -81,8 +81,8 @@ namespace EJR.Game.Multiplayer
         private LevelUpOption[] _serverPendingOptions = Array.Empty<LevelUpOption>();
         private string[] _localPendingLabels = Array.Empty<string>();
         private string _localPendingTitle = string.Empty;
-        private string _localWeaponSummary = "Weapons";
-        private string _localStatSummary = "Stats";
+        private string _localWeaponSummary = "무기";
+        private string _localStatSummary = "능력치";
         private bool _serverChoiceSubmitted;
         private bool _serverInitialized;
         private int _unlockedWeaponMask;
@@ -505,8 +505,8 @@ namespace EJR.Game.Multiplayer
             var starterWeapon = MultiplayerCatalog.GetStarterWeaponByIndex(_selectedStarterWeaponId.Value);
             _buildRuntime.Apply(LevelUpOption.CreateWeaponAcquire(
                 starterWeapon,
-                $"{MultiplayerCatalog.GetWeaponDisplayName(starterWeapon)} Lv1",
-                "Acquire weapon",
+                $"{MultiplayerCatalog.GetWeaponDisplayName(starterWeapon)} 레벨 1",
+                "무기 획득",
                 MultiplayerCatalog.GetWeaponDisplayName(starterWeapon)));
 
             _playerStats.RecalculateFromBuild(_buildRuntime);
@@ -648,7 +648,7 @@ namespace EJR.Game.Multiplayer
 
         private string BuildWeaponSummary()
         {
-            var builder = new StringBuilder("Weapons");
+            var builder = new StringBuilder("무기");
             var playerLevel = _levelUp != null ? _levelUp.Level : 1;
             var unlockedSlots = _buildRuntime != null ? _buildRuntime.GetUnlockedWeaponSlots(playerLevel) : 1;
 
@@ -660,7 +660,7 @@ namespace EJR.Game.Multiplayer
                     var requiredLevel = slotIndex == 1
                         ? PlayerBuildRuntime.SecondWeaponUnlockLevel
                         : PlayerBuildRuntime.ThirdWeaponUnlockLevel;
-                    builder.Append('\n').Append(slotNumber).Append(") Locked (Lv").Append(requiredLevel).Append(')');
+                    builder.Append('\n').Append(slotNumber).Append(") 잠김 (레벨 ").Append(requiredLevel).Append(')');
                     continue;
                 }
 
@@ -674,21 +674,21 @@ namespace EJR.Game.Multiplayer
                     var milestoneCount = _buildRuntime.GetWeaponMilestoneCount(weaponId);
                     builder.Append('\n').Append(slotNumber).Append(") ")
                         .Append(MultiplayerCatalog.GetWeaponDisplayName(weaponId))
-                        .Append(" Lv").Append(level)
-                        .Append(" [D+").Append(damageBonus.ToString("0.#"))
-                        .Append(" AS+").Append(attackSpeedBonus.ToString("0.#"))
-                        .Append(" R+").Append(rangeBonus.ToString("0.#"));
+                        .Append(" 레벨 ").Append(level)
+                        .Append(" [피해+").Append(damageBonus.ToString("0.#"))
+                        .Append(" 공속+").Append(attackSpeedBonus.ToString("0.#"))
+                        .Append(" 범위+").Append(rangeBonus.ToString("0.#"));
 
                     if (milestoneCount > 0)
                     {
-                        builder.Append(" FX+").Append(milestoneCount);
+                        builder.Append(" 특수+").Append(milestoneCount);
                     }
 
                     builder.Append(']');
                 }
                 else
                 {
-                    builder.Append('\n').Append(slotNumber).Append(") Empty");
+                    builder.Append('\n').Append(slotNumber).Append(") 비어 있음");
                 }
             }
 
@@ -699,17 +699,17 @@ namespace EJR.Game.Multiplayer
         {
             if (_buildRuntime == null)
             {
-                return "Global Stats";
+                return "전역 능력치";
             }
 
-            var builder = new StringBuilder("Global Stats");
-            builder.Append('\n').Append("Attack Power +").Append(_buildRuntime.GlobalAttackPowerPercentTotal.ToString("0.#")).Append('%');
-            builder.Append('\n').Append("Attack Speed +").Append(_buildRuntime.GlobalAttackSpeedPercentTotal.ToString("0.#")).Append('%');
-            builder.Append('\n').Append("Max Health +").Append(_buildRuntime.GlobalMaxHealthFlatTotal.ToString("0"));
-            builder.Append('\n').Append("Health Regen +").Append(_buildRuntime.GlobalHealthRegenPerSecondTotal.ToString("0.##")).Append("/s");
-            builder.Append('\n').Append("Move Speed +").Append(_buildRuntime.GlobalMoveSpeedPercentTotal.ToString("0.#")).Append('%');
-            builder.Append('\n').Append("Attack Range +").Append(_buildRuntime.GlobalAttackRangePercentTotal.ToString("0.#")).Append('%');
-            builder.Append('\n').Append("Luck ").Append(_buildRuntime.GlobalLuckTotal.ToString("0.##"));
+            var builder = new StringBuilder("전역 능력치");
+            builder.Append('\n').Append("공격력 +").Append(_buildRuntime.GlobalAttackPowerPercentTotal.ToString("0.#")).Append('%');
+            builder.Append('\n').Append("공격 속도 +").Append(_buildRuntime.GlobalAttackSpeedPercentTotal.ToString("0.#")).Append('%');
+            builder.Append('\n').Append("최대 체력 +").Append(_buildRuntime.GlobalMaxHealthFlatTotal.ToString("0"));
+            builder.Append('\n').Append("체력 재생 +").Append(_buildRuntime.GlobalHealthRegenPerSecondTotal.ToString("0.##")).Append("/초");
+            builder.Append('\n').Append("이동 속도 +").Append(_buildRuntime.GlobalMoveSpeedPercentTotal.ToString("0.#")).Append('%');
+            builder.Append('\n').Append("공격 범위 +").Append(_buildRuntime.GlobalAttackRangePercentTotal.ToString("0.#")).Append('%');
+            builder.Append('\n').Append("행운 ").Append(_buildRuntime.GlobalLuckTotal.ToString("0.##"));
             return builder.ToString();
         }
 
@@ -754,7 +754,7 @@ namespace EJR.Game.Multiplayer
             var option0 = optionCount > 0 ? options[0].Label : string.Empty;
             var option1 = optionCount > 1 ? options[1].Label : string.Empty;
             var option2 = optionCount > 2 ? options[2].Label : string.Empty;
-            ShowLevelChoiceClientRpc("Level Up - Choose One", optionCount, option0, option1, option2, BuildOwnerClientRpcParams());
+            ShowLevelChoiceClientRpc("레벨 업 - 하나 선택", optionCount, option0, option1, option2, BuildOwnerClientRpcParams());
 
             MultiplayerCoopController.Instance?.EnterLevelChoicePauseIfNeeded();
         }
@@ -1216,8 +1216,8 @@ namespace EJR.Game.Multiplayer
         [ClientRpc]
         private void UpdateBuildSummaryClientRpc(string weaponSummary, string statSummary, ClientRpcParams clientRpcParams = default)
         {
-            _localWeaponSummary = string.IsNullOrWhiteSpace(weaponSummary) ? "Weapons" : weaponSummary;
-            _localStatSummary = string.IsNullOrWhiteSpace(statSummary) ? "Stats" : statSummary;
+            _localWeaponSummary = string.IsNullOrWhiteSpace(weaponSummary) ? "무기" : weaponSummary;
+            _localStatSummary = string.IsNullOrWhiteSpace(statSummary) ? "능력치" : statSummary;
         }
 
         [ClientRpc]

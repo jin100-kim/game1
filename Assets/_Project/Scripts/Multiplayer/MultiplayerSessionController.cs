@@ -45,7 +45,7 @@ namespace EJR.Game.Multiplayer
         private SessionKind _sessionKind;
         private bool _isShuttingDown;
         private bool _isBusy;
-        private string _currentStatus = "Multiplayer ready.";
+        private string _currentStatus = "멀티플레이 준비 완료.";
         private string _authProfile;
         private string _playerId;
 
@@ -134,13 +134,13 @@ namespace EJR.Game.Multiplayer
         {
             if (_isBusy)
             {
-                SetStatus("A multiplayer request is already running.");
+                SetStatus("이미 멀티플레이 요청이 진행 중입니다.");
                 return false;
             }
 
             if (HasActiveSession)
             {
-                SetStatus("A multiplayer session is already running.");
+                SetStatus("이미 멀티플레이 세션이 실행 중입니다.");
                 return false;
             }
 
@@ -163,11 +163,11 @@ namespace EJR.Game.Multiplayer
                     PlayerProperties = BuildPlayerProperties("host"),
                 }.WithRelayNetwork();
 
-                SetStatus("Creating Relay session...");
+                SetStatus("릴레이 세션 생성 중...");
                 var hostSession = await MultiplayerService.Instance.CreateSessionAsync(sessionOptions);
 
                 AttachSession(hostSession, SessionKind.Host);
-                SetStatus(BuildConnectedStatus("Host ready"));
+                SetStatus(BuildConnectedStatus("호스트 준비 완료"));
 
                 _networkManager.SceneManager.LoadScene(MultiplayerSceneName, LoadSceneMode.Single);
                 return true;
@@ -175,7 +175,7 @@ namespace EJR.Game.Multiplayer
             catch (Exception exception)
             {
                 await ResetRuntimeAfterFailureAsync();
-                SetStatus(FormatExceptionMessage(exception, "Failed to create multiplayer session."));
+                SetStatus(FormatExceptionMessage(exception, "멀티플레이 세션 생성에 실패했습니다."));
                 return false;
             }
             finally
@@ -188,13 +188,13 @@ namespace EJR.Game.Multiplayer
         {
             if (_isBusy)
             {
-                SetStatus("A multiplayer request is already running.");
+                SetStatus("이미 멀티플레이 요청이 진행 중입니다.");
                 return false;
             }
 
             if (HasActiveSession)
             {
-                SetStatus("A multiplayer session is already running.");
+                SetStatus("이미 멀티플레이 세션이 실행 중입니다.");
                 return false;
             }
 
@@ -204,7 +204,7 @@ namespace EJR.Game.Multiplayer
 
             if (string.IsNullOrWhiteSpace(sessionCode))
             {
-                SetStatus("Enter a valid join code.");
+                SetStatus("올바른 참가 코드를 입력하세요.");
                 return false;
             }
 
@@ -224,16 +224,16 @@ namespace EJR.Game.Multiplayer
                     PlayerProperties = BuildPlayerProperties("client"),
                 };
 
-                SetStatus($"Joining session {sessionCode}...");
+                SetStatus($"세션 {sessionCode}에 참가하는 중...");
                 var session = await MultiplayerService.Instance.JoinSessionByCodeAsync(sessionCode, joinOptions);
                 AttachSession(session, SessionKind.Client);
-                SetStatus(BuildConnectedStatus("Connected"));
+                SetStatus(BuildConnectedStatus("연결됨"));
                 return true;
             }
             catch (Exception exception)
             {
                 await ResetRuntimeAfterFailureAsync();
-                SetStatus(FormatExceptionMessage(exception, "Failed to join multiplayer session."));
+                SetStatus(FormatExceptionMessage(exception, "멀티플레이 세션 참가에 실패했습니다."));
                 return false;
             }
             finally
@@ -242,7 +242,7 @@ namespace EJR.Game.Multiplayer
             }
         }
 
-        public void LeaveSession(string reason = "Session closed.")
+        public void LeaveSession(string reason = "세션이 종료되었습니다.")
         {
             StorePendingStatus(reason);
             _ = ShutdownSessionAsync(loadTitleScene: true, reason, deleteForHost: IsHostSession);
@@ -258,7 +258,7 @@ namespace EJR.Game.Multiplayer
             var sharedExperienceOrbPrefab = Resources.Load<GameObject>(SharedExperienceOrbPrefabResourcePath);
             if (playerPrefab == null || sharedEnemyPrefab == null || sharedProjectilePrefab == null || sharedExperienceOrbPrefab == null)
             {
-                SetStatus("Missing multiplayer network prefabs.");
+                SetStatus("멀티플레이 네트워크 프리팹이 없습니다.");
                 return false;
             }
 
@@ -298,7 +298,7 @@ namespace EJR.Game.Multiplayer
         {
             if (UnityServices.State == ServicesInitializationState.Uninitialized)
             {
-                SetStatus("Initializing Unity Services...");
+                SetStatus("온라인 서비스 초기화 중...");
                 await UnityServices.InitializeAsync();
             }
             else
@@ -311,7 +311,7 @@ namespace EJR.Game.Multiplayer
 
             if (MultiplayerService.Instance == null)
             {
-                throw new InvalidOperationException("Unity Multiplayer Services is not available.");
+                throw new InvalidOperationException("멀티플레이 서비스를 사용할 수 없습니다.");
             }
 
             var authentication = AuthenticationService.Instance;
@@ -328,7 +328,7 @@ namespace EJR.Game.Multiplayer
                     authentication.SwitchProfile(_authProfile);
                 }
 
-                SetStatus("Signing in anonymously...");
+                SetStatus("익명 로그인 중...");
                 await authentication.SignInAnonymouslyAsync();
             }
 
@@ -489,7 +489,7 @@ namespace EJR.Game.Multiplayer
                 response.Approved = false;
                 response.CreatePlayerObject = false;
                 response.Pending = false;
-                response.Reason = "Room is full.";
+                response.Reason = "방이 가득 찼습니다.";
                 return;
             }
 
@@ -499,7 +499,7 @@ namespace EJR.Game.Multiplayer
                 response.Approved = false;
                 response.CreatePlayerObject = false;
                 response.Pending = false;
-                response.Reason = "Run already in progress.";
+                response.Reason = "런이 이미 진행 중입니다.";
                 return;
             }
 
@@ -526,13 +526,13 @@ namespace EJR.Game.Multiplayer
 
             if (clientId == _networkManager.LocalClientId)
             {
-                SetStatus(BuildConnectedStatus(_networkManager.IsHost ? "Host ready" : "Connected"));
+                SetStatus(BuildConnectedStatus(_networkManager.IsHost ? "호스트 준비 완료" : "연결됨"));
                 return;
             }
 
             if (_networkManager.IsHost)
             {
-                SetStatus(BuildConnectedStatus($"Player joined ({SessionPlayerCount}/{SessionMaxPlayers})"));
+                SetStatus(BuildConnectedStatus($"플레이어 입장 ({SessionPlayerCount}/{SessionMaxPlayers})"));
             }
         }
 
@@ -547,14 +547,14 @@ namespace EJR.Game.Multiplayer
             {
                 if (_networkManager.IsHost)
                 {
-                    SetStatus(BuildConnectedStatus($"Player left ({SessionPlayerCount}/{SessionMaxPlayers})"));
+                    SetStatus(BuildConnectedStatus($"플레이어 퇴장 ({SessionPlayerCount}/{SessionMaxPlayers})"));
                 }
 
                 return;
             }
 
             var reason = string.IsNullOrWhiteSpace(_networkManager.DisconnectReason)
-                ? "Disconnected from multiplayer session."
+                ? "멀티플레이 세션과 연결이 끊어졌습니다."
                 : _networkManager.DisconnectReason;
 
             StorePendingStatus(reason);
@@ -568,7 +568,7 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
-            SetStatus(BuildConnectedStatus(IsHostSession ? "Host ready" : "Connected"));
+            SetStatus(BuildConnectedStatus(IsHostSession ? "호스트 준비 완료" : "연결됨"));
         }
 
         private void HandleSessionStateChanged(SessionState state)
@@ -581,17 +581,17 @@ namespace EJR.Game.Multiplayer
             switch (state)
             {
                 case SessionState.Connected:
-                    SetStatus(BuildConnectedStatus(IsHostSession ? "Host ready" : "Connected"));
+                    SetStatus(BuildConnectedStatus(IsHostSession ? "호스트 준비 완료" : "연결됨"));
                     break;
 
                 case SessionState.Disconnected:
-                    StorePendingStatus("Disconnected from multiplayer session.");
-                    _ = ShutdownSessionAsync(loadTitleScene: true, "Disconnected from multiplayer session.", deleteForHost: false);
+                    StorePendingStatus("멀티플레이 세션과 연결이 끊어졌습니다.");
+                    _ = ShutdownSessionAsync(loadTitleScene: true, "멀티플레이 세션과 연결이 끊어졌습니다.", deleteForHost: false);
                     break;
 
                 case SessionState.Deleted:
-                    StorePendingStatus("The multiplayer session was closed.");
-                    _ = ShutdownSessionAsync(loadTitleScene: true, "The multiplayer session was closed.", deleteForHost: false);
+                    StorePendingStatus("멀티플레이 세션이 종료되었습니다.");
+                    _ = ShutdownSessionAsync(loadTitleScene: true, "멀티플레이 세션이 종료되었습니다.", deleteForHost: false);
                     break;
             }
         }
@@ -603,7 +603,7 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
-            SetStatus(BuildConnectedStatus($"Player joined ({SessionPlayerCount}/{SessionMaxPlayers})"));
+            SetStatus(BuildConnectedStatus($"플레이어 입장 ({SessionPlayerCount}/{SessionMaxPlayers})"));
         }
 
         private void HandlePlayerLeft(string playerId)
@@ -613,7 +613,7 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
-            SetStatus(BuildConnectedStatus($"Player left ({SessionPlayerCount}/{SessionMaxPlayers})"));
+            SetStatus(BuildConnectedStatus($"플레이어 퇴장 ({SessionPlayerCount}/{SessionMaxPlayers})"));
         }
 
         private void HandleRemovedFromSession()
@@ -623,8 +623,8 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
-            StorePendingStatus("You were removed from the multiplayer session.");
-            _ = ShutdownSessionAsync(loadTitleScene: true, "You were removed from the multiplayer session.", deleteForHost: false);
+            StorePendingStatus("멀티플레이 세션에서 제외되었습니다.");
+            _ = ShutdownSessionAsync(loadTitleScene: true, "멀티플레이 세션에서 제외되었습니다.", deleteForHost: false);
         }
 
         private void HandleSessionDeleted()
@@ -634,8 +634,8 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
-            StorePendingStatus("The multiplayer session was deleted.");
-            _ = ShutdownSessionAsync(loadTitleScene: true, "The multiplayer session was deleted.", deleteForHost: false);
+            StorePendingStatus("멀티플레이 세션이 삭제되었습니다.");
+            _ = ShutdownSessionAsync(loadTitleScene: true, "멀티플레이 세션이 삭제되었습니다.", deleteForHost: false);
         }
 
         private void HandleSessionHostChanged(string hostPlayerId)
@@ -645,12 +645,12 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
-            SetStatus(BuildConnectedStatus("Session host updated"));
+            SetStatus(BuildConnectedStatus("호스트가 변경되었습니다"));
         }
 
         private void SetStatus(string message)
         {
-            _currentStatus = string.IsNullOrWhiteSpace(message) ? "Ready." : message;
+            _currentStatus = string.IsNullOrWhiteSpace(message) ? "준비 완료." : message;
             StatusChanged?.Invoke(_currentStatus);
         }
 
@@ -665,7 +665,7 @@ namespace EJR.Game.Multiplayer
             var code = SessionCode;
             if (!string.IsNullOrWhiteSpace(code))
             {
-                return $"{prefix}. Code: {code}";
+                return $"{prefix}. 코드: {code}";
             }
 
             return prefix;

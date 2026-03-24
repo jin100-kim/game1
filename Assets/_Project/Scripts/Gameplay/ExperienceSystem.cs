@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using EJR.Game.Core;
+using EJR.Game.Audio;
 using UnityEngine;
 
 namespace EJR.Game.Gameplay
@@ -46,6 +47,7 @@ namespace EJR.Game.Gameplay
         public void Collect(int value)
         {
             _levelUp?.AddExperience(value);
+            AudioService.Instance.PlaySfx(AudioCueId.XpPickup);
         }
 
         private void EnsureOrbPool()

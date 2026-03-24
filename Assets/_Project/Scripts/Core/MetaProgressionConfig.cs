@@ -125,18 +125,18 @@ namespace EJR.Game.Core
         private void BuildDefaults()
         {
             _nodeDefinitions.Clear();
-            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.AttackI, "Attack I", "Attack +6%", 60, new MetaBonusValues { attackPowerPercent = 6f }));
-            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.AttackII, "Attack II", "Attack +6%", 80, new MetaBonusValues { attackPowerPercent = 6f }, true, MetaNodeId.AttackI));
-            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.AttackIII, "Attack III", "Attack +8%", 100, new MetaBonusValues { attackPowerPercent = 8f }, true, MetaNodeId.AttackII));
-            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.AttackSpeedI, "Attack Speed I", "Attack Speed +3%", 120, new MetaBonusValues { attackSpeedPercent = 3f }, true, MetaNodeId.AttackI));
-            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.RangeI, "Range I", "Attack Range +6%", 140, new MetaBonusValues { attackRangePercent = 6f }, true, MetaNodeId.AttackI));
-            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.HealthI, "Health I", "Max Health +15", 60, new MetaBonusValues { maxHealthFlat = 15f }));
-            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.HealthII, "Health II", "Max Health +15", 80, new MetaBonusValues { maxHealthFlat = 15f }, true, MetaNodeId.HealthI));
-            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.RegenI, "Regen I", "Health Regen +0.25/s", 120, new MetaBonusValues { healthRegenPerSecond = 0.25f }, true, MetaNodeId.HealthI));
-            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.MoveSpeedI, "Move Speed I", "Move Speed +4%", 140, new MetaBonusValues { moveSpeedPercent = 4f }, true, MetaNodeId.HealthI));
-            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.LuckI, "Luck I", "Luck +1", 100, new MetaBonusValues { luck = 1f }));
-            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.LuckII, "Luck II", "Luck +1", 140, new MetaBonusValues { luck = 1f }, true, MetaNodeId.LuckI));
-            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.LuckIII, "Luck III", "Luck +1", 220, new MetaBonusValues { luck = 1f }, true, MetaNodeId.LuckII));
+            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.AttackI, "공격 I", "공격력 +6%", 60, new MetaBonusValues { attackPowerPercent = 6f }));
+            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.AttackII, "공격 II", "공격력 +6%", 80, new MetaBonusValues { attackPowerPercent = 6f }, true, MetaNodeId.AttackI));
+            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.AttackIII, "공격 III", "공격력 +8%", 100, new MetaBonusValues { attackPowerPercent = 8f }, true, MetaNodeId.AttackII));
+            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.AttackSpeedI, "공속 I", "공격 속도 +3%", 120, new MetaBonusValues { attackSpeedPercent = 3f }, true, MetaNodeId.AttackI));
+            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.RangeI, "사거리 I", "공격 범위 +6%", 140, new MetaBonusValues { attackRangePercent = 6f }, true, MetaNodeId.AttackI));
+            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.HealthI, "체력 I", "최대 체력 +15", 60, new MetaBonusValues { maxHealthFlat = 15f }));
+            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.HealthII, "체력 II", "최대 체력 +15", 80, new MetaBonusValues { maxHealthFlat = 15f }, true, MetaNodeId.HealthI));
+            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.RegenI, "재생 I", "체력 재생 +0.25/초", 120, new MetaBonusValues { healthRegenPerSecond = 0.25f }, true, MetaNodeId.HealthI));
+            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.MoveSpeedI, "이동 I", "이동 속도 +4%", 140, new MetaBonusValues { moveSpeedPercent = 4f }, true, MetaNodeId.HealthI));
+            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.LuckI, "행운 I", "행운 +1", 100, new MetaBonusValues { luck = 1f }));
+            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.LuckII, "행운 II", "행운 +1", 140, new MetaBonusValues { luck = 1f }, true, MetaNodeId.LuckI));
+            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.LuckIII, "행운 III", "행운 +1", 220, new MetaBonusValues { luck = 1f }, true, MetaNodeId.LuckII));
             EnsureLookups();
         }
 

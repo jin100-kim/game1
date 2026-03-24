@@ -5,7 +5,7 @@ namespace EJR.Game.Core
     [Serializable]
     public sealed class RunRewardSummary
     {
-        public string modeLabel = "Single";
+        public string modeLabel = "싱글";
         public bool cleared;
         public bool bossReached;
         public int finalLevel = 1;
@@ -15,10 +15,10 @@ namespace EJR.Game.Core
 
         public string BuildDisplayText()
         {
-            var clearLabel = cleared ? "Cleared" : "Defeated";
+            var clearLabel = cleared ? "클리어" : "실패";
             return $"{modeLabel} | {clearLabel}\n" +
-                   $"Time {survivalTimeSeconds:0.0}s | Lv {finalLevel}\n" +
-                   $"Kills {enemiesDefeated} | Credits +{creditsEarned}";
+                   $"시간 {survivalTimeSeconds:0.0}초 | 레벨 {finalLevel}\n" +
+                   $"처치 {enemiesDefeated} | 크레딧 +{creditsEarned}";
         }
     }
 }

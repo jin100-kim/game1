@@ -86,7 +86,7 @@ namespace EJR.Game.UI
 
         public HudController()
         {
-            _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            _font = RuntimeFontProvider.GetDefaultFont();
         }
 
         public void Initialize()
@@ -133,14 +133,14 @@ namespace EJR.Game.UI
 
             if (currentHpInt != _lastCurrentHp || maxHpInt != _lastMaxHp)
             {
-                _healthText.text = $"HP {currentHpInt}/{maxHpInt}";
+                _healthText.text = $"체력 {currentHpInt}/{maxHpInt}";
                 _lastCurrentHp = currentHpInt;
                 _lastMaxHp = maxHpInt;
             }
 
             if (level != _lastLevel || currentXp != _lastCurrentXp || requiredXp != _lastRequiredXp)
             {
-                _xpText.text = $"LV {level}  XP {currentXp}/{requiredXp}";
+                _xpText.text = $"레벨 {level}  경험치 {currentXp}/{requiredXp}";
                 _lastLevel = level;
                 _lastCurrentXp = currentXp;
                 _lastRequiredXp = requiredXp;
@@ -148,7 +148,7 @@ namespace EJR.Game.UI
 
             if (remainingSecondsInt != _lastRemainingSeconds)
             {
-                _timeText.text = $"TIME {FormatTime(remainingSecondsInt)}";
+                _timeText.text = $"시간 {FormatTime(remainingSecondsInt)}";
                 _lastRemainingSeconds = remainingSecondsInt;
             }
         }
@@ -168,8 +168,8 @@ namespace EJR.Game.UI
                 return;
             }
 
-            weaponsSummary ??= "Weapons";
-            statsSummary ??= "Stats";
+            weaponsSummary ??= "무기";
+            statsSummary ??= "능력치";
 
             if (!string.Equals(_lastWeaponBuildSummary, weaponsSummary, StringComparison.Ordinal))
             {
@@ -193,7 +193,7 @@ namespace EJR.Game.UI
 
             var hasHint = !string.IsNullOrWhiteSpace(modeHint);
             _modeHintText.gameObject.SetActive(true);
-            _modeHintText.text = hasHint ? modeHint : "STANDARD";
+            _modeHintText.text = hasHint ? modeHint : "표준";
             _modeHintText.color = hasHint ? new Color(0.95f, 0.74f, 0.18f, 1f) : new Color(0.76f, 0.82f, 0.90f, 1f);
         }
 
@@ -231,7 +231,7 @@ namespace EJR.Game.UI
             _debugAutoPlayEnabled = enabled;
             if (_debugAutoPlayLabel != null)
             {
-                _debugAutoPlayLabel.text = enabled ? "Auto Play: ON" : "Auto Play: OFF";
+                _debugAutoPlayLabel.text = enabled ? "자동 전투: 켜짐" : "자동 전투: 꺼짐";
             }
         }
 
@@ -243,7 +243,7 @@ namespace EJR.Game.UI
             }
         }
 
-        public void SetBossBar(float currentHealth, float maxHealth, string bossLabel = "BOSS")
+        public void SetBossBar(float currentHealth, float maxHealth, string bossLabel = "보스")
         {
             if (_bossBarPanel == null || _bossBarFill == null || _bossBarValueText == null || _bossNameText == null)
             {
@@ -267,7 +267,7 @@ namespace EJR.Game.UI
 
             var currentHpInt = Mathf.CeilToInt(safeCurrent);
             var maxHpInt = Mathf.CeilToInt(safeMax);
-            var label = string.IsNullOrWhiteSpace(bossLabel) ? "BOSS" : bossLabel;
+            var label = string.IsNullOrWhiteSpace(bossLabel) ? "보스" : bossLabel;
 
             if (!string.Equals(_lastBossLabel, label, StringComparison.Ordinal))
             {
@@ -295,7 +295,7 @@ namespace EJR.Game.UI
             _lastBossLabel = string.Empty;
         }
 
-        public void ShowLevelUpOptions(LevelUpOption[] options, Action<int> onSelected, string title = "Level Up - Choose One")
+        public void ShowLevelUpOptions(LevelUpOption[] options, Action<int> onSelected, string title = "레벨 업 - 하나 선택")
         {
             if (_levelUpPanel == null || options == null || options.Length == 0)
             {
@@ -303,7 +303,7 @@ namespace EJR.Game.UI
             }
 
             _levelUpPanel.SetActive(true);
-            _levelUpTitle.text = string.IsNullOrWhiteSpace(title) ? "Level Up - Choose One" : title;
+            _levelUpTitle.text = string.IsNullOrWhiteSpace(title) ? "레벨 업 - 하나 선택" : title;
             var visibleCount = Mathf.Min(options.Length, _levelButtons.Length);
             LayoutLevelUpPanel(visibleCount);
 
@@ -341,7 +341,7 @@ namespace EJR.Game.UI
             }
         }
 
-        public void ShowResult(bool cleared, Action onAction, string actionLabel = "Restart")
+        public void ShowResult(bool cleared, Action onAction, string actionLabel = "재시작")
         {
             if (_resultPanel == null)
             {
@@ -349,10 +349,10 @@ namespace EJR.Game.UI
             }
 
             _resultPanel.SetActive(true);
-            _resultText.text = cleared ? "Run Complete" : "Game Over";
+            _resultText.text = cleared ? "클리어" : "게임 오버";
             _restartButton.onClick.RemoveAllListeners();
             _restartButton.onClick.AddListener(() => onAction?.Invoke());
-            _restartButton.GetComponentInChildren<Text>().text = string.IsNullOrEmpty(actionLabel) ? "Restart" : actionLabel;
+            _restartButton.GetComponentInChildren<Text>().text = string.IsNullOrEmpty(actionLabel) ? "재시작" : actionLabel;
         }
 
         public void HideResult()
@@ -515,25 +515,25 @@ namespace EJR.Game.UI
                 new Vector2(252f, 78f),
                 new Color(0.04f, 0.07f, 0.11f, 0.86f));
 
-            _healthText = CreateText(healthCard.transform, "HealthText", Vector2.zero, "HP");
+            _healthText = CreateText(healthCard.transform, "HealthText", Vector2.zero, "체력");
             _healthText.alignment = TextAnchor.MiddleLeft;
             _healthText.rectTransform.sizeDelta = new Vector2(224f, 44f);
             _healthText.rectTransform.anchoredPosition = new Vector2(0f, 0f);
             _healthText.fontSize = 22;
 
-            _xpText = CreateText(xpCard.transform, "XPText", Vector2.zero, "XP");
+            _xpText = CreateText(xpCard.transform, "XPText", Vector2.zero, "경험치");
             _xpText.alignment = TextAnchor.MiddleLeft;
             _xpText.rectTransform.sizeDelta = new Vector2(248f, 44f);
             _xpText.rectTransform.anchoredPosition = new Vector2(0f, 0f);
             _xpText.fontSize = 20;
 
-            _timeText = CreateText(timeCard.transform, "TimeText", Vector2.zero, "TIME");
+            _timeText = CreateText(timeCard.transform, "TimeText", Vector2.zero, "시간");
             _timeText.alignment = TextAnchor.MiddleLeft;
             _timeText.rectTransform.sizeDelta = new Vector2(204f, 44f);
             _timeText.rectTransform.anchoredPosition = new Vector2(0f, 0f);
             _timeText.fontSize = 20;
 
-            _modeHintText = CreateText(hintCard.transform, "ModeHintText", Vector2.zero, "STANDARD");
+            _modeHintText = CreateText(hintCard.transform, "ModeHintText", Vector2.zero, "표준");
             _modeHintText.fontSize = 16;
             _modeHintText.alignment = TextAnchor.MiddleCenter;
             _modeHintText.rectTransform.sizeDelta = new Vector2(204f, 44f);
@@ -553,14 +553,14 @@ namespace EJR.Game.UI
                 new Vector2(384f, 436f),
                 new Color(0.03f, 0.05f, 0.09f, 0.88f));
 
-            var buildTitle = CreateText(_buildPanel.transform, "BuildTitle", new Vector2(0f, 182f), "BUILD");
+            var buildTitle = CreateText(_buildPanel.transform, "BuildTitle", new Vector2(0f, 182f), "빌드");
             buildTitle.fontSize = 22;
             buildTitle.fontStyle = FontStyle.Bold;
             buildTitle.color = new Color(0.95f, 0.74f, 0.18f, 1f);
             buildTitle.rectTransform.sizeDelta = new Vector2(260f, 28f);
 
             var weaponsCard = CreatePanel(_buildPanel.transform, "WeaponsCard", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 54f), new Vector2(336f, 156f), new Color(0.07f, 0.10f, 0.14f, 0.92f));
-            var weaponsTitle = CreateText(weaponsCard.transform, "WeaponsTitle", new Vector2(0f, 56f), "WEAPONS");
+            var weaponsTitle = CreateText(weaponsCard.transform, "WeaponsTitle", new Vector2(0f, 56f), "무기");
             weaponsTitle.fontSize = 15;
             weaponsTitle.fontStyle = FontStyle.Bold;
             weaponsTitle.alignment = TextAnchor.MiddleLeft;
@@ -572,11 +572,11 @@ namespace EJR.Game.UI
                 "WeaponsBuildText",
                 new Vector2(0f, 34f),
                 new Vector2(296f, 92f),
-                "Weapons");
+                "무기");
             _weaponBuildText.fontSize = 14;
 
             var statsCard = CreatePanel(_buildPanel.transform, "StatsCard", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -120f), new Vector2(336f, 184f), new Color(0.07f, 0.10f, 0.14f, 0.92f));
-            var statsTitle = CreateText(statsCard.transform, "StatsTitle", new Vector2(0f, 68f), "STATS");
+            var statsTitle = CreateText(statsCard.transform, "StatsTitle", new Vector2(0f, 68f), "능력치");
             statsTitle.fontSize = 15;
             statsTitle.fontStyle = FontStyle.Bold;
             statsTitle.alignment = TextAnchor.MiddleLeft;
@@ -588,7 +588,7 @@ namespace EJR.Game.UI
                 "StatsBuildText",
                 new Vector2(0f, 50f),
                 new Vector2(296f, 128f),
-                "Stats");
+                "능력치");
             _statBuildText.fontSize = 14;
         }
 
@@ -605,7 +605,7 @@ namespace EJR.Game.UI
                 new Color(0.05f, 0.08f, 0.12f, 0.88f));
             _bossBarPanel.SetActive(false);
 
-            _bossNameText = CreateText(_bossBarPanel.transform, "BossName", new Vector2(-284f, 0f), "BOSS");
+            _bossNameText = CreateText(_bossBarPanel.transform, "BossName", new Vector2(-284f, 0f), "보스");
             _bossNameText.alignment = TextAnchor.MiddleLeft;
             _bossNameText.fontSize = 19;
             _bossNameText.rectTransform.sizeDelta = new Vector2(180f, 28f);
@@ -650,7 +650,7 @@ namespace EJR.Game.UI
             _levelUpPanel = CreatePanel(_canvas.transform, "LevelUpPanel", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(LevelPanelWidth, LevelPanelMinHeight), new Color(0.03f, 0.05f, 0.09f, 0.96f));
             _levelUpPanel.SetActive(false);
 
-            _levelUpTitle = CreateText(_levelUpPanel.transform, "Title", Vector2.zero, "Level Up");
+            _levelUpTitle = CreateText(_levelUpPanel.transform, "Title", Vector2.zero, "레벨 업");
             _levelUpTitle.fontSize = 30;
             _levelUpTitle.fontStyle = FontStyle.Bold;
             _levelUpTitle.color = new Color(0.95f, 0.74f, 0.18f, 1f);
@@ -714,11 +714,11 @@ namespace EJR.Game.UI
         {
             _resultPanel = CreatePanel(_canvas.transform, "ResultPanel", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(520f, 276f), new Color(0.03f, 0.05f, 0.09f, 0.96f));
             _resultPanel.SetActive(false);
-            _resultText = CreateText(_resultPanel.transform, "ResultText", new Vector2(0f, 62f), "Game Over");
+            _resultText = CreateText(_resultPanel.transform, "ResultText", new Vector2(0f, 62f), "게임 오버");
             _resultText.fontSize = 32;
             _resultText.fontStyle = FontStyle.Bold;
             _restartButton = CreateButton(_resultPanel.transform, "RestartButton", new Vector2(0f, -58f), new Vector2(264f, 56f));
-            _restartButton.GetComponentInChildren<Text>().text = "Restart";
+            _restartButton.GetComponentInChildren<Text>().text = "재시작";
         }
 
         private void BuildPausePanel()
@@ -735,18 +735,16 @@ namespace EJR.Game.UI
             _pausePanel.SetActive(false);
 
             var title = CreateText(_pausePanel.transform, "PauseTitle", new Vector2(0f, 68f), "일시정지");
-            title.text = "Paused";
             title.fontSize = 30;
             title.fontStyle = FontStyle.Bold;
             title.color = new Color(0.95f, 0.74f, 0.18f, 1f);
 
-            var subhead = CreateText(_pausePanel.transform, "PauseSubhead", new Vector2(0f, 42f), "Resume the run or return to the lobby.");
+            var subhead = CreateText(_pausePanel.transform, "PauseSubhead", new Vector2(0f, 42f), "전투를 계속하거나 타이틀로 돌아갑니다.");
             subhead.fontSize = 15;
             subhead.color = new Color(0.78f, 0.84f, 0.92f, 1f);
             subhead.rectTransform.sizeDelta = new Vector2(320f, 30f);
 
             _pauseResumeButton = CreateButton(_pausePanel.transform, "ResumeButton", new Vector2(0f, -12f), new Vector2(252f, 56f));
-            _pauseResumeButton.GetComponentInChildren<Text>().text = "Resume";
             _pauseResumeButton.GetComponentInChildren<Text>().text = "계속하기";
 
             _pauseQuitButton = CreateButton(_pausePanel.transform, "QuitButton", new Vector2(0f, -86f), new Vector2(272f, 56f));
@@ -760,10 +758,7 @@ namespace EJR.Game.UI
                 quitColors.pressedColor = new Color(0.23f, 0.11f, 0.14f, 1f);
                 _pauseQuitButton.colors = quitColors;
             }
-            _pauseQuitButton.GetComponentInChildren<Text>().text = "Return to Lobby";
-            _pauseQuitButton.GetComponentInChildren<Text>().text = "로비로";
-            _pauseResumeButton.GetComponentInChildren<Text>().text = "Resume";
-            _pauseQuitButton.GetComponentInChildren<Text>().text = "Return to Lobby";
+            _pauseQuitButton.GetComponentInChildren<Text>().text = "타이틀로";
         }
 
         private void BuildDebugPanels()
@@ -774,7 +769,7 @@ namespace EJR.Game.UI
             accessRect.anchorMax = new Vector2(0f, 0f);
             accessRect.pivot = new Vector2(0f, 0f);
             accessRect.anchoredPosition = new Vector2(18f, 18f);
-            _debugAccessButton.GetComponentInChildren<Text>().text = "DEV";
+            _debugAccessButton.GetComponentInChildren<Text>().text = "개발";
             _debugAccessButton.onClick.RemoveAllListeners();
             _debugAccessButton.onClick.AddListener(ToggleDebugEntry);
             _debugAccessButton.gameObject.SetActive(false);
@@ -790,7 +785,7 @@ namespace EJR.Game.UI
                 new Color(0.03f, 0.05f, 0.09f, 0.94f));
             _debugToolsPanel.SetActive(false);
 
-            var toolsTitle = CreateText(_debugToolsPanel.transform, "DebugToolsTitle", new Vector2(0f, 118f), "DEBUG TOOLS");
+            var toolsTitle = CreateText(_debugToolsPanel.transform, "DebugToolsTitle", new Vector2(0f, 118f), "디버그 도구");
             toolsTitle.fontSize = 18;
             toolsTitle.fontStyle = FontStyle.Bold;
             toolsTitle.color = new Color(0.95f, 0.74f, 0.18f, 1f);
@@ -830,11 +825,11 @@ namespace EJR.Game.UI
 
         private void RefreshDebugToolButtons()
         {
-            ConfigureDebugButton(_debugGrantLevelButton, _debugGrantLevelLabel, "Grant Level", _debugGrantLevelAction);
-            ConfigureDebugButton(_debugAdvanceTimeButton, _debugAdvanceTimeLabel, "Advance Time", _debugAdvanceTimeAction);
-            ConfigureDebugButton(_debugRerollButton, _debugRerollLabel, "Reroll Choice", _debugRerollAction);
-            ConfigureDebugButton(_debugSkipBossButton, _debugSkipBossLabel, "Skip To Boss", _debugSkipBossAction);
-            ConfigureDebugButton(_debugAutoPlayButton, _debugAutoPlayLabel, _debugAutoPlayEnabled ? "Auto Play: ON" : "Auto Play: OFF", _debugAutoPlayAction);
+            ConfigureDebugButton(_debugGrantLevelButton, _debugGrantLevelLabel, "레벨 지급", _debugGrantLevelAction);
+            ConfigureDebugButton(_debugAdvanceTimeButton, _debugAdvanceTimeLabel, "시간 진행", _debugAdvanceTimeAction);
+            ConfigureDebugButton(_debugRerollButton, _debugRerollLabel, "선택지 다시 굴리기", _debugRerollAction);
+            ConfigureDebugButton(_debugSkipBossButton, _debugSkipBossLabel, "보스로 건너뛰기", _debugSkipBossAction);
+            ConfigureDebugButton(_debugAutoPlayButton, _debugAutoPlayLabel, _debugAutoPlayEnabled ? "자동 전투: 켜짐" : "자동 전투: 꺼짐", _debugAutoPlayAction);
         }
 
         private static void ConfigureDebugButton(Button button, Text label, string text, Action action)
@@ -939,7 +934,7 @@ namespace EJR.Game.UI
 
             var labelText = label.AddComponent<Text>();
             labelText.font = _font;
-            labelText.text = "Option";
+            labelText.text = "선택";
             labelText.alignment = TextAnchor.MiddleCenter;
             labelText.color = new Color(0.97f, 0.98f, 1f, 1f);
             labelText.fontSize = 17;

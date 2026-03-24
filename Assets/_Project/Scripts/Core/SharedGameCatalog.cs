@@ -44,25 +44,25 @@ namespace EJR.Game.Core
     {
         private static readonly SharedCharacterDefinition[] Characters =
         {
-            new(0, "Striker", new Color(0.97f, 0.95f, 0.70f, 1f), 0, true, new MetaBonusValues { attackPowerPercent = 8f }),
-            new(1, "Scout", new Color(0.62f, 0.90f, 1f, 1f), 60, false, new MetaBonusValues { moveSpeedPercent = 6f }),
-            new(2, "Vanguard", new Color(1f, 0.67f, 0.74f, 1f), 80, false, new MetaBonusValues { maxHealthFlat = 20f }),
-            new(3, "Medic", new Color(0.67f, 1f, 0.77f, 1f), 100, false, new MetaBonusValues { healthRegenPerSecond = 0.25f }),
+            new(0, "스트라이커", new Color(0.97f, 0.95f, 0.70f, 1f), 0, true, new MetaBonusValues { attackPowerPercent = 8f }),
+            new(1, "스카우트", new Color(0.62f, 0.90f, 1f, 1f), 60, false, new MetaBonusValues { moveSpeedPercent = 6f }),
+            new(2, "뱅가드", new Color(1f, 0.67f, 0.74f, 1f), 80, false, new MetaBonusValues { maxHealthFlat = 20f }),
+            new(3, "메딕", new Color(0.67f, 1f, 0.77f, 1f), 100, false, new MetaBonusValues { healthRegenPerSecond = 0.25f }),
         };
 
         private static readonly SharedWeaponDefinition[] StarterWeapons =
         {
-            new(WeaponUpgradeId.Rifle, "Rifle", 0, true),
-            new(WeaponUpgradeId.Smg, "Fireball", 0, true),
-            new(WeaponUpgradeId.SniperRifle, "Bat", 60, false),
-            new(WeaponUpgradeId.Shotgun, "Shotgun", 80, false),
-            new(WeaponUpgradeId.BfSword, "BF Sword", 0, true),
-            new(WeaponUpgradeId.Katana, "Katana", 100, false),
-            new(WeaponUpgradeId.ChainAttack, "Chain Attack", 120, false),
-            new(WeaponUpgradeId.SatelliteBeam, "Mace", 140, false),
-            new(WeaponUpgradeId.Drone, "Legacy Drone", 160, false, isSelectable: false),
-            new(WeaponUpgradeId.RifleTurret, "Turret", 180, false),
-            new(WeaponUpgradeId.Aura, "Aura", 200, false),
+            new(WeaponUpgradeId.Rifle, "라이플", 0, true),
+            new(WeaponUpgradeId.Smg, "화염구", 0, true),
+            new(WeaponUpgradeId.SniperRifle, "박쥐", 60, false),
+            new(WeaponUpgradeId.Shotgun, "샷건", 80, false),
+            new(WeaponUpgradeId.BfSword, "BF소드", 0, true),
+            new(WeaponUpgradeId.Katana, "카타나", 100, false),
+            new(WeaponUpgradeId.ChainAttack, "체인어택", 120, false),
+            new(WeaponUpgradeId.SatelliteBeam, "메이스", 140, false),
+            new(WeaponUpgradeId.Drone, "레거시 드론", 160, false, isSelectable: false),
+            new(WeaponUpgradeId.RifleTurret, "터렛", 180, false),
+            new(WeaponUpgradeId.Aura, "오라", 200, false),
         };
 
         public static int CharacterCount => Characters.Length;
@@ -169,27 +169,27 @@ namespace EJR.Game.Core
                 }
             }
 
-            return "Rifle";
+            return "라이플";
         }
 
         public static string GetStatDisplayName(StatUpgradeId statId)
         {
             return statId switch
             {
-                StatUpgradeId.AttackPower => "Attack Power",
-                StatUpgradeId.AttackSpeed => "Attack Speed",
-                StatUpgradeId.MaxHealth => "Max Health",
-                StatUpgradeId.HealthRegen => "Health Regen",
-                StatUpgradeId.MoveSpeed => "Move Speed",
-                StatUpgradeId.AttackRange => "Attack Range",
-                StatUpgradeId.Luck => "Luck",
+                StatUpgradeId.AttackPower => "공격력",
+                StatUpgradeId.AttackSpeed => "공격 속도",
+                StatUpgradeId.MaxHealth => "최대 체력",
+                StatUpgradeId.HealthRegen => "체력 재생",
+                StatUpgradeId.MoveSpeed => "이동 속도",
+                StatUpgradeId.AttackRange => "공격 범위",
+                StatUpgradeId.Luck => "행운",
                 _ => statId.ToString(),
             };
         }
 
         public static string GetPlayerDisplayName(ulong ownerClientId, int characterId)
         {
-            return $"P{ownerClientId + 1} {GetCharacter(characterId).DisplayName}";
+            return $"플레이어 {ownerClientId + 1} {GetCharacter(characterId).DisplayName}";
         }
 
         public static int GetCharacterMask(int characterId)

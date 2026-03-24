@@ -187,13 +187,13 @@ namespace EJR.Game.Multiplayer
         {
             if (Phase != MultiplayerRunPhase.Lobby)
             {
-                return "Run already in progress.";
+                return "이미 런이 진행 중입니다.";
             }
 
             CollectSpawnedPlayers(_spawnedPlayers);
             if (_spawnedPlayers.Count <= 0)
             {
-                return "Waiting for players.";
+                return "플레이어를 기다리는 중입니다.";
             }
 
             for (var i = 0; i < _spawnedPlayers.Count; i++)
@@ -206,12 +206,12 @@ namespace EJR.Game.Multiplayer
 
                 if (!player.SelectionComplete)
                 {
-                    return "Everyone must choose character and weapon.";
+                    return "모든 플레이어가 캐릭터와 무기를 선택해야 합니다.";
                 }
 
                 if (!player.IsReady)
                 {
-                    return "Everyone must be ready.";
+                    return "모든 플레이어가 준비 완료 상태여야 합니다.";
                 }
             }
 
@@ -922,7 +922,7 @@ namespace EJR.Game.Multiplayer
         private void DeliverRunSummaryClientRpc(bool cleared, int teamLevel, float elapsedSeconds, int enemiesDefeated, bool bossReached)
         {
             var summary = MetaProgressionService.BuildRunRewardSummary(
-                "Co-op",
+                "협동",
                 cleared,
                 teamLevel,
                 elapsedSeconds,
@@ -954,7 +954,7 @@ namespace EJR.Game.Multiplayer
             }
 
             _resultSessionEnding = true;
-            MultiplayerSessionController.EnsureInstance().LeaveSession(_resultCleared.Value ? "Multiplayer run complete." : "Team defeated.");
+            MultiplayerSessionController.EnsureInstance().LeaveSession(_resultCleared.Value ? "협동 런이 종료되었습니다." : "팀이 전멸했습니다.");
         }
     }
 }

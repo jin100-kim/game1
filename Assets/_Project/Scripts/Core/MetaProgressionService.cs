@@ -237,13 +237,13 @@ namespace EJR.Game.Core
             var definition = SharedGameCatalog.GetCharacter(characterId);
             if (IsCharacterUnlocked(definition.Id))
             {
-                reason = "Already unlocked.";
+                reason = "이미 해금된 캐릭터입니다.";
                 return false;
             }
 
             if (CurrentCredits < definition.UnlockCost)
             {
-                reason = "Not enough Credits.";
+                reason = "크레딧이 부족합니다.";
                 return false;
             }
 
@@ -259,20 +259,20 @@ namespace EJR.Game.Core
             EnsureLoaded();
             if (!SharedGameCatalog.IsStarterWeaponSelectable(weaponId))
             {
-                reason = "This weapon is not available.";
+                reason = "현재 사용할 수 없는 무기입니다.";
                 return false;
             }
 
             if (IsWeaponUnlocked(weaponId))
             {
-                reason = "Already unlocked.";
+                reason = "이미 해금된 무기입니다.";
                 return false;
             }
 
             var definition = SharedGameCatalog.GetStarterWeaponDefinition(SharedGameCatalog.GetStarterWeaponIndex(weaponId));
             if (CurrentCredits < definition.UnlockCost)
             {
-                reason = "Not enough Credits.";
+                reason = "크레딧이 부족합니다.";
                 return false;
             }
 
@@ -288,25 +288,25 @@ namespace EJR.Game.Core
             EnsureLoaded();
             if (!Config.TryGetNodeDefinition(nodeId, out var definition))
             {
-                reason = "Missing node definition.";
+                reason = "연구 노드 정보를 찾을 수 없습니다.";
                 return false;
             }
 
             if (IsNodePurchased(nodeId))
             {
-                reason = "Already researched.";
+                reason = "이미 연구한 노드입니다.";
                 return false;
             }
 
             if (definition.HasPrerequisite && !IsNodePurchased(definition.PrerequisiteId))
             {
-                reason = "Requires previous node.";
+                reason = "선행 노드가 필요합니다.";
                 return false;
             }
 
             if (CurrentCredits < definition.Cost)
             {
-                reason = "Not enough Credits.";
+                reason = "크레딧이 부족합니다.";
                 return false;
             }
 
@@ -355,7 +355,7 @@ namespace EJR.Game.Core
             EnsureLoaded();
             return new RunRewardSummary
             {
-                modeLabel = string.IsNullOrWhiteSpace(modeLabel) ? "Single" : modeLabel,
+                modeLabel = string.IsNullOrWhiteSpace(modeLabel) ? "싱글" : modeLabel,
                 cleared = cleared,
                 bossReached = bossReached,
                 finalLevel = Mathf.Max(1, finalLevel),

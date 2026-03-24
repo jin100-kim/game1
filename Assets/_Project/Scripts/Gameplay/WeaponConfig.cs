@@ -42,6 +42,8 @@ namespace EJR.Game.Gameplay
         [Header("Rifle")]
         [Min(0.05f)] public float rifleAttackInterval = 0.7f;
         [Min(0.1f)] public float rifleBaseDamage = 12f;
+        [Min(1)] public int rifleBaseShotCount = 2;
+        [Min(0.01f)] public float rifleBurstShotInterval = 0.08f;
         [Min(0f)] public float rifleParallelShotSpacing = 0.32f;
 
         [Header("Projectile Base")]
@@ -61,6 +63,7 @@ namespace EJR.Game.Gameplay
         [Min(0.1f)] public float fireballProjectileSpeed = 8f;
         [Min(0.1f)] public float fireballProjectileLifetime = 1.5f;
         [Min(0.05f)] public float fireballProjectileHitRadius = 0.28f;
+        [Range(0f, 120f)] public float fireballSpreadAngle = 20f;
         [Min(0.1f)] public float fireballExplosionRadius = 1.05f;
         [Range(0.05f, 3f)] public float fireballExplosionDamageMultiplier = 0.8f;
         [Min(0.1f)] public float fireballBurnDuration = 2.5f;
@@ -95,7 +98,7 @@ namespace EJR.Game.Gameplay
         [Range(5f, 180f)] public float katanaConeAngle = 80f;
         [Min(0.1f)] public float katanaBaseDamage = 5f;
         [Range(0.05f, 3f)] public float katanaDamageMultiplier = 1f;
-        [Min(1)] public int katanaBaseSlashCount = 3;
+        [Min(1)] public int katanaBaseSlashCount = 2;
         [Min(0.01f)] public float katanaComboSlashInterval = 0.2f;
 
         [Header("BF Sword")]

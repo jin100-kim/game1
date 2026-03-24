@@ -1,4 +1,5 @@
 using System;
+using EJR.Game.Audio;
 using EJR.Game.Core;
 using EJR.Game.Multiplayer;
 using EJR.Game.UI;
@@ -113,6 +114,7 @@ namespace EJR.Game.Gameplay
         {
             BuildRuntimeGraph();
             HookEvents();
+            AudioService.Instance.PlayMusic(AudioCueId.MainTheme);
             _nextHudRefreshAt = 0f;
             UpdateHud();
         }
@@ -277,6 +279,7 @@ namespace EJR.Game.Gameplay
             {
                 _weaponSystem.AimUpdated -= OnWeaponAimUpdated;
                 _weaponSystem.Fired -= OnWeaponFired;
+                _weaponSystem.WeaponSoundRequested -= OnWeaponSoundRequested;
             }
 
             EnemyController.Defeated -= HandleEnemyDefeated;
@@ -398,6 +401,7 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
+            AudioService.Instance.PlayUi(AudioCueId.UiConfirm);
             _isPauseMenuOpen = true;
             Time.timeScale = 0f;
             _hud.ShowPauseMenu(ResumeFromPauseMenu, ReturnToLobbyFromPauseMenu);
@@ -410,6 +414,7 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
+            AudioService.Instance.PlayUi(AudioCueId.UiBack);
             _isPauseMenuOpen = false;
             _hud?.HidePauseMenu();
             if (!_isGameOver && !IsAnyChoiceAwaiting())
@@ -422,6 +427,7 @@ namespace EJR.Game.Gameplay
 
         private void ReturnToLobbyFromPauseMenu()
         {
+            AudioService.Instance.PlayUi(AudioCueId.UiBack);
             _isPauseMenuOpen = false;
             _hud?.HidePauseMenu();
             Time.timeScale = 1f;
@@ -734,13 +740,14 @@ namespace EJR.Game.Gameplay
             weaponSystem.ConfigureLoadout(_buildRuntime, _playerStats);
             weaponSystem.AimUpdated += OnWeaponAimUpdated;
             weaponSystem.Fired += OnWeaponFired;
+            weaponSystem.WeaponSoundRequested += OnWeaponSoundRequested;
             _weaponSystem = weaponSystem;
             _targetWeaponAimDirection = Vector2.right;
             _smoothedWeaponAimDirection = Vector2.right;
             _buildRuntime.Apply(LevelUpOption.CreateWeaponAcquire(
                 _selectedSingleStarterWeaponId,
-                $"{SharedGameCatalog.GetWeaponDisplayName(_selectedSingleStarterWeaponId)} Lv1",
-                "Acquire weapon",
+                $"{SharedGameCatalog.GetWeaponDisplayName(_selectedSingleStarterWeaponId)} 레벨 1",
+                "무기 획득",
                 SharedGameCatalog.GetWeaponDisplayName(_selectedSingleStarterWeaponId)));
             ApplyBuildToRuntimeSystems();
             ApplySelectedCharacterPresentation(isDowned: false);
@@ -959,7 +966,7 @@ namespace EJR.Game.Gameplay
 
             var weaponVisualSize = weaponConfig != null ? Mathf.Max(0.05f, weaponConfig.bfSwordVisualScale) : 0.95f;
             ApplyVisualScale(weaponTransform, weaponSprite, weaponVisualSize);
-            ApplyBfSwordVisualWidthScale(weaponTransform);
+            RefreshHeldWeaponVisualScale();
             ApplyHeldWeaponFacing(_playerMover != null ? _playerMover.CurrentFacingDirection : Vector2.right);
 
             var weaponAnimator = playerTransform.GetComponent<WeaponSpriteAnimator>();
@@ -1017,8 +1024,32 @@ namespace EJR.Game.Gameplay
             }
 
             var widthMultiplier = weaponConfig != null ? Mathf.Max(0.05f, weaponConfig.bfSwordVisualWidthMultiplier) : 0.5f;
+            if (_buildRuntime != null)
+            {
+                widthMultiplier *= Mathf.Max(1f, _buildRuntime.GetBfSwordWidthMultiplier());
+            }
+
             var localScale = targetTransform.localScale;
             targetTransform.localScale = new Vector3(localScale.x, localScale.y * widthMultiplier, localScale.z);
+        }
+
+        private void RefreshHeldWeaponVisualScale()
+        {
+            if (_weaponVisualTransform == null || _weaponVisualRenderer == null)
+            {
+                return;
+            }
+
+            var visualScale = weaponConfig != null ? Mathf.Max(0.05f, weaponConfig.bfSwordVisualScale) : 0.95f;
+            var lengthMultiplier = _playerStats != null ? Mathf.Max(0.1f, _playerStats.AttackRangeMultiplier) : 1f;
+            if (_buildRuntime != null)
+            {
+                lengthMultiplier *= 1f + (Mathf.Max(0f, _buildRuntime.GetWeaponRangeBonusPercentTotal(WeaponUpgradeId.BfSword)) / 100f);
+                lengthMultiplier *= Mathf.Max(1f, _buildRuntime.GetBfSwordLengthMultiplier());
+            }
+
+            ApplyVisualScale(_weaponVisualTransform, _weaponVisualRenderer.sprite, visualScale * lengthMultiplier);
+            ApplyBfSwordVisualWidthScale(_weaponVisualTransform);
         }
 
         private void OnWeaponAimUpdated(Vector2 direction)
@@ -1341,6 +1372,11 @@ namespace EJR.Game.Gameplay
             EnemyController.Defeated += HandleEnemyDefeated;
         }
 
+        private void OnWeaponSoundRequested(WeaponSoundRequest request)
+        {
+            AudioService.Instance.PlayWeaponSound(request);
+        }
+
         private void OnPlayerHealthChanged(float currentHealth, float maxHealth)
         {
             _playerHealthBar?.SetHealth(currentHealth, maxHealth);
@@ -1373,11 +1409,13 @@ namespace EJR.Game.Gameplay
 
             _currentOptions = options;
             Time.timeScale = 0f;
+            AudioService.Instance.PlaySfx(AudioCueId.LevelUpAppear);
             _hud.ShowLevelUpOptions(options, SelectLevelUpOption);
         }
 
         private void SelectLevelUpOption(int optionIndex)
         {
+            AudioService.Instance.PlaySfx(AudioCueId.LevelUpSelect);
             if (_isAwaitingStarterWeaponChoice)
             {
                 SelectStarterWeaponOption(optionIndex);
@@ -1422,6 +1460,7 @@ namespace EJR.Game.Gameplay
             _isAwaitingStarterWeaponChoice = true;
             _currentOptions = options;
             Time.timeScale = 0f;
+            AudioService.Instance.PlaySfx(AudioCueId.LevelUpAppear);
             _hud.ShowLevelUpOptions(options, SelectLevelUpOption, "\uC2DC\uC791 \uBB34\uAE30 \uC120\uD0DD");
         }
 
@@ -1431,12 +1470,12 @@ namespace EJR.Game.Gameplay
             for (var i = 0; i < SharedGameCatalog.StarterWeaponCount; i++)
             {
                 var weaponId = SharedGameCatalog.GetStarterWeaponByIndex(i);
-                var title = $"\uC2DC\uC791: {GetWeaponDisplayName(weaponId)} Lv1";
+                var title = $"시작: {GetWeaponDisplayName(weaponId)} 레벨 1";
                 options[i] = LevelUpOption.CreateWeaponAcquire(
                     weaponId,
                     title,
-                    "Acquire weapon",
-                    $"{title}\nAcquire weapon");
+                    "무기 획득",
+                    $"{title}\n무기 획득");
             }
 
             return options;
@@ -1476,7 +1515,7 @@ namespace EJR.Game.Gameplay
             _isPauseMenuOpen = false;
             Time.timeScale = 0f;
             MetaProgressionService.RecordRunSummary(MetaProgressionService.BuildRunRewardSummary(
-                "Single",
+                "싱글",
                 cleared,
                 _levelUp != null ? _levelUp.Level : 1,
                 _enemySpawner != null ? _enemySpawner.ElapsedSeconds : 0f,
@@ -1488,7 +1527,7 @@ namespace EJR.Game.Gameplay
             _hud.ShowResult(
                 cleared,
                 ReturnToLobby,
-                "로비로");
+                "타이틀로");
         }
 
         private void TriggerBossWave()
@@ -1498,6 +1537,7 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
+            AudioService.Instance.PlaySfx(AudioCueId.BossWarning);
             _bossWaveTriggered = true;
             _enemySpawner?.TriggerBossWave();
         }
@@ -1529,7 +1569,7 @@ namespace EJR.Game.Gameplay
                 _levelUp.RequiredExperience,
                 _remainingSeconds);
 
-            _hud.SetModeHint(_autoPlayEnabled ? "AUTO PLAY ON" : string.Empty);
+            _hud.SetModeHint(_autoPlayEnabled ? "자동 전투" : string.Empty);
             _hud.SetBuildInfo(BuildWeaponSummary(), BuildStatSummary());
             UpdateBossHud();
         }
@@ -1549,7 +1589,7 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            _hud.SetBossBar(boss.CurrentHealth, boss.MaxHealth, "BOSS");
+            _hud.SetBossBar(boss.CurrentHealth, boss.MaxHealth, "보스");
         }
 
         private void ApplyBuildToRuntimeSystems()
@@ -1585,11 +1625,11 @@ namespace EJR.Game.Gameplay
         {
             if (_buildRuntime == null || _levelUp == null)
             {
-                return $"Weapons\n1) Empty\n2) Locked (Lv{PlayerBuildRuntime.SecondWeaponUnlockLevel})\n3) Locked (Lv{PlayerBuildRuntime.ThirdWeaponUnlockLevel})";
+                return $"무기\n1) 비어 있음\n2) 잠김 (레벨 {PlayerBuildRuntime.SecondWeaponUnlockLevel})\n3) 잠김 (레벨 {PlayerBuildRuntime.ThirdWeaponUnlockLevel})";
             }
 
             var unlockedSlots = _buildRuntime.GetUnlockedWeaponSlots(_levelUp.Level);
-            var lines = "Weapons";
+            var lines = "무기";
 
             for (var slotIndex = 0; slotIndex < PlayerBuildRuntime.MaxWeaponSlotsAbsolute; slotIndex++)
             {
@@ -1599,7 +1639,7 @@ namespace EJR.Game.Gameplay
                     var requiredLevel = slotIndex == 1
                         ? PlayerBuildRuntime.SecondWeaponUnlockLevel
                         : PlayerBuildRuntime.ThirdWeaponUnlockLevel;
-                    lines += $"\n{slotNumber}) Locked (Lv{requiredLevel})";
+                    lines += $"\n{slotNumber}) 잠김 (레벨 {requiredLevel})";
                     continue;
                 }
 
@@ -1611,18 +1651,18 @@ namespace EJR.Game.Gameplay
                     var attackSpeedBonus = _buildRuntime.GetWeaponAttackSpeedBonusPercentTotal(weaponId);
                     var rangeBonus = _buildRuntime.GetWeaponRangeBonusPercentTotal(weaponId);
                     var milestoneCount = _buildRuntime.GetWeaponMilestoneCount(weaponId);
-                    var bonusSummary = $" [D+{damageBonus:0.#} AS+{attackSpeedBonus:0.#} R+{rangeBonus:0.#}";
+                    var bonusSummary = $" [피해+{damageBonus:0.#} 공속+{attackSpeedBonus:0.#} 범위+{rangeBonus:0.#}";
                     if (milestoneCount > 0)
                     {
-                        bonusSummary += $" FX+{milestoneCount}";
+                        bonusSummary += $" 특수+{milestoneCount}";
                     }
 
                     bonusSummary += "]";
-                    lines += $"\n{slotNumber}) {GetWeaponDisplayName(weaponId)} Lv{level}{bonusSummary}";
+                    lines += $"\n{slotNumber}) {GetWeaponDisplayName(weaponId)} 레벨 {level}{bonusSummary}";
                 }
                 else
                 {
-                    lines += $"\n{slotNumber}) Empty";
+                    lines += $"\n{slotNumber}) 비어 있음";
                 }
             }
 
@@ -1633,17 +1673,17 @@ namespace EJR.Game.Gameplay
         {
             if (_buildRuntime == null)
             {
-                return "Global Stats";
+                return "전역 능력치";
             }
 
-            var lines = "Global Stats";
-            lines += $"\nAttack Power +{_buildRuntime.GlobalAttackPowerPercentTotal:0.#}%";
-            lines += $"\nAttack Speed +{_buildRuntime.GlobalAttackSpeedPercentTotal:0.#}%";
-            lines += $"\nMax Health +{_buildRuntime.GlobalMaxHealthFlatTotal:0}";
-            lines += $"\nHealth Regen +{_buildRuntime.GlobalHealthRegenPerSecondTotal:0.##}/s";
-            lines += $"\nMove Speed +{_buildRuntime.GlobalMoveSpeedPercentTotal:0.#}%";
-            lines += $"\nAttack Range +{_buildRuntime.GlobalAttackRangePercentTotal:0.#}%";
-            lines += $"\nLuck {_buildRuntime.GlobalLuckTotal:0.##}";
+            var lines = "전역 능력치";
+            lines += $"\n공격력 +{_buildRuntime.GlobalAttackPowerPercentTotal:0.#}%";
+            lines += $"\n공격 속도 +{_buildRuntime.GlobalAttackSpeedPercentTotal:0.#}%";
+            lines += $"\n최대 체력 +{_buildRuntime.GlobalMaxHealthFlatTotal:0}";
+            lines += $"\n체력 재생 +{_buildRuntime.GlobalHealthRegenPerSecondTotal:0.##}/초";
+            lines += $"\n이동 속도 +{_buildRuntime.GlobalMoveSpeedPercentTotal:0.#}%";
+            lines += $"\n공격 범위 +{_buildRuntime.GlobalAttackRangePercentTotal:0.#}%";
+            lines += $"\n행운 {_buildRuntime.GlobalLuckTotal:0.##}";
             return lines;
         }
 
@@ -1702,6 +1742,7 @@ namespace EJR.Game.Gameplay
 
             if (showHeldWeapon)
             {
+                RefreshHeldWeaponVisualScale();
                 ApplyHeldWeaponFacing(_playerMover != null ? _playerMover.CurrentFacingDirection : Vector2.right);
             }
         }

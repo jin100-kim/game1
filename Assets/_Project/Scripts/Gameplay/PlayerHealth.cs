@@ -1,4 +1,5 @@
 ﻿using System;
+using EJR.Game.Audio;
 using UnityEngine;
 
 namespace EJR.Game.Gameplay
@@ -141,6 +142,7 @@ namespace EJR.Game.Gameplay
 
             _spriteAnimator?.PlayHurt();
             CombatTextSpawner.SpawnDamage(transform.position + new Vector3(0f, 0.9f, 0f), appliedDamage, CombatTextSpawner.PlayerDamagedColor);
+            AudioService.Instance.PlaySfx(AudioCueId.PlayerHurt);
             Changed?.Invoke(CurrentHealth, MaxHealth);
             if (CurrentHealth <= 0f)
             {

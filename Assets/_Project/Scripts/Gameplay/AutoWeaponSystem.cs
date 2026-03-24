@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using EJR.Game.Audio;
 using EJR.Game.Core;
 using System.Linq;
 using UnityEngine;
@@ -98,6 +99,7 @@ namespace EJR.Game.Gameplay
                 BurstShotCooldown = 0f;
                 BurstDirection = Vector2.right;
                 BurstTotalShots = 0;
+                BurstOrigin = Vector2.zero;
                 OrbitAngleDegrees = UnityEngine.Random.Range(0f, 360f);
             }
 
@@ -108,6 +110,7 @@ namespace EJR.Game.Gameplay
             public float BurstShotCooldown { get; set; }
             public Vector2 BurstDirection { get; set; }
             public int BurstTotalShots { get; set; }
+            public Vector2 BurstOrigin { get; set; }
             public float OrbitAngleDegrees { get; set; }
             public List<Transform> SatelliteVisuals { get; } = new(3);
             public Dictionary<EnemyController, float> SatelliteHitCooldownUntil { get; } = new();
@@ -119,6 +122,9 @@ namespace EJR.Game.Gameplay
             public bool IsMaceSwingActive { get; set; }
             public float MaceSwingElapsed { get; set; }
             public Vector2 MaceSwingDirection { get; set; }
+            public Vector2 LastBfSwordSoundDirection { get; set; }
+            public float NextBfSwordSoundAt { get; set; }
+            public bool HasBfSwordSoundDirection { get; set; }
         }
 
         private sealed class RifleTurretRuntime
@@ -144,6 +150,7 @@ namespace EJR.Game.Gameplay
             public float OrbitSeedDegrees;
             public float HealAmount;
             public bool ReturningToOwner;
+            public bool HasDealtDamage;
         }
 
         private WeaponConfig _config;
@@ -172,6 +179,8 @@ namespace EJR.Game.Gameplay
         private readonly Queue<Projectile> _projectilePool = new();
         private Transform _projectilePoolRoot;
         private const int CollisionGizmoSegments = 24;
+        private const float BfSwordTurnSoundAngleThreshold = 38f;
+        private const float BfSwordTurnSoundCooldown = 0.2f;
 
         public event Action<Vector2> AimUpdated;
         public event Action<Vector2> Fired;
@@ -183,6 +192,7 @@ namespace EJR.Game.Gameplay
         public event Action<Vector3> SatelliteBeamFxRequested;
         public event Action<Vector3, float, float> TurretDeployed;
         public event Action<Vector3, Vector3> TurretTracerFxRequested;
+        public event Action<WeaponSoundRequest> WeaponSoundRequested;
 
         public void Initialize(
             WeaponConfig config,
@@ -209,6 +219,16 @@ namespace EJR.Game.Gameplay
             _lastAimDirection = Vector2.right;
             _targetScanCooldown = 0f;
             EnsureProjectilePool();
+        }
+
+        private void RequestWeaponSound(WeaponUpgradeId weaponId, WeaponSoundKind kind, Vector3 worldPosition)
+        {
+            WeaponSoundRequested?.Invoke(new WeaponSoundRequest(weaponId, kind, worldPosition));
+        }
+
+        private Vector3 GetOwnerSoundPosition()
+        {
+            return _owner != null ? _owner.position : Vector3.zero;
         }
 
         private void OnDisable()
@@ -393,6 +413,29 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
+            if (weapon.WeaponId == WeaponUpgradeId.Rifle && weapon.BurstShotsRemaining > 0)
+            {
+                weapon.BurstShotCooldown -= Time.deltaTime;
+                if (weapon.BurstShotCooldown <= 0f)
+                {
+                    FireRifleBurstShot(weapon);
+                    weapon.BurstShotsRemaining--;
+                    if (weapon.BurstShotsRemaining <= 0)
+                    {
+                        weapon.BurstTotalShots = 0;
+                        weapon.Cooldown = GetAttackInterval(weapon);
+                    }
+                    else
+                    {
+                        weapon.BurstShotCooldown = Mathf.Max(
+                            0.01f,
+                            GetRifleBurstShotInterval() * GetCombinedAttackIntervalMultiplier(weapon));
+                    }
+                }
+
+                return;
+            }
+
             if (weapon.WeaponId == WeaponUpgradeId.Katana && weapon.BurstShotsRemaining > 0)
             {
                 weapon.BurstShotCooldown -= Time.deltaTime;
@@ -408,6 +451,7 @@ namespace EJR.Game.Gameplay
                     if (weapon.BurstShotsRemaining <= 0)
                     {
                         weapon.BurstTotalShots = 0;
+                        weapon.BurstOrigin = Vector2.zero;
                         weapon.Cooldown = GetAttackInterval(weapon);
                     }
                 }
@@ -427,6 +471,9 @@ namespace EJR.Game.Gameplay
 
             switch (weapon.WeaponId)
             {
+                case WeaponUpgradeId.Rifle:
+                    FireRifle(weapon, fireDirection);
+                    break;
                 case WeaponUpgradeId.Smg:
                     FireFireball(weapon, fireDirection);
                     weapon.Cooldown = GetAttackInterval(weapon);
@@ -447,8 +494,6 @@ namespace EJR.Game.Gameplay
                     weapon.Cooldown = GetAttackInterval(weapon);
                     break;
                 default:
-                    FireRifle(weapon, fireDirection);
-                    weapon.Cooldown = GetAttackInterval(weapon);
                     break;
             }
         }
@@ -495,33 +540,57 @@ namespace EJR.Game.Gameplay
 
         private void FireRifle(WeaponRuntime weapon, Vector2 direction)
         {
-            var damage = GetWeaponBaseDamage(weapon);
-            var projectileSpeed = _config.projectileSpeed;
-            var projectileLifetime = GetLifetimeCappedByRange(weapon, projectileSpeed, _config.projectileLifetime);
-            var bulletCount = Mathf.Max(1, 1 + GetWeaponExtraCount(weapon));
             var normalizedDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : _lastAimDirection;
-            var spawnCenter = _projectileSpawnResolver != null
-                ? _projectileSpawnResolver(normalizedDirection)
-                : _owner.position;
-            var lateralDirection = new Vector2(-normalizedDirection.y, normalizedDirection.x);
-            var shotSpacing = _config != null ? Mathf.Max(0f, _config.rifleParallelShotSpacing) : 0.32f;
-            for (var i = 0; i < bulletCount; i++)
+            var baseShotCount = _config != null ? Mathf.Max(1, _config.rifleBaseShotCount) : 2;
+            var totalShots = Mathf.Max(1, baseShotCount + GetWeaponExtraCount(weapon));
+            weapon.BurstDirection = normalizedDirection;
+            weapon.BurstTotalShots = totalShots;
+            weapon.BurstShotsRemaining = totalShots;
+            weapon.BurstShotCooldown = 0f;
+
+            FireRifleBurstShot(weapon);
+            weapon.BurstShotsRemaining--;
+            if (weapon.BurstShotsRemaining <= 0)
             {
-                var centeredIndex = i - ((bulletCount - 1) * 0.5f);
-                var spawnOffset = lateralDirection * (centeredIndex * shotSpacing);
-                SpawnProjectile(
-                    weapon.WeaponId,
-                    normalizedDirection,
-                    damage,
-                    projectileSpeed,
-                    projectileLifetime,
-                    _config.projectileHitRadius,
-                    1,
-                    0f,
-                    1f,
-                    new Color(1f, 0.95f, 0.35f),
-                    spawnCenter + (Vector3)spawnOffset);
+                weapon.BurstTotalShots = 0;
+                weapon.Cooldown = GetAttackInterval(weapon);
+                return;
             }
+
+            weapon.BurstShotCooldown = Mathf.Max(
+                0.01f,
+                GetRifleBurstShotInterval() * GetCombinedAttackIntervalMultiplier(weapon));
+        }
+
+        private void FireRifleBurstShot(WeaponRuntime weapon)
+        {
+            if (weapon == null)
+            {
+                return;
+            }
+
+            var direction = weapon.BurstDirection.sqrMagnitude > 0.000001f ? weapon.BurstDirection.normalized : _lastAimDirection;
+            var damage = GetWeaponBaseDamage(weapon);
+            var projectileSpeed = Mathf.Max(0.1f, _config.projectileSpeed);
+            var projectileLifetime = GetLifetimeCappedByRange(weapon, projectileSpeed, Mathf.Max(0.1f, _config.projectileLifetime));
+            var spawnCenter = _projectileSpawnResolver != null
+                ? _projectileSpawnResolver(direction)
+                : (_owner != null ? _owner.position : Vector3.zero);
+
+            SpawnProjectile(
+                weapon.WeaponId,
+                direction,
+                damage,
+                projectileSpeed,
+                projectileLifetime,
+                _config.projectileHitRadius,
+                1,
+                0f,
+                1f,
+                new Color(1f, 0.95f, 0.35f),
+                spawnCenter);
+            RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Primary, spawnCenter);
+            Fired?.Invoke(direction);
         }
 
         private void FireFireball(WeaponRuntime weapon, Vector2 direction)
@@ -536,12 +605,14 @@ namespace EJR.Game.Gameplay
                 rangePaddingMultiplier: 1.2f);
             var hitRadius = Mathf.Max(0.05f, _config.fireballProjectileHitRadius);
             var baseDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : _lastAimDirection;
+            var spread = Mathf.Max(0f, _config.fireballSpreadAngle);
+            var soundPosition = _projectileSpawnResolver != null
+                ? _projectileSpawnResolver(baseDirection)
+                : GetOwnerSoundPosition();
 
             for (var i = 0; i < projectileCount; i++)
             {
-                var shotDirection = i == 0
-                    ? baseDirection
-                    : RotateDirection(baseDirection, (360f / projectileCount) * i);
+                var shotDirection = RotateDirection(baseDirection, GetSpreadAngle(projectileCount, i, spread));
                 SpawnProjectile(
                     weapon.WeaponId,
                     shotDirection,
@@ -554,6 +625,8 @@ namespace EJR.Game.Gameplay
                     1f,
                     new Color(1f, 0.42f, 0.08f));
             }
+
+            RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Primary, soundPosition);
         }
 
         private void FireSmgBullet(WeaponRuntime weapon, Vector2 direction)
@@ -603,6 +676,9 @@ namespace EJR.Game.Gameplay
             var damagePerPellet = GetWeaponBaseDamage(weapon) * Mathf.Clamp(_config.shotgunPelletDamageMultiplier, 0.05f, 2f);
             var pelletSpeed = _config.projectileSpeed * 0.95f;
             var pelletLifetime = GetLifetimeCappedByRange(weapon, pelletSpeed, _config.projectileLifetime * 0.75f, rangePaddingMultiplier: 1.25f);
+            var soundPosition = _projectileSpawnResolver != null
+                ? _projectileSpawnResolver(direction)
+                : GetOwnerSoundPosition();
 
             if (pelletCount == 1)
             {
@@ -617,6 +693,7 @@ namespace EJR.Game.Gameplay
                     0f,
                     1f,
                     new Color(1f, 0.65f, 0.2f));
+                RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Primary, soundPosition);
                 return;
             }
 
@@ -637,16 +714,19 @@ namespace EJR.Game.Gameplay
                     1f,
                     new Color(1f, 0.65f, 0.2f));
             }
+
+            RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Primary, soundPosition);
         }
 
         private void FireKatana(WeaponRuntime weapon, Vector2 direction)
         {
-            var baseSlashCount = _config != null ? Mathf.Max(1, _config.katanaBaseSlashCount) : 3;
+            var baseSlashCount = _config != null ? Mathf.Max(1, _config.katanaBaseSlashCount) : 2;
             var totalSlashes = Mathf.Max(1, baseSlashCount + GetWeaponExtraCount(weapon));
             weapon.BurstDirection = direction.sqrMagnitude > 0.000001f
                 ? direction.normalized
                 : _lastAimDirection;
             weapon.BurstTotalShots = totalSlashes;
+            weapon.BurstOrigin = _owner != null ? (Vector2)_owner.position : Vector2.zero;
             weapon.BurstShotsRemaining = totalSlashes;
             weapon.BurstShotCooldown = 0f;
 
@@ -656,6 +736,7 @@ namespace EJR.Game.Gameplay
             if (weapon.BurstShotsRemaining <= 0)
             {
                 weapon.BurstTotalShots = 0;
+                weapon.BurstOrigin = Vector2.zero;
                 weapon.Cooldown = GetAttackInterval(weapon);
                 return;
             }
@@ -670,6 +751,21 @@ namespace EJR.Game.Gameplay
             if (_registry == null || _owner == null || weapon == null || _config == null)
             {
                 return;
+            }
+
+            var facingDirection = ResolveFacingDirection();
+            if (!weapon.HasBfSwordSoundDirection)
+            {
+                weapon.LastBfSwordSoundDirection = facingDirection;
+                weapon.HasBfSwordSoundDirection = true;
+                weapon.NextBfSwordSoundAt = Time.time;
+            }
+            else if (Time.time >= weapon.NextBfSwordSoundAt
+                     && Vector2.Angle(weapon.LastBfSwordSoundDirection, facingDirection) >= BfSwordTurnSoundAngleThreshold)
+            {
+                RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Turn, GetBfSwordBladeCenter(facingDirection));
+                weapon.LastBfSwordSoundDirection = facingDirection;
+                weapon.NextBfSwordSoundAt = Time.time + BfSwordTurnSoundCooldown;
             }
 
             GetBfSwordBladeSegment(weapon, out var start, out var end, out var bladeRadius);
@@ -731,7 +827,7 @@ namespace EJR.Game.Gameplay
             var coneHalfAngle = Mathf.Max(2f, _config.katanaConeAngle) * 0.5f;
             var damage = GetWeaponBaseDamage(weapon) * Mathf.Clamp(_config.katanaDamageMultiplier, 0.05f, 3f);
             var slashSpreadHalfAngle = totalSlashes <= 1 ? 0f : 10f;
-            var origin = (Vector2)_owner.position;
+            var origin = weapon.BurstTotalShots > 0 ? weapon.BurstOrigin : (Vector2)_owner.position;
             var t = totalSlashes <= 1 ? 0.5f : slashIndex / (float)(totalSlashes - 1);
             var angleOffset = Mathf.Lerp(-slashSpreadHalfAngle, slashSpreadHalfAngle, t);
             var slashDirection = RotateDirection(direction, angleOffset);
@@ -739,6 +835,7 @@ namespace EJR.Game.Gameplay
 
             SpawnKatanaSlashSpriteFx(origin, slashDirection, range, slashIndex);
             KatanaSlashFxRequested?.Invoke(origin, slashDirection, range, slashIndex);
+            RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Primary, origin);
             Fired?.Invoke(slashDirection);
 
             _registry.GetNearby(origin, searchRadius, _nearbyEnemies);
@@ -863,6 +960,7 @@ namespace EJR.Game.Gameplay
                 StopCoroutine(weapon.ActiveChainCoroutine);
             }
 
+            RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Primary, GetOwnerSoundPosition());
             weapon.ActiveChainCoroutine = StartCoroutine(ExecuteChainAttackRoutine(weapon, firstTarget, direction));
         }
 
@@ -1176,7 +1274,11 @@ namespace EJR.Game.Gameplay
                     var distance = toOwner.magnitude;
                     if (distance <= 0.18f)
                     {
-                        ApplyBatHealing(bat.HealAmount);
+                        if (bat.HasDealtDamage)
+                        {
+                            ApplyBatHealing(bat.HealAmount);
+                        }
+
                         Destroy(bat.Root.gameObject);
                         weapon.BatInstances.RemoveAt(i);
                         continue;
@@ -1190,6 +1292,7 @@ namespace EJR.Game.Gameplay
                 {
                     bat.ReturningToOwner = true;
                     bat.LatchedTarget = null;
+                    RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Return, bat.Root.position);
                     if (bat.Renderer != null)
                     {
                         bat.Renderer.color = new Color(0.52f, 1f, 0.72f, 0.95f);
@@ -1200,9 +1303,14 @@ namespace EJR.Game.Gameplay
 
                 if (bat.LatchedTarget == null || !IsEnemyUsable(bat.LatchedTarget))
                 {
+                    var previousTarget = bat.LatchedTarget;
                     bat.LatchedTarget = Time.time >= bat.SpawnedAt + orbitDuration
                         ? FindNearestUsableFrom((Vector2)bat.Root.position, latchRange)
                         : null;
+                    if (previousTarget == null && bat.LatchedTarget != null)
+                    {
+                        RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Latch, bat.Root.position);
+                    }
                 }
 
                 if (bat.LatchedTarget == null)
@@ -1232,6 +1340,7 @@ namespace EJR.Game.Gameplay
                 if (Time.time >= bat.HitCooldown)
                 {
                     bat.LatchedTarget.ReceiveWeaponDamage(damage, weapon.WeaponId);
+                    bat.HasDealtDamage = true;
                     bat.HitCooldown = Time.time + hitInterval;
                 }
             }
@@ -1260,7 +1369,9 @@ namespace EJR.Game.Gameplay
                 OrbitSeedDegrees = UnityEngine.Random.Range(0f, 360f),
                 HealAmount = healAmount,
                 ReturningToOwner = false,
+                HasDealtDamage = false,
             });
+            RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Spawn, batObject.transform.position);
         }
 
         private void ApplyBatHealing(float healAmount)
@@ -1474,6 +1585,7 @@ namespace EJR.Game.Gameplay
                     turret.Root.position);
 
                 SpawnTracerFx(turret.Root.position, target.transform.position);
+                RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Primary, turret.Root.position);
                 turret.ShotCooldown = shotInterval;
             }
         }
@@ -1525,6 +1637,7 @@ namespace EJR.Game.Gameplay
                 FireAnimationCoroutine = null,
             });
 
+            RequestWeaponSound(WeaponUpgradeId.RifleTurret, WeaponSoundKind.Deploy, turretObject.transform.position);
             TurretDeployed?.Invoke(
                 turretObject.transform.position,
                 turretRange,
@@ -2483,6 +2596,8 @@ namespace EJR.Game.Gameplay
 
             weapon.IsMaceSwingActive = false;
             weapon.MaceSwingElapsed = 0f;
+            weapon.BurstTotalShots = 0;
+            weapon.BurstOrigin = Vector2.zero;
         }
 
         private void OnDrawGizmos()
@@ -2551,27 +2666,22 @@ namespace EJR.Game.Gameplay
         {
             var range = GetWeaponRange(weapon);
             var hitRadius = Mathf.Max(0.02f, _config.projectileHitRadius);
-            var bulletCount = Mathf.Max(1, 1 + GetWeaponExtraCount(weapon));
             var spawnCenter = ResolveProjectileGizmoSpawnCenter(aimDirection);
-            var lateralDirection = new Vector2(-aimDirection.y, aimDirection.x);
-            var shotSpacing = _config != null ? Mathf.Max(0f, _config.rifleParallelShotSpacing) : 0.32f;
-            for (var i = 0; i < bulletCount; i++)
-            {
-                var centeredIndex = i - ((bulletCount - 1) * 0.5f);
-                var spawnOffset = lateralDirection * (centeredIndex * shotSpacing);
-                DrawProjectilePathGizmo((Vector2)spawnCenter + spawnOffset, aimDirection, range, hitRadius, color);
-            }
+            DrawProjectilePathGizmo(spawnCenter, aimDirection, range, hitRadius, color);
         }
 
         private void DrawSmgCollisionGizmo(WeaponRuntime weapon, Vector2 aimDirection, Color color)
         {
             var range = GetWeaponRange(weapon);
             var hitRadius = Mathf.Max(0.02f, _config.projectileHitRadius * 0.85f);
-            var spreadHalfAngle = Mathf.Max(0f, _config.smgSpreadAngle) * 0.5f;
+            var projectileCount = Mathf.Max(1, 1 + GetWeaponExtraCount(weapon));
+            var spread = Mathf.Max(0f, _config.fireballSpreadAngle);
             var spawnCenter = ResolveProjectileGizmoSpawnCenter(aimDirection);
-            DrawProjectilePathGizmo(spawnCenter, aimDirection, range, hitRadius, color);
-            DrawProjectilePathGizmo(spawnCenter, RotateDirection(aimDirection, -spreadHalfAngle), range, hitRadius * 0.75f, color);
-            DrawProjectilePathGizmo(spawnCenter, RotateDirection(aimDirection, spreadHalfAngle), range, hitRadius * 0.75f, color);
+            for (var i = 0; i < projectileCount; i++)
+            {
+                var shotDirection = RotateDirection(aimDirection, GetSpreadAngle(projectileCount, i, spread));
+                DrawProjectilePathGizmo(spawnCenter, shotDirection, range, hitRadius, color);
+            }
         }
 
         private void DrawSingleProjectileCollisionGizmo(WeaponRuntime weapon, Vector2 aimDirection, Color color, float hitRadius)
@@ -2611,7 +2721,26 @@ namespace EJR.Game.Gameplay
         {
             var range = GetWeaponRange(weapon);
             var halfAngle = Mathf.Max(2f, _config.katanaConeAngle) * 0.5f;
-            DrawConeCollisionGizmo(_owner.position, aimDirection, range, halfAngle, color);
+            var origin = weapon != null && weapon.BurstTotalShots > 0 ? weapon.BurstOrigin : (Vector2)_owner.position;
+            DrawConeCollisionGizmo(origin, aimDirection, range, halfAngle, color);
+        }
+
+        private float GetRifleBurstShotInterval()
+        {
+            var configured = _config != null ? _config.rifleBurstShotInterval : 0.08f;
+            return Mathf.Max(0.01f, configured);
+        }
+
+        private static float GetSpreadAngle(int projectileCount, int projectileIndex, float totalSpreadAngle)
+        {
+            if (projectileCount <= 1 || totalSpreadAngle <= 0.01f)
+            {
+                return 0f;
+            }
+
+            var halfSpread = totalSpreadAngle * 0.5f;
+            var t = projectileCount <= 1 ? 0.5f : projectileIndex / (float)(projectileCount - 1);
+            return Mathf.Lerp(-halfSpread, halfSpread, t);
         }
 
         private void DrawBfSwordCollisionGizmo(WeaponRuntime weapon, Color color)

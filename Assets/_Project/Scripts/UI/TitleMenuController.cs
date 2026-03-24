@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Text;
+using EJR.Game.Audio;
 using EJR.Game.Core;
 using EJR.Game.Multiplayer;
 using UnityEngine;
@@ -21,6 +22,7 @@ namespace EJR.Game.UI
         [SerializeField] private string gameplaySceneName = "SampleScene";
 
         private const string FullscreenPreferenceKey = "settings.fullscreen";
+        private const float OptionsSliderWidth = 268f;
         private const int DefaultWindowWidth = 1600;
         private const int DefaultWindowHeight = 900;
         private const float ButtonWidth = 320f;
@@ -74,14 +76,21 @@ namespace EJR.Game.UI
         private InputField _joinCodeInput;
         private Toggle _fullscreenToggle;
         private bool _suppressDisplayToggleCallback;
+        private Slider _masterVolumeSlider;
+        private Slider _bgmVolumeSlider;
+        private Slider _sfxVolumeSlider;
+        private Text _masterVolumeValueText;
+        private Text _bgmVolumeValueText;
+        private Text _sfxVolumeValueText;
+        private bool _suppressAudioSettingsCallbacks;
         private int _selectedCharacterId;
         private WeaponUpgradeId _selectedStarterWeaponId;
-        private string _recentRunSummaryText = "No recent run yet.";
+        private string _recentRunSummaryText = "최근 전적이 없습니다.";
         private MetaTab _currentMetaTab;
 
         private void Awake()
         {
-            _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            _font = RuntimeFontProvider.GetDefaultFont();
             MetaProgressionService.EnsureLoaded();
             _selectedCharacterId = MetaProgressionService.GetSingleSelectedCharacterId();
             _selectedStarterWeaponId = MetaProgressionService.GetSingleSelectedStarterWeapon();
@@ -103,7 +112,9 @@ namespace EJR.Game.UI
 
         private void Start()
         {
+            AudioService.Instance.PlayMusic(AudioCueId.MainTheme);
             SyncFullscreenToggle();
+            SyncAudioSettingsControls();
             if (MetaProgressionService.TryPeekPendingRunSummary(out var summary))
             {
                 _recentRunSummaryText = summary.BuildDisplayText();
@@ -121,7 +132,7 @@ namespace EJR.Game.UI
             }
             else
             {
-                SetStatus("Select a mode.");
+                SetStatus("모드를 선택하세요.");
             }
         }
 
@@ -212,11 +223,11 @@ namespace EJR.Game.UI
 
             _accentBar = CreatePanel(root.transform, "AccentBar", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(104f, -88f), new Vector2(188f, 6f), new Color(0.96f, 0.74f, 0.18f, 1f));
 
-            _titleText = CreateText(root.transform, "TitleText", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(104f, -108f), new Vector2(640f, 70f), "ELECTRON EXPEDITION", 40, FontStyle.Bold);
+            _titleText = CreateText(root.transform, "TitleText", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(104f, -108f), new Vector2(640f, 70f), "전자오락 원정대", 40, FontStyle.Bold);
             _titleText.alignment = TextAnchor.MiddleLeft;
             _titleText.color = new Color(0.95f, 0.97f, 1f, 1f);
 
-            _subtitleText = CreateText(root.transform, "SubtitleText", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(104f, -166f), new Vector2(560f, 42f), "Shared meta progression across solo and co-op runs.", 18, FontStyle.Normal);
+            _subtitleText = CreateText(root.transform, "SubtitleText", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(104f, -166f), new Vector2(560f, 42f), "싱글과 협동 진행도를 함께 공유합니다.", 18, FontStyle.Normal);
             _subtitleText.alignment = TextAnchor.UpperLeft;
             _subtitleText.color = new Color(0.72f, 0.79f, 0.89f, 1f);
 
@@ -239,41 +250,41 @@ namespace EJR.Game.UI
             var overviewCard = CreatePanel(_mainMenuPanel.transform, "OverviewCard", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-260f, 0f), new Vector2(496f, 452f), new Color(0.04f, 0.07f, 0.11f, 0.74f));
             var actionCard = CreatePanel(_mainMenuPanel.transform, "ActionCard", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(268f, 0f), new Vector2(372f, 452f), new Color(0.02f, 0.03f, 0.06f, 0.84f));
 
-            var overviewHeader = CreateText(overviewCard.transform, "OverviewHeader", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(28f, -30f), new Vector2(260f, 24f), "OPERATION BRIEF", 16, FontStyle.Bold);
+            var overviewHeader = CreateText(overviewCard.transform, "OverviewHeader", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(28f, -30f), new Vector2(260f, 24f), "작전 브리프", 16, FontStyle.Bold);
             overviewHeader.alignment = TextAnchor.MiddleLeft;
             overviewHeader.color = new Color(0.96f, 0.74f, 0.18f, 1f);
 
-            var overviewTitle = CreateText(overviewCard.transform, "OverviewTitle", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(28f, -72f), new Vector2(360f, 84f), "Arcade survivor runs\nwith shared progression.", 30, FontStyle.Bold);
+            var overviewTitle = CreateText(overviewCard.transform, "OverviewTitle", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(28f, -72f), new Vector2(360f, 84f), "아케이드 생존 전투\n공유 성장 진행도", 30, FontStyle.Bold);
             overviewTitle.alignment = TextAnchor.UpperLeft;
 
-            var overviewBody = CreateText(overviewCard.transform, "OverviewBody", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(28f, -176f), new Vector2(420f, 116f), "Choose a mode, lock in a starter loadout, then loop credits back into permanent unlocks and research.", 18, FontStyle.Normal);
+            var overviewBody = CreateText(overviewCard.transform, "OverviewBody", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(28f, -176f), new Vector2(420f, 116f), "모드를 고르고 시작 장비를 정한 뒤,\n획득한 크레딧을 영구 해금과 연구에 투자합니다.", 18, FontStyle.Normal);
             overviewBody.alignment = TextAnchor.UpperLeft;
             overviewBody.color = new Color(0.78f, 0.84f, 0.92f, 1f);
 
             var soloCard = CreatePanel(overviewCard.transform, "SoloInfoCard", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -74f), new Vector2(436f, 80f), new Color(0.09f, 0.13f, 0.19f, 0.86f));
-            var soloInfo = CreateText(soloCard.transform, "SoloInfo", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero, "Single Play\nPick character and starter weapon before deployment.", 17, FontStyle.Bold);
+            var soloInfo = CreateText(soloCard.transform, "SoloInfo", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero, "싱글 플레이\n출격 전에 캐릭터와 시작 무기를 고릅니다.", 17, FontStyle.Bold);
             soloInfo.alignment = TextAnchor.MiddleLeft;
             soloInfo.rectTransform.offsetMin = new Vector2(18f, 10f);
             soloInfo.rectTransform.offsetMax = new Vector2(-18f, -10f);
 
             var metaCard = CreatePanel(overviewCard.transform, "MetaInfoCard", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -170f), new Vector2(436f, 92f), new Color(0.11f, 0.08f, 0.03f, 0.86f));
-            var metaInfo = CreateText(metaCard.transform, "MetaInfo", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero, "Meta Progression\nCredits unlock characters, starter weapons, and persistent stat nodes.", 17, FontStyle.Bold);
+            var metaInfo = CreateText(metaCard.transform, "MetaInfo", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero, "메타 성장\n크레딧으로 캐릭터, 시작 무기,\n영구 능력치를 해금합니다.", 17, FontStyle.Bold);
             metaInfo.alignment = TextAnchor.MiddleLeft;
             metaInfo.rectTransform.offsetMin = new Vector2(18f, 10f);
             metaInfo.rectTransform.offsetMax = new Vector2(-18f, -10f);
 
-            var header = CreateText(actionCard.transform, "MainMenuHeader", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -34f), new Vector2(280f, 30f), "SELECT MODE", 18, FontStyle.Bold);
+            var header = CreateText(actionCard.transform, "MainMenuHeader", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -34f), new Vector2(280f, 30f), "모드 선택", 18, FontStyle.Bold);
             header.color = new Color(0.96f, 0.74f, 0.18f, 1f);
 
-            var subhead = CreateText(actionCard.transform, "MainMenuSubhead", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -74f), new Vector2(260f, 42f), "Start a run, open shared meta, or adjust display settings.", 15, FontStyle.Normal);
+            var subhead = CreateText(actionCard.transform, "MainMenuSubhead", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -74f), new Vector2(260f, 42f), "런을 시작하거나 메타를 열고,\n화면 설정을 조정할 수 있습니다.", 15, FontStyle.Normal);
             subhead.color = new Color(0.75f, 0.81f, 0.91f, 1f);
 
             var baseY = 118f;
-            _singlePlayButton = CreateButton(actionCard.transform, "SinglePlayButton", new Vector2(0f, baseY), "Single Play", OnSinglePlayClicked, new Vector2(296f, 56f));
-            _multiPlayButton = CreateButton(actionCard.transform, "MultiPlayButton", new Vector2(0f, baseY - (ButtonHeight + ButtonSpacing)), "Multiplayer", OnMultiPlayClicked, new Vector2(296f, 56f));
-            _metaButton = CreateButton(actionCard.transform, "MetaButton", new Vector2(0f, baseY - ((ButtonHeight + ButtonSpacing) * 2f)), "Meta", OnMetaClicked, new Vector2(296f, 56f));
-            _optionsButton = CreateButton(actionCard.transform, "OptionsButton", new Vector2(0f, baseY - ((ButtonHeight + ButtonSpacing) * 3f)), "Options", OnOptionsClicked, new Vector2(296f, 56f));
-            CreateButton(actionCard.transform, "QuitButton", new Vector2(0f, baseY - ((ButtonHeight + ButtonSpacing) * 4f)), "Quit", OnQuitClicked, new Vector2(296f, 56f));
+            _singlePlayButton = CreateButton(actionCard.transform, "SinglePlayButton", new Vector2(0f, baseY), "싱글 플레이", OnSinglePlayClicked, new Vector2(296f, 56f));
+            _multiPlayButton = CreateButton(actionCard.transform, "MultiPlayButton", new Vector2(0f, baseY - (ButtonHeight + ButtonSpacing)), "멀티플레이", OnMultiPlayClicked, new Vector2(296f, 56f));
+            _metaButton = CreateButton(actionCard.transform, "MetaButton", new Vector2(0f, baseY - ((ButtonHeight + ButtonSpacing) * 2f)), "메타", OnMetaClicked, new Vector2(296f, 56f));
+            _optionsButton = CreateButton(actionCard.transform, "OptionsButton", new Vector2(0f, baseY - ((ButtonHeight + ButtonSpacing) * 3f)), "설정", OnOptionsClicked, new Vector2(296f, 56f));
+            CreateButton(actionCard.transform, "QuitButton", new Vector2(0f, baseY - ((ButtonHeight + ButtonSpacing) * 4f)), "종료", OnQuitClicked, new Vector2(296f, 56f));
         }
 
         private void BuildMultiplayerPanel(Transform parent)
@@ -281,77 +292,119 @@ namespace EJR.Game.UI
             _multiplayerPanel = CreatePanel(parent, "MultiplayerPanel", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -28f), new Vector2(920f, 560f), new Color(0.02f, 0.03f, 0.06f, 0.86f));
             _multiplayerPanel.SetActive(false);
 
-            var title = CreateText(_multiplayerPanel.transform, "MultiplayerTitle", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -34f), new Vector2(320f, 30f), "MULTIPLAYER", 24, FontStyle.Bold);
+            var title = CreateText(_multiplayerPanel.transform, "MultiplayerTitle", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -34f), new Vector2(320f, 30f), "멀티플레이", 24, FontStyle.Bold);
             title.color = new Color(0.96f, 0.74f, 0.18f, 1f);
 
-            var desc = CreateText(_multiplayerPanel.transform, "MultiplayerDescription", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -82f), new Vector2(540f, 42f), "Host creates a Relay room. Join uses a shared room code.", 16, FontStyle.Normal);
+            var desc = CreateText(_multiplayerPanel.transform, "MultiplayerDescription", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -82f), new Vector2(540f, 42f), "호스트는 릴레이 방을 만들고,\n참가는 공유된 방 코드로 접속합니다.", 16, FontStyle.Normal);
             desc.color = new Color(0.78f, 0.84f, 0.92f, 1f);
             desc.alignment = TextAnchor.MiddleCenter;
 
             var hostCard = CreatePanel(_multiplayerPanel.transform, "HostCard", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-206f, -8f), new Vector2(332f, 304f), new Color(0.05f, 0.08f, 0.12f, 0.86f));
             var joinCard = CreatePanel(_multiplayerPanel.transform, "JoinCard", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(206f, -8f), new Vector2(332f, 304f), new Color(0.05f, 0.08f, 0.12f, 0.86f));
 
-            var hostHeader = CreateText(hostCard.transform, "HostHeader", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -28f), new Vector2(200f, 24f), "HOST ROOM", 18, FontStyle.Bold);
+            var hostHeader = CreateText(hostCard.transform, "HostHeader", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -28f), new Vector2(200f, 24f), "방 만들기", 18, FontStyle.Bold);
             hostHeader.color = new Color(0.96f, 0.74f, 0.18f, 1f);
-            var hostDesc = CreateText(hostCard.transform, "HostDescription", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -92f), new Vector2(252f, 86f), "Start a new co-op session and share the generated room code with other players.", 16, FontStyle.Normal);
+            var hostDesc = CreateText(hostCard.transform, "HostDescription", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -92f), new Vector2(252f, 86f), "새 협동 세션을 만들고 생성된 코드를\n다른 플레이어에게 공유합니다.", 16, FontStyle.Normal);
             hostDesc.color = new Color(0.78f, 0.84f, 0.92f, 1f);
-            _hostButton = CreateButton(hostCard.transform, "HostButton", new Vector2(0f, -90f), "HOST", OnHostClicked, new Vector2(232f, 54f));
+            _hostButton = CreateButton(hostCard.transform, "HostButton", new Vector2(0f, -90f), "호스트", OnHostClicked, new Vector2(232f, 54f));
 
-            var joinHeader = CreateText(joinCard.transform, "JoinHeader", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -28f), new Vector2(200f, 24f), "JOIN ROOM", 18, FontStyle.Bold);
+            var joinHeader = CreateText(joinCard.transform, "JoinHeader", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -28f), new Vector2(200f, 24f), "방 참가", 18, FontStyle.Bold);
             joinHeader.color = new Color(0.96f, 0.74f, 0.18f, 1f);
-            var joinDesc = CreateText(joinCard.transform, "JoinDescription", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -78f), new Vector2(252f, 52f), "Enter the shared room code to connect.", 16, FontStyle.Normal);
+            var joinDesc = CreateText(joinCard.transform, "JoinDescription", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -78f), new Vector2(252f, 52f), "공유된 방 코드를 입력해 접속합니다.", 16, FontStyle.Normal);
             joinDesc.color = new Color(0.78f, 0.84f, 0.92f, 1f);
 
-            var codeLabel = CreateText(joinCard.transform, "JoinCodeLabel", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-88f, -132f), new Vector2(176f, 24f), "ROOM CODE", 15, FontStyle.Bold);
+            var codeLabel = CreateText(joinCard.transform, "JoinCodeLabel", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-88f, -132f), new Vector2(176f, 24f), "방 코드", 15, FontStyle.Bold);
             codeLabel.alignment = TextAnchor.MiddleLeft;
             codeLabel.color = new Color(0.72f, 0.79f, 0.89f, 1f);
 
             _joinCodeInput = CreateInputField(joinCard.transform, "JoinCodeInput", new Vector2(0f, -18f), new Vector2(232f, 46f), string.Empty, "AB12CD");
-            _joinButton = CreateButton(joinCard.transform, "JoinButton", new Vector2(0f, -90f), "JOIN", OnJoinClicked, new Vector2(232f, 54f));
-            _backButton = CreateButton(_multiplayerPanel.transform, "BackButton", new Vector2(0f, -212f), "BACK", ShowMainMenu, new Vector2(240f, 46f));
+            _joinButton = CreateButton(joinCard.transform, "JoinButton", new Vector2(0f, -90f), "참가", OnJoinClicked, new Vector2(232f, 54f));
+            _backButton = CreateButton(_multiplayerPanel.transform, "BackButton", new Vector2(0f, -212f), "뒤로", ShowMainMenu, new Vector2(240f, 46f));
         }
 
         private void BuildOptionsPanel(Transform parent)
         {
-            _optionsPanel = CreatePanel(parent, "OptionsPanel", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -28f), new Vector2(640f, 360f), new Color(0.02f, 0.03f, 0.06f, 0.86f));
+            BuildOptionsPanelLayout(parent);
+#if false
+            _optionsPanel = CreatePanel(parent, "OptionsPanel", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -28f), new Vector2(640f, 520f), new Color(0.02f, 0.03f, 0.06f, 0.86f));
             _optionsPanel.SetActive(false);
 
-            var title = CreateText(_optionsPanel.transform, "OptionsTitle", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -34f), new Vector2(320f, 30f), "OPTIONS", 24, FontStyle.Bold);
+            var title = CreateText(_optionsPanel.transform, "OptionsTitle", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -34f), new Vector2(320f, 30f), "설정", 24, FontStyle.Bold);
             title.color = new Color(0.96f, 0.74f, 0.18f, 1f);
 
-            var desc = CreateText(_optionsPanel.transform, "OptionsDescription", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -88f), new Vector2(420f, 42f), "Windowed mode is the default. Toggle fullscreen if you want the game to take over the current display.", 15, FontStyle.Normal);
+            var desc = CreateText(_optionsPanel.transform, "OptionsDescription", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -88f), new Vector2(420f, 42f), "기본은 창 모드입니다. 전체 화면으로 전환하면\n현재 디스플레이를 꽉 채웁니다.", 15, FontStyle.Normal);
             desc.color = new Color(0.78f, 0.84f, 0.92f, 1f);
             desc.alignment = TextAnchor.MiddleCenter;
 
-            var displayCard = CreatePanel(_optionsPanel.transform, "DisplayCard", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -4f), new Vector2(420f, 120f), new Color(0.05f, 0.08f, 0.12f, 0.86f));
-            var displayHeader = CreateText(displayCard.transform, "DisplayHeader", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -26f), new Vector2(240f, 24f), "DISPLAY", 16, FontStyle.Bold);
+            var displayCard = CreatePanel(_optionsPanel.transform, "DisplayCard", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 72f), new Vector2(420f, 120f), new Color(0.05f, 0.08f, 0.12f, 0.86f));
+            var displayHeader = CreateText(displayCard.transform, "DisplayHeader", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -26f), new Vector2(240f, 24f), "화면", 16, FontStyle.Bold);
             displayHeader.color = new Color(0.96f, 0.74f, 0.18f, 1f);
-            _fullscreenToggle = CreateToggle(displayCard.transform, "FullscreenToggle", new Vector2(0f, -12f), new Vector2(240f, 36f), "Fullscreen", OnFullscreenToggleChanged);
-            _optionsBackButton = CreateButton(_optionsPanel.transform, "OptionsBackButton", new Vector2(0f, -128f), "BACK", ShowMainMenu, new Vector2(240f, 46f));
+            _fullscreenToggle = CreateToggle(displayCard.transform, "FullscreenToggle", new Vector2(0f, -12f), new Vector2(240f, 36f), "전체 화면", OnFullscreenToggleChanged);
+            _optionsBackButton = CreateButton(_optionsPanel.transform, "OptionsBackButton", new Vector2(0f, -128f), "뒤로", ShowMainMenu, new Vector2(240f, 46f));
+            var audioCard = CreatePanel(_optionsPanel.transform, "AudioCard", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -18f), new Vector2(480f, 148f), new Color(0.05f, 0.08f, 0.12f, 0.86f));
+            var audioHeader = CreateText(audioCard.transform, "AudioHeader", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -20f), new Vector2(240f, 24f), "오디오", 16, FontStyle.Bold);
+            audioHeader.color = new Color(0.96f, 0.74f, 0.18f, 1f);
+            CreateSliderControl(audioCard.transform, "MasterVolume", new Vector2(0f, 28f), "마스터", OnMasterVolumeChanged, out _masterVolumeSlider, out _masterVolumeValueText);
+            CreateSliderControl(audioCard.transform, "BgmVolume", new Vector2(0f, -8f), "배경음", OnBgmVolumeChanged, out _bgmVolumeSlider, out _bgmVolumeValueText);
+            CreateSliderControl(audioCard.transform, "SfxVolume", new Vector2(0f, -44f), "효과음", OnSfxVolumeChanged, out _sfxVolumeSlider, out _sfxVolumeValueText);
+        #endif
         }
+
+        private void BuildOptionsPanelLayout(Transform parent)
+        {
+            _optionsPanel = CreatePanel(parent, "OptionsPanel", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -28f), new Vector2(700f, 580f), new Color(0.02f, 0.03f, 0.06f, 0.86f));
+            _optionsPanel.SetActive(false);
+
+            var title = CreateText(_optionsPanel.transform, "OptionsTitle", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -34f), new Vector2(320f, 30f), "\uC124\uC815", 24, FontStyle.Bold);
+            title.color = new Color(0.96f, 0.74f, 0.18f, 1f);
+
+            var desc = CreateText(_optionsPanel.transform, "OptionsDescription", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -88f), new Vector2(460f, 42f), "\uAE30\uBCF8\uC740 \uCC3D \uBAA8\uB4DC\uC785\uB2C8\uB2E4. \uC804\uCCB4 \uD654\uBA74\uC73C\uB85C \uC804\uD658\uD558\uBA74\n\uD604\uC7AC \uB514\uC2A4\uD50C\uB808\uC774\uB97C \uAF49 \uCC44\uC6C1\uB2C8\uB2E4.", 15, FontStyle.Normal);
+            desc.color = new Color(0.78f, 0.84f, 0.92f, 1f);
+            desc.alignment = TextAnchor.MiddleCenter;
+
+            var displayCard = CreatePanel(_optionsPanel.transform, "DisplayCard", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 92f), new Vector2(460f, 136f), new Color(0.05f, 0.08f, 0.12f, 0.86f));
+            var displayHeader = CreateText(displayCard.transform, "DisplayHeader", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -24f), new Vector2(240f, 24f), "\uD654\uBA74", 16, FontStyle.Bold);
+            displayHeader.color = new Color(0.96f, 0.74f, 0.18f, 1f);
+
+            _fullscreenToggle = CreateToggle(displayCard.transform, "FullscreenToggle", new Vector2(0f, -8f), new Vector2(270f, 36f), "\uC804\uCCB4 \uD654\uBA74", OnFullscreenToggleChanged);
+
+            var displayHint = CreateText(displayCard.transform, "DisplayHint", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 18f), new Vector2(320f, 20f), "\uBCC0\uACBD \uC0AC\uD56D\uC740 \uBC14\uB85C \uC801\uC6A9\uB429\uB2C8\uB2E4.", 13, FontStyle.Normal);
+            displayHint.color = new Color(0.72f, 0.79f, 0.89f, 1f);
+
+            var audioCard = CreatePanel(_optionsPanel.transform, "AudioCard", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -62f), new Vector2(520f, 196f), new Color(0.05f, 0.08f, 0.12f, 0.86f));
+            var audioHeader = CreateText(audioCard.transform, "AudioHeader", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -24f), new Vector2(240f, 24f), "\uC624\uB514\uC624", 16, FontStyle.Bold);
+            audioHeader.color = new Color(0.96f, 0.74f, 0.18f, 1f);
+
+            CreateSliderControl(audioCard.transform, "MasterVolume", new Vector2(0f, 36f), "\uB9C8\uC2A4\uD130", OnMasterVolumeChanged, out _masterVolumeSlider, out _masterVolumeValueText);
+            CreateSliderControl(audioCard.transform, "BgmVolume", new Vector2(0f, -6f), "\uBC30\uACBD\uC74C", OnBgmVolumeChanged, out _bgmVolumeSlider, out _bgmVolumeValueText);
+            CreateSliderControl(audioCard.transform, "SfxVolume", new Vector2(0f, -48f), "\uD6A8\uACFC\uC74C", OnSfxVolumeChanged, out _sfxVolumeSlider, out _sfxVolumeValueText);
+
+            _optionsBackButton = CreateButton(_optionsPanel.transform, "OptionsBackButton", new Vector2(0f, -232f), "\uB4A4\uB85C", ShowMainMenu, new Vector2(240f, 46f));
+        }
+
         private void BuildRunSetupPanel(Transform parent)
         {
             _runSetupPanel = CreatePanel(parent, "RunSetupPanel", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -18f), new Vector2(1140f, 684f), new Color(0.02f, 0.03f, 0.06f, 0.88f));
             _runSetupPanel.SetActive(false);
 
-            var title = CreateText(_runSetupPanel.transform, "RunSetupHeader", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -34f), new Vector2(420f, 34f), "RUN SETUP", 24, FontStyle.Bold);
+            var title = CreateText(_runSetupPanel.transform, "RunSetupHeader", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -34f), new Vector2(420f, 34f), "출격 준비", 24, FontStyle.Bold);
             title.color = new Color(0.96f, 0.74f, 0.18f, 1f);
 
-            var hint = CreateText(_runSetupPanel.transform, "RunSetupHint", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -74f), new Vector2(640f, 22f), "Lock in a character and starter weapon before deployment.", 14, FontStyle.Normal);
+            var hint = CreateText(_runSetupPanel.transform, "RunSetupHint", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -74f), new Vector2(640f, 22f), "출격 전에 캐릭터와 시작 무기를 확정하세요.", 14, FontStyle.Normal);
             hint.color = new Color(0.72f, 0.79f, 0.89f, 1f);
 
             var characterCard = CreatePanel(_runSetupPanel.transform, "CharacterCard", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-292f, 18f), new Vector2(388f, 440f), new Color(0.05f, 0.08f, 0.12f, 0.88f));
             var weaponCard = CreatePanel(_runSetupPanel.transform, "WeaponCard", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(236f, 18f), new Vector2(636f, 440f), new Color(0.05f, 0.08f, 0.12f, 0.88f));
             var summaryCard = CreatePanel(_runSetupPanel.transform, "RunSummaryCard", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -210f), new Vector2(1024f, 100f), new Color(0.08f, 0.11f, 0.15f, 0.92f));
 
-            var characterHeader = CreateText(characterCard.transform, "CharacterHeader", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -28f), new Vector2(220f, 24f), "CHARACTER", 17, FontStyle.Bold);
+            var characterHeader = CreateText(characterCard.transform, "CharacterHeader", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -28f), new Vector2(220f, 24f), "캐릭터", 17, FontStyle.Bold);
             characterHeader.alignment = TextAnchor.MiddleLeft;
             characterHeader.color = new Color(0.96f, 0.74f, 0.18f, 1f);
             _runSetupCharacterText = CreateText(characterCard.transform, "RunSetupCharacterText", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -66f), new Vector2(320f, 78f), string.Empty, 22, FontStyle.Bold);
             _runSetupCharacterText.alignment = TextAnchor.UpperLeft;
             _runSetupCharacterOptionsRoot = CreateAnchoredRoot(characterCard.transform, "RunSetupCharacterOptionsRoot", new Vector2(24f, 164f), new Vector2(340f, 240f));
 
-            var weaponHeader = CreateText(weaponCard.transform, "WeaponHeader", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -28f), new Vector2(260f, 24f), "STARTER WEAPON", 17, FontStyle.Bold);
+            var weaponHeader = CreateText(weaponCard.transform, "WeaponHeader", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -28f), new Vector2(260f, 24f), "시작 무기", 17, FontStyle.Bold);
             weaponHeader.alignment = TextAnchor.MiddleLeft;
             weaponHeader.color = new Color(0.96f, 0.74f, 0.18f, 1f);
             _runSetupWeaponText = CreateText(weaponCard.transform, "RunSetupWeaponText", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -66f), new Vector2(520f, 60f), string.Empty, 22, FontStyle.Bold);
@@ -362,8 +415,8 @@ namespace EJR.Game.UI
             _runSetupBonusText = CreateText(summaryCard.transform, "RunSetupBonusText", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero, string.Empty, 18, FontStyle.Normal);
             _runSetupBonusText.color = new Color(0.78f, 0.84f, 0.92f, 1f);
 
-            CreateButton(_runSetupPanel.transform, "RunSetupStartButton", new Vector2(-118f, -294f), "Start", StartSinglePlay, new Vector2(220f, 52f));
-            CreateButton(_runSetupPanel.transform, "RunSetupBackButton", new Vector2(118f, -294f), "BACK", ShowMainMenu, new Vector2(220f, 52f));
+            CreateButton(_runSetupPanel.transform, "RunSetupStartButton", new Vector2(-118f, -294f), "시작", StartSinglePlay, new Vector2(220f, 52f));
+            CreateButton(_runSetupPanel.transform, "RunSetupBackButton", new Vector2(118f, -294f), "뒤로", ShowMainMenu, new Vector2(220f, 52f));
         }
 
         private void BuildMetaPanel(Transform parent)
@@ -371,12 +424,12 @@ namespace EJR.Game.UI
             _metaPanel = CreatePanel(parent, "MetaPanel", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -8f), new Vector2(1120f, 812f), new Color(0.02f, 0.03f, 0.06f, 0.88f));
             _metaPanel.SetActive(false);
 
-            var title = CreateText(_metaPanel.transform, "MetaTitle", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -24f), new Vector2(220f, 32f), "META", 26, FontStyle.Bold);
+            var title = CreateText(_metaPanel.transform, "MetaTitle", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -24f), new Vector2(220f, 32f), "메타", 26, FontStyle.Bold);
             title.alignment = TextAnchor.MiddleLeft;
             title.color = new Color(0.96f, 0.74f, 0.18f, 1f);
 
-            _metaUnlocksTabButton = CreateButton(_metaPanel.transform, "MetaUnlocksTab", new Vector2(240f, -34f), "UNLOCKS", () => SetMetaTab(MetaTab.Unlocks), new Vector2(172f, 42f));
-            _metaResearchTabButton = CreateButton(_metaPanel.transform, "MetaResearchTab", new Vector2(430f, -34f), "RESEARCH", () => SetMetaTab(MetaTab.Research), new Vector2(172f, 42f));
+            _metaUnlocksTabButton = CreateButton(_metaPanel.transform, "MetaUnlocksTab", new Vector2(240f, -34f), "해금", () => SetMetaTab(MetaTab.Unlocks), new Vector2(172f, 42f));
+            _metaResearchTabButton = CreateButton(_metaPanel.transform, "MetaResearchTab", new Vector2(430f, -34f), "연구", () => SetMetaTab(MetaTab.Research), new Vector2(172f, 42f));
             _metaUnlocksTabText = _metaUnlocksTabButton.GetComponentInChildren<Text>();
             _metaResearchTabText = _metaResearchTabButton.GetComponentInChildren<Text>();
             SetTopLeftRect(_metaUnlocksTabButton.GetComponent<RectTransform>(), new Vector2(736f, 24f), new Vector2(172f, 42f));
@@ -404,7 +457,7 @@ namespace EJR.Game.UI
             contentRect.anchoredPosition = new Vector2(32f, -246f);
             contentRect.sizeDelta = new Vector2(1056f, 520f);
 
-            var backButton = CreateButton(_metaPanel.transform, "MetaBackButton", new Vector2(0f, -372f), "BACK", ShowMainMenu, new Vector2(240f, 46f));
+            var backButton = CreateButton(_metaPanel.transform, "MetaBackButton", new Vector2(0f, -372f), "뒤로", ShowMainMenu, new Vector2(240f, 46f));
             SetBottomCenterRect(backButton.GetComponent<RectTransform>(), new Vector2(0f, 24f), new Vector2(240f, 46f));
         }
 
@@ -413,15 +466,15 @@ namespace EJR.Game.UI
             _summaryModal = CreatePanel(parent, "SummaryModal", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -20f), new Vector2(720f, 420f), new Color(0.02f, 0.03f, 0.06f, 0.92f));
             _summaryModal.SetActive(false);
 
-            var title = CreateText(_summaryModal.transform, "SummaryModalTitle", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -34f), new Vector2(320f, 30f), "RUN SUMMARY", 24, FontStyle.Bold);
+            var title = CreateText(_summaryModal.transform, "SummaryModalTitle", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -34f), new Vector2(320f, 30f), "런 결과", 24, FontStyle.Bold);
             title.color = new Color(0.96f, 0.74f, 0.18f, 1f);
 
             var bodyCard = CreatePanel(_summaryModal.transform, "SummaryBodyCard", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 10f), new Vector2(620f, 196f), new Color(0.05f, 0.08f, 0.12f, 0.86f));
             _summaryModalText = CreateText(bodyCard.transform, "SummaryModalText", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero, string.Empty, 18, FontStyle.Normal);
             _summaryModalText.rectTransform.offsetMin = new Vector2(22f, 18f);
             _summaryModalText.rectTransform.offsetMax = new Vector2(-22f, -18f);
-            _summaryMetaButton = CreateButton(_summaryModal.transform, "SummaryMetaButton", new Vector2(-116f, -148f), "Open Meta", OpenMetaFromSummary, new Vector2(212f, 46f));
-            CreateButton(_summaryModal.transform, "SummaryCloseButton", new Vector2(116f, -148f), "Close", CloseSummaryModal, new Vector2(212f, 46f));
+            _summaryMetaButton = CreateButton(_summaryModal.transform, "SummaryMetaButton", new Vector2(-116f, -148f), "메타 열기", OpenMetaFromSummary, new Vector2(212f, 46f));
+            CreateButton(_summaryModal.transform, "SummaryCloseButton", new Vector2(116f, -148f), "닫기", CloseSummaryModal, new Vector2(212f, 46f));
         }
 
         private void OnSinglePlayClicked()
@@ -430,28 +483,29 @@ namespace EJR.Game.UI
             _selectedStarterWeaponId = MetaProgressionService.GetSingleSelectedStarterWeapon();
             RefreshRunSetupPanel();
             ShowPanel(_runSetupPanel, _runSetupCharacterButton);
-            SetStatus("Select character and starter weapon.");
+            SetStatus("캐릭터와 시작 무기를 선택하세요.");
         }
 
         private void OnMetaClicked()
         {
             RefreshMetaPanel();
             ShowPanel(_metaPanel, _metaUnlocksTabButton);
-            SetStatus("Spend Credits on unlocks and research.");
+            SetStatus("크레딧으로 해금과 연구를 진행하세요.");
         }
 
         private void OnOptionsClicked()
         {
             SyncFullscreenToggle();
+            SyncAudioSettingsControls();
             ShowPanel(_optionsPanel, _fullscreenToggle);
-            SetStatus("Display settings updated here.");
+            SetStatus("화면 설정을 여기서 변경합니다.");
         }
 
         private void OnMultiPlayClicked()
         {
             ShowPanel(_multiplayerPanel, _hostButton);
             UpdateMultiplayerInteractivity();
-            SetStatus("Create a Relay session or join with a code.");
+            SetStatus("릴레이 세션을 만들거나 코드로 참가하세요.");
         }
 
         private async void OnHostClicked()
@@ -478,7 +532,7 @@ namespace EJR.Game.UI
             var joinCode = _joinCodeInput != null ? _joinCodeInput.text : string.Empty;
             if (string.IsNullOrWhiteSpace(joinCode))
             {
-                SetStatus("Enter a join code.");
+                SetStatus("참가 코드를 입력하세요.");
                 return;
             }
 
@@ -541,7 +595,7 @@ namespace EJR.Game.UI
         {
             if (string.IsNullOrWhiteSpace(gameplaySceneName))
             {
-                SetStatus("Missing gameplay scene name.");
+                SetStatus("게임플레이 씬 이름이 없습니다.");
                 return;
             }
 
@@ -663,8 +717,8 @@ namespace EJR.Game.UI
             var weapon = SharedGameCatalog.GetStarterWeaponDefinition(SharedGameCatalog.GetStarterWeaponIndex(_selectedStarterWeaponId));
             _runSetupCharacterText.text = $"{character.DisplayName}\n{BuildMetaBonusSummary(character.TraitBonuses)}";
             _runSetupCharacterText.color = character.Color;
-            _runSetupWeaponText.text = $"{weapon.DisplayName}\nUnlocked starter weapon";
-            _runSetupBonusText.text = $"RUN START BONUS\n{BuildMetaBonusSummary(MetaProgressionService.GetCombinedRunStartBonuses(_selectedCharacterId))}";
+            _runSetupWeaponText.text = $"{weapon.DisplayName}\n해금된 시작 무기";
+            _runSetupBonusText.text = $"출격 보너스\n{BuildMetaBonusSummary(MetaProgressionService.GetCombinedRunStartBonuses(_selectedCharacterId))}";
 
             ClearChildren(_runSetupCharacterOptionsRoot.transform);
             ClearChildren(_runSetupWeaponOptionsRoot.transform);
@@ -681,11 +735,11 @@ namespace EJR.Game.UI
             }
 
             _metaHeaderText.text =
-                "PROFILE\n" +
-                $"Credits {MetaProgressionService.CurrentCredits} | Lifetime {MetaProgressionService.TotalCreditsEarned}\n" +
-                $"Runs {MetaProgressionService.RunsPlayed} | Clears {MetaProgressionService.RunsCleared}\n" +
-                $"Best Lv {MetaProgressionService.BestLevel} | Best Time {MetaProgressionService.BestTimeSeconds:0.0}s | Kills {MetaProgressionService.TotalEnemiesDefeated}";
-            _metaRecentText.text = $"RECENT RUN\n{_recentRunSummaryText}";
+                "프로필\n" +
+                $"크레딧 {MetaProgressionService.CurrentCredits} | 누적 획득 {MetaProgressionService.TotalCreditsEarned}\n" +
+                $"플레이 {MetaProgressionService.RunsPlayed} | 클리어 {MetaProgressionService.RunsCleared}\n" +
+                $"최고 레벨 {MetaProgressionService.BestLevel} | 최고 시간 {MetaProgressionService.BestTimeSeconds:0.0}초 | 처치 {MetaProgressionService.TotalEnemiesDefeated}";
+            _metaRecentText.text = $"최근 전적\n{_recentRunSummaryText}";
             RefreshMetaTabVisuals();
             RebuildMetaContent();
         }
@@ -726,8 +780,8 @@ namespace EJR.Game.UI
 
         private void BuildUnlocksTabContent()
         {
-            CreateSectionText(_metaContentRoot.transform, "CharactersHeader", new Vector2(0f, 0f), "Characters");
-            CreateSectionText(_metaContentRoot.transform, "WeaponsHeader", new Vector2(536f, 0f), "Weapons");
+            CreateSectionText(_metaContentRoot.transform, "CharactersHeader", new Vector2(0f, 0f), "캐릭터");
+            CreateSectionText(_metaContentRoot.transform, "WeaponsHeader", new Vector2(536f, 0f), "무기");
 
             for (var i = 0; i < SharedGameCatalog.CharacterDefinitions.Count; i++)
             {
@@ -735,8 +789,8 @@ namespace EJR.Game.UI
                 var unlocked = MetaProgressionService.IsCharacterUnlocked(definition.Id);
                 var affordable = MetaProgressionService.CurrentCredits >= definition.UnlockCost;
                 var label = unlocked
-                    ? $"{definition.DisplayName}\nUnlocked | {BuildMetaBonusSummary(definition.TraitBonuses)}"
-                    : $"{definition.DisplayName}\nCost {definition.UnlockCost} | {BuildMetaBonusSummary(definition.TraitBonuses)}";
+                    ? $"{definition.DisplayName}\n해금됨 | {BuildMetaBonusSummary(definition.TraitBonuses)}"
+                    : $"{definition.DisplayName}\n비용 {definition.UnlockCost} | {BuildMetaBonusSummary(definition.TraitBonuses)}";
                 CreateMetaEntryButton(_metaContentRoot.transform, $"Character{i}", new Vector2(0f, 52f + (i * 46f)), new Vector2(488f, 40f), label, !unlocked && affordable, () => TryPurchaseCharacter(definition.Id));
             }
 
@@ -751,7 +805,7 @@ namespace EJR.Game.UI
 
                 var unlocked = MetaProgressionService.IsWeaponUnlocked(definition.Id);
                 var affordable = MetaProgressionService.CurrentCredits >= definition.UnlockCost;
-                var label = unlocked ? $"{definition.DisplayName}\nUnlocked" : $"{definition.DisplayName}\nCost {definition.UnlockCost}";
+                var label = unlocked ? $"{definition.DisplayName}\n해금됨" : $"{definition.DisplayName}\n비용 {definition.UnlockCost}";
                 var column = weaponDisplayIndex % 2;
                 var row = weaponDisplayIndex / 2;
                 CreateMetaEntryButton(_metaContentRoot.transform, $"Weapon{weaponDisplayIndex}", new Vector2(536f + (column * 252f), 52f + (row * 44f)), new Vector2(236f, 38f), label, !unlocked && affordable, () => TryPurchaseWeapon(definition.Id));
@@ -771,7 +825,7 @@ namespace EJR.Game.UI
                 var missingPrereq = definition.HasPrerequisite && !MetaProgressionService.IsNodePurchased(definition.PrerequisiteId);
                 var affordable = MetaProgressionService.CurrentCredits >= definition.Cost;
                 var interactable = !purchased && !missingPrereq && affordable;
-                var state = purchased ? "Researched" : missingPrereq ? $"Needs {GetNodeTitle(definition.PrerequisiteId)}" : $"Cost {definition.Cost}";
+                var state = purchased ? "연구 완료" : missingPrereq ? $"선행: {GetNodeTitle(definition.PrerequisiteId)}" : $"비용 {definition.Cost}";
                 var label = $"{definition.Title}\n{definition.Description}\n{state}";
                 CreateMetaEntryButton(_metaContentRoot.transform, $"Node{i}", new Vector2(x, y), new Vector2(488f, 52f), label, interactable, () => TryPurchaseNode(definition.Id));
             }
@@ -782,7 +836,7 @@ namespace EJR.Game.UI
             if (MetaProgressionService.TryPurchaseCharacter(characterId, out var reason))
             {
                 RefreshMetaPanel();
-                SetStatus($"{SharedGameCatalog.GetCharacter(characterId).DisplayName} unlocked.");
+                SetStatus($"{SharedGameCatalog.GetCharacter(characterId).DisplayName} 해금 완료.");
             }
             else
             {
@@ -795,7 +849,7 @@ namespace EJR.Game.UI
             if (MetaProgressionService.TryPurchaseWeapon(weaponId, out var reason))
             {
                 RefreshMetaPanel();
-                SetStatus($"{SharedGameCatalog.GetWeaponDisplayName(weaponId)} unlocked.");
+                SetStatus($"{SharedGameCatalog.GetWeaponDisplayName(weaponId)} 해금 완료.");
             }
             else
             {
@@ -809,7 +863,7 @@ namespace EJR.Game.UI
             {
                 RefreshMetaPanel();
                 RefreshRunSetupPanel();
-                SetStatus($"{GetNodeTitle(nodeId)} researched.");
+                SetStatus($"{GetNodeTitle(nodeId)} 연구 완료.");
             }
             else
             {
@@ -825,14 +879,14 @@ namespace EJR.Game.UI
         private string BuildMetaBonusSummary(MetaBonusValues bonuses)
         {
             var builder = new StringBuilder();
-            AppendBonus(builder, bonuses.attackPowerPercent, "ATK +{0:0.#}%");
-            AppendBonus(builder, bonuses.attackSpeedPercent, "ASPD +{0:0.#}%");
-            AppendBonus(builder, bonuses.maxHealthFlat, "HP +{0:0.#}");
-            AppendBonus(builder, bonuses.healthRegenPerSecond, "Regen +{0:0.##}/s");
-            AppendBonus(builder, bonuses.moveSpeedPercent, "Move +{0:0.#}%");
-            AppendBonus(builder, bonuses.attackRangePercent, "Range +{0:0.#}%");
-            AppendBonus(builder, bonuses.luck, "Luck +{0:0.##}");
-            return builder.Length > 0 ? builder.ToString() : "No bonus";
+            AppendBonus(builder, bonuses.attackPowerPercent, "공격력 +{0:0.#}%");
+            AppendBonus(builder, bonuses.attackSpeedPercent, "공속 +{0:0.#}%");
+            AppendBonus(builder, bonuses.maxHealthFlat, "체력 +{0:0.#}");
+            AppendBonus(builder, bonuses.healthRegenPerSecond, "재생 +{0:0.##}/초");
+            AppendBonus(builder, bonuses.moveSpeedPercent, "이속 +{0:0.#}%");
+            AppendBonus(builder, bonuses.attackRangePercent, "사거리 +{0:0.#}%");
+            AppendBonus(builder, bonuses.luck, "행운 +{0:0.##}");
+            return builder.Length > 0 ? builder.ToString() : "보너스 없음";
         }
 
         private static void AppendBonus(StringBuilder builder, float value, string format)
@@ -874,6 +928,9 @@ namespace EJR.Game.UI
 
             if (_joinCodeInput != null) _joinCodeInput.interactable = interactable;
             if (_fullscreenToggle != null) _fullscreenToggle.interactable = interactable;
+            if (_masterVolumeSlider != null) _masterVolumeSlider.interactable = interactable;
+            if (_bgmVolumeSlider != null) _bgmVolumeSlider.interactable = interactable;
+            if (_sfxVolumeSlider != null) _sfxVolumeSlider.interactable = interactable;
         }
 
         private static void SetInteractable(Selectable selectable, bool interactable)
@@ -965,7 +1022,66 @@ namespace EJR.Game.UI
             }
 
             ApplyDisplayMode(useFullscreen, true);
-            SetStatus(useFullscreen ? "Display mode: Fullscreen." : "Display mode: Windowed.");
+            AudioService.Instance.PlayUi(AudioCueId.UiAdjust);
+            SetStatus(useFullscreen ? "화면 모드: 전체 화면" : "화면 모드: 창 모드");
+        }
+
+        private void SyncAudioSettingsControls()
+        {
+            var audio = AudioService.Instance;
+            _suppressAudioSettingsCallbacks = true;
+            _masterVolumeSlider?.SetValueWithoutNotify(audio.MasterVolume);
+            _bgmVolumeSlider?.SetValueWithoutNotify(audio.BgmVolume);
+            _sfxVolumeSlider?.SetValueWithoutNotify(audio.SfxVolume);
+            _suppressAudioSettingsCallbacks = false;
+
+            UpdateSliderValueLabel(_masterVolumeValueText, audio.MasterVolume);
+            UpdateSliderValueLabel(_bgmVolumeValueText, audio.BgmVolume);
+            UpdateSliderValueLabel(_sfxVolumeValueText, audio.SfxVolume);
+        }
+
+        private void OnMasterVolumeChanged(float value)
+        {
+            UpdateSliderValueLabel(_masterVolumeValueText, value);
+            if (_suppressAudioSettingsCallbacks)
+            {
+                return;
+            }
+
+            AudioService.Instance.SetMasterVolume(value);
+            AudioService.Instance.PlayUi(AudioCueId.UiAdjust);
+        }
+
+        private void OnBgmVolumeChanged(float value)
+        {
+            UpdateSliderValueLabel(_bgmVolumeValueText, value);
+            if (_suppressAudioSettingsCallbacks)
+            {
+                return;
+            }
+
+            AudioService.Instance.SetBgmVolume(value);
+            AudioService.Instance.PlayUi(AudioCueId.UiAdjust);
+        }
+
+        private void OnSfxVolumeChanged(float value)
+        {
+            UpdateSliderValueLabel(_sfxVolumeValueText, value);
+            if (_suppressAudioSettingsCallbacks)
+            {
+                return;
+            }
+
+            AudioService.Instance.SetSfxVolume(value);
+            AudioService.Instance.PlayUi(AudioCueId.UiAdjust);
+        }
+
+        private static void UpdateSliderValueLabel(Text label, float value)
+        {
+            if (label != null)
+            {
+                label.text = $"{Mathf.RoundToInt(Mathf.Clamp01(value) * 100f)}%";
+            }
         }
 
         private static T GetOrAddComponent<T>(GameObject gameObject) where T : Component
@@ -1186,6 +1302,115 @@ namespace EJR.Game.UI
             button.colors = colors;
         }
 
+        private static AudioCueId ResolveButtonCue(string name, string label)
+        {
+            var normalizedName = name ?? string.Empty;
+            var normalizedLabel = label ?? string.Empty;
+            if (normalizedName.IndexOf("Back", System.StringComparison.OrdinalIgnoreCase) >= 0
+                || normalizedName.IndexOf("Close", System.StringComparison.OrdinalIgnoreCase) >= 0
+                || normalizedLabel.Contains("뒤로")
+                || normalizedLabel.Contains("닫기"))
+            {
+                return AudioCueId.UiBack;
+            }
+
+            return AudioCueId.UiConfirm;
+        }
+
+        private static void PlayButtonCue(string name, string label)
+        {
+            AudioService.Instance.PlayUi(ResolveButtonCue(name, label));
+        }
+
+        private void CreateSliderControl(
+            Transform parent,
+            string name,
+            Vector2 anchoredPosition,
+            string label,
+            UnityEngine.Events.UnityAction<float> onValueChanged,
+            out Slider slider,
+            out Text valueText)
+        {
+            var root = new GameObject(name);
+            root.transform.SetParent(parent, false);
+            var rootRect = root.AddComponent<RectTransform>();
+            rootRect.anchorMin = new Vector2(0.5f, 0.5f);
+            rootRect.anchorMax = new Vector2(0.5f, 0.5f);
+            rootRect.pivot = new Vector2(0.5f, 0.5f);
+            rootRect.anchoredPosition = anchoredPosition;
+            rootRect.sizeDelta = new Vector2(360f, 28f);
+
+            var labelText = CreateText(root.transform, "Label", new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0f), new Vector2(88f, 24f), label, 16, FontStyle.Bold);
+            labelText.alignment = TextAnchor.MiddleLeft;
+            labelText.color = new Color(0.97f, 0.98f, 1f, 1f);
+
+            var sliderObject = new GameObject("Slider");
+            sliderObject.transform.SetParent(root.transform, false);
+            var sliderRect = sliderObject.AddComponent<RectTransform>();
+            sliderRect.anchorMin = new Vector2(0f, 0.5f);
+            sliderRect.anchorMax = new Vector2(0f, 0.5f);
+            sliderRect.pivot = new Vector2(0f, 0.5f);
+            sliderRect.anchoredPosition = new Vector2(96f, 0f);
+            sliderRect.sizeDelta = new Vector2(OptionsSliderWidth, 18f);
+
+            var background = new GameObject("Background");
+            background.transform.SetParent(sliderObject.transform, false);
+            var backgroundRect = background.AddComponent<RectTransform>();
+            backgroundRect.anchorMin = new Vector2(0f, 0.5f);
+            backgroundRect.anchorMax = new Vector2(1f, 0.5f);
+            backgroundRect.pivot = new Vector2(0.5f, 0.5f);
+            backgroundRect.sizeDelta = new Vector2(0f, 8f);
+            var backgroundImage = background.AddComponent<Image>();
+            backgroundImage.color = new Color(0.11f, 0.15f, 0.21f, 0.96f);
+
+            var fillArea = new GameObject("Fill Area");
+            fillArea.transform.SetParent(sliderObject.transform, false);
+            var fillAreaRect = fillArea.AddComponent<RectTransform>();
+            fillAreaRect.anchorMin = new Vector2(0f, 0f);
+            fillAreaRect.anchorMax = new Vector2(1f, 1f);
+            fillAreaRect.offsetMin = new Vector2(0f, 5f);
+            fillAreaRect.offsetMax = new Vector2(0f, -5f);
+
+            var fill = new GameObject("Fill");
+            fill.transform.SetParent(fillArea.transform, false);
+            var fillRect = fill.AddComponent<RectTransform>();
+            fillRect.anchorMin = new Vector2(0f, 0f);
+            fillRect.anchorMax = new Vector2(1f, 1f);
+            fillRect.offsetMin = Vector2.zero;
+            fillRect.offsetMax = Vector2.zero;
+            var fillImage = fill.AddComponent<Image>();
+            fillImage.color = new Color(0.96f, 0.74f, 0.18f, 0.96f);
+
+            var handleArea = new GameObject("Handle Slide Area");
+            handleArea.transform.SetParent(sliderObject.transform, false);
+            var handleAreaRect = handleArea.AddComponent<RectTransform>();
+            handleAreaRect.anchorMin = new Vector2(0f, 0f);
+            handleAreaRect.anchorMax = new Vector2(1f, 1f);
+            handleAreaRect.offsetMin = Vector2.zero;
+            handleAreaRect.offsetMax = Vector2.zero;
+
+            var handle = new GameObject("Handle");
+            handle.transform.SetParent(handleArea.transform, false);
+            var handleRect = handle.AddComponent<RectTransform>();
+            handleRect.sizeDelta = new Vector2(18f, 18f);
+            var handleImage = handle.AddComponent<Image>();
+            handleImage.color = new Color(0.98f, 0.98f, 1f, 1f);
+
+            slider = sliderObject.AddComponent<Slider>();
+            slider.direction = Slider.Direction.LeftToRight;
+            slider.minValue = 0f;
+            slider.maxValue = 1f;
+            slider.wholeNumbers = false;
+            slider.targetGraphic = handleImage;
+            slider.fillRect = fillRect;
+            slider.handleRect = handleRect;
+            slider.onValueChanged.AddListener(onValueChanged);
+
+            valueText = CreateText(root.transform, "Value", new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(0f, 0f), new Vector2(56f, 24f), "0%", 15, FontStyle.Bold);
+            valueText.alignment = TextAnchor.MiddleRight;
+            valueText.color = new Color(0.78f, 0.84f, 0.92f, 1f);
+        }
+
         private Button CreateButton(Transform parent, string name, Vector2 anchoredPosition, string label, UnityEngine.Events.UnityAction onClick, Vector2? sizeOverride = null)
         {
             var size = sizeOverride ?? new Vector2(ButtonWidth, ButtonHeight);
@@ -1202,7 +1427,11 @@ namespace EJR.Game.UI
             image.color = new Color(0.16f, 0.20f, 0.29f, 0.96f);
             var button = buttonObject.AddComponent<Button>();
             button.targetGraphic = image;
-            button.onClick.AddListener(onClick);
+            button.onClick.AddListener(() =>
+            {
+                PlayButtonCue(name, label);
+                onClick?.Invoke();
+            });
             var colors = button.colors;
             colors.normalColor = image.color;
             colors.highlightedColor = new Color(0.22f, 0.28f, 0.39f, 1f);
@@ -1234,7 +1463,11 @@ namespace EJR.Game.UI
             var button = buttonObject.AddComponent<Button>();
             button.targetGraphic = image;
             button.interactable = interactable;
-            button.onClick.AddListener(onClick);
+            button.onClick.AddListener(() =>
+            {
+                PlayButtonCue(name, label);
+                onClick?.Invoke();
+            });
             var colors = button.colors;
             colors.normalColor = image.color;
             colors.highlightedColor = new Color(0.22f, 0.28f, 0.39f, 1f);

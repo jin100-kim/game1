@@ -62,7 +62,7 @@ namespace EJR.Game.Multiplayer
 
         private void Awake()
         {
-            _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            _font = RuntimeFontProvider.GetDefaultFont();
             Application.runInBackground = true;
             _autoPlayAgent = new AutoPlayAgent();
             EnsureCamera();
@@ -362,9 +362,18 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
-            var mode = manager != null && manager.IsListening ? (manager.IsHost ? "HOST" : "CLIENT") : "OFFLINE";
+            var mode = manager != null && manager.IsListening ? (manager.IsHost ? "호스트" : "클라이언트") : "오프라인";
             var sessionCode = string.IsNullOrWhiteSpace(session.SessionCode) ? "----" : session.SessionCode;
-            var phase = coop != null ? coop.Phase.ToString().ToUpperInvariant() : "BOOT";
+            var phase = coop == null
+                ? "준비 중"
+                : coop.Phase switch
+                {
+                    MultiplayerRunPhase.Lobby => "대기실",
+                    MultiplayerRunPhase.Running => "진행 중",
+                    MultiplayerRunPhase.LevelChoice => "선택 중",
+                    MultiplayerRunPhase.Result => "결과",
+                    _ => "준비 중",
+                };
 
             var aliveCount = 0;
             for (var i = 0; i < allPlayers.Length; i++)
@@ -376,15 +385,15 @@ namespace EJR.Game.Multiplayer
             }
 
             _statusText.text =
-                $"MULTI {mode}\n" +
-                $"CODE {sessionCode}\n" +
-                $"PHASE {phase}\n" +
-                $"PLAYERS {allPlayers.Length}/{session.SessionMaxPlayers}\n" +
-                $"ALIVE {aliveCount}\n" +
-                $"YOU {(localPlayer != null ? localPlayer.DisplayName : "CONNECTING")}\n" +
-                $"{(_autoPlayEnabled ? "AUTO PLAY ON\n" : string.Empty)}" +
+                $"세션 {mode}\n" +
+                $"코드 {sessionCode}\n" +
+                $"단계 {phase}\n" +
+                $"플레이어 {allPlayers.Length}/{session.SessionMaxPlayers}\n" +
+                $"생존 {aliveCount}\n" +
+                $"내 정보 {(localPlayer != null ? localPlayer.DisplayName : "접속 중")}\n" +
+                $"{(_autoPlayEnabled ? "자동 전투\n" : string.Empty)}" +
                 $"{session.CurrentStatus}\n" +
-                "ESC : LEAVE";
+                "ESC : 나가기";
         }
 
         private void RefreshLobbyUi(
@@ -420,18 +429,18 @@ namespace EJR.Game.Multiplayer
 
                 if (player.IsDowned)
                 {
-                    builder.Append(" | DOWN ").Append(Mathf.RoundToInt(player.ReviveProgress * 100f)).Append('%');
+                    builder.Append(" | 다운 ").Append(Mathf.RoundToInt(player.ReviveProgress * 100f)).Append('%');
                 }
                 else
                 {
-                    builder.Append(" | ").Append(player.IsReady ? "READY" : "NOT READY");
+                    builder.Append(" | ").Append(player.IsReady ? "준비" : "미준비");
                 }
 
                 builder.Append('\n');
             }
 
-            _lobbyHeaderText.text = "Lobby\nChoose character and starter weapon, then ready up.";
-            _playerListText.text = builder.Length > 0 ? builder.ToString() : "Waiting for players...";
+            _lobbyHeaderText.text = "대기실\n캐릭터와 시작 무기를 고르고 준비하세요.";
+            _playerListText.text = builder.Length > 0 ? builder.ToString() : "플레이어를 기다리는 중...";
 
             var canInteract = localPlayer != null && coop != null && coop.Phase == MultiplayerRunPhase.Lobby;
             _characterButton.interactable = canInteract;
@@ -439,22 +448,22 @@ namespace EJR.Game.Multiplayer
             _readyButton.interactable = canInteract;
 
             _characterButtonText.text = localPlayer != null
-                ? $"Character\n{MultiplayerCatalog.GetCharacter(localPlayer.SelectedCharacterId).DisplayName}"
-                : "Character\n-";
+                ? $"캐릭터\n{MultiplayerCatalog.GetCharacter(localPlayer.SelectedCharacterId).DisplayName}"
+                : "캐릭터\n-";
             _starterButtonText.text = localPlayer != null
-                ? $"Starter\n{MultiplayerCatalog.GetStarterWeaponDisplayName(localPlayer.SelectedStarterWeaponIndex)}"
-                : "Starter\n-";
-            _readyButtonText.text = localPlayer != null && localPlayer.IsReady ? "Cancel Ready" : "Ready";
+                ? $"시작 무기\n{MultiplayerCatalog.GetStarterWeaponDisplayName(localPlayer.SelectedStarterWeaponIndex)}"
+                : "시작 무기\n-";
+            _readyButtonText.text = localPlayer != null && localPlayer.IsReady ? "준비 취소" : "준비";
 
             var isHost = manager != null && manager.IsHost;
             _startButton.gameObject.SetActive(isHost);
             _startButton.interactable = isHost && coop != null && string.IsNullOrWhiteSpace(coop.GetStartBlockReason());
-            _startButtonText.text = "Start Game";
+            _startButtonText.text = "게임 시작";
             _startHintText.text = isHost
                 ? (coop != null && !string.IsNullOrWhiteSpace(coop.GetStartBlockReason())
                     ? coop.GetStartBlockReason()
-                    : "All players ready. Start available.")
-                : "The host starts the run after everyone is ready.";
+                    : "모든 플레이어 준비 완료. 시작할 수 있습니다.")
+                : "모든 플레이어가 준비되면 호스트가 시작합니다.";
         }
 
         private void RefreshRunUi(MultiplayerCoopController coop, MultiplayerPlayerCombatant localPlayer, MultiplayerPlayerCombatant[] allPlayers)
@@ -490,11 +499,11 @@ namespace EJR.Game.Multiplayer
                 coop.TeamExperience,
                 coop.TeamRequiredExperience,
                 coop.RemainingSeconds);
-            _gameplayHud.SetModeHint(_autoPlayEnabled ? "AUTO PLAY ON" : string.Empty);
+            _gameplayHud.SetModeHint(_autoPlayEnabled ? "자동 전투" : string.Empty);
             _gameplayHud.SetBuildInfo(localPlayer.WeaponSummary, localPlayer.StatSummary);
             if (coop.BossActive)
             {
-                _gameplayHud.SetBossBar(coop.BossCurrentHealth, coop.BossMaxHealth, "BOSS");
+                _gameplayHud.SetBossBar(coop.BossCurrentHealth, coop.BossMaxHealth, "보스");
             }
             else
             {
@@ -562,7 +571,7 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
-            _resultText.text = coop.ResultCleared ? "Run Complete\nReturning to title..." : "Team Defeated\nReturning to title...";
+            _resultText.text = coop.ResultCleared ? "클리어\n타이틀로 돌아가는 중..." : "팀 전멸\n타이틀로 돌아가는 중...";
         }
 
         private void HandleCharacterClicked()
