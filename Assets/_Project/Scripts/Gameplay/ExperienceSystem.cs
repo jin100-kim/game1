@@ -12,14 +12,16 @@ namespace EJR.Game.Gameplay
         private Transform _player;
         private PlayerConfig _playerConfig;
         private LevelUpSystem _levelUp;
+        private PlayerStatsRuntime _stats;
         private readonly Queue<ExperienceOrb> _orbPool = new();
         private Transform _orbPoolRoot;
 
-        public void Initialize(Transform player, PlayerConfig playerConfig, LevelUpSystem levelUp)
+        public void Initialize(Transform player, PlayerConfig playerConfig, LevelUpSystem levelUp, PlayerStatsRuntime stats = null)
         {
             _player = player;
             _playerConfig = playerConfig;
             _levelUp = levelUp;
+            _stats = stats;
             EnsureOrbPool();
         }
 
@@ -46,7 +48,13 @@ namespace EJR.Game.Gameplay
 
         public void Collect(int value)
         {
-            _levelUp?.AddExperience(value);
+            var adjustedValue = Mathf.Max(1, value);
+            if (_stats != null)
+            {
+                adjustedValue = Mathf.Max(1, Mathf.RoundToInt(adjustedValue * Mathf.Max(0.01f, _stats.ExperienceGainMultiplier)));
+            }
+
+            _levelUp?.AddExperience(adjustedValue);
             AudioService.Instance.PlaySfx(AudioCueId.XpPickup);
         }
 

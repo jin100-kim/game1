@@ -8,10 +8,13 @@ namespace EJR.Game.Gameplay
     {
         public event Action<float, float> Changed;
         public event Action Died;
+        public event Action<float> Damaged;
+        public event Action<float> Healed;
 
         private PlayerSpriteAnimator _spriteAnimator;
         private float _damageInvulnerabilitySeconds;
         private float _invulnerableUntil = -1f;
+        private float _pendingHealPopupAmount;
 
         public float MaxHealth { get; private set; }
         public float CurrentHealth { get; private set; }
@@ -23,6 +26,7 @@ namespace EJR.Game.Gameplay
             CurrentHealth = MaxHealth;
             _damageInvulnerabilitySeconds = Mathf.Max(0f, damageInvulnerabilitySeconds);
             _invulnerableUntil = -1f;
+            _pendingHealPopupAmount = 0f;
             Changed?.Invoke(CurrentHealth, MaxHealth);
         }
 
@@ -34,6 +38,7 @@ namespace EJR.Game.Gameplay
             }
 
             CurrentHealth = Mathf.Clamp(currentHealth, 0f, MaxHealth);
+            _pendingHealPopupAmount = 0f;
             Changed?.Invoke(CurrentHealth, MaxHealth);
         }
 
@@ -84,8 +89,24 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
+            var appliedHealing = nextHealth - CurrentHealth;
             CurrentHealth = nextHealth;
+            TrySpawnHealingPopup(appliedHealing);
+            Healed?.Invoke(appliedHealing);
             Changed?.Invoke(CurrentHealth, MaxHealth);
+        }
+
+        private void TrySpawnHealingPopup(float healingAmount)
+        {
+            _pendingHealPopupAmount += healingAmount;
+            var displayAmount = Mathf.FloorToInt(_pendingHealPopupAmount + 0.0001f);
+            if (displayAmount <= 0)
+            {
+                return;
+            }
+
+            _pendingHealPopupAmount = Mathf.Max(0f, _pendingHealPopupAmount - displayAmount);
+            CombatTextSpawner.SpawnHealing(transform.position + new Vector3(0f, 0.9f, 0f), displayAmount);
         }
 
         public bool TrySpendHealth(float amount, bool allowFatal = false)
@@ -143,6 +164,7 @@ namespace EJR.Game.Gameplay
             _spriteAnimator?.PlayHurt();
             CombatTextSpawner.SpawnDamage(transform.position + new Vector3(0f, 0.9f, 0f), appliedDamage, CombatTextSpawner.PlayerDamagedColor);
             AudioService.Instance.PlaySfx(AudioCueId.PlayerHurt);
+            Damaged?.Invoke(appliedDamage);
             Changed?.Invoke(CurrentHealth, MaxHealth);
             if (CurrentHealth <= 0f)
             {

@@ -1,8 +1,10 @@
 using System.Collections.Generic;
+using EJR.Game.Audio;
 using EJR.Game.Core;
 using EJR.Game.Gameplay;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using Random = UnityEngine.Random;
 
 namespace EJR.Game.Multiplayer
@@ -98,6 +100,8 @@ namespace EJR.Game.Multiplayer
         public override void OnNetworkSpawn()
         {
             Instance = this;
+            _phase.OnValueChanged += HandlePhaseChanged;
+            ApplyLocalTimeScale(Phase);
 
             if (!IsServer)
             {
@@ -111,6 +115,9 @@ namespace EJR.Game.Multiplayer
 
         public override void OnNetworkDespawn()
         {
+            _phase.OnValueChanged -= HandlePhaseChanged;
+            ApplyLocalTimeScale(MultiplayerRunPhase.Lobby);
+
             if (IsServer)
             {
                 EnemyController.Defeated -= HandleEnemyDefeated;
@@ -125,6 +132,9 @@ namespace EJR.Game.Multiplayer
 
         public override void OnDestroy()
         {
+            _phase.OnValueChanged -= HandlePhaseChanged;
+            ApplyLocalTimeScale(MultiplayerRunPhase.Lobby);
+
             if (IsServer)
             {
                 EnemyController.Defeated -= HandleEnemyDefeated;
@@ -137,6 +147,18 @@ namespace EJR.Game.Multiplayer
             }
 
             base.OnDestroy();
+        }
+
+        private void HandlePhaseChanged(int previousValue, int newValue)
+        {
+            ApplyLocalTimeScale((MultiplayerRunPhase)newValue);
+        }
+
+        private static void ApplyLocalTimeScale(MultiplayerRunPhase phase)
+        {
+            Time.timeScale = phase == MultiplayerRunPhase.LevelChoice || phase == MultiplayerRunPhase.Result
+                ? 0f
+                : 1f;
         }
 
         private void Update()
@@ -206,6 +228,38 @@ namespace EJR.Game.Multiplayer
 
                 if (!player.SelectionComplete)
                 {
+                    return "모든 플레이어가 캐릭터를 선택해야 합니다.";
+                }
+
+                if (!player.IsReady)
+                {
+                    return "모든 플레이어가 준비 완료 상태여야 합니다.";
+                }
+            }
+
+            return string.Empty;
+#if false
+            if (Phase != MultiplayerRunPhase.Lobby)
+            {
+                return "이미 런이 진행 중입니다.";
+            }
+
+            CollectSpawnedPlayers(_spawnedPlayers);
+            if (_spawnedPlayers.Count <= 0)
+            {
+                return "플레이어를 기다리는 중입니다.";
+            }
+
+            for (var i = 0; i < _spawnedPlayers.Count; i++)
+            {
+                var player = _spawnedPlayers[i];
+                if (player == null || !player.IsSpawned)
+                {
+                    continue;
+                }
+
+                if (!player.SelectionComplete)
+                {
                     return "모든 플레이어가 캐릭터와 무기를 선택해야 합니다.";
                 }
 
@@ -216,6 +270,9 @@ namespace EJR.Game.Multiplayer
             }
 
             return string.Empty;
+        }
+
+#endif
         }
 
         public void EnterLevelChoicePauseIfNeeded()
@@ -481,12 +538,14 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
+            var bossThresholdsReached = GetBossThresholdsReached(cleared);
             DeliverRunSummaryClientRpc(
                 cleared,
                 _teamLevel.Value,
                 _elapsedSeconds,
                 _teamEnemiesDefeated,
-                _bossWaveTriggered);
+                bossThresholdsReached,
+                SceneManager.GetActiveScene().name);
             _resultCleared.Value = cleared;
             _phase.Value = (int)MultiplayerRunPhase.Result;
             _resultReturnAt = Time.unscaledTime + Mathf.Max(1f, resultReturnDelaySeconds);
@@ -703,6 +762,8 @@ namespace EJR.Game.Multiplayer
 
             _bossWaveTriggered = true;
             _remainingSeconds.Value = 0f;
+            AudioService.Instance.PlaySfx(AudioCueId.BossWarning);
+            PlayBossWarningClientRpc();
             _currentBoss = SpawnSharedEnemy(alivePlayers, RuntimeSpriteFactory.EnemyVisualKind.Boss, isBoss: true);
 
             var skeletonCount = Mathf.Max(3, _enemyConfig.bossWaveSkeletonCount);
@@ -729,6 +790,17 @@ namespace EJR.Game.Multiplayer
             enemyActor.InitializeServer(this, visualKind, spawnPosition, _elapsedSeconds);
             enemyActor.NetworkObject.Spawn(true);
             return enemyActor;
+        }
+
+        [ClientRpc]
+        private void PlayBossWarningClientRpc()
+        {
+            if (IsServer)
+            {
+                return;
+            }
+
+            AudioService.Instance.PlaySfx(AudioCueId.BossWarning);
         }
 
         private Vector3 FindSpawnPosition(
@@ -880,6 +952,29 @@ namespace EJR.Game.Multiplayer
             _bossMaxHealth.Value = enemy.MaxHealth;
         }
 
+        private int GetBossThresholdsReached(bool cleared)
+        {
+            if (!_bossWaveTriggered)
+            {
+                return 0;
+            }
+
+            if (cleared)
+            {
+                return 10;
+            }
+
+            var maxHealth = Mathf.Max(0f, _bossMaxHealth.Value);
+            if (maxHealth <= 0.0001f)
+            {
+                return 0;
+            }
+
+            var currentHealth = Mathf.Clamp(_bossCurrentHealth.Value, 0f, maxHealth);
+            var ratio = Mathf.Clamp01(currentHealth / maxHealth);
+            return Mathf.Clamp(Mathf.FloorToInt((1f - ratio) * 10f + 0.0001f), 0, 10);
+        }
+
         private Vector3 GetLobbySpawnPosition(int index, int totalCount)
         {
             return GetCircleSpawnPosition(index, totalCount, lobbySpawnRadius);
@@ -919,8 +1014,25 @@ namespace EJR.Game.Multiplayer
         }
 
         [ClientRpc]
-        private void DeliverRunSummaryClientRpc(bool cleared, int teamLevel, float elapsedSeconds, int enemiesDefeated, bool bossReached)
+        private void DeliverRunSummaryClientRpc(bool cleared, int teamLevel, float elapsedSeconds, int enemiesDefeated, int bossThresholdsReached, string mapId)
         {
+            var localPlayer = MultiplayerPlayerCombatant.FindOwnedLocalPlayer();
+            var creditGainPercent = localPlayer != null
+                ? localPlayer.CurrentCreditGainPercent
+                : MetaProgressionService.GetPurchasedUpgradeBonuses().creditGainPercent;
+            var detailedSummary = MetaProgressionService.BuildRunRewardSummary(
+                "협동",
+                cleared,
+                teamLevel,
+                elapsedSeconds,
+                enemiesDefeated,
+                new RunCombatStats(),
+                bossThresholdsReached,
+                mapId,
+                creditGainPercent);
+            MetaProgressionService.RecordRunSummary(detailedSummary);
+            return;
+#if false
             var summary = MetaProgressionService.BuildRunRewardSummary(
                 "협동",
                 cleared,
@@ -929,6 +1041,9 @@ namespace EJR.Game.Multiplayer
                 enemiesDefeated,
                 bossReached);
             MetaProgressionService.RecordRunSummary(summary);
+        }
+
+#endif
         }
 
         private void HandleEnemyDefeated(EnemyController enemy)

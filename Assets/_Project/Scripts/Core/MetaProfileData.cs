@@ -6,13 +6,13 @@ namespace EJR.Game.Core
     [Serializable]
     public sealed class MetaProfileData
     {
+        public int saveVersion;
         public int currentCredits;
         public int totalCreditsEarned;
         public List<int> unlockedCharacterIds = new();
-        public List<int> unlockedWeaponIds = new();
-        public List<int> purchasedNodeIds = new();
+        public List<MetaUpgradeProgressEntry> upgradeLevels = new();
+        public List<string> clearedMapIds = new();
         public int lastSingleCharacterId;
-        public int lastSingleStarterWeaponId;
         public int runsPlayed;
         public int runsCleared;
         public int bestLevel = 1;

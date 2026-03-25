@@ -14,6 +14,7 @@ namespace EJR.Game.Audio
             public AudioCueCatalog.Entry Entry;
             public float VolumeScale;
             public AudioBus Bus;
+            public float StopAtUnscaledTime;
         }
 
         private const string CatalogResourcePath = "AudioCueCatalog";
@@ -126,6 +127,9 @@ namespace EJR.Game.Audio
                     break;
                 case WeaponUpgradeId.ChainAttack:
                     PlaySfx(AudioCueId.WeaponChainAttack);
+                    break;
+                case WeaponUpgradeId.SatelliteBeam:
+                    PlaySfx(AudioCueId.WeaponMace);
                     break;
                 case WeaponUpgradeId.RifleTurret:
                     if (request.Kind == WeaponSoundKind.Deploy)
@@ -278,6 +282,9 @@ namespace EJR.Game.Audio
             voice.Entry = entry;
             voice.Bus = entry.bus;
             voice.VolumeScale = volumeScale;
+            voice.StopAtUnscaledTime = entry.loop || entry.maxPlaybackDuration <= 0f
+                ? 0f
+                : Time.unscaledTime + entry.maxPlaybackDuration;
             voice.Source.clip = entry.clip;
             voice.Source.loop = entry.loop;
             voice.Source.pitch = 1f + Random.Range(-entry.pitchVariance, entry.pitchVariance);
@@ -330,13 +337,26 @@ namespace EJR.Game.Audio
             for (var i = 0; i < pool.Count; i++)
             {
                 var voice = pool[i];
-                if (voice.Source == null || voice.Source.isPlaying)
+                if (voice.Source == null)
+                {
+                    continue;
+                }
+
+                if (voice.Source.isPlaying
+                    && voice.StopAtUnscaledTime > 0f
+                    && Time.unscaledTime >= voice.StopAtUnscaledTime)
+                {
+                    voice.Source.Stop();
+                }
+
+                if (voice.Source.isPlaying)
                 {
                     continue;
                 }
 
                 voice.Entry = null;
                 voice.VolumeScale = 1f;
+                voice.StopAtUnscaledTime = 0f;
             }
         }
 

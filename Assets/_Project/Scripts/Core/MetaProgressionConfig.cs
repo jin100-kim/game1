@@ -4,22 +4,6 @@ using UnityEngine;
 
 namespace EJR.Game.Core
 {
-    public enum MetaNodeId
-    {
-        AttackI = 0,
-        AttackII = 1,
-        AttackIII = 2,
-        AttackSpeedI = 3,
-        RangeI = 4,
-        HealthI = 5,
-        HealthII = 6,
-        RegenI = 7,
-        MoveSpeedI = 8,
-        LuckI = 9,
-        LuckII = 10,
-        LuckIII = 11,
-    }
-
     [Serializable]
     public struct MetaBonusValues
     {
@@ -30,6 +14,8 @@ namespace EJR.Game.Core
         public float moveSpeedPercent;
         public float attackRangePercent;
         public float luck;
+        public float experienceGainPercent;
+        public float creditGainPercent;
 
         public static MetaBonusValues operator +(MetaBonusValues a, MetaBonusValues b)
         {
@@ -42,53 +28,66 @@ namespace EJR.Game.Core
                 moveSpeedPercent = a.moveSpeedPercent + b.moveSpeedPercent,
                 attackRangePercent = a.attackRangePercent + b.attackRangePercent,
                 luck = a.luck + b.luck,
+                experienceGainPercent = a.experienceGainPercent + b.experienceGainPercent,
+                creditGainPercent = a.creditGainPercent + b.creditGainPercent,
+            };
+        }
+
+        public static MetaBonusValues operator *(MetaBonusValues values, int multiplier)
+        {
+            return new MetaBonusValues
+            {
+                attackPowerPercent = values.attackPowerPercent * multiplier,
+                attackSpeedPercent = values.attackSpeedPercent * multiplier,
+                maxHealthFlat = values.maxHealthFlat * multiplier,
+                healthRegenPerSecond = values.healthRegenPerSecond * multiplier,
+                moveSpeedPercent = values.moveSpeedPercent * multiplier,
+                attackRangePercent = values.attackRangePercent * multiplier,
+                luck = values.luck * multiplier,
+                experienceGainPercent = values.experienceGainPercent * multiplier,
+                creditGainPercent = values.creditGainPercent * multiplier,
             };
         }
     }
 
     [Serializable]
-    public struct MetaNodeDefinition
+    public struct MetaUpgradeDefinition
     {
-        public MetaNodeDefinition(
-            MetaNodeId id,
+        public MetaUpgradeDefinition(
+            MetaUpgradeId id,
             string title,
             string description,
-            int cost,
-            MetaBonusValues bonuses,
-            bool hasPrerequisite = false,
-            MetaNodeId prerequisiteId = MetaNodeId.AttackI)
+            int maxLevel,
+            MetaBonusValues stepBonuses)
         {
             Id = id;
             Title = title;
             Description = description;
-            Cost = cost;
-            Bonuses = bonuses;
-            HasPrerequisite = hasPrerequisite;
-            PrerequisiteId = prerequisiteId;
+            MaxLevel = maxLevel;
+            StepBonuses = stepBonuses;
         }
 
-        public MetaNodeId Id;
+        public MetaUpgradeId Id;
         public string Title;
         public string Description;
-        public int Cost;
-        public MetaBonusValues Bonuses;
-        public bool HasPrerequisite;
-        public MetaNodeId PrerequisiteId;
+        public int MaxLevel;
+        public MetaBonusValues StepBonuses;
     }
 
     [Serializable]
     public sealed class MetaProgressionConfig : ScriptableObject
     {
-        [SerializeField, Min(0)] private int baseParticipationCredits = 25;
-        [SerializeField, Min(0)] private int creditsPerLevel = 5;
-        [SerializeField, Min(0)] private int bossReachedCredits = 10;
-        [SerializeField, Min(0)] private int clearCredits = 75;
-        [SerializeField, Min(1)] private int killsPerCredit = 10;
+        [SerializeField] private int[] upgradeCostCurve = { 20, 30, 45, 65, 90, 120, 155, 195, 240, 290 };
+        [SerializeField, Min(0)] private int killsPerCredit = 10;
+        [SerializeField, Min(0)] private int creditsPerMinuteSurvived = 5;
+        [SerializeField, Min(0)] private int creditsPerBossThreshold = 5;
+        [SerializeField, Min(0)] private int firstClearCredits = 100;
 
-        private readonly List<MetaNodeDefinition> _nodeDefinitions = new();
-        private readonly Dictionary<MetaNodeId, MetaNodeDefinition> _nodeLookup = new();
+        private readonly List<MetaUpgradeDefinition> _upgradeDefinitions = new();
+        private readonly Dictionary<MetaUpgradeId, MetaUpgradeDefinition> _upgradeLookup = new();
 
-        public IReadOnlyList<MetaNodeDefinition> NodeDefinitions => _nodeDefinitions;
+        public IReadOnlyList<MetaUpgradeDefinition> UpgradeDefinitions => _upgradeDefinitions;
+        public IReadOnlyList<int> UpgradeCostCurve => upgradeCostCurve;
 
         public static MetaProgressionConfig CreateRuntimeDefault()
         {
@@ -98,59 +97,124 @@ namespace EJR.Game.Core
             return config;
         }
 
-        public int CalculateCredits(int finalLevel, bool bossReached, bool cleared, int enemiesDefeated)
-        {
-            var credits = baseParticipationCredits;
-            credits += Mathf.Max(0, finalLevel) * creditsPerLevel;
-            if (bossReached)
-            {
-                credits += bossReachedCredits;
-            }
-
-            if (cleared)
-            {
-                credits += clearCredits;
-            }
-
-            credits += Mathf.Max(0, enemiesDefeated) / Mathf.Max(1, killsPerCredit);
-            return Mathf.Max(0, credits);
-        }
-
-        public bool TryGetNodeDefinition(MetaNodeId nodeId, out MetaNodeDefinition definition)
+        public bool TryGetUpgradeDefinition(MetaUpgradeId id, out MetaUpgradeDefinition definition)
         {
             EnsureLookups();
-            return _nodeLookup.TryGetValue(nodeId, out definition);
+            return _upgradeLookup.TryGetValue(id, out definition);
+        }
+
+        public int GetUpgradeCost(MetaUpgradeId id, int currentLevel)
+        {
+            if (!TryGetUpgradeDefinition(id, out var definition))
+            {
+                return int.MaxValue;
+            }
+
+            if (currentLevel < 0 || currentLevel >= definition.MaxLevel || currentLevel >= upgradeCostCurve.Length)
+            {
+                return int.MaxValue;
+            }
+
+            return Mathf.Max(0, upgradeCostCurve[currentLevel]);
+        }
+
+        public RunCreditBreakdown BuildCreditBreakdown(
+            string mapId,
+            bool cleared,
+            int enemiesDefeated,
+            float survivalTimeSeconds,
+            int bossThresholdsReached,
+            float creditGainPercent,
+            bool alreadyClearedMap)
+        {
+            var breakdown = new RunCreditBreakdown
+            {
+                mapId = mapId ?? string.Empty,
+                killCredits = Mathf.Max(0, enemiesDefeated) / Mathf.Max(1, killsPerCredit),
+                timeCredits = Mathf.FloorToInt(Mathf.Max(0f, survivalTimeSeconds) / 60f) * Mathf.Max(0, creditsPerMinuteSurvived),
+                bossThresholdsReached = Mathf.Clamp(bossThresholdsReached, 0, 10),
+            };
+
+            breakdown.bossDamageCredits = breakdown.bossThresholdsReached * Mathf.Max(0, creditsPerBossThreshold);
+            breakdown.repeatCreditsBase = breakdown.killCredits + breakdown.timeCredits + breakdown.bossDamageCredits;
+            breakdown.creditBonusPercent = Mathf.Max(0, Mathf.RoundToInt(creditGainPercent));
+            breakdown.creditBonusApplied = Mathf.RoundToInt(breakdown.repeatCreditsBase * (breakdown.creditBonusPercent / 100f));
+            breakdown.firstClearCredits = cleared && !alreadyClearedMap ? Mathf.Max(0, firstClearCredits) : 0;
+            breakdown.totalCredits = breakdown.repeatCreditsBase + breakdown.creditBonusApplied + breakdown.firstClearCredits;
+            return breakdown;
         }
 
         private void BuildDefaults()
         {
-            _nodeDefinitions.Clear();
-            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.AttackI, "공격 I", "공격력 +6%", 60, new MetaBonusValues { attackPowerPercent = 6f }));
-            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.AttackII, "공격 II", "공격력 +6%", 80, new MetaBonusValues { attackPowerPercent = 6f }, true, MetaNodeId.AttackI));
-            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.AttackIII, "공격 III", "공격력 +8%", 100, new MetaBonusValues { attackPowerPercent = 8f }, true, MetaNodeId.AttackII));
-            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.AttackSpeedI, "공속 I", "공격 속도 +3%", 120, new MetaBonusValues { attackSpeedPercent = 3f }, true, MetaNodeId.AttackI));
-            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.RangeI, "사거리 I", "공격 범위 +6%", 140, new MetaBonusValues { attackRangePercent = 6f }, true, MetaNodeId.AttackI));
-            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.HealthI, "체력 I", "최대 체력 +15", 60, new MetaBonusValues { maxHealthFlat = 15f }));
-            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.HealthII, "체력 II", "최대 체력 +15", 80, new MetaBonusValues { maxHealthFlat = 15f }, true, MetaNodeId.HealthI));
-            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.RegenI, "재생 I", "체력 재생 +0.25/초", 120, new MetaBonusValues { healthRegenPerSecond = 0.25f }, true, MetaNodeId.HealthI));
-            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.MoveSpeedI, "이동 I", "이동 속도 +4%", 140, new MetaBonusValues { moveSpeedPercent = 4f }, true, MetaNodeId.HealthI));
-            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.LuckI, "행운 I", "행운 +1", 100, new MetaBonusValues { luck = 1f }));
-            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.LuckII, "행운 II", "행운 +1", 140, new MetaBonusValues { luck = 1f }, true, MetaNodeId.LuckI));
-            _nodeDefinitions.Add(new MetaNodeDefinition(MetaNodeId.LuckIII, "행운 III", "행운 +1", 220, new MetaBonusValues { luck = 1f }, true, MetaNodeId.LuckII));
+            _upgradeDefinitions.Clear();
+            _upgradeDefinitions.Add(new MetaUpgradeDefinition(
+                MetaUpgradeId.DamagePercent,
+                "피해량 증폭",
+                "영구 피해량 +2%",
+                10,
+                new MetaBonusValues { attackPowerPercent = 2f }));
+            _upgradeDefinitions.Add(new MetaUpgradeDefinition(
+                MetaUpgradeId.AttackSpeedPercent,
+                "공속 증폭",
+                "영구 공격 속도 +2%",
+                10,
+                new MetaBonusValues { attackSpeedPercent = 2f }));
+            _upgradeDefinitions.Add(new MetaUpgradeDefinition(
+                MetaUpgradeId.MaxHealthFlat,
+                "생존력 보강",
+                "영구 최대 체력 +5",
+                10,
+                new MetaBonusValues { maxHealthFlat = 5f }));
+            _upgradeDefinitions.Add(new MetaUpgradeDefinition(
+                MetaUpgradeId.HealthRegenPerSecond,
+                "재생 회로",
+                "영구 체력 재생 +0.1/초",
+                10,
+                new MetaBonusValues { healthRegenPerSecond = 0.1f }));
+            _upgradeDefinitions.Add(new MetaUpgradeDefinition(
+                MetaUpgradeId.MoveSpeedPercent,
+                "기동 증폭",
+                "영구 이동 속도 +2%",
+                10,
+                new MetaBonusValues { moveSpeedPercent = 2f }));
+            _upgradeDefinitions.Add(new MetaUpgradeDefinition(
+                MetaUpgradeId.RangePercent,
+                "사거리 증폭",
+                "영구 범위 +2%",
+                10,
+                new MetaBonusValues { attackRangePercent = 2f }));
+            _upgradeDefinitions.Add(new MetaUpgradeDefinition(
+                MetaUpgradeId.Luck,
+                "행운 축적",
+                "영구 행운 +5",
+                10,
+                new MetaBonusValues { luck = 5f }));
+            _upgradeDefinitions.Add(new MetaUpgradeDefinition(
+                MetaUpgradeId.ExperienceGainPercent,
+                "경험 회수",
+                "영구 XP 획득량 +4%",
+                10,
+                new MetaBonusValues { experienceGainPercent = 4f }));
+            _upgradeDefinitions.Add(new MetaUpgradeDefinition(
+                MetaUpgradeId.CreditGainPercent,
+                "전리품 정산",
+                "영구 코인 획득량 +5%",
+                10,
+                new MetaBonusValues { creditGainPercent = 5f }));
             EnsureLookups();
         }
 
         private void EnsureLookups()
         {
-            if (_nodeLookup.Count == _nodeDefinitions.Count)
+            if (_upgradeLookup.Count == _upgradeDefinitions.Count)
             {
                 return;
             }
 
-            _nodeLookup.Clear();
-            for (var i = 0; i < _nodeDefinitions.Count; i++)
+            _upgradeLookup.Clear();
+            for (var i = 0; i < _upgradeDefinitions.Count; i++)
             {
-                _nodeLookup[_nodeDefinitions[i].Id] = _nodeDefinitions[i];
+                _upgradeLookup[_upgradeDefinitions[i].Id] = _upgradeDefinitions[i];
             }
         }
     }

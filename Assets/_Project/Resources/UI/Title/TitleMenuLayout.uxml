@@ -1,0 +1,12 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <ui:VisualElement name="screen" class="screen">
+        <ui:VisualElement class="menu-shell">
+            <ui:Label class="menu-title" text="전자오락 원정대" />
+            <ui:Button name="single-play-button" class="menu-button primary" text="싱글 플레이" />
+            <ui:Button name="multi-play-button" class="menu-button" text="멀티플레이" />
+            <ui:Button name="meta-button" class="menu-button" text="코인 상점" />
+            <ui:Button name="options-button" class="menu-button" text="설정" />
+            <ui:Button name="quit-button" class="menu-button subtle" text="종료" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

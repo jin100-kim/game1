@@ -59,7 +59,9 @@ namespace EJR.Game.Gameplay
 
         public event Action<float, float> Changed;
         public event Action BossProjectileVolleyStarted;
+        public event Action<Vector3, Vector2, float, float, float> BossProjectileSpawned;
         public static event Action<EnemyController> Defeated;
+        public static event Action<EnemyController, WeaponUpgradeId, float> Damaged;
 
         private EnemyConfig _config;
         private Transform _target;
@@ -431,6 +433,7 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
+            var appliedDamage = Mathf.Min(baseDamage, Mathf.Max(0f, _health));
             _health = Mathf.Max(0f, _health - baseDamage);
             if (_health > 0f &&
                 _visualKind != RuntimeSpriteFactory.EnemyVisualKind.Boss &&
@@ -440,7 +443,8 @@ namespace EJR.Game.Gameplay
             }
 
             var basePopupPosition = transform.position + new Vector3(0f, 0.8f, 0f);
-            CombatTextSpawner.SpawnDamage(basePopupPosition, baseDamage, CombatTextSpawner.EnemyDamagedColor);
+            CombatTextSpawner.SpawnDamage(basePopupPosition, appliedDamage, CombatTextSpawner.EnemyDamagedColor);
+            Damaged?.Invoke(this, sourceWeaponId, appliedDamage);
             Changed?.Invoke(_health, MaxHealth);
 
             if (_health <= 0f)
@@ -807,6 +811,12 @@ namespace EJR.Game.Gameplay
         private void SpawnBossProjectile(Vector2 direction)
         {
             var normalizedDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : Vector2.right;
+            BossProjectileSpawned?.Invoke(
+                transform.position,
+                normalizedDirection,
+                BossProjectileSpeed,
+                BossProjectileLifetime,
+                BossProjectileVisualScale);
             var projectileObject = new GameObject("BossProjectile");
             projectileObject.transform.position = transform.position;
 

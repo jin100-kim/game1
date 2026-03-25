@@ -37,7 +37,8 @@ namespace EJR.Game.Multiplayer
         [SerializeField, Min(0.005f)] private float chainFxWidth = 0.05f;
         [SerializeField] private Color chainFxColor = new(0.45f, 0.85f, 1f, 0.95f);
         [SerializeField, Min(0.01f)] private float auraFxDuration = 0.08f;
-        [SerializeField, Min(0.005f)] private float auraFxWidth = 0.045f;
+        [SerializeField, Min(0.005f)] private float auraFxWidth = 0.032f;
+        [SerializeField, Min(0.005f)] private float auraIdleWidth = 0.018f;
         [SerializeField] private Color auraFxColor = new(0.45f, 1f, 0.75f, 0.75f);
         [SerializeField, Min(0.01f)] private float turretTracerFxDuration = 0.06f;
         [SerializeField, Min(0.005f)] private float turretTracerFxWidth = 0.03f;
@@ -87,6 +88,8 @@ namespace EJR.Game.Multiplayer
         private Transform _weaponVisualTransform;
         private SpriteRenderer _weaponVisualRenderer;
         private WeaponSpriteAnimator _weaponSpriteAnimator;
+        private Transform _auraVisualRoot;
+        private LineRenderer _auraLineRenderer;
         private Transform _specialFxRoot;
         private Transform _droneVisualRoot;
         private Transform _reviveVisualRoot;
@@ -102,6 +105,7 @@ namespace EJR.Game.Multiplayer
         private float _droneOrbitRadius;
         private float _droneOrbitSpeedDegrees;
         private int _droneVisualCount;
+        private float _auraRadius;
         private float _droneOrbitSeedDegrees;
         private bool _showReviveVisuals;
         private float _reviveProgress;
@@ -217,6 +221,7 @@ namespace EJR.Game.Multiplayer
             }
 
             UpdateDroneVisuals();
+            UpdateAuraVisuals();
             UpdateReviveVisuals();
             CleanupExpiredTurrets();
             _lastPosition = _cachedTransform.position;
@@ -287,6 +292,18 @@ namespace EJR.Game.Multiplayer
             EnsureDroneVisualCount();
         }
 
+        public void SetAuraVisualState(float radius)
+        {
+            if (IsServer)
+            {
+                return;
+            }
+
+            InitializeRuntime();
+            _auraRadius = Mathf.Max(0f, radius);
+            UpdateAuraVisuals();
+        }
+
         public void ResetSpecialPresentation()
         {
             if (IsServer)
@@ -297,7 +314,9 @@ namespace EJR.Game.Multiplayer
             _droneVisualCount = 0;
             _droneOrbitRadius = 0f;
             _droneOrbitSpeedDegrees = 0f;
+            _auraRadius = 0f;
             ClearDroneVisuals();
+            UpdateAuraVisuals();
             ClearLocalTurrets();
             ClearTransientFxObjects();
             DestroyProjectileVisualPool();
@@ -821,6 +840,32 @@ namespace EJR.Game.Multiplayer
             }
         }
 
+        private void UpdateAuraVisuals()
+        {
+            if (IsServer)
+            {
+                return;
+            }
+
+            EnsureAuraVisual();
+            if (_auraLineRenderer == null)
+            {
+                return;
+            }
+
+            if (_auraRadius <= 0.001f)
+            {
+                _auraLineRenderer.enabled = false;
+                return;
+            }
+
+            var color = auraFxColor;
+            color.a = Mathf.Clamp01(color.a * 0.55f);
+            WeaponFxRenderer.ConfigureLineRenderer(_auraLineRenderer, color, auraIdleWidth, loop: true, useWorldSpace: true);
+            WeaponFxRenderer.SetCircleLinePositions(_auraLineRenderer, _cachedTransform.position, _auraRadius, ringFxSegments, -0.02f);
+            _auraLineRenderer.enabled = true;
+        }
+
         private void ClearDroneVisuals()
         {
             for (var i = _droneVisuals.Count - 1; i >= 0; i--)
@@ -935,6 +980,21 @@ namespace EJR.Game.Multiplayer
 
             Destroy(_projectileVisualPoolRoot.gameObject);
             _projectileVisualPoolRoot = null;
+        }
+
+        private void EnsureAuraVisual()
+        {
+            if (_auraLineRenderer != null)
+            {
+                return;
+            }
+
+            InitializeRuntime();
+            var auraRoot = new GameObject("AuraVisual");
+            auraRoot.transform.SetParent(transform, false);
+            _auraVisualRoot = auraRoot.transform;
+            _auraLineRenderer = auraRoot.AddComponent<LineRenderer>();
+            _auraLineRenderer.enabled = false;
         }
 
         private void UpdateReviveVisuals()

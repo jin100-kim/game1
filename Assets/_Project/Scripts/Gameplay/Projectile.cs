@@ -8,7 +8,7 @@ namespace EJR.Game.Gameplay
     public sealed class Projectile : MonoBehaviour
     {
         private const float FireballExplosionRadius = 1.05f;
-        private const float FireballExplosionDamageMultiplier = 0.8f;
+        private const float FireballExplosionDamageMultiplier = 0.4f;
         private const float FireballBurnDuration = 2.5f;
         private const float FireballBurnTickInterval = 0.5f;
         private const float FireballBurnDamageMultiplier = 0.32f;

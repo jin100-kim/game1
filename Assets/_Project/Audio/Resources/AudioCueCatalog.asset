@@ -25,6 +25,7 @@ MonoBehaviour:
     volume: 0.55
     pitchVariance: 0
     minRetriggerInterval: 0
+    maxPlaybackDuration: 0
     maxVoices: 1
     loop: 1
   - cueId: 2
@@ -34,6 +35,7 @@ MonoBehaviour:
     volume: 0.82
     pitchVariance: 0.01
     minRetriggerInterval: 0.02
+    maxPlaybackDuration: 0
     maxVoices: 2
     loop: 0
   - cueId: 3
@@ -43,6 +45,7 @@ MonoBehaviour:
     volume: 0.72
     pitchVariance: 0.01
     minRetriggerInterval: 0.02
+    maxPlaybackDuration: 0
     maxVoices: 2
     loop: 0
   - cueId: 4
@@ -52,6 +55,7 @@ MonoBehaviour:
     volume: 0.58
     pitchVariance: 0.01
     minRetriggerInterval: 0.03
+    maxPlaybackDuration: 0
     maxVoices: 1
     loop: 0
   - cueId: 5
@@ -61,6 +65,7 @@ MonoBehaviour:
     volume: 0.88
     pitchVariance: 0.01
     minRetriggerInterval: 0.05
+    maxPlaybackDuration: 0
     maxVoices: 1
     loop: 0
   - cueId: 6
@@ -70,6 +75,7 @@ MonoBehaviour:
     volume: 0.95
     pitchVariance: 0.01
     minRetriggerInterval: 0.02
+    maxPlaybackDuration: 0
     maxVoices: 2
     loop: 0
   - cueId: 7
@@ -79,6 +85,7 @@ MonoBehaviour:
     volume: 0.72
     pitchVariance: 0
     minRetriggerInterval: 0.5
+    maxPlaybackDuration: 0
     maxVoices: 1
     loop: 0
   - cueId: 8
@@ -88,6 +95,7 @@ MonoBehaviour:
     volume: 0.85
     pitchVariance: 0.02
     minRetriggerInterval: 0.05
+    maxPlaybackDuration: 0
     maxVoices: 1
     loop: 0
   - cueId: 9
@@ -97,15 +105,17 @@ MonoBehaviour:
     volume: 0.78
     pitchVariance: 0.02
     minRetriggerInterval: 0.03
+    maxPlaybackDuration: 0
     maxVoices: 2
     loop: 0
   - cueId: 10
     clip: {fileID: 8300000, guid: dad9331e53d1d43489683983b4d2fd3d, type: 3}
     mixerGroup: {fileID: -7268253658415721968, guid: bee018e9a9623344e853ac144257eb3e, type: 2}
     bus: 1
-    volume: 0.84
-    pitchVariance: 0.03
-    minRetriggerInterval: 0.02
+    volume: 0.9
+    pitchVariance: 0.02
+    minRetriggerInterval: 0.03
+    maxPlaybackDuration: 0.18
     maxVoices: 3
     loop: 0
   - cueId: 11
@@ -115,6 +125,7 @@ MonoBehaviour:
     volume: 0.92
     pitchVariance: 0.03
     minRetriggerInterval: 0.05
+    maxPlaybackDuration: 0
     maxVoices: 2
     loop: 0
   - cueId: 12
@@ -124,15 +135,17 @@ MonoBehaviour:
     volume: 0.88
     pitchVariance: 0.03
     minRetriggerInterval: 0.04
+    maxPlaybackDuration: 0
     maxVoices: 2
     loop: 0
   - cueId: 13
     clip: {fileID: 8300000, guid: c97ba21423cc33d47944573b130e05c8, type: 3}
     mixerGroup: {fileID: -7268253658415721968, guid: bee018e9a9623344e853ac144257eb3e, type: 2}
     bus: 1
-    volume: 0.84
+    volume: 0.66
     pitchVariance: 0.04
     minRetriggerInterval: 0.03
+    maxPlaybackDuration: 0
     maxVoices: 3
     loop: 0
   - cueId: 14
@@ -142,6 +155,7 @@ MonoBehaviour:
     volume: 0.9
     pitchVariance: 0.03
     minRetriggerInterval: 0.18
+    maxPlaybackDuration: 0
     maxVoices: 1
     loop: 0
   - cueId: 15
@@ -151,6 +165,17 @@ MonoBehaviour:
     volume: 0.88
     pitchVariance: 0.02
     minRetriggerInterval: 0.05
+    maxPlaybackDuration: 0
+    maxVoices: 2
+    loop: 0
+  - cueId: 19
+    clip: {fileID: 8300000, guid: 9f61bc4cf7f94d29a3ec2d85cabf07cc, type: 3}
+    mixerGroup: {fileID: -7268253658415721968, guid: bee018e9a9623344e853ac144257eb3e, type: 2}
+    bus: 1
+    volume: 0.82
+    pitchVariance: 0.03
+    minRetriggerInterval: 0.08
+    maxPlaybackDuration: 0
     maxVoices: 2
     loop: 0
   - cueId: 16
@@ -160,23 +185,26 @@ MonoBehaviour:
     volume: 0.86
     pitchVariance: 0.02
     minRetriggerInterval: 0.08
+    maxPlaybackDuration: 0
     maxVoices: 1
     loop: 0
   - cueId: 17
     clip: {fileID: 8300000, guid: 62b0341eeb966d7409ef4642ac2760df, type: 3}
     mixerGroup: {fileID: -7268253658415721968, guid: bee018e9a9623344e853ac144257eb3e, type: 2}
     bus: 1
-    volume: 0.82
+    volume: 0.74
     pitchVariance: 0.01
     minRetriggerInterval: 0.04
+    maxPlaybackDuration: 0.16
     maxVoices: 2
     loop: 0
   - cueId: 18
     clip: {fileID: 8300000, guid: 6115a20ea9fec224fbae3da804c37bb6, type: 3}
     mixerGroup: {fileID: -7268253658415721968, guid: bee018e9a9623344e853ac144257eb3e, type: 2}
     bus: 1
-    volume: 0.78
+    volume: 0.72
     pitchVariance: 0.01
     minRetriggerInterval: 0.05
+    maxPlaybackDuration: 0.12
     maxVoices: 2
     loop: 0

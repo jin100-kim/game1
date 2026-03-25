@@ -71,6 +71,7 @@ namespace EJR.Game.Multiplayer
             if (IsServer && _enemyController != null)
             {
                 _enemyController.Changed -= HandleServerEnemyHealthChanged;
+                _enemyController.BossProjectileSpawned -= HandleServerBossProjectileSpawned;
             }
         }
 
@@ -104,6 +105,8 @@ namespace EJR.Game.Multiplayer
 
             _enemyController.Changed -= HandleServerEnemyHealthChanged;
             _enemyController.Changed += HandleServerEnemyHealthChanged;
+            _enemyController.BossProjectileSpawned -= HandleServerBossProjectileSpawned;
+            _enemyController.BossProjectileSpawned += HandleServerBossProjectileSpawned;
 
             var statProfile = _enemyConfig.GetStatProfile(visualKind);
             var collisionRadius = GetCollisionRadius(statProfile);
@@ -166,6 +169,16 @@ namespace EJR.Game.Multiplayer
             _currentHealth.Value = currentHealth;
             _maxHealth.Value = maxHealth;
             RefreshHealthBar(currentHealth, maxHealth, false);
+        }
+
+        private void HandleServerBossProjectileSpawned(Vector3 spawnPosition, Vector2 direction, float speed, float lifetime, float visualScale)
+        {
+            if (!IsServer)
+            {
+                return;
+            }
+
+            SpawnBossProjectileVisualClientRpc(spawnPosition, direction, speed, lifetime, visualScale);
         }
 
         private void EnsurePresentationObjects()
@@ -246,6 +259,34 @@ namespace EJR.Game.Multiplayer
             {
                 _spriteAnimator?.PlayHurt();
             }
+        }
+
+        [ClientRpc]
+        private void SpawnBossProjectileVisualClientRpc(Vector3 spawnPosition, Vector2 direction, float speed, float lifetime, float visualScale)
+        {
+            if (IsServer)
+            {
+                return;
+            }
+
+            var projectileObject = new GameObject("BossProjectileVisual");
+            projectileObject.transform.position = spawnPosition;
+
+            var renderer = projectileObject.AddComponent<SpriteRenderer>();
+            renderer.sprite = RuntimeSpriteFactory.GetSquareSprite();
+            renderer.color = new Color(1f, 0.32f, 0.24f, 1f);
+            renderer.sortingOrder = 38;
+            projectileObject.transform.localScale = Vector3.one * Mathf.Max(0.05f, visualScale);
+
+            var projectile = projectileObject.AddComponent<BossProjectile>();
+            projectile.Initialize(
+                direction,
+                speed,
+                lifetime,
+                0f,
+                0.14f,
+                null,
+                0.05f);
         }
 
         private float GetCollisionRadius(EnemyStatProfile statProfile)

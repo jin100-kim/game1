@@ -398,24 +398,25 @@ namespace EJR.Game.Audio
         {
             return new List<AudioCueCatalog.Entry>
             {
-                CreateEntry(AudioCueId.MainTheme, "Assets/_Project/Audio/Bgm/techno_chiptale.ogg", AudioBus.Bgm, bgmGroup ?? masterGroup, 0.55f, 0f, 0f, 1, true),
-                CreateEntry(AudioCueId.UiConfirm, "Assets/_Project/Audio/Ui/ui_button_click.mp3", AudioBus.Ui, uiGroup ?? masterGroup, 0.82f, 0.01f, 0.02f, 2, false),
-                CreateEntry(AudioCueId.UiBack, "Assets/_Project/Audio/Ui/ui_button_click.mp3", AudioBus.Ui, uiGroup ?? masterGroup, 0.72f, 0.01f, 0.02f, 2, false),
-                CreateEntry(AudioCueId.UiAdjust, "Assets/_Project/Audio/Ui/ui_button_click.mp3", AudioBus.Ui, uiGroup ?? masterGroup, 0.58f, 0.01f, 0.03f, 1, false),
-                CreateEntry(AudioCueId.LevelUpAppear, "Assets/_Project/Audio/Sfx/system_level_up.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.88f, 0.01f, 0.05f, 1, false),
-                CreateEntry(AudioCueId.LevelUpSelect, "Assets/_Project/Audio/Ui/ui_button_click.mp3", AudioBus.Ui, uiGroup ?? masterGroup, 0.95f, 0.01f, 0.02f, 2, false),
-                CreateEntry(AudioCueId.BossWarning, "Assets/_Project/Audio/Sfx/system_boss_warning.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.72f, 0f, 0.5f, 1, false),
-                CreateEntry(AudioCueId.PlayerHurt, "Assets/_Project/Audio/Sfx/system_player_hurt.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.85f, 0.02f, 0.05f, 1, false),
-                CreateEntry(AudioCueId.XpPickup, "Assets/_Project/Audio/Sfx/system_xp_pickup.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.78f, 0.02f, 0.03f, 2, false),
-                CreateEntry(AudioCueId.WeaponRifle, "Assets/_Project/Audio/Sfx/weapon_rifle_lazer_shot_2.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.84f, 0.03f, 0.02f, 3, false),
-                CreateEntry(AudioCueId.WeaponShotgun, "Assets/_Project/Audio/Sfx/weapon_shotgun_shot.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.92f, 0.03f, 0.05f, 2, false),
-                CreateEntry(AudioCueId.WeaponFireball, "Assets/_Project/Audio/Sfx/weapon_fireball_cast.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.88f, 0.03f, 0.04f, 2, false),
-                CreateEntry(AudioCueId.WeaponKatana, "Assets/_Project/Audio/Sfx/weapon_katana_slash.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.84f, 0.04f, 0.03f, 3, false),
-                CreateEntry(AudioCueId.WeaponBfSword, "Assets/_Project/Audio/Sfx/weapon_bfsword_swing.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.9f, 0.03f, 0.18f, 1, false),
-                CreateEntry(AudioCueId.WeaponChainAttack, "Assets/_Project/Audio/Sfx/weapon_chain_zap.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.88f, 0.02f, 0.05f, 2, false),
-                CreateEntry(AudioCueId.WeaponTurretDeploy, "Assets/_Project/Audio/Sfx/weapon_turret_deploy.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.86f, 0.02f, 0.08f, 1, false),
-                CreateEntry(AudioCueId.WeaponBatFlap, "Assets/_Project/Audio/Sfx/weapon_bat_wings.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.82f, 0.01f, 0.04f, 2, false),
-                CreateEntry(AudioCueId.WeaponBatLatch, "Assets/_Project/Audio/Sfx/weapon_bat_chirp.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.78f, 0.01f, 0.05f, 2, false),
+                CreateEntry(AudioCueId.MainTheme, "Assets/_Project/Audio/Bgm/techno_chiptale.ogg", AudioBus.Bgm, bgmGroup ?? masterGroup, 0.55f, 0f, 0f, 0f, 1, true),
+                CreateEntry(AudioCueId.UiConfirm, "Assets/_Project/Audio/Ui/ui_button_click.mp3", AudioBus.Ui, uiGroup ?? masterGroup, 0.82f, 0.01f, 0.02f, 0f, 2, false),
+                CreateEntry(AudioCueId.UiBack, "Assets/_Project/Audio/Ui/ui_button_click.mp3", AudioBus.Ui, uiGroup ?? masterGroup, 0.72f, 0.01f, 0.02f, 0f, 2, false),
+                CreateEntry(AudioCueId.UiAdjust, "Assets/_Project/Audio/Ui/ui_button_click.mp3", AudioBus.Ui, uiGroup ?? masterGroup, 0.58f, 0.01f, 0.03f, 0f, 1, false),
+                CreateEntry(AudioCueId.LevelUpAppear, "Assets/_Project/Audio/Sfx/system_level_up.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.88f, 0.01f, 0.05f, 0f, 1, false),
+                CreateEntry(AudioCueId.LevelUpSelect, "Assets/_Project/Audio/Ui/ui_button_click.mp3", AudioBus.Ui, uiGroup ?? masterGroup, 0.95f, 0.01f, 0.02f, 0f, 2, false),
+                CreateEntry(AudioCueId.BossWarning, "Assets/_Project/Audio/Sfx/system_boss_warning.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.72f, 0f, 0.5f, 0f, 1, false),
+                CreateEntry(AudioCueId.PlayerHurt, "Assets/_Project/Audio/Sfx/system_player_hurt.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.85f, 0.02f, 0.05f, 0f, 1, false),
+                CreateEntry(AudioCueId.XpPickup, "Assets/_Project/Audio/Sfx/system_xp_pickup.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.78f, 0.02f, 0.03f, 0f, 2, false),
+                CreateEntry(AudioCueId.WeaponRifle, "Assets/_Project/Audio/Sfx/weapon_rifle_lazer_shot_2.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.9f, 0.02f, 0.03f, 0.18f, 3, false),
+                CreateEntry(AudioCueId.WeaponShotgun, "Assets/_Project/Audio/Sfx/weapon_shotgun_shot.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.92f, 0.03f, 0.05f, 0f, 2, false),
+                CreateEntry(AudioCueId.WeaponFireball, "Assets/_Project/Audio/Sfx/weapon_fireball_cast.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.88f, 0.03f, 0.04f, 0f, 2, false),
+                CreateEntry(AudioCueId.WeaponKatana, "Assets/_Project/Audio/Sfx/weapon_katana_slash.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.66f, 0.04f, 0.03f, 0f, 3, false),
+                CreateEntry(AudioCueId.WeaponBfSword, "Assets/_Project/Audio/Sfx/weapon_bfsword_swing.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.9f, 0.03f, 0.18f, 0f, 1, false),
+                CreateEntry(AudioCueId.WeaponChainAttack, "Assets/_Project/Audio/Sfx/weapon_chain_zap.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.88f, 0.02f, 0.05f, 0f, 2, false),
+                CreateEntry(AudioCueId.WeaponMace, "Assets/_Project/Audio/Sfx/weapon_mace_swing.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.82f, 0.03f, 0.08f, 0f, 2, false),
+                CreateEntry(AudioCueId.WeaponTurretDeploy, "Assets/_Project/Audio/Sfx/weapon_turret_deploy.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.86f, 0.02f, 0.08f, 0f, 1, false),
+                CreateEntry(AudioCueId.WeaponBatFlap, "Assets/_Project/Audio/Sfx/weapon_bat_wings.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.74f, 0.01f, 0.04f, 0.16f, 2, false),
+                CreateEntry(AudioCueId.WeaponBatLatch, "Assets/_Project/Audio/Sfx/weapon_bat_chirp.mp3", AudioBus.Sfx, sfxGroup ?? masterGroup, 0.72f, 0.01f, 0.05f, 0.12f, 2, false),
             };
         }
 
@@ -427,6 +428,7 @@ namespace EJR.Game.Audio
             float volume,
             float pitchVariance,
             float minRetriggerInterval,
+            float maxPlaybackDuration,
             int maxVoices,
             bool loop)
         {
@@ -439,6 +441,7 @@ namespace EJR.Game.Audio
                 volume = volume,
                 pitchVariance = pitchVariance,
                 minRetriggerInterval = minRetriggerInterval,
+                maxPlaybackDuration = maxPlaybackDuration,
                 maxVoices = maxVoices,
                 loop = loop,
             };

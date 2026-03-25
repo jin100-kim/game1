@@ -13,6 +13,8 @@ namespace EJR.Game.Core
         public float MaxHealthBonus { get; private set; }
         public float HealthRegenPerSecond { get; private set; }
         public float Luck { get; private set; }
+        public float ExperienceGainMultiplier { get; private set; } = 1f;
+        public float CreditGainPercent { get; private set; }
 
         public void RecalculateFromBuild(PlayerBuildRuntime build)
         {
@@ -23,6 +25,8 @@ namespace EJR.Game.Core
             MaxHealthBonus = 0f;
             HealthRegenPerSecond = 0f;
             Luck = 0f;
+            ExperienceGainMultiplier = 1f;
+            CreditGainPercent = 0f;
 
             if (build == null)
             {
@@ -37,6 +41,8 @@ namespace EJR.Game.Core
             MaxHealthBonus = Mathf.Max(0f, build.GlobalMaxHealthFlatTotal);
             HealthRegenPerSecond = Mathf.Max(0f, build.GlobalHealthRegenPerSecondTotal);
             Luck = Mathf.Max(0f, build.GlobalLuckTotal);
+            ExperienceGainMultiplier = 1f + (Mathf.Max(0f, build.GlobalExperienceGainPercentTotal) / 100f);
+            CreditGainPercent = Mathf.Max(0f, build.GlobalCreditGainPercentTotal);
         }
     }
 }

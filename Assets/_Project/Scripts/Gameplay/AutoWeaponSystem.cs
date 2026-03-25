@@ -69,7 +69,8 @@ namespace EJR.Game.Gameplay
         [SerializeField] private Color chainFxColor = new(0.45f, 0.85f, 1f, 0.95f);
         [SerializeField, Min(0.01f)] private float lightningFxDuration = 0.1f;
         [SerializeField, Min(0.01f)] private float auraFxDuration = 0.08f;
-        [SerializeField, Min(0.005f)] private float auraFxWidth = 0.045f;
+        [SerializeField, Min(0.005f)] private float auraFxWidth = 0.032f;
+        [SerializeField, Min(0.005f)] private float auraIdleWidth = 0.018f;
         [SerializeField] private Color auraFxColor = new(0.45f, 1f, 0.75f, 0.75f);
         [SerializeField, Min(0.01f)] private float turretTracerFxDuration = 0.06f;
         [SerializeField, Min(0.005f)] private float turretTracerFxWidth = 0.03f;
@@ -145,12 +146,13 @@ namespace EJR.Game.Gameplay
             public SpriteRenderer Renderer;
             public EnemyController LatchedTarget;
             public float SpawnedAt;
-            public float ExpiresAt;
+            public float SeekAt;
             public float HitCooldown;
             public float OrbitSeedDegrees;
-            public float HealAmount;
+            public Vector2 LaunchDirection;
+            public float PendingHealAmount;
+            public int HitsLanded;
             public bool ReturningToOwner;
-            public bool HasDealtDamage;
         }
 
         private WeaponConfig _config;
@@ -178,6 +180,8 @@ namespace EJR.Game.Gameplay
         private readonly List<RifleTurretRuntime> _rifleTurrets = new(4);
         private readonly Queue<Projectile> _projectilePool = new();
         private Transform _projectilePoolRoot;
+        private LineRenderer _persistentAuraLine;
+        private bool _ownerUsesExternalAuraPresentation;
         private const int CollisionGizmoSegments = 24;
         private const float BfSwordTurnSoundAngleThreshold = 38f;
         private const float BfSwordTurnSoundCooldown = 0.2f;
@@ -215,6 +219,7 @@ namespace EJR.Game.Gameplay
             _facingDirectionResolver = facingDirectionResolver;
             _useProjectileBoundsCulling = projectileCullBounds.HasValue;
             _projectileCullBounds = projectileCullBounds.GetValueOrDefault();
+            _ownerUsesExternalAuraPresentation = false;
             _currentTarget = null;
             _lastAimDirection = Vector2.right;
             _targetScanCooldown = 0f;
@@ -235,6 +240,7 @@ namespace EJR.Game.Gameplay
         {
             CleanupLoadoutRuntimeState();
             ClearRifleTurrets();
+            SetPersistentAuraVisible(false);
         }
 
         public void ConfigureLoadout(PlayerBuildRuntime build, PlayerStatsRuntime stats)
@@ -260,6 +266,7 @@ namespace EJR.Game.Gameplay
             {
                 CleanupLoadoutRuntimeState();
                 ClearRifleTurrets();
+                SetPersistentAuraVisible(false);
                 _loadout.Clear();
                 return;
             }
@@ -297,6 +304,10 @@ namespace EJR.Game.Gameplay
 
             _loadout.Clear();
             _loadout.AddRange(nextLoadout);
+            if (FindLoadoutWeapon(WeaponUpgradeId.Aura) == null)
+            {
+                SetPersistentAuraVisible(false);
+            }
         }
 
         private void Update()
@@ -308,6 +319,7 @@ namespace EJR.Game.Gameplay
 
             if (_loadout.Count <= 0)
             {
+                SetPersistentAuraVisible(false);
                 return;
             }
 
@@ -318,6 +330,8 @@ namespace EJR.Game.Gameplay
                 var weapon = _loadout[i];
                 UpdateWeapon(weapon);
             }
+
+            UpdatePersistentAuraVisual();
         }
 
         private void RefreshAimDirection()
@@ -797,6 +811,7 @@ namespace EJR.Game.Gameplay
 
                 weapon.BfSwordInsideEnemies.Add(enemy);
                 enemy.ReceiveWeaponDamage(damage, WeaponUpgradeId.BfSword);
+                enemy.ApplyStun(Mathf.Max(0.02f, _config.bfSwordStunDuration));
             }
 
             _cleanupEnemies.Clear();
@@ -968,7 +983,9 @@ namespace EJR.Game.Gameplay
         {
             var hitHistory = new List<EnemyController>(8);
             var currentDamage = GetWeaponBaseDamage(weapon);
-            var decay = Mathf.Clamp(_config.chainDamageDecayPerJump, 0f, 0.9f);
+            var decay = _build != null && _build.DoesChainAttackIgnoreDecay()
+                ? 0f
+                : Mathf.Clamp(_config.chainDamageDecayPerJump, 0f, 0.9f);
             var range = GetWeaponRange(weapon);
             var jumpRange = GetChainJumpRange(weapon, range);
             var maxHits = Mathf.Max(1, _config.chainBaseJumps + GetWeaponExtraCount(weapon));
@@ -1203,35 +1220,29 @@ namespace EJR.Game.Gameplay
 
         private void UpdateBatWeapon(WeaponRuntime weapon)
         {
+            var hadBatInstances = weapon.BatInstances.Count > 0;
             UpdateBatInstances(weapon);
+
+            if (hadBatInstances && weapon.BatInstances.Count <= 0)
+            {
+                weapon.Cooldown = GetAttackInterval(weapon);
+            }
+
+            if (weapon.BatInstances.Count > 0)
+            {
+                return;
+            }
 
             if (weapon.Cooldown > 0f)
             {
                 return;
             }
 
-            var healthCost = Mathf.Max(0.1f, _config.batHealthCost);
             var batCount = Mathf.Max(1, 1 + GetWeaponExtraCount(weapon));
-            var activeBatCount = 0;
-            for (var i = 0; i < weapon.BatInstances.Count; i++)
-            {
-                var bat = weapon.BatInstances[i];
-                if (bat != null && bat.Root != null && !bat.ReturningToOwner)
-                {
-                    activeBatCount++;
-                }
-            }
-
-            var spawnSlots = Mathf.Max(0, batCount - activeBatCount);
             var spawnedAny = false;
-            for (var i = 0; i < spawnSlots; i++)
+            for (var i = 0; i < batCount; i++)
             {
-                if (_playerHealth != null && !_playerHealth.TrySpendHealth(healthCost, allowFatal: false))
-                {
-                    break;
-                }
-
-                SpawnBatInstance(weapon, healthCost * Mathf.Max(1.01f, _config.batHealMultiplier));
+                SpawnBatInstance(weapon);
                 spawnedAny = true;
             }
 
@@ -1252,12 +1263,15 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            var moveSpeed = Mathf.Max(0.1f, _config.batMoveSpeed);
+            var attackIntervalMultiplier = Mathf.Max(0.05f, GetCombinedAttackIntervalMultiplier(weapon));
+            var attackSpeedFactor = 1f / attackIntervalMultiplier;
+            var moveSpeed = Mathf.Max(0.1f, _config.batMoveSpeed * attackSpeedFactor);
             var orbitRadius = Mathf.Max(0.1f, _config.batOrbitRadius);
-            var orbitDuration = Mathf.Max(0f, _config.batOrbitDuration);
+            var launchDuration = Mathf.Max(0f, _config.batOrbitDuration);
             var latchRange = GetWeaponRange(weapon);
-            var hitInterval = Mathf.Max(0.05f, _config.batHitInterval);
+            var hitInterval = Mathf.Max(0.05f, _config.batHitInterval * attackIntervalMultiplier);
             var damage = GetWeaponBaseDamage(weapon) * Mathf.Clamp(_config.batDamageMultiplier, 0.05f, 5f);
+            var hitsBeforeReturn = Mathf.Max(1, _config.batHitsBeforeReturn);
 
             for (var i = weapon.BatInstances.Count - 1; i >= 0; i--)
             {
@@ -1274,9 +1288,9 @@ namespace EJR.Game.Gameplay
                     var distance = toOwner.magnitude;
                     if (distance <= 0.18f)
                     {
-                        if (bat.HasDealtDamage)
+                        if (bat.PendingHealAmount > 0.001f)
                         {
-                            ApplyBatHealing(bat.HealAmount);
+                            ApplyBatHealing(bat.PendingHealAmount);
                         }
 
                         Destroy(bat.Root.gameObject);
@@ -1288,40 +1302,41 @@ namespace EJR.Game.Gameplay
                     continue;
                 }
 
-                if (Time.time >= bat.ExpiresAt)
+                if (bat.HitsLanded >= hitsBeforeReturn)
                 {
-                    bat.ReturningToOwner = true;
-                    bat.LatchedTarget = null;
-                    RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Return, bat.Root.position);
-                    if (bat.Renderer != null)
-                    {
-                        bat.Renderer.color = new Color(0.52f, 1f, 0.72f, 0.95f);
-                    }
-
+                    BeginBatReturn(weapon, bat);
                     continue;
                 }
 
                 if (bat.LatchedTarget == null || !IsEnemyUsable(bat.LatchedTarget))
                 {
                     var previousTarget = bat.LatchedTarget;
-                    bat.LatchedTarget = Time.time >= bat.SpawnedAt + orbitDuration
+                    bat.LatchedTarget = Time.time >= bat.SeekAt
                         ? FindNearestUsableFrom((Vector2)bat.Root.position, latchRange)
                         : null;
                     if (previousTarget == null && bat.LatchedTarget != null)
                     {
+                        bat.HitCooldown = Mathf.Max(bat.HitCooldown, Time.time + hitInterval);
                         RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Latch, bat.Root.position);
                     }
                 }
 
                 if (bat.LatchedTarget == null)
                 {
-                    var orbitAngle = (bat.OrbitSeedDegrees + ((Time.time - bat.SpawnedAt) * 180f)) * Mathf.Deg2Rad;
-                    var orbitTarget = (Vector2)_owner.position + (new Vector2(Mathf.Cos(orbitAngle), Mathf.Sin(orbitAngle)) * orbitRadius);
-                    var toOrbit = orbitTarget - (Vector2)bat.Root.position;
-                    var orbitDistance = toOrbit.magnitude;
-                    if (orbitDistance > 0.02f)
+                    if (Time.time < bat.SpawnedAt + launchDuration)
                     {
-                        bat.Root.position += (Vector3)(toOrbit / Mathf.Max(0.0001f, orbitDistance)) * (moveSpeed * Time.deltaTime);
+                        bat.Root.position += (Vector3)(bat.LaunchDirection * moveSpeed * Time.deltaTime);
+                    }
+                    else
+                    {
+                        var orbitAngle = (bat.OrbitSeedDegrees + ((Time.time - bat.SeekAt) * 180f)) * Mathf.Deg2Rad;
+                        var orbitTarget = (Vector2)_owner.position + (new Vector2(Mathf.Cos(orbitAngle), Mathf.Sin(orbitAngle)) * orbitRadius);
+                        var toOrbit = orbitTarget - (Vector2)bat.Root.position;
+                        var orbitDistance = toOrbit.magnitude;
+                        if (orbitDistance > 0.02f)
+                        {
+                            bat.Root.position += (Vector3)(toOrbit / Mathf.Max(0.0001f, orbitDistance)) * (moveSpeed * Time.deltaTime);
+                        }
                     }
 
                     continue;
@@ -1340,13 +1355,19 @@ namespace EJR.Game.Gameplay
                 if (Time.time >= bat.HitCooldown)
                 {
                     bat.LatchedTarget.ReceiveWeaponDamage(damage, weapon.WeaponId);
-                    bat.HasDealtDamage = true;
+                    bat.PendingHealAmount += Mathf.Max(_config.batMinimumHealPerHit, damage * Mathf.Clamp01(_config.batHealPerDamageMultiplier));
+                    bat.HitsLanded++;
                     bat.HitCooldown = Time.time + hitInterval;
+                    bat.LatchedTarget = null;
+                    if (bat.HitsLanded >= hitsBeforeReturn)
+                    {
+                        BeginBatReturn(weapon, bat);
+                    }
                 }
             }
         }
 
-        private void SpawnBatInstance(WeaponRuntime weapon, float healAmount)
+        private void SpawnBatInstance(WeaponRuntime weapon)
         {
             var batObject = new GameObject("Bat");
             batObject.transform.SetParent(transform, false);
@@ -1364,12 +1385,13 @@ namespace EJR.Game.Gameplay
                 Renderer = renderer,
                 LatchedTarget = null,
                 SpawnedAt = Time.time,
-                ExpiresAt = Time.time + Mathf.Max(0.1f, _config.batLifetime),
+                SeekAt = Time.time + Mathf.Max(0f, _config.batOrbitDuration),
                 HitCooldown = Time.time,
                 OrbitSeedDegrees = UnityEngine.Random.Range(0f, 360f),
-                HealAmount = healAmount,
+                LaunchDirection = RotateDirection(Vector2.right, UnityEngine.Random.Range(0f, 360f)).normalized,
+                PendingHealAmount = 0f,
+                HitsLanded = 0,
                 ReturningToOwner = false,
-                HasDealtDamage = false,
             });
             RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Spawn, batObject.transform.position);
         }
@@ -1384,10 +1406,26 @@ namespace EJR.Game.Gameplay
             var missingHealth = Mathf.Max(0f, _playerHealth.MaxHealth - _playerHealth.CurrentHealth);
             _playerHealth.Heal(healAmount);
             var overflow = Mathf.Max(0f, healAmount - missingHealth);
-            var maxHealthGain = overflow * Mathf.Clamp01(_config.batOverhealToMaxHealthRatio);
-            if (maxHealthGain > 0.01f)
+            if (overflow > 0.0001f && UnityEngine.Random.value <= Mathf.Clamp01(overflow))
             {
-                _playerHealth.SetMaxHealth(_playerHealth.MaxHealth + maxHealthGain, healDelta: true);
+                _build?.AddRuntimeMaxHealthFlat(1f);
+                _playerHealth.SetMaxHealth(_playerHealth.MaxHealth + 1f, healDelta: true);
+            }
+        }
+
+        private void BeginBatReturn(WeaponRuntime weapon, BatRuntime bat)
+        {
+            if (bat == null || bat.ReturningToOwner)
+            {
+                return;
+            }
+
+            bat.ReturningToOwner = true;
+            bat.LatchedTarget = null;
+            RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Return, bat.Root != null ? bat.Root.position : GetOwnerSoundPosition());
+            if (bat.Renderer != null)
+            {
+                bat.Renderer.color = new Color(0.52f, 1f, 0.72f, 0.95f);
             }
         }
 
@@ -1418,19 +1456,79 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            var swingDirection = ResolveFacingDirection();
-            if (TryResolveFireDirection(weapon, out var targetDirection))
+            if (!TryResolveFireDirection(weapon, out var targetDirection))
             {
-                swingDirection = targetDirection;
+                return;
             }
 
-            weapon.MaceSwingDirection = swingDirection.sqrMagnitude > 0.000001f ? swingDirection.normalized : Vector2.right;
+            weapon.MaceSwingDirection = targetDirection.sqrMagnitude > 0.000001f ? targetDirection.normalized : Vector2.right;
             weapon.IsMaceSwingActive = true;
             weapon.MaceSwingElapsed = 0f;
             weapon.MaceHitEnemies.Clear();
             UpdateMaceSwingState(weapon, 0f);
             weapon.Cooldown = GetAttackInterval(weapon);
             Fired?.Invoke(weapon.MaceSwingDirection);
+        }
+
+        private void UpdatePersistentAuraVisual()
+        {
+            if (_ownerUsesExternalAuraPresentation || _owner == null)
+            {
+                SetPersistentAuraVisible(false);
+                return;
+            }
+
+            var auraWeapon = FindLoadoutWeapon(WeaponUpgradeId.Aura);
+            if (auraWeapon == null)
+            {
+                SetPersistentAuraVisible(false);
+                return;
+            }
+
+            EnsurePersistentAuraLine();
+            if (_persistentAuraLine == null)
+            {
+                return;
+            }
+
+            var color = auraFxColor;
+            color.a = Mathf.Clamp01(color.a * 0.55f);
+            WeaponFxRenderer.ConfigureLineRenderer(
+                _persistentAuraLine,
+                color,
+                auraIdleWidth,
+                loop: true,
+                useWorldSpace: true);
+            WeaponFxRenderer.SetCircleLinePositions(
+                _persistentAuraLine,
+                _owner.position,
+                GetAuraRange(auraWeapon),
+                ringFxSegments,
+                -0.02f);
+            _persistentAuraLine.enabled = true;
+        }
+
+        private void EnsurePersistentAuraLine()
+        {
+            if (_persistentAuraLine != null)
+            {
+                return;
+            }
+
+            var auraObject = new GameObject("AuraIdleFx");
+            auraObject.transform.SetParent(transform, false);
+            _persistentAuraLine = auraObject.AddComponent<LineRenderer>();
+            _persistentAuraLine.enabled = false;
+        }
+
+        private void SetPersistentAuraVisible(bool isVisible)
+        {
+            if (_persistentAuraLine == null)
+            {
+                return;
+            }
+
+            _persistentAuraLine.enabled = isVisible;
         }
 
         private void UpdateMaceSwingState(WeaponRuntime weapon, float progress)

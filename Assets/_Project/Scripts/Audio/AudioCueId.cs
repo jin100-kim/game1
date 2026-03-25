@@ -21,5 +21,6 @@ namespace EJR.Game.Audio
         WeaponTurretDeploy = 16,
         WeaponBatFlap = 17,
         WeaponBatLatch = 18,
+        WeaponMace = 19,
     }
 }

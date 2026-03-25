@@ -4,14 +4,26 @@ namespace EJR.Game.Core
 {
     public readonly struct SharedCharacterDefinition
     {
-        public SharedCharacterDefinition(int id, string displayName, Color color, int unlockCost, bool defaultUnlocked, MetaBonusValues traitBonuses)
+        public SharedCharacterDefinition(
+            int id,
+            string displayName,
+            Color color,
+            int unlockCost,
+            bool defaultUnlocked,
+            WeaponUpgradeId starterWeaponId,
+            MetaBonusValues baseBonuses,
+            CharacterPassiveId passiveId,
+            string passiveDescription)
         {
             Id = id;
             DisplayName = displayName;
             Color = color;
             UnlockCost = unlockCost;
             DefaultUnlocked = defaultUnlocked;
-            TraitBonuses = traitBonuses;
+            StarterWeaponId = starterWeaponId;
+            BaseBonuses = baseBonuses;
+            PassiveId = passiveId;
+            PassiveDescription = passiveDescription ?? string.Empty;
         }
 
         public int Id { get; }
@@ -19,50 +31,108 @@ namespace EJR.Game.Core
         public Color Color { get; }
         public int UnlockCost { get; }
         public bool DefaultUnlocked { get; }
-        public MetaBonusValues TraitBonuses { get; }
+        public WeaponUpgradeId StarterWeaponId { get; }
+        public MetaBonusValues BaseBonuses { get; }
+        public MetaBonusValues TraitBonuses => BaseBonuses;
+        public CharacterPassiveId PassiveId { get; }
+        public string PassiveDescription { get; }
     }
 
     public readonly struct SharedWeaponDefinition
     {
-        public SharedWeaponDefinition(WeaponUpgradeId id, string displayName, int unlockCost, bool defaultUnlocked, bool isSelectable = true)
+        public SharedWeaponDefinition(WeaponUpgradeId id, string displayName, bool isSelectable = true)
         {
             Id = id;
             DisplayName = displayName;
-            UnlockCost = unlockCost;
-            DefaultUnlocked = defaultUnlocked;
             IsSelectable = isSelectable;
         }
 
         public WeaponUpgradeId Id { get; }
         public string DisplayName { get; }
-        public int UnlockCost { get; }
-        public bool DefaultUnlocked { get; }
         public bool IsSelectable { get; }
+        public int UnlockCost => 0;
+        public bool DefaultUnlocked => true;
     }
 
     public static class SharedGameCatalog
     {
         private static readonly SharedCharacterDefinition[] Characters =
         {
-            new(0, "스트라이커", new Color(0.97f, 0.95f, 0.70f, 1f), 0, true, new MetaBonusValues { attackPowerPercent = 8f }),
-            new(1, "스카우트", new Color(0.62f, 0.90f, 1f, 1f), 60, false, new MetaBonusValues { moveSpeedPercent = 6f }),
-            new(2, "뱅가드", new Color(1f, 0.67f, 0.74f, 1f), 80, false, new MetaBonusValues { maxHealthFlat = 20f }),
-            new(3, "메딕", new Color(0.67f, 1f, 0.77f, 1f), 100, false, new MetaBonusValues { healthRegenPerSecond = 0.25f }),
+            new(
+                0,
+                "군인",
+                new Color(0.92f, 0.92f, 0.82f, 1f),
+                0,
+                true,
+                WeaponUpgradeId.Rifle,
+                new MetaBonusValues { attackSpeedPercent = 10f },
+                CharacterPassiveId.SoldierLevelAttackSpeed,
+                "현재 레벨만큼 공속 +1%"),
+            new(
+                1,
+                "뱀파이어",
+                new Color(0.94f, 0.42f, 0.56f, 1f),
+                100,
+                false,
+                WeaponUpgradeId.SniperRifle,
+                new MetaBonusValues { healthRegenPerSecond = 1f },
+                CharacterPassiveId.VampireMaxHealthDamage,
+                "최대 체력 2당 피해량 +1%"),
+            new(
+                2,
+                "검객",
+                new Color(0.76f, 0.90f, 1f, 1f),
+                100,
+                false,
+                WeaponUpgradeId.Katana,
+                new MetaBonusValues { moveSpeedPercent = 10f },
+                CharacterPassiveId.SwordsmanLevelMoveSpeed,
+                "현재 레벨만큼 이동 속도 +1%"),
+            new(
+                3,
+                "마법사",
+                new Color(0.96f, 0.74f, 0.38f, 1f),
+                100,
+                false,
+                WeaponUpgradeId.Smg,
+                new MetaBonusValues { attackPowerPercent = 10f },
+                CharacterPassiveId.WizardLevelDamage,
+                "현재 레벨만큼 피해량 +1%"),
+            new(
+                4,
+                "성직자",
+                new Color(0.72f, 1f, 0.84f, 1f),
+                100,
+                false,
+                WeaponUpgradeId.Aura,
+                new MetaBonusValues { attackRangePercent = 10f },
+                CharacterPassiveId.PriestLevelRange,
+                "현재 레벨만큼 범위 +1%"),
+            new(
+                5,
+                "번개술사",
+                new Color(1f, 0.94f, 0.42f, 1f),
+                100,
+                false,
+                WeaponUpgradeId.ChainAttack,
+                default,
+                CharacterPassiveId.LightningMageChainMastery,
+                "체인어택 감쇠 제거, 체인 수 +2"),
         };
 
         private static readonly SharedWeaponDefinition[] StarterWeapons =
         {
-            new(WeaponUpgradeId.Rifle, "라이플", 0, true),
-            new(WeaponUpgradeId.Smg, "화염구", 0, true),
-            new(WeaponUpgradeId.SniperRifle, "박쥐", 60, false),
-            new(WeaponUpgradeId.Shotgun, "샷건", 80, false),
-            new(WeaponUpgradeId.BfSword, "BF소드", 0, true),
-            new(WeaponUpgradeId.Katana, "카타나", 100, false),
-            new(WeaponUpgradeId.ChainAttack, "체인어택", 120, false),
-            new(WeaponUpgradeId.SatelliteBeam, "메이스", 140, false),
-            new(WeaponUpgradeId.Drone, "레거시 드론", 160, false, isSelectable: false),
-            new(WeaponUpgradeId.RifleTurret, "터렛", 180, false),
-            new(WeaponUpgradeId.Aura, "오라", 200, false),
+            new(WeaponUpgradeId.Rifle, "라이플"),
+            new(WeaponUpgradeId.Smg, "화염구"),
+            new(WeaponUpgradeId.SniperRifle, "박쥐"),
+            new(WeaponUpgradeId.Shotgun, "샷건"),
+            new(WeaponUpgradeId.BfSword, "BF소드"),
+            new(WeaponUpgradeId.Katana, "카타나"),
+            new(WeaponUpgradeId.ChainAttack, "체인어택"),
+            new(WeaponUpgradeId.SatelliteBeam, "메이스"),
+            new(WeaponUpgradeId.Drone, "레거시 드론", isSelectable: false),
+            new(WeaponUpgradeId.RifleTurret, "터렛"),
+            new(WeaponUpgradeId.Aura, "오라"),
         };
 
         public static int CharacterCount => Characters.Length;
@@ -99,6 +169,11 @@ namespace EJR.Game.Core
             return 0;
         }
 
+        public static WeaponUpgradeId GetStarterWeaponForCharacter(int characterId)
+        {
+            return GetCharacter(characterId).StarterWeaponId;
+        }
+
         public static int NormalizeStarterWeaponIndex(int index)
         {
             if (StarterWeapons.Length <= 0)
@@ -113,6 +188,11 @@ namespace EJR.Game.Core
         public static SharedWeaponDefinition GetStarterWeaponDefinition(int index)
         {
             return StarterWeapons[NormalizeStarterWeaponIndex(index)];
+        }
+
+        public static SharedWeaponDefinition GetStarterWeaponDefinition(WeaponUpgradeId weaponId)
+        {
+            return GetStarterWeaponDefinition(GetStarterWeaponIndex(weaponId));
         }
 
         public static WeaponUpgradeId GetStarterWeaponByIndex(int index)
@@ -135,15 +215,7 @@ namespace EJR.Game.Core
 
         public static WeaponUpgradeId GetDefaultUnlockedStarterWeapon()
         {
-            for (var i = 0; i < StarterWeapons.Length; i++)
-            {
-                if (StarterWeapons[i].DefaultUnlocked && StarterWeapons[i].IsSelectable)
-                {
-                    return StarterWeapons[i].Id;
-                }
-            }
-
-            return WeaponUpgradeId.Rifle;
+            return GetStarterWeaponForCharacter(GetDefaultUnlockedCharacterId());
         }
 
         public static bool IsStarterWeaponSelectable(WeaponUpgradeId weaponId)
@@ -176,14 +248,31 @@ namespace EJR.Game.Core
         {
             return statId switch
             {
-                StatUpgradeId.AttackPower => "공격력",
+                StatUpgradeId.AttackPower => "피해량",
                 StatUpgradeId.AttackSpeed => "공격 속도",
                 StatUpgradeId.MaxHealth => "최대 체력",
                 StatUpgradeId.HealthRegen => "체력 재생",
                 StatUpgradeId.MoveSpeed => "이동 속도",
-                StatUpgradeId.AttackRange => "공격 범위",
+                StatUpgradeId.AttackRange => "범위",
                 StatUpgradeId.Luck => "행운",
                 _ => statId.ToString(),
+            };
+        }
+
+        public static string GetMetaUpgradeDisplayName(MetaUpgradeId upgradeId)
+        {
+            return upgradeId switch
+            {
+                MetaUpgradeId.DamagePercent => "피해량",
+                MetaUpgradeId.AttackSpeedPercent => "공속",
+                MetaUpgradeId.MaxHealthFlat => "최대 체력",
+                MetaUpgradeId.HealthRegenPerSecond => "체력 재생",
+                MetaUpgradeId.MoveSpeedPercent => "이동 속도",
+                MetaUpgradeId.RangePercent => "범위",
+                MetaUpgradeId.Luck => "행운",
+                MetaUpgradeId.ExperienceGainPercent => "XP 획득량",
+                MetaUpgradeId.CreditGainPercent => "코인 획득량",
+                _ => upgradeId.ToString(),
             };
         }
 

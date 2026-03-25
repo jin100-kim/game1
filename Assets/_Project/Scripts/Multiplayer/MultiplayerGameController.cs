@@ -51,6 +51,15 @@ namespace EJR.Game.Multiplayer
         private Text _startButtonText;
         private readonly Button[] _choiceButtons = new Button[3];
         private readonly Text[] _choiceButtonTexts = new Text[3];
+        private GameObject _characterSelectPanel;
+        private Text _characterSelectTitleText;
+        private Text _characterSelectDetailText;
+        private Button _characterSelectActionButton;
+        private Text _characterSelectActionText;
+        private Button _characterSelectCloseButton;
+        private readonly Button[] _characterSelectButtons = new Button[6];
+        private readonly Text[] _characterSelectButtonTexts = new Text[6];
+        private int _inspectedLobbyCharacterId = -1;
         private HudController _gameplayHud;
         private string _lastChoiceSignature = string.Empty;
         private AutoPlayAgent _autoPlayAgent;
@@ -99,6 +108,11 @@ namespace EJR.Game.Multiplayer
             {
                 MultiplayerSessionController.EnsureInstance().LeaveSession();
                 return;
+            }
+
+            if (IsBuildDrawerToggleKeyPressed())
+            {
+                _gameplayHud?.ToggleBuildDrawer();
             }
 
             TryHandleAutoPlayChoice(localPlayer);
@@ -270,20 +284,46 @@ namespace EJR.Game.Multiplayer
 
         private void BuildLobbyPanel(Transform parent)
         {
-            _lobbyPanel = CreatePanel(parent, "LobbyPanel", new Vector2(18f, -146f), new Vector2(520f, 620f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Color(0f, 0f, 0f, 0.44f));
+            _lobbyPanel = CreatePanel(parent, "LobbyPanel", new Vector2(18f, -146f), new Vector2(820f, 620f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Color(0f, 0f, 0f, 0.44f));
             _lobbyHeaderText = CreateText(_lobbyPanel.transform, "LobbyHeader", Vector2.zero, new Vector2(16f, -16f), new Vector2(1f, 1f), 22, TextAnchor.UpperLeft);
-            _lobbyHeaderText.rectTransform.sizeDelta = new Vector2(-32f, 92f);
+            _lobbyHeaderText.rectTransform.sizeDelta = new Vector2(-32f, 56f);
 
-            _playerListText = CreateText(_lobbyPanel.transform, "PlayerList", Vector2.zero, new Vector2(16f, -116f), new Vector2(1f, 1f), 18, TextAnchor.UpperLeft);
-            _playerListText.rectTransform.sizeDelta = new Vector2(-32f, 250f);
+            _playerListText = CreateText(_lobbyPanel.transform, "PlayerList", Vector2.zero, new Vector2(16f, -88f), new Vector2(1f, 1f), 18, TextAnchor.UpperLeft);
+            _playerListText.rectTransform.sizeDelta = new Vector2(330f, 436f);
 
-            _characterButton = CreateActionButton(_lobbyPanel.transform, "CharacterButton", new Vector2(20f, 210f), new Vector2(220f, 54f), out _characterButtonText, HandleCharacterClicked);
-            _starterButton = CreateActionButton(_lobbyPanel.transform, "StarterButton", new Vector2(260f, 210f), new Vector2(220f, 54f), out _starterButtonText, HandleStarterClicked);
-            _readyButton = CreateActionButton(_lobbyPanel.transform, "ReadyButton", new Vector2(20f, 278f), new Vector2(220f, 58f), out _readyButtonText, HandleReadyClicked);
-            _startButton = CreateActionButton(_lobbyPanel.transform, "StartButton", new Vector2(260f, 278f), new Vector2(220f, 58f), out _startButtonText, HandleStartClicked);
+            _characterButton = CreateActionButton(_lobbyPanel.transform, "CharacterButton", new Vector2(396f, 90f), new Vector2(392f, 92f), out _characterButtonText, HandleCharacterClicked);
+            _starterButton = CreateActionButton(_lobbyPanel.transform, "StarterButton", new Vector2(396f, 198f), new Vector2(392f, 72f), out _starterButtonText, HandleStarterClicked);
+            _readyButton = CreateActionButton(_lobbyPanel.transform, "ReadyButton", new Vector2(396f, 292f), new Vector2(188f, 56f), out _readyButtonText, HandleReadyClicked);
+            _startButton = CreateActionButton(_lobbyPanel.transform, "StartButton", new Vector2(600f, 292f), new Vector2(188f, 56f), out _startButtonText, HandleStartClicked);
 
-            _startHintText = CreateText(_lobbyPanel.transform, "StartHint", Vector2.zero, new Vector2(16f, -368f), new Vector2(1f, 1f), 16, TextAnchor.UpperLeft);
-            _startHintText.rectTransform.sizeDelta = new Vector2(-32f, 210f);
+            _startHintText = CreateText(_lobbyPanel.transform, "StartHint", Vector2.zero, new Vector2(396f, -376f), new Vector2(1f, 1f), 16, TextAnchor.UpperLeft);
+            _startHintText.rectTransform.sizeDelta = new Vector2(392f, 148f);
+
+            _characterSelectPanel = CreatePanel(_lobbyPanel.transform, "CharacterSelectPanel", new Vector2(20f, -74f), new Vector2(780f, 510f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Color(0.03f, 0.05f, 0.09f, 0.96f));
+            _characterSelectPanel.SetActive(false);
+
+            _characterSelectTitleText = CreateText(_characterSelectPanel.transform, "CharacterSelectTitle", Vector2.zero, new Vector2(18f, -16f), new Vector2(1f, 1f), 22, TextAnchor.UpperLeft);
+            _characterSelectTitleText.rectTransform.sizeDelta = new Vector2(-36f, 36f);
+
+            for (var i = 0; i < _characterSelectButtons.Length; i++)
+            {
+                var index = i;
+                var button = CreateActionButton(
+                    _characterSelectPanel.transform,
+                    $"CharacterSelectButton{i}",
+                    new Vector2(18f, 68f + (i * 68f)),
+                    new Vector2(286f, 56f),
+                    out _characterSelectButtonTexts[i],
+                    () => InspectLobbyCharacter(index));
+                _characterSelectButtons[i] = button;
+            }
+
+            _characterSelectDetailText = CreateText(_characterSelectPanel.transform, "CharacterSelectDetail", Vector2.zero, new Vector2(334f, -74f), new Vector2(1f, 1f), 17, TextAnchor.UpperLeft);
+            _characterSelectDetailText.rectTransform.sizeDelta = new Vector2(420f, 272f);
+
+            _characterSelectActionButton = CreateActionButton(_characterSelectPanel.transform, "CharacterSelectAction", new Vector2(334f, 368f), new Vector2(206f, 56f), out _characterSelectActionText, ConfirmLobbyCharacterSelection);
+            _characterSelectCloseButton = CreateActionButton(_characterSelectPanel.transform, "CharacterSelectClose", new Vector2(552f, 368f), new Vector2(206f, 56f), out var closeText, CloseLobbyCharacterSelection);
+            closeText.text = "닫기";
         }
 
         private void BuildRunPanel(Transform parent)
@@ -318,10 +358,10 @@ namespace EJR.Game.Multiplayer
 
         private void BuildResultPanel(Transform parent)
         {
-            _resultPanel = CreatePanel(parent, "ResultPanel", Vector2.zero, new Vector2(560f, 160f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Color(0f, 0f, 0f, 0.72f));
-            _resultText = CreateText(_resultPanel.transform, "ResultText", Vector2.zero, Vector2.zero, Vector2.one, 28, TextAnchor.MiddleCenter);
-            _resultText.rectTransform.offsetMin = new Vector2(20f, 20f);
-            _resultText.rectTransform.offsetMax = new Vector2(-20f, -20f);
+            _resultPanel = CreatePanel(parent, "ResultPanel", Vector2.zero, new Vector2(720f, 520f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Color(0f, 0f, 0f, 0.78f));
+            _resultText = CreateText(_resultPanel.transform, "ResultText", Vector2.zero, Vector2.zero, Vector2.one, 20, TextAnchor.UpperLeft);
+            _resultText.rectTransform.offsetMin = new Vector2(28f, 24f);
+            _resultText.rectTransform.offsetMax = new Vector2(-28f, -24f);
         }
 
         private void RefreshUi()
@@ -414,6 +454,11 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
+            if (RefreshLobbyUiMinimal(manager, coop, localPlayer, allPlayers))
+            {
+                return;
+            }
+
             var builder = new StringBuilder();
             for (var i = 0; i < allPlayers.Length; i++)
             {
@@ -425,6 +470,7 @@ namespace EJR.Game.Multiplayer
 
                 builder.Append(player.DisplayName)
                     .Append(" | ")
+                    .Append("시작 ")
                     .Append(MultiplayerCatalog.GetStarterWeaponDisplayName(player.SelectedStarterWeaponIndex));
 
                 if (player.IsDowned)
@@ -439,20 +485,20 @@ namespace EJR.Game.Multiplayer
                 builder.Append('\n');
             }
 
-            _lobbyHeaderText.text = "대기실\n캐릭터와 시작 무기를 고르고 준비하세요.";
+            _lobbyHeaderText.text = "대기실\n캐릭터를 고르고 준비하세요. 시작 무기는 캐릭터에 고정됩니다.";
             _playerListText.text = builder.Length > 0 ? builder.ToString() : "플레이어를 기다리는 중...";
 
             var canInteract = localPlayer != null && coop != null && coop.Phase == MultiplayerRunPhase.Lobby;
             _characterButton.interactable = canInteract;
-            _starterButton.interactable = canInteract;
+            _starterButton.interactable = false;
             _readyButton.interactable = canInteract;
 
             _characterButtonText.text = localPlayer != null
                 ? $"캐릭터\n{MultiplayerCatalog.GetCharacter(localPlayer.SelectedCharacterId).DisplayName}"
                 : "캐릭터\n-";
             _starterButtonText.text = localPlayer != null
-                ? $"시작 무기\n{MultiplayerCatalog.GetStarterWeaponDisplayName(localPlayer.SelectedStarterWeaponIndex)}"
-                : "시작 무기\n-";
+                ? $"고정 시작\n{MultiplayerCatalog.GetStarterWeaponDisplayName(localPlayer.SelectedStarterWeaponIndex)}"
+                : "고정 시작\n-";
             _readyButtonText.text = localPlayer != null && localPlayer.IsReady ? "준비 취소" : "준비";
 
             var isHost = manager != null && manager.IsHost;
@@ -499,7 +545,7 @@ namespace EJR.Game.Multiplayer
                 coop.TeamExperience,
                 coop.TeamRequiredExperience,
                 coop.RemainingSeconds);
-            _gameplayHud.SetModeHint(_autoPlayEnabled ? "자동 전투" : string.Empty);
+            _gameplayHud.SetModeHint(string.Empty);
             _gameplayHud.SetBuildInfo(localPlayer.WeaponSummary, localPlayer.StatSummary);
             if (coop.BossActive)
             {
@@ -508,6 +554,146 @@ namespace EJR.Game.Multiplayer
             else
             {
                 _gameplayHud.HideBossBar();
+            }
+        }
+
+        private bool RefreshLobbyUiMinimal(
+            NetworkManager manager,
+            MultiplayerCoopController coop,
+            MultiplayerPlayerCombatant localPlayer,
+            MultiplayerPlayerCombatant[] allPlayers)
+        {
+            if (_lobbyPanel == null)
+            {
+                return false;
+            }
+
+            var sessionCode = MultiplayerSessionController.EnsureInstance().SessionCode;
+            _lobbyHeaderText.text = string.IsNullOrWhiteSpace(sessionCode)
+                ? "멀티플레이 대기실"
+                : $"멀티플레이 대기실  |  코드 {sessionCode}";
+
+            var playerList = BuildLobbyPlayerList(allPlayers);
+            _playerListText.text = playerList.Length > 0 ? playerList.ToString() : "플레이어를 기다리는 중...";
+
+            var canInteract = localPlayer != null && coop != null && coop.Phase == MultiplayerRunPhase.Lobby;
+            _characterButton.interactable = canInteract;
+            _starterButton.interactable = false;
+            _readyButton.interactable = canInteract;
+
+            _characterButtonText.text = localPlayer != null
+                ? $"내 캐릭터\n{MultiplayerCatalog.GetCharacter(localPlayer.SelectedCharacterId).DisplayName}"
+                : "내 캐릭터\n-";
+            _starterButtonText.text = localPlayer != null
+                ? $"시작 무기\n{MultiplayerCatalog.GetStarterWeaponDisplayName(localPlayer.SelectedStarterWeaponIndex)}"
+                : "시작 무기\n-";
+            _readyButtonText.text = localPlayer != null && localPlayer.IsReady ? "준비 취소" : "준비";
+
+            var isHost = manager != null && manager.IsHost;
+            _startButton.gameObject.SetActive(isHost);
+            _startButton.interactable = isHost && coop != null && string.IsNullOrWhiteSpace(coop.GetStartBlockReason());
+            _startButtonText.text = "시작";
+            _startHintText.text = isHost
+                ? (coop != null && !string.IsNullOrWhiteSpace(coop.GetStartBlockReason())
+                    ? coop.GetStartBlockReason()
+                    : "모든 플레이어가 준비되면 시작할 수 있습니다.")
+                : "호스트가 준비를 확인한 뒤 시작합니다.";
+
+            var showSelector = canInteract && _inspectedLobbyCharacterId >= 0;
+            if (_characterSelectPanel != null)
+            {
+                _characterSelectPanel.SetActive(showSelector);
+                if (showSelector)
+                {
+                    RefreshLobbyCharacterSelection(localPlayer);
+                }
+            }
+
+            return true;
+        }
+
+        private StringBuilder BuildLobbyPlayerList(MultiplayerPlayerCombatant[] allPlayers)
+        {
+            var builder = new StringBuilder();
+            for (var i = 0; i < allPlayers.Length; i++)
+            {
+                var player = allPlayers[i];
+                if (player == null)
+                {
+                    continue;
+                }
+
+                builder.Append(player.DisplayName)
+                    .Append(" | 시작 ")
+                    .Append(MultiplayerCatalog.GetStarterWeaponDisplayName(player.SelectedStarterWeaponIndex))
+                    .Append(" | ")
+                    .Append(player.IsDowned
+                        ? $"다운 {Mathf.RoundToInt(player.ReviveProgress * 100f)}%"
+                        : (player.IsReady ? "준비" : "미준비"))
+                    .Append('\n');
+            }
+
+            return builder;
+        }
+
+        private void RefreshLobbyCharacterSelection(MultiplayerPlayerCombatant localPlayer)
+        {
+            if (_characterSelectPanel == null || _characterSelectDetailText == null || _characterSelectActionButton == null || _characterSelectActionText == null)
+            {
+                return;
+            }
+
+            var inspectedId = _inspectedLobbyCharacterId >= 0
+                ? SharedGameCatalog.NormalizeCharacterId(_inspectedLobbyCharacterId)
+                : (localPlayer != null ? localPlayer.SelectedCharacterId : MetaProgressionService.GetSingleSelectedCharacterId());
+            var inspectedCharacter = SharedGameCatalog.GetCharacter(inspectedId);
+            var unlocked = MetaProgressionService.IsCharacterUnlocked(inspectedId);
+            var selected = localPlayer != null && inspectedId == localPlayer.SelectedCharacterId;
+
+            _characterSelectTitleText.text = "캐릭터 선택";
+            _characterSelectDetailText.text =
+                $"{inspectedCharacter.DisplayName}\n\n" +
+                $"시작 무기\n{SharedGameCatalog.GetWeaponDisplayName(inspectedCharacter.StarterWeaponId)}\n\n" +
+                $"기본 보너스\n{BuildMetaBonusSummary(inspectedCharacter.BaseBonuses)}\n\n" +
+                $"고유 패시브\n{inspectedCharacter.PassiveDescription}";
+
+            if (!unlocked)
+            {
+                _characterSelectActionButton.interactable = false;
+                _characterSelectActionText.text = $"해금 필요 ({inspectedCharacter.UnlockCost} 코인)";
+            }
+            else if (selected)
+            {
+                _characterSelectActionButton.interactable = false;
+                _characterSelectActionText.text = "현재 선택됨";
+            }
+            else
+            {
+                _characterSelectActionButton.interactable = true;
+                _characterSelectActionText.text = "이 캐릭터 선택";
+            }
+
+            for (var i = 0; i < _characterSelectButtons.Length; i++)
+            {
+                var button = _characterSelectButtons[i];
+                var label = _characterSelectButtonTexts[i];
+                if (button == null || label == null || i >= SharedGameCatalog.CharacterDefinitions.Count)
+                {
+                    continue;
+                }
+
+                var definition = SharedGameCatalog.CharacterDefinitions[i];
+                var available = MetaProgressionService.IsCharacterUnlocked(definition.Id);
+                label.text = available
+                    ? $"{definition.DisplayName} | {SharedGameCatalog.GetWeaponDisplayName(definition.StarterWeaponId)}"
+                    : $"{definition.DisplayName} | 잠김";
+
+                if (button.targetGraphic is Image image)
+                {
+                    image.color = definition.Id == inspectedId
+                        ? new Color(0.24f, 0.32f, 0.44f, 1f)
+                        : new Color(0.14f, 0.18f, 0.28f, 0.95f);
+                }
             }
         }
 
@@ -571,19 +757,27 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
+            if (MetaProgressionService.TryPeekPendingRunSummary(out var summary) && summary != null)
+            {
+                _resultText.text = $"{summary.BuildDisplayText()}\n\n타이틀로 돌아가는 중...";
+                return;
+            }
+
             _resultText.text = coop.ResultCleared ? "클리어\n타이틀로 돌아가는 중..." : "팀 전멸\n타이틀로 돌아가는 중...";
         }
 
         private void HandleCharacterClicked()
         {
-            MultiplayerPlayerCombatant.FindOwnedLocalPlayer()?.RequestNextCharacterSelection();
+            var localPlayer = MultiplayerPlayerCombatant.FindOwnedLocalPlayer();
+            _inspectedLobbyCharacterId = localPlayer != null
+                ? localPlayer.SelectedCharacterId
+                : MetaProgressionService.GetSingleSelectedCharacterId();
             RefreshUi();
         }
 
         private void HandleStarterClicked()
         {
-            MultiplayerPlayerCombatant.FindOwnedLocalPlayer()?.RequestNextStarterWeaponSelection();
-            RefreshUi();
+            // Starter weapon choice is fixed by character selection.
         }
 
         private void HandleReadyClicked()
@@ -595,6 +789,30 @@ namespace EJR.Game.Multiplayer
         private void HandleStartClicked()
         {
             MultiplayerCoopController.Instance?.RequestStartGame();
+            RefreshUi();
+        }
+
+        private void InspectLobbyCharacter(int characterId)
+        {
+            _inspectedLobbyCharacterId = SharedGameCatalog.NormalizeCharacterId(characterId);
+            RefreshUi();
+        }
+
+        private void ConfirmLobbyCharacterSelection()
+        {
+            var localPlayer = MultiplayerPlayerCombatant.FindOwnedLocalPlayer();
+            if (localPlayer == null)
+            {
+                return;
+            }
+
+            localPlayer.RequestCharacterSelection(_inspectedLobbyCharacterId);
+            CloseLobbyCharacterSelection();
+        }
+
+        private void CloseLobbyCharacterSelection()
+        {
+            _inspectedLobbyCharacterId = -1;
             RefreshUi();
         }
 
@@ -723,6 +941,47 @@ namespace EJR.Game.Multiplayer
             localPlayer.SubmitLevelChoice(0);
         }
 
+        private static string BuildMetaBonusSummary(MetaBonusValues bonuses)
+        {
+            if (Mathf.Approximately(bonuses.attackPowerPercent, 0f)
+                && Mathf.Approximately(bonuses.attackSpeedPercent, 0f)
+                && Mathf.Approximately(bonuses.maxHealthFlat, 0f)
+                && Mathf.Approximately(bonuses.healthRegenPerSecond, 0f)
+                && Mathf.Approximately(bonuses.moveSpeedPercent, 0f)
+                && Mathf.Approximately(bonuses.attackRangePercent, 0f))
+            {
+                return "보정 없음";
+            }
+
+            var builder = new StringBuilder();
+            AppendBonus(builder, bonuses.attackPowerPercent, "피해량");
+            AppendBonus(builder, bonuses.attackSpeedPercent, "공속");
+            AppendBonus(builder, bonuses.maxHealthFlat, "최대 체력", integer: true);
+            AppendBonus(builder, bonuses.healthRegenPerSecond, "체력 재생", suffix: "/초");
+            AppendBonus(builder, bonuses.moveSpeedPercent, "이동 속도");
+            AppendBonus(builder, bonuses.attackRangePercent, "범위");
+            return builder.ToString();
+        }
+
+        private static void AppendBonus(StringBuilder builder, float value, string label, bool integer = false, string suffix = "%")
+        {
+            if (Mathf.Approximately(value, 0f))
+            {
+                return;
+            }
+
+            if (builder.Length > 0)
+            {
+                builder.Append('\n');
+            }
+
+            builder.Append(label)
+                .Append(' ')
+                .Append(value > 0f ? "+" : string.Empty)
+                .Append(integer ? Mathf.RoundToInt(value).ToString() : value.ToString("0.#"))
+                .Append(suffix);
+        }
+
         private GameObject CreatePanel(
             Transform parent,
             string name,
@@ -815,6 +1074,18 @@ namespace EJR.Game.Multiplayer
             }
 #endif
             return Input.GetKeyDown(KeyCode.Escape);
+        }
+
+        private static bool IsBuildDrawerToggleKeyPressed()
+        {
+#if ENABLE_INPUT_SYSTEM
+            var keyboard = Keyboard.current;
+            if (keyboard != null && keyboard.tabKey.wasPressedThisFrame)
+            {
+                return true;
+            }
+#endif
+            return Input.GetKeyDown(KeyCode.Tab);
         }
 
         private static bool IsOptionKeyPressed(int zeroBasedIndex)

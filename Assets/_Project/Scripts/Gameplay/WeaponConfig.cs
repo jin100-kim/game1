@@ -65,7 +65,7 @@ namespace EJR.Game.Gameplay
         [Min(0.05f)] public float fireballProjectileHitRadius = 0.28f;
         [Range(0f, 120f)] public float fireballSpreadAngle = 20f;
         [Min(0.1f)] public float fireballExplosionRadius = 1.05f;
-        [Range(0.05f, 3f)] public float fireballExplosionDamageMultiplier = 0.8f;
+        [Range(0.05f, 3f)] public float fireballExplosionDamageMultiplier = 0.4f;
         [Min(0.1f)] public float fireballBurnDuration = 2.5f;
         [Min(0.05f)] public float fireballBurnTickInterval = 0.5f;
         [Range(0.01f, 3f)] public float fireballBurnDamageMultiplier = 0.32f;
@@ -76,16 +76,17 @@ namespace EJR.Game.Gameplay
         [Range(0.05f, 1f)] public float sniperMinimumDamageMultiplier = 0.35f;
 
         [Header("Bat")]
-        [Min(0.1f)] public float batAttackInterval = 1.8f;
-        [Min(0.1f)] public float batHealthCost = 4f;
-        [Min(0.1f)] public float batLifetime = 5f;
-        [Min(0f)] public float batOrbitDuration = 0.65f;
-        [Min(0.1f)] public float batOrbitRadius = 1.25f;
-        [Min(0.1f)] public float batMoveSpeed = 6.2f;
-        [Min(0.05f)] public float batHitInterval = 0.45f;
-        [Range(0.05f, 5f)] public float batDamageMultiplier = 0.62f;
-        [Range(1f, 3f)] public float batHealMultiplier = 1.3f;
-        [Range(0f, 1f)] public float batOverhealToMaxHealthRatio = 0.25f;
+        [Min(0.1f)] public float batAttackInterval = 1.5f;
+        [Min(0f)] public float batHealthCost = 0f;
+        [Min(0f)] public float batLifetime = 0f;
+        [Min(0f)] public float batOrbitDuration = 0.5f;
+        [Min(0.1f)] public float batOrbitRadius = 1.15f;
+        [Min(0.1f)] public float batMoveSpeed = 6.8f;
+        [Min(0.01f)] public float batHitInterval = 0.5f;
+        [Range(0.05f, 5f)] public float batDamageMultiplier = 2.48f;
+        [Range(0.01f, 1f)] public float batHealPerDamageMultiplier = 0.05f;
+        [Min(1f)] public float batMinimumHealPerHit = 1f;
+        [Min(1)] public int batHitsBeforeReturn = 3;
         [Min(0.05f)] public float batVisualScale = 0.32f;
 
         [Header("Shotgun")]
@@ -106,7 +107,8 @@ namespace EJR.Game.Gameplay
         [Min(0.2f)] public float bfSwordLength = 1.75f;
         [Min(0.05f)] public float bfSwordThickness = 0.275f;
         [Min(0f)] public float bfSwordForwardOffset = 0.96f;
-        [Min(0.1f)] public float bfSwordBaseDamage = 6f;
+        [Min(0.1f)] public float bfSwordBaseDamage = 12f;
+        [Min(0.02f)] public float bfSwordStunDuration = 0.18f;
         [Min(0.05f)] public float bfSwordVisualScale = 1.9f;
         [Min(0.05f)] public float bfSwordVisualWidthMultiplier = 0.5f;
         public Vector2 bfSwordVisualLocalOffset = new(0f, -0.16f);

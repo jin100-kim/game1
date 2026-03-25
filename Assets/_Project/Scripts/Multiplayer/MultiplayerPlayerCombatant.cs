@@ -1,5 +1,6 @@
 using System;
 using System.Text;
+using EJR.Game.Audio;
 using EJR.Game.Core;
 using EJR.Game.Gameplay;
 using Unity.Netcode;
@@ -65,6 +66,9 @@ namespace EJR.Game.Multiplayer
         private readonly NetworkVariable<float> _droneOrbitSpeedDegrees =
             new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
+        private readonly NetworkVariable<float> _auraRadius =
+            new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
         private PlayerHealth _playerHealth;
         private PlayerMover _playerMover;
         private PlayerSpriteAnimator _playerSpriteAnimator;
@@ -85,9 +89,11 @@ namespace EJR.Game.Multiplayer
         private string _localStatSummary = "능력치";
         private bool _serverChoiceSubmitted;
         private bool _serverInitialized;
-        private int _unlockedWeaponMask;
+        private readonly RunCombatTracker _combatTracker = new();
+        private float _lastObservedPlayerMaxHealth = -1f;
         private int _unlockedCharacterMask;
         private MetaBonusValues _metaRunStartBonuses;
+        private float _pendingRemoteHealPopupAmount;
 
         public PlayerHealth ServerPlayerHealth => _playerHealth;
         public bool IsReady => _isReady.Value;
@@ -108,6 +114,7 @@ namespace EJR.Game.Multiplayer
         public bool HasPendingServerChoice => _levelUp != null && _levelUp.IsAwaitingChoice;
         public bool HasSubmittedServerChoice => _serverChoiceSubmitted;
         public string DisplayName => MultiplayerCatalog.GetPlayerDisplayName(OwnerClientId, _selectedCharacterId.Value);
+        public float CurrentCreditGainPercent => _playerStats != null ? _playerStats.CreditGainPercent : 0f;
 
         public static MultiplayerPlayerCombatant FindOwnedLocalPlayer()
         {
@@ -155,6 +162,7 @@ namespace EJR.Game.Multiplayer
 
         public override void OnNetworkSpawn()
         {
+            _pendingRemoteHealPopupAmount = 0f;
             _currentHealth.OnValueChanged += HandleCurrentHealthChanged;
             _maxHealth.OnValueChanged += HandleMaxHealthChanged;
             _selectedCharacterId.OnValueChanged += HandleSelectedCharacterChanged;
@@ -169,6 +177,7 @@ namespace EJR.Game.Multiplayer
             _droneVisualCount.OnValueChanged += HandleDroneVisualStateChanged;
             _droneOrbitRadius.OnValueChanged += HandleDroneVisualStateChanged;
             _droneOrbitSpeedDegrees.OnValueChanged += HandleDroneVisualStateChanged;
+            _auraRadius.OnValueChanged += HandleAuraRadiusChanged;
 
             ApplyHealthPresentation(_currentHealth.Value, Mathf.Max(1f, _maxHealth.Value), false);
             ApplyCharacterPresentation(_selectedCharacterId.Value, _isDowned.Value);
@@ -176,6 +185,7 @@ namespace EJR.Game.Multiplayer
             ApplyWeaponPresentation();
             _playerActor?.SetFacingDirection(_facingDirection.Value);
             ApplyDronePresentation();
+            ApplyAuraPresentation();
             ApplyRevivePresentation();
             RefreshMoverState();
 
@@ -206,6 +216,7 @@ namespace EJR.Game.Multiplayer
             _droneVisualCount.OnValueChanged -= HandleDroneVisualStateChanged;
             _droneOrbitRadius.OnValueChanged -= HandleDroneVisualStateChanged;
             _droneOrbitSpeedDegrees.OnValueChanged -= HandleDroneVisualStateChanged;
+            _auraRadius.OnValueChanged -= HandleAuraRadiusChanged;
 
             if (IsServer)
             {
@@ -278,17 +289,26 @@ namespace EJR.Game.Multiplayer
             SetLobbyCharacterServerRpc(nextCharacterId);
         }
 
-        public void RequestNextStarterWeaponSelection()
+        public void RequestCharacterSelection(int characterId)
         {
             if (!IsOwner || !IsSpawned)
             {
                 return;
             }
 
-            var currentWeapon = MultiplayerCatalog.GetStarterWeaponByIndex(_selectedStarterWeaponId.Value);
-            var nextWeapon = MetaProgressionService.GetNextUnlockedStarterWeapon(currentWeapon);
-            MetaProgressionService.SetSingleSelectedStarterWeapon(nextWeapon);
-            SetLobbyStarterWeaponServerRpc(MultiplayerCatalog.GetStarterWeaponIndex(nextWeapon));
+            var normalizedCharacterId = MultiplayerCatalog.NormalizeCharacterId(characterId);
+            if (!MetaProgressionService.IsCharacterUnlocked(normalizedCharacterId))
+            {
+                return;
+            }
+
+            MetaProgressionService.SetSingleSelectedCharacterId(normalizedCharacterId);
+            SetLobbyCharacterServerRpc(normalizedCharacterId);
+        }
+
+        public void RequestNextStarterWeaponSelection()
+        {
+            // Starter weapon selection was removed. Character selection now determines the starter weapon.
         }
 
         public void RequestToggleReady()
@@ -308,6 +328,7 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
+            AudioService.Instance.PlaySfx(AudioCueId.LevelUpSelect);
             SubmitLevelChoiceServerRpc(optionIndex);
         }
 
@@ -325,13 +346,14 @@ namespace EJR.Game.Multiplayer
             _playerMover.Initialize(_playerConfig, _playerStats, arenaBounds);
             _playerHealth.Initialize(GetCurrentMaxHealth(), _playerConfig.damageInvulnerabilitySeconds);
             _playerHealth.GrantInvulnerability(0.75f);
+            _combatTracker.Reset();
             _isDowned.Value = false;
             _reviveProgress.Value = 0f;
             _serverChoiceSubmitted = false;
+            _lastObservedPlayerMaxHealth = _playerHealth.MaxHealth;
             _weaponSystem?.ClearActiveProjectiles();
             ResetSpecialPresentationClientRpc();
             EnsureWeaponSystem(arenaBounds);
-            ApplyBuildToRuntimeSystems();
             ClearPendingChoiceClientRpc(BuildOwnerClientRpcParams());
         }
 
@@ -352,7 +374,9 @@ namespace EJR.Game.Multiplayer
             _serverChoiceSubmitted = false;
             ResetBuildRuntimeForLobby();
             _playerMover.Initialize(_playerConfig, _playerStats, arenaBounds);
-            _playerHealth.Initialize(_playerConfig.maxHealth, _playerConfig.damageInvulnerabilitySeconds);
+            _playerHealth.Initialize(GetCurrentMaxHealth(), _playerConfig.damageInvulnerabilitySeconds);
+            _combatTracker.Reset();
+            _lastObservedPlayerMaxHealth = _playerHealth.MaxHealth;
 
             if (_weaponSystem != null)
             {
@@ -428,22 +452,27 @@ namespace EJR.Game.Multiplayer
 
             _playerHealth.Changed += HandleServerHealthChanged;
             _playerHealth.Died += HandleServerDied;
+            _playerHealth.Damaged += HandleServerDamaged;
+            _playerHealth.Healed += HandleServerHealed;
 
             _selectedCharacterId.Value = MultiplayerCatalog.NormalizeCharacterId((int)(OwnerClientId % (ulong)Mathf.Max(1, MultiplayerCatalog.CharacterCount)));
-            _selectedStarterWeaponId.Value = 0;
+            _selectedStarterWeaponId.Value = MultiplayerCatalog.GetStarterWeaponIndex(
+                MetaProgressionService.GetCharacterStarterWeapon(_selectedCharacterId.Value));
             _selectionComplete.Value = true;
             _isReady.Value = false;
             _isDowned.Value = false;
             _reviveProgress.Value = 0f;
             _facingDirection.Value = Vector2.right;
-            _unlockedWeaponMask = 0;
             _unlockedCharacterMask = 0;
             _metaRunStartBonuses = default;
             _droneVisualCount.Value = 0;
             _droneOrbitRadius.Value = 0f;
             _droneOrbitSpeedDegrees.Value = 0f;
+            _auraRadius.Value = 0f;
+            _combatTracker.Reset();
             ResetBuildRuntimeForLobby();
-            _playerHealth.Initialize(_playerConfig.maxHealth, _playerConfig.damageInvulnerabilitySeconds);
+            _playerHealth.Initialize(GetCurrentMaxHealth(), _playerConfig.damageInvulnerabilitySeconds);
+            _lastObservedPlayerMaxHealth = _playerHealth.MaxHealth;
             SyncHealthState();
 
             _serverInitialized = true;
@@ -454,11 +483,13 @@ namespace EJR.Game.Multiplayer
             if (_levelUp != null)
             {
                 _levelUp.OptionsGenerated -= HandleServerOptionsGenerated;
+                _levelUp.ExperienceChanged -= HandleServerExperienceChanged;
             }
 
             _levelUp = new LevelUpSystem();
             _levelUp.Initialize(_buildRuntime, _levelUpBalanceConfig, IsWeaponUnlockedForThisPlayer);
             _levelUp.OptionsGenerated += HandleServerOptionsGenerated;
+            _levelUp.ExperienceChanged += HandleServerExperienceChanged;
         }
 
         private void UnhookServerRuntime()
@@ -466,12 +497,14 @@ namespace EJR.Game.Multiplayer
             if (_levelUp != null)
             {
                 _levelUp.OptionsGenerated -= HandleServerOptionsGenerated;
+                _levelUp.ExperienceChanged -= HandleServerExperienceChanged;
             }
 
             if (_weaponSystem != null)
             {
                 _weaponSystem.AimUpdated -= HandleServerAimUpdated;
                 _weaponSystem.Fired -= HandleServerWeaponFired;
+                _weaponSystem.WeaponSoundRequested -= HandleServerWeaponSoundRequested;
                 _weaponSystem.ProjectileVisualRequested -= HandleServerProjectileVisualRequested;
                 _weaponSystem.KatanaSlashFxRequested -= HandleServerKatanaSlashFxRequested;
                 _weaponSystem.ChainFxRequested -= HandleServerChainFxRequested;
@@ -486,6 +519,8 @@ namespace EJR.Game.Multiplayer
             {
                 _playerHealth.Changed -= HandleServerHealthChanged;
                 _playerHealth.Died -= HandleServerDied;
+                _playerHealth.Damaged -= HandleServerDamaged;
+                _playerHealth.Healed -= HandleServerHealed;
             }
         }
 
@@ -493,31 +528,31 @@ namespace EJR.Game.Multiplayer
         {
             _buildRuntime.InitializeDefaults(grantStarterRifle: false);
             _buildRuntime.ApplyMetaBonuses(_metaRunStartBonuses);
-            _playerStats.RecalculateFromBuild(_buildRuntime);
+            _buildRuntime.ApplyCharacterBaseBonuses(MetaProgressionService.GetCharacterBaseBonuses(_selectedCharacterId.Value));
             RecreateLevelSystem();
-            UpdateBuildSummaries();
+            RefreshCharacterPassiveBonuses();
         }
 
         private void ResetBuildRuntimeForRun()
         {
             _buildRuntime.InitializeDefaults(grantStarterRifle: false);
             _buildRuntime.ApplyMetaBonuses(_metaRunStartBonuses);
-            var starterWeapon = MultiplayerCatalog.GetStarterWeaponByIndex(_selectedStarterWeaponId.Value);
+            _buildRuntime.ApplyCharacterBaseBonuses(MetaProgressionService.GetCharacterBaseBonuses(_selectedCharacterId.Value));
+            var starterWeapon = MetaProgressionService.GetCharacterStarterWeapon(_selectedCharacterId.Value);
+            _selectedStarterWeaponId.Value = MultiplayerCatalog.GetStarterWeaponIndex(starterWeapon);
             _buildRuntime.Apply(LevelUpOption.CreateWeaponAcquire(
                 starterWeapon,
                 $"{MultiplayerCatalog.GetWeaponDisplayName(starterWeapon)} 레벨 1",
                 "무기 획득",
                 MultiplayerCatalog.GetWeaponDisplayName(starterWeapon)));
 
-            _playerStats.RecalculateFromBuild(_buildRuntime);
             RecreateLevelSystem();
-            ApplyBuildToRuntimeSystems();
-            UpdateBuildSummaries();
+            RefreshCharacterPassiveBonuses();
         }
 
         private bool IsWeaponUnlockedForThisPlayer(WeaponUpgradeId weaponId)
         {
-            return _unlockedWeaponMask == 0 || SharedGameCatalog.IsWeaponInMask(_unlockedWeaponMask, weaponId);
+            return weaponId != WeaponUpgradeId.Drone;
         }
 
         private bool IsCharacterUnlockedForThisPlayer(int characterId)
@@ -530,11 +565,9 @@ namespace EJR.Game.Multiplayer
             MetaProgressionService.EnsureLoaded();
 
             var selectedCharacterId = MetaProgressionService.GetSingleSelectedCharacterId();
-            var selectedStarterWeapon = MetaProgressionService.GetSingleSelectedStarterWeapon();
-            var bonuses = MetaProgressionService.GetCombinedRunStartBonuses(selectedCharacterId);
+            var bonuses = MetaProgressionService.GetPurchasedUpgradeBonuses();
 
             SubmitMetaProfileServerRpc(
-                MetaProgressionService.GetUnlockedWeaponMask(),
                 MetaProgressionService.GetUnlockedCharacterMask(),
                 bonuses.attackPowerPercent,
                 bonuses.attackSpeedPercent,
@@ -543,8 +576,9 @@ namespace EJR.Game.Multiplayer
                 bonuses.moveSpeedPercent,
                 bonuses.attackRangePercent,
                 bonuses.luck,
-                selectedCharacterId,
-                MultiplayerCatalog.GetStarterWeaponIndex(selectedStarterWeapon));
+                bonuses.experienceGainPercent,
+                bonuses.creditGainPercent,
+                selectedCharacterId);
         }
 
         private void EnsureWeaponSystem(Rect arenaBounds)
@@ -571,6 +605,7 @@ namespace EJR.Game.Multiplayer
 
             _weaponSystem.AimUpdated -= HandleServerAimUpdated;
             _weaponSystem.Fired -= HandleServerWeaponFired;
+            _weaponSystem.WeaponSoundRequested -= HandleServerWeaponSoundRequested;
             _weaponSystem.ProjectileVisualRequested -= HandleServerProjectileVisualRequested;
             _weaponSystem.KatanaSlashFxRequested -= HandleServerKatanaSlashFxRequested;
             _weaponSystem.ChainFxRequested -= HandleServerChainFxRequested;
@@ -581,6 +616,7 @@ namespace EJR.Game.Multiplayer
             _weaponSystem.TurretTracerFxRequested -= HandleServerTurretTracerFxRequested;
             _weaponSystem.AimUpdated += HandleServerAimUpdated;
             _weaponSystem.Fired += HandleServerWeaponFired;
+            _weaponSystem.WeaponSoundRequested += HandleServerWeaponSoundRequested;
             _weaponSystem.ProjectileVisualRequested += HandleServerProjectileVisualRequested;
             _weaponSystem.KatanaSlashFxRequested += HandleServerKatanaSlashFxRequested;
             _weaponSystem.ChainFxRequested += HandleServerChainFxRequested;
@@ -604,6 +640,11 @@ namespace EJR.Game.Multiplayer
 
         private void ApplyBuildToRuntimeSystems()
         {
+            if (_buildRuntime == null || _playerStats == null)
+            {
+                return;
+            }
+
             _playerStats.RecalculateFromBuild(_buildRuntime);
 
             if (_weaponSystem != null)
@@ -622,8 +663,54 @@ namespace EJR.Game.Multiplayer
             _droneVisualCount.Value = GetDroneVisualCount(_buildRuntime);
             _droneOrbitRadius.Value = GetDroneOrbitRadius(_buildRuntime, _playerStats);
             _droneOrbitSpeedDegrees.Value = GetDroneOrbitSpeedDegrees(_buildRuntime, _playerStats);
+            _auraRadius.Value = GetAuraVisualRadius(_buildRuntime, _playerStats);
+            ApplyAuraPresentation();
             UpdateBuildSummaries();
             SyncHealthState();
+        }
+
+        private void RefreshCharacterPassiveBonuses()
+        {
+            if (_buildRuntime == null)
+            {
+                return;
+            }
+
+            var passiveId = MetaProgressionService.GetCharacterPassiveId(_selectedCharacterId.Value);
+            var currentLevel = _levelUp != null ? Mathf.Max(1, _levelUp.Level) : 1;
+            var dynamicBonuses = default(MetaBonusValues);
+            var ignoreChainDecay = false;
+            var bonusChains = 0;
+
+            switch (passiveId)
+            {
+                case CharacterPassiveId.SoldierLevelAttackSpeed:
+                    dynamicBonuses.attackSpeedPercent = currentLevel;
+                    break;
+                case CharacterPassiveId.VampireMaxHealthDamage:
+                {
+                    var currentMaxHealth = _playerHealth != null ? _playerHealth.MaxHealth : GetCurrentMaxHealth();
+                    dynamicBonuses.attackPowerPercent = Mathf.Floor(Mathf.Max(0f, currentMaxHealth) / 2f);
+                    break;
+                }
+                case CharacterPassiveId.SwordsmanLevelMoveSpeed:
+                    dynamicBonuses.moveSpeedPercent = currentLevel;
+                    break;
+                case CharacterPassiveId.WizardLevelDamage:
+                    dynamicBonuses.attackPowerPercent = currentLevel;
+                    break;
+                case CharacterPassiveId.PriestLevelRange:
+                    dynamicBonuses.attackRangePercent = currentLevel;
+                    break;
+                case CharacterPassiveId.LightningMageChainMastery:
+                    ignoreChainDecay = true;
+                    bonusChains = 2;
+                    break;
+            }
+
+            _buildRuntime.ApplyCharacterDynamicBonuses(dynamicBonuses);
+            _buildRuntime.SetChainAttackModifiers(ignoreChainDecay, bonusChains);
+            ApplyBuildToRuntimeSystems();
         }
 
         private float GetCurrentMaxHealth()
@@ -675,7 +762,7 @@ namespace EJR.Game.Multiplayer
                     builder.Append('\n').Append(slotNumber).Append(") ")
                         .Append(MultiplayerCatalog.GetWeaponDisplayName(weaponId))
                         .Append(" 레벨 ").Append(level)
-                        .Append(" [피해+").Append(damageBonus.ToString("0.#"))
+                        .Append(" [피해량+").Append(damageBonus.ToString("0.#"))
                         .Append(" 공속+").Append(attackSpeedBonus.ToString("0.#"))
                         .Append(" 범위+").Append(rangeBonus.ToString("0.#"));
 
@@ -703,13 +790,13 @@ namespace EJR.Game.Multiplayer
             }
 
             var builder = new StringBuilder("전역 능력치");
-            builder.Append('\n').Append("공격력 +").Append(_buildRuntime.GlobalAttackPowerPercentTotal.ToString("0.#")).Append('%');
+            builder.Append('\n').Append("피해량 +").Append(_buildRuntime.GlobalAttackPowerPercentTotal.ToString("0.#")).Append('%');
             builder.Append('\n').Append("공격 속도 +").Append(_buildRuntime.GlobalAttackSpeedPercentTotal.ToString("0.#")).Append('%');
             builder.Append('\n').Append("최대 체력 +").Append(_buildRuntime.GlobalMaxHealthFlatTotal.ToString("0"));
             builder.Append('\n').Append("체력 재생 +").Append(_buildRuntime.GlobalHealthRegenPerSecondTotal.ToString("0.##")).Append("/초");
             builder.Append('\n').Append("이동 속도 +").Append(_buildRuntime.GlobalMoveSpeedPercentTotal.ToString("0.#")).Append('%');
             builder.Append('\n').Append("공격 범위 +").Append(_buildRuntime.GlobalAttackRangePercentTotal.ToString("0.#")).Append('%');
-            builder.Append('\n').Append("행운 ").Append(_buildRuntime.GlobalLuckTotal.ToString("0.##"));
+            builder.Append('\n').Append("행운 ").Append(_buildRuntime.GlobalLuckTotal.ToString("0"));
             return builder.ToString();
         }
 
@@ -725,6 +812,27 @@ namespace EJR.Game.Multiplayer
             _currentHealth.Value = currentHealth;
             _maxHealth.Value = maxHealth;
             ApplyHealthPresentation(currentHealth, maxHealth, false);
+
+            if (!Mathf.Approximately(_lastObservedPlayerMaxHealth, maxHealth))
+            {
+                _lastObservedPlayerMaxHealth = maxHealth;
+                RefreshCharacterPassiveBonuses();
+            }
+        }
+
+        private void HandleServerDamaged(float damage)
+        {
+            _combatTracker.RecordDamageTaken(damage);
+        }
+
+        private void HandleServerHealed(float amount)
+        {
+            _combatTracker.RecordHealing(amount);
+        }
+
+        private void HandleServerExperienceChanged(int currentExperience, int requiredExperience, int level)
+        {
+            RefreshCharacterPassiveBonuses();
         }
 
         private void HandleServerDied()
@@ -767,6 +875,21 @@ namespace EJR.Game.Multiplayer
                     transform.position + new Vector3(0f, 0.9f, 0f),
                     previousValue - newValue,
                     CombatTextSpawner.PlayerDamagedColor);
+                if (IsOwner)
+                {
+                    AudioService.Instance.PlaySfx(AudioCueId.PlayerHurt);
+                }
+            }
+            else if (!IsServer && newValue > previousValue + 0.001f)
+            {
+                if (previousValue <= 0.001f)
+                {
+                    _pendingRemoteHealPopupAmount = 0f;
+                }
+                else
+                {
+                    TrySpawnRemoteHealingPopup(newValue - previousValue);
+                }
             }
 
             ApplyHealthPresentation(newValue, Mathf.Max(1f, _maxHealth.Value), newValue < previousValue - 0.001f);
@@ -775,6 +898,21 @@ namespace EJR.Game.Multiplayer
         private void HandleMaxHealthChanged(float previousValue, float newValue)
         {
             ApplyHealthPresentation(_currentHealth.Value, Mathf.Max(1f, newValue), false);
+        }
+
+        private void TrySpawnRemoteHealingPopup(float healingAmount)
+        {
+            _pendingRemoteHealPopupAmount += healingAmount;
+            var displayAmount = Mathf.FloorToInt(_pendingRemoteHealPopupAmount + 0.0001f);
+            if (displayAmount <= 0)
+            {
+                return;
+            }
+
+            _pendingRemoteHealPopupAmount = Mathf.Max(0f, _pendingRemoteHealPopupAmount - displayAmount);
+            CombatTextSpawner.SpawnHealing(
+                transform.position + new Vector3(0f, 0.9f, 0f),
+                displayAmount);
         }
 
         private void HandleSelectedCharacterChanged(int previousValue, int newValue)
@@ -832,11 +970,17 @@ namespace EJR.Game.Multiplayer
             ApplyDronePresentation();
         }
 
+        private void HandleAuraRadiusChanged(float previousValue, float newValue)
+        {
+            ApplyAuraPresentation();
+        }
+
         private void HandleDownedChanged(bool previousValue, bool newValue)
         {
             ApplyCharacterPresentation(_selectedCharacterId.Value, newValue);
             ApplyWeaponPresentation();
             ApplyDronePresentation();
+            ApplyAuraPresentation();
             ApplyRevivePresentation();
             RefreshMoverState();
             if (newValue && !previousValue)
@@ -901,6 +1045,17 @@ namespace EJR.Game.Multiplayer
             _playerActor?.SetDroneOrbitVisualState(droneCount, orbitRadius, orbitSpeed);
         }
 
+        private void ApplyAuraPresentation()
+        {
+            if (_playerActor == null)
+            {
+                _playerActor = GetComponent<MultiplayerPlayerActor>();
+            }
+
+            var auraRadius = _isDowned.Value ? 0f : _auraRadius.Value;
+            _playerActor?.SetAuraVisualState(auraRadius);
+        }
+
         private void ApplyRevivePresentation()
         {
             if (_playerActor == null)
@@ -950,6 +1105,17 @@ namespace EJR.Game.Multiplayer
             _aimDirection.Value = normalized;
             _fireDirection.Value = normalized;
             _fireSequence.Value++;
+        }
+
+        private void HandleServerWeaponSoundRequested(WeaponSoundRequest request)
+        {
+            if (!IsServer)
+            {
+                return;
+            }
+
+            AudioService.Instance.PlayWeaponSound(request);
+            PlayWeaponSoundClientRpc((int)request.WeaponId, (int)request.Kind);
         }
 
         private void HandleServerProjectileVisualRequested(AutoWeaponSystem.ProjectileSpawnRequest request)
@@ -1044,7 +1210,6 @@ namespace EJR.Game.Multiplayer
 
         [ServerRpc]
         private void SubmitMetaProfileServerRpc(
-            int unlockedWeaponMask,
             int unlockedCharacterMask,
             float attackPowerPercent,
             float attackSpeedPercent,
@@ -1053,10 +1218,10 @@ namespace EJR.Game.Multiplayer
             float moveSpeedPercent,
             float attackRangePercent,
             float luck,
-            int preferredCharacterId,
-            int preferredStarterWeaponIndex)
+            float experienceGainPercent,
+            float creditGainPercent,
+            int preferredCharacterId)
         {
-            _unlockedWeaponMask = unlockedWeaponMask;
             _unlockedCharacterMask = unlockedCharacterMask;
             _metaRunStartBonuses = new MetaBonusValues
             {
@@ -1067,6 +1232,8 @@ namespace EJR.Game.Multiplayer
                 moveSpeedPercent = moveSpeedPercent,
                 attackRangePercent = attackRangePercent,
                 luck = luck,
+                experienceGainPercent = experienceGainPercent,
+                creditGainPercent = creditGainPercent,
             };
 
             if (MultiplayerCoopController.Instance != null && MultiplayerCoopController.Instance.Phase == MultiplayerRunPhase.Lobby)
@@ -1076,12 +1243,8 @@ namespace EJR.Game.Multiplayer
                     _selectedCharacterId.Value = MultiplayerCatalog.NormalizeCharacterId(preferredCharacterId);
                 }
 
-                var preferredWeapon = MultiplayerCatalog.GetStarterWeaponByIndex(preferredStarterWeaponIndex);
-                if (IsWeaponUnlockedForThisPlayer(preferredWeapon))
-                {
-                    _selectedStarterWeaponId.Value = MultiplayerCatalog.NormalizeStarterWeaponIndex(preferredStarterWeaponIndex);
-                }
-
+                _selectedStarterWeaponId.Value = MultiplayerCatalog.GetStarterWeaponIndex(
+                    MetaProgressionService.GetCharacterStarterWeapon(_selectedCharacterId.Value));
                 _selectionComplete.Value = true;
                 _isReady.Value = false;
             }
@@ -1108,29 +1271,22 @@ namespace EJR.Game.Multiplayer
             }
 
             _selectedCharacterId.Value = characterId;
+            _selectedStarterWeaponId.Value = MultiplayerCatalog.GetStarterWeaponIndex(
+                MetaProgressionService.GetCharacterStarterWeapon(characterId));
             _selectionComplete.Value = true;
             _isReady.Value = false;
+
+            if (_serverInitialized)
+            {
+                ResetBuildRuntimeForLobby();
+            }
         }
 
         [ServerRpc]
         private void SetLobbyStarterWeaponServerRpc(int starterWeaponIndex)
         {
-            var coop = MultiplayerCoopController.Instance;
-            if (coop == null || coop.Phase != MultiplayerRunPhase.Lobby)
-            {
-                return;
-            }
-
-            var normalizedIndex = MultiplayerCatalog.NormalizeStarterWeaponIndex(starterWeaponIndex);
-            var weaponId = MultiplayerCatalog.GetStarterWeaponByIndex(normalizedIndex);
-            if (!IsWeaponUnlockedForThisPlayer(weaponId))
-            {
-                return;
-            }
-
-            _selectedStarterWeaponId.Value = normalizedIndex;
-            _selectionComplete.Value = true;
-            _isReady.Value = false;
+            _selectedStarterWeaponId.Value = MultiplayerCatalog.GetStarterWeaponIndex(
+                MetaProgressionService.GetCharacterStarterWeapon(_selectedCharacterId.Value));
         }
 
         [ServerRpc]
@@ -1157,7 +1313,7 @@ namespace EJR.Game.Multiplayer
             optionIndex = Mathf.Clamp(optionIndex, 0, _serverPendingOptions.Length - 1);
             _serverChoiceSubmitted = true;
             _levelUp.ApplyOption(optionIndex, _serverPendingOptions);
-            ApplyBuildToRuntimeSystems();
+            RefreshCharacterPassiveBonuses();
 
             if (_levelUp.IsAwaitingChoice)
             {
@@ -1179,6 +1335,11 @@ namespace EJR.Game.Multiplayer
             string option2,
             ClientRpcParams clientRpcParams = default)
         {
+            if (!IsServer)
+            {
+                AudioService.Instance.PlaySfx(AudioCueId.LevelUpAppear);
+            }
+
             _localPendingTitle = title ?? string.Empty;
 
             if (optionCount <= 0)
@@ -1252,6 +1413,21 @@ namespace EJR.Game.Multiplayer
                 lifetime,
                 visualScale,
                 new Color(colorR, colorG, colorB, colorA));
+        }
+
+        [ClientRpc]
+        private void PlayWeaponSoundClientRpc(int weaponId, int kind)
+        {
+            if (IsServer)
+            {
+                return;
+            }
+
+            AudioService.Instance.PlayWeaponSound(
+                new WeaponSoundRequest(
+                    (WeaponUpgradeId)weaponId,
+                    (WeaponSoundKind)kind,
+                    transform.position));
         }
 
         [ClientRpc]
@@ -1390,6 +1566,20 @@ namespace EJR.Game.Multiplayer
             var attackSpeedScale = stats != null ? Mathf.Max(0.2f, 1f / stats.AttackIntervalMultiplier) : 1f;
             var weaponAttackSpeedScale = 1f + (Mathf.Max(0f, buildRuntime.GetWeaponAttackSpeedBonusPercentTotal(WeaponUpgradeId.Drone)) / 100f);
             return baseSpeed * weaponAttackSpeedScale * attackSpeedScale;
+        }
+
+        private float GetAuraVisualRadius(PlayerBuildRuntime buildRuntime, PlayerStatsRuntime stats)
+        {
+            if (buildRuntime == null || buildRuntime.GetWeaponLevel(WeaponUpgradeId.Aura) <= 0)
+            {
+                return 0f;
+            }
+
+            var baseRadius = _weaponConfig != null ? Mathf.Max(0.2f, _weaponConfig.auraRadius) : 1.5f;
+            var attackRangeMultiplier = stats != null ? Mathf.Max(0.1f, stats.AttackRangeMultiplier) : 1f;
+            var weaponRangeMultiplier = 1f + (Mathf.Max(0f, buildRuntime.GetWeaponRangeBonusPercentTotal(WeaponUpgradeId.Aura)) / 100f);
+            weaponRangeMultiplier *= Mathf.Max(1f, buildRuntime.GetAuraMilestoneRangeMultiplier());
+            return Mathf.Max(0.2f, baseRadius * attackRangeMultiplier * weaponRangeMultiplier);
         }
 
         private static Vector2 NormalizeDirection(Vector2 direction)

@@ -33,28 +33,28 @@ namespace EJR.Game.Gameplay
         [Min(0f)] public float legendaryWeight = 5f;
 
         [Header("Luck Shift Per Point")]
-        public float commonShiftPerLuck = -2f;
-        public float rareShiftPerLuck = 1f;
-        public float epicShiftPerLuck = 0.7f;
-        public float legendaryShiftPerLuck = 0.3f;
+        public float commonShiftPerLuck = -0.2f;
+        public float rareShiftPerLuck = 0.1f;
+        public float epicShiftPerLuck = 0.07f;
+        public float legendaryShiftPerLuck = 0.03f;
 
         [Header("Rarity Clamps")]
         [Min(0f)] public float commonMinimumWeight = 15f;
         [Min(0f)] public float legendaryMaximumWeight = 20f;
 
         [Header("Weapon Roll Values")]
-        public FixedRarityValues weaponDamagePercent = new() { common = 12f, rare = 18f, epic = 24f, legendary = 30f };
-        public FixedRarityValues weaponAttackSpeedPercent = new() { common = 6f, rare = 9f, epic = 12f, legendary = 15f };
-        public FixedRarityValues weaponRangePercent = new() { common = 12f, rare = 18f, epic = 24f, legendary = 30f };
+        public FixedRarityValues weaponDamagePercent = new() { common = 12f, rare = 14f, epic = 16f, legendary = 18f };
+        public FixedRarityValues weaponAttackSpeedPercent = new() { common = 10f, rare = 12f, epic = 14f, legendary = 15f };
+        public FixedRarityValues weaponRangePercent = new() { common = 12f, rare = 14f, epic = 16f, legendary = 18f };
 
         [Header("Global Stat Values")]
-        public FixedRarityValues globalAttackPowerPercent = new() { common = 8f, rare = 12f, epic = 16f, legendary = 20f };
-        public FixedRarityValues globalAttackSpeedPercent = new() { common = 4f, rare = 6f, epic = 8f, legendary = 10f };
-        public FixedRarityValues globalMaxHealthFlat = new() { common = 20f, rare = 30f, epic = 40f, legendary = 50f };
-        public FixedRarityValues globalHealthRegenPerSecond = new() { common = 0.25f, rare = 0.50f, epic = 0.75f, legendary = 1.00f };
-        public FixedRarityValues globalMoveSpeedPercent = new() { common = 4f, rare = 6f, epic = 8f, legendary = 10f };
-        public FixedRarityValues globalAttackRangePercent = new() { common = 8f, rare = 12f, epic = 16f, legendary = 20f };
-        public FixedRarityValues globalLuck = new() { common = 1f, rare = 2f, epic = 3f, legendary = 4f };
+        public FixedRarityValues globalAttackPowerPercent = new() { common = 5f, rare = 6f, epic = 7f, legendary = 8f };
+        public FixedRarityValues globalAttackSpeedPercent = new() { common = 5f, rare = 6f, epic = 7f, legendary = 8f };
+        public FixedRarityValues globalMaxHealthFlat = new() { common = 24f, rare = 28f, epic = 32f, legendary = 36f };
+        public FixedRarityValues globalHealthRegenPerSecond = new() { common = 0.70f, rare = 0.80f, epic = 0.90f, legendary = 1.00f };
+        public FixedRarityValues globalMoveSpeedPercent = new() { common = 4f, rare = 4.5f, epic = 5f, legendary = 6f };
+        public FixedRarityValues globalAttackRangePercent = new() { common = 5f, rare = 6f, epic = 7f, legendary = 8f };
+        public FixedRarityValues globalLuck = new() { common = 10f, rare = 12f, epic = 14f, legendary = 15f };
 
         public static LevelUpBalanceConfig CreateRuntimeDefault()
         {

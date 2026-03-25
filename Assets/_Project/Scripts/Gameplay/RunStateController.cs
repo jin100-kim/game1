@@ -96,6 +96,8 @@ namespace EJR.Game.Gameplay
         private int _selectedSingleCharacterId;
         private WeaponUpgradeId _selectedSingleStarterWeaponId = WeaponUpgradeId.Rifle;
         private int _enemiesDefeated;
+        private readonly RunCombatTracker _combatTracker = new();
+        private float _lastObservedPlayerMaxHealth = -1f;
 
         private const string DebugRevealCode = "admin";
 
@@ -132,6 +134,11 @@ namespace EJR.Game.Gameplay
             {
                 TryRefreshHud();
                 return;
+            }
+
+            if (IsBuildDrawerToggleKeyDown())
+            {
+                _hud?.ToggleBuildDrawer();
             }
 
             UpdateWeaponAimSmoothing();
@@ -192,7 +199,7 @@ namespace EJR.Game.Gameplay
                 }
                 else if (_enemySpawner != null && _enemySpawner.IsBossWaveCleared)
                 {
-                    EndRun(cleared: true);
+                    FinalizeRun(cleared: true);
                     return;
                 }
             }
@@ -222,6 +229,18 @@ namespace EJR.Game.Gameplay
             }
 #endif
             return Input.GetKeyDown(KeyCode.Escape);
+        }
+
+        private static bool IsBuildDrawerToggleKeyDown()
+        {
+#if ENABLE_INPUT_SYSTEM
+            var keyboard = Keyboard.current;
+            if (keyboard != null && keyboard.tabKey.wasPressedThisFrame)
+            {
+                return true;
+            }
+#endif
+            return Input.GetKeyDown(KeyCode.Tab);
         }
 
         private static bool IsOptionKeyDown(int zeroBasedIndex)
@@ -540,13 +559,14 @@ namespace EJR.Game.Gameplay
             _buildRuntime = new PlayerBuildRuntime();
             _buildRuntime.InitializeDefaults(grantStarterRifle: false);
             _selectedSingleCharacterId = MetaProgressionService.GetSingleSelectedCharacterId();
-            _selectedSingleStarterWeaponId = MetaProgressionService.GetSingleSelectedStarterWeapon();
-            _buildRuntime.ApplyMetaBonuses(MetaProgressionService.GetCombinedRunStartBonuses(_selectedSingleCharacterId));
+            _selectedSingleStarterWeaponId = MetaProgressionService.GetCharacterStarterWeapon(_selectedSingleCharacterId);
+            _buildRuntime.ApplyMetaBonuses(MetaProgressionService.GetPurchasedUpgradeBonuses());
+            _buildRuntime.ApplyCharacterBaseBonuses(MetaProgressionService.GetCharacterBaseBonuses(_selectedSingleCharacterId));
 
             _playerStats = new PlayerStatsRuntime();
             _playerStats.RecalculateFromBuild(_buildRuntime);
             _levelUp = new LevelUpSystem();
-            _levelUp.Initialize(_buildRuntime, levelUpBalanceConfig, MetaProgressionService.IsWeaponUnlocked);
+            _levelUp.Initialize(_buildRuntime, levelUpBalanceConfig, _ => true);
             _hud = new HudController();
             _hud.Initialize();
             _hud.ConfigureDebugTools(
@@ -716,7 +736,7 @@ namespace EJR.Game.Gameplay
             var systems = new GameObject("Systems");
             _enemyRegistry = systems.AddComponent<EnemyRegistry>();
             _experienceSystem = systems.AddComponent<ExperienceSystem>();
-            _experienceSystem.Initialize(player.transform, playerConfig, _levelUp);
+            _experienceSystem.Initialize(player.transform, playerConfig, _levelUp, _playerStats);
 
             var enemySpawner = systems.AddComponent<EnemySpawner>();
             enemySpawner.Initialize(enemyConfig, player.transform, _playerHealth, _enemyRegistry, _experienceSystem, playerConfig.collisionRadius, arenaBounds);
@@ -749,9 +769,11 @@ namespace EJR.Game.Gameplay
                 $"{SharedGameCatalog.GetWeaponDisplayName(_selectedSingleStarterWeaponId)} 레벨 1",
                 "무기 획득",
                 SharedGameCatalog.GetWeaponDisplayName(_selectedSingleStarterWeaponId)));
-            ApplyBuildToRuntimeSystems();
+            _combatTracker.Reset();
+            RefreshCharacterPassiveBonuses();
             ApplySelectedCharacterPresentation(isDowned: false);
             _enemiesDefeated = 0;
+            _lastObservedPlayerMaxHealth = _playerHealth != null ? _playerHealth.MaxHealth : -1f;
         }
 
         private void SetAutoPlayEnabled(bool enabled)
@@ -1367,9 +1389,12 @@ namespace EJR.Game.Gameplay
         {
             _playerHealth.Changed += OnPlayerHealthChanged;
             _playerHealth.Died += OnPlayerDied;
-            _levelUp.ExperienceChanged += (_, _, _) => UpdateHud();
+            _playerHealth.Damaged += OnPlayerDamaged;
+            _playerHealth.Healed += OnPlayerHealed;
+            _levelUp.ExperienceChanged += OnExperienceChanged;
             _levelUp.OptionsGenerated += OnLevelUpRequested;
             EnemyController.Defeated += HandleEnemyDefeated;
+            EnemyController.Damaged += HandleEnemyDamaged;
         }
 
         private void OnWeaponSoundRequested(WeaponSoundRequest request)
@@ -1380,6 +1405,28 @@ namespace EJR.Game.Gameplay
         private void OnPlayerHealthChanged(float currentHealth, float maxHealth)
         {
             _playerHealthBar?.SetHealth(currentHealth, maxHealth);
+            if (!Mathf.Approximately(_lastObservedPlayerMaxHealth, maxHealth))
+            {
+                _lastObservedPlayerMaxHealth = maxHealth;
+                RefreshCharacterPassiveBonuses();
+            }
+
+            UpdateHud();
+        }
+
+        private void OnPlayerDamaged(float damage)
+        {
+            _combatTracker.RecordDamageTaken(damage);
+        }
+
+        private void OnPlayerHealed(float amount)
+        {
+            _combatTracker.RecordHealing(amount);
+        }
+
+        private void OnExperienceChanged(int currentExperience, int requiredExperience, int level)
+        {
+            RefreshCharacterPassiveBonuses();
             UpdateHud();
         }
 
@@ -1387,7 +1434,7 @@ namespace EJR.Game.Gameplay
         {
             _playerSpriteAnimator?.PlayDie();
             ApplySelectedCharacterPresentation(isDowned: true);
-            EndRun(cleared: false);
+            FinalizeRun(cleared: false);
         }
 
         private void HandleEnemyDefeated(EnemyController enemy)
@@ -1398,6 +1445,16 @@ namespace EJR.Game.Gameplay
             }
 
             _enemiesDefeated++;
+        }
+
+        private void HandleEnemyDamaged(EnemyController enemy, WeaponUpgradeId weaponId, float damage)
+        {
+            if (_isGameOver || enemy == null)
+            {
+                return;
+            }
+
+            _combatTracker.RecordDamageDealt(weaponId, damage, enemy.IsBoss, enemy.CurrentHealth, enemy.MaxHealth);
         }
 
         private void OnLevelUpRequested(LevelUpOption[] options)
@@ -1424,7 +1481,7 @@ namespace EJR.Game.Gameplay
 
             _hud.HideLevelUpOptions();
             _levelUp.ApplyOption(optionIndex, _currentOptions);
-            ApplyBuildToRuntimeSystems();
+            RefreshCharacterPassiveBonuses();
 
             if (_isGameOver)
             {
@@ -1493,7 +1550,7 @@ namespace EJR.Game.Gameplay
             _isAwaitingStarterWeaponChoice = false;
             _currentOptions = null;
             _hud.HideLevelUpOptions();
-            ApplyBuildToRuntimeSystems();
+            RefreshCharacterPassiveBonuses();
 
             if (!_isGameOver && Time.timeScale <= 0f)
             {
@@ -1503,7 +1560,7 @@ namespace EJR.Game.Gameplay
             UpdateHud();
         }
 
-        private void EndRun(bool cleared)
+        private void FinalizeRun(bool cleared)
         {
             if (_isGameOver)
             {
@@ -1514,6 +1571,7 @@ namespace EJR.Game.Gameplay
             _lastRunCleared = cleared;
             _isPauseMenuOpen = false;
             Time.timeScale = 0f;
+#if false
             MetaProgressionService.RecordRunSummary(MetaProgressionService.BuildRunRewardSummary(
                 "싱글",
                 cleared,
@@ -1528,6 +1586,25 @@ namespace EJR.Game.Gameplay
                 cleared,
                 ReturnToLobby,
                 "타이틀로");
+        }
+
+#endif
+            var summary = MetaProgressionService.BuildRunRewardSummary(
+                "\uC2F1\uAE00",
+                cleared,
+                _levelUp != null ? _levelUp.Level : 1,
+                _enemySpawner != null ? _enemySpawner.ElapsedSeconds : 0f,
+                _enemiesDefeated,
+                _combatTracker.BuildSummary(),
+                _combatTracker.BossThresholdsReached,
+                SceneManager.GetActiveScene().name,
+                _playerStats != null ? _playerStats.CreditGainPercent : 0f);
+
+            MetaProgressionService.RecordRunSummary(summary);
+            _hud.HideLevelUpOptions();
+            _hud.HidePauseMenu();
+            _hud.HideBossBar();
+            _hud.ShowResult(summary, ReturnToLobby, "\uD0C0\uC774\uD2C0\uB85C");
         }
 
         private void TriggerBossWave()
@@ -1569,7 +1646,7 @@ namespace EJR.Game.Gameplay
                 _levelUp.RequiredExperience,
                 _remainingSeconds);
 
-            _hud.SetModeHint(_autoPlayEnabled ? "자동 전투" : string.Empty);
+            _hud.SetModeHint(string.Empty);
             _hud.SetBuildInfo(BuildWeaponSummary(), BuildStatSummary());
             UpdateBossHud();
         }
@@ -1612,6 +1689,60 @@ namespace EJR.Game.Gameplay
             {
                 _playerHealth.SetMaxHealth(GetCurrentMaxHealth(), healDelta: true);
             }
+
+            if (_playerMover != null)
+            {
+                _playerMover.SetMoveSpeedMultiplier(_playerStats.MoveSpeedMultiplier);
+            }
+        }
+
+        private void RefreshCharacterPassiveBonuses()
+        {
+            if (_buildRuntime == null)
+            {
+                return;
+            }
+
+            var passiveId = MetaProgressionService.GetCharacterPassiveId(_selectedSingleCharacterId);
+            var currentLevel = _levelUp != null ? Mathf.Max(1, _levelUp.Level) : 1;
+            var dynamicBonuses = default(MetaBonusValues);
+            var ignoreChainDecay = false;
+            var bonusChains = 0;
+
+            switch (passiveId)
+            {
+                case CharacterPassiveId.SoldierLevelAttackSpeed:
+                    dynamicBonuses.attackSpeedPercent = currentLevel;
+                    break;
+
+                case CharacterPassiveId.VampireMaxHealthDamage:
+                {
+                    var currentMaxHealth = _playerHealth != null ? _playerHealth.MaxHealth : GetCurrentMaxHealth();
+                    dynamicBonuses.attackPowerPercent = Mathf.Floor(Mathf.Max(0f, currentMaxHealth) / 2f);
+                    break;
+                }
+
+                case CharacterPassiveId.SwordsmanLevelMoveSpeed:
+                    dynamicBonuses.moveSpeedPercent = currentLevel;
+                    break;
+
+                case CharacterPassiveId.WizardLevelDamage:
+                    dynamicBonuses.attackPowerPercent = currentLevel;
+                    break;
+
+                case CharacterPassiveId.PriestLevelRange:
+                    dynamicBonuses.attackRangePercent = currentLevel;
+                    break;
+
+                case CharacterPassiveId.LightningMageChainMastery:
+                    ignoreChainDecay = true;
+                    bonusChains = 2;
+                    break;
+            }
+
+            _buildRuntime.ApplyCharacterDynamicBonuses(dynamicBonuses);
+            _buildRuntime.SetChainAttackModifiers(ignoreChainDecay, bonusChains);
+            ApplyBuildToRuntimeSystems();
         }
 
         private float GetCurrentMaxHealth()
@@ -1651,7 +1782,7 @@ namespace EJR.Game.Gameplay
                     var attackSpeedBonus = _buildRuntime.GetWeaponAttackSpeedBonusPercentTotal(weaponId);
                     var rangeBonus = _buildRuntime.GetWeaponRangeBonusPercentTotal(weaponId);
                     var milestoneCount = _buildRuntime.GetWeaponMilestoneCount(weaponId);
-                    var bonusSummary = $" [피해+{damageBonus:0.#} 공속+{attackSpeedBonus:0.#} 범위+{rangeBonus:0.#}";
+                    var bonusSummary = $" [피해량+{damageBonus:0.#} 공속+{attackSpeedBonus:0.#} 범위+{rangeBonus:0.#}";
                     if (milestoneCount > 0)
                     {
                         bonusSummary += $" 특수+{milestoneCount}";
@@ -1677,13 +1808,23 @@ namespace EJR.Game.Gameplay
             }
 
             var lines = "전역 능력치";
-            lines += $"\n공격력 +{_buildRuntime.GlobalAttackPowerPercentTotal:0.#}%";
+            lines += $"\n피해량 +{_buildRuntime.GlobalAttackPowerPercentTotal:0.#}%";
             lines += $"\n공격 속도 +{_buildRuntime.GlobalAttackSpeedPercentTotal:0.#}%";
             lines += $"\n최대 체력 +{_buildRuntime.GlobalMaxHealthFlatTotal:0}";
             lines += $"\n체력 재생 +{_buildRuntime.GlobalHealthRegenPerSecondTotal:0.##}/초";
             lines += $"\n이동 속도 +{_buildRuntime.GlobalMoveSpeedPercentTotal:0.#}%";
             lines += $"\n공격 범위 +{_buildRuntime.GlobalAttackRangePercentTotal:0.#}%";
-            lines += $"\n행운 {_buildRuntime.GlobalLuckTotal:0.##}";
+            lines += $"\n행운 {_buildRuntime.GlobalLuckTotal:0}";
+            if (!Mathf.Approximately(_buildRuntime.GlobalExperienceGainPercentTotal, 0f))
+            {
+                lines += $"\nXP +{_buildRuntime.GlobalExperienceGainPercentTotal:0.#}%";
+            }
+
+            if (!Mathf.Approximately(_buildRuntime.GlobalCreditGainPercentTotal, 0f))
+            {
+                lines += $"\n코인 +{_buildRuntime.GlobalCreditGainPercentTotal:0.#}%";
+            }
+
             return lines;
         }
 

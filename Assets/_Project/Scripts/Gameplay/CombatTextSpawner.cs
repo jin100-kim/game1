@@ -8,6 +8,7 @@ namespace EJR.Game.Gameplay
     {
         public static readonly Color EnemyDamagedColor = new Color(0.72f, 0.96f, 1f, 1f);
         public static readonly Color PlayerDamagedColor = new Color(1f, 0.35f, 0.35f, 1f);
+        public static readonly Color PlayerHealedColor = new Color(0.35f, 1f, 0.48f, 1f);
         public static readonly Color LightBonusColor = new Color(1f, 0.92f, 0.35f, 1f);
 
         private const int PopupPoolPrewarmCount = 40;
@@ -39,6 +40,27 @@ namespace EJR.Game.Gameplay
             popup.gameObject.SetActive(true);
             var jitteredPosition = worldPosition + new Vector3(Random.Range(-0.08f, 0.08f), 0f, 0f);
             popup.Show(jitteredPosition, damageValue.ToString("0.0", CultureInfo.InvariantCulture), color, PopupLifetime, PopupRiseSpeed);
+        }
+
+        public static void SpawnHealing(Vector3 worldPosition, float healValue)
+        {
+            var displayValue = Mathf.FloorToInt(healValue + 0.0001f);
+            if (displayValue <= 0)
+            {
+                return;
+            }
+
+            EnsurePoolPrepared();
+
+            var popup = GetPopup();
+            if (popup == null)
+            {
+                return;
+            }
+
+            popup.gameObject.SetActive(true);
+            var jitteredPosition = worldPosition + new Vector3(Random.Range(-0.08f, 0.08f), 0f, 0f);
+            popup.Show(jitteredPosition, $"+{displayValue.ToString(CultureInfo.InvariantCulture)}", PlayerHealedColor, PopupLifetime, PopupRiseSpeed);
         }
 
         private static void EnsurePoolPrepared()

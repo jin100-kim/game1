@@ -1,3 +1,4 @@
+#if UNITY_EDITOR
 using System;
 using System.Reflection;
 using UnityEditor.Build;
@@ -57,7 +58,27 @@ namespace EJR.Editor
 
         private static void Invoke(object target, string methodName)
         {
-            target.GetType().GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance)?.Invoke(target, null);
+            var method = target.GetType().GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance);
+            if (method == null)
+            {
+                return;
+            }
+
+            var parameters = method.GetParameters();
+            if (parameters.Length == 0)
+            {
+                method.Invoke(target, null);
+                return;
+            }
+
+            var args = new object[parameters.Length];
+            for (var i = 0; i < parameters.Length; i++)
+            {
+                args[i] = Type.Missing;
+            }
+
+            method.Invoke(target, args);
         }
     }
 }
+#endif

@@ -25,6 +25,7 @@ namespace EJR.Game.Audio
             [Range(0f, 1f)] public float volume = 1f;
             [Range(0f, 0.5f)] public float pitchVariance;
             [Min(0f)] public float minRetriggerInterval;
+            [Min(0f)] public float maxPlaybackDuration;
             [Min(1)] public int maxVoices = 1;
             public bool loop;
         }

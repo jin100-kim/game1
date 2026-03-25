@@ -39,53 +39,36 @@ namespace EJR.Game.Gameplay
         private readonly Dictionary<WeaponUpgradeId, int> _weaponLevels = new();
         private readonly Dictionary<WeaponUpgradeId, WeaponBonusTotals> _weaponBonuses = new();
 
-        private float _metaAttackPowerPercentTotal;
-        private float _metaAttackSpeedPercentTotal;
-        private float _metaMaxHealthFlatTotal;
-        private float _metaHealthRegenPerSecondTotal;
-        private float _metaMoveSpeedPercentTotal;
-        private float _metaAttackRangePercentTotal;
-        private float _metaLuckTotal;
-
-        private float _runAttackPowerPercentTotal;
-        private float _runAttackSpeedPercentTotal;
-        private float _runMaxHealthFlatTotal;
-        private float _runHealthRegenPerSecondTotal;
-        private float _runMoveSpeedPercentTotal;
-        private float _runAttackRangePercentTotal;
-        private float _runLuckTotal;
+        private MetaBonusValues _metaBonuses;
+        private MetaBonusValues _characterBaseBonuses;
+        private MetaBonusValues _characterDynamicBonuses;
+        private MetaBonusValues _runBonuses;
+        private bool _chainAttackIgnoresDecay;
+        private int _chainAttackBonusJumps;
 
         public IReadOnlyList<WeaponUpgradeId> OwnedWeapons => _weaponOrder;
 
-        public float GlobalAttackPowerPercentTotal => _metaAttackPowerPercentTotal + _runAttackPowerPercentTotal;
-        public float GlobalAttackSpeedPercentTotal => _metaAttackSpeedPercentTotal + _runAttackSpeedPercentTotal;
-        public float GlobalMaxHealthFlatTotal => _metaMaxHealthFlatTotal + _runMaxHealthFlatTotal;
-        public float GlobalHealthRegenPerSecondTotal => _metaHealthRegenPerSecondTotal + _runHealthRegenPerSecondTotal;
-        public float GlobalMoveSpeedPercentTotal => _metaMoveSpeedPercentTotal + _runMoveSpeedPercentTotal;
-        public float GlobalAttackRangePercentTotal => _metaAttackRangePercentTotal + _runAttackRangePercentTotal;
-        public float GlobalLuckTotal => _metaLuckTotal + _runLuckTotal;
+        public float GlobalAttackPowerPercentTotal => _metaBonuses.attackPowerPercent + _characterBaseBonuses.attackPowerPercent + _characterDynamicBonuses.attackPowerPercent + _runBonuses.attackPowerPercent;
+        public float GlobalAttackSpeedPercentTotal => _metaBonuses.attackSpeedPercent + _characterBaseBonuses.attackSpeedPercent + _characterDynamicBonuses.attackSpeedPercent + _runBonuses.attackSpeedPercent;
+        public float GlobalMaxHealthFlatTotal => _metaBonuses.maxHealthFlat + _characterBaseBonuses.maxHealthFlat + _characterDynamicBonuses.maxHealthFlat + _runBonuses.maxHealthFlat;
+        public float GlobalHealthRegenPerSecondTotal => _metaBonuses.healthRegenPerSecond + _characterBaseBonuses.healthRegenPerSecond + _characterDynamicBonuses.healthRegenPerSecond + _runBonuses.healthRegenPerSecond;
+        public float GlobalMoveSpeedPercentTotal => _metaBonuses.moveSpeedPercent + _characterBaseBonuses.moveSpeedPercent + _characterDynamicBonuses.moveSpeedPercent + _runBonuses.moveSpeedPercent;
+        public float GlobalAttackRangePercentTotal => _metaBonuses.attackRangePercent + _characterBaseBonuses.attackRangePercent + _characterDynamicBonuses.attackRangePercent + _runBonuses.attackRangePercent;
+        public float GlobalLuckTotal => _metaBonuses.luck + _characterBaseBonuses.luck + _characterDynamicBonuses.luck + _runBonuses.luck;
+        public float GlobalExperienceGainPercentTotal => _metaBonuses.experienceGainPercent + _characterBaseBonuses.experienceGainPercent + _characterDynamicBonuses.experienceGainPercent + _runBonuses.experienceGainPercent;
+        public float GlobalCreditGainPercentTotal => _metaBonuses.creditGainPercent + _characterBaseBonuses.creditGainPercent + _characterDynamicBonuses.creditGainPercent + _runBonuses.creditGainPercent;
 
         public void InitializeDefaults(bool grantStarterRifle = true)
         {
             _weaponOrder.Clear();
             _weaponLevels.Clear();
             _weaponBonuses.Clear();
-
-            _metaAttackPowerPercentTotal = 0f;
-            _metaAttackSpeedPercentTotal = 0f;
-            _metaMaxHealthFlatTotal = 0f;
-            _metaHealthRegenPerSecondTotal = 0f;
-            _metaMoveSpeedPercentTotal = 0f;
-            _metaAttackRangePercentTotal = 0f;
-            _metaLuckTotal = 0f;
-
-            _runAttackPowerPercentTotal = 0f;
-            _runAttackSpeedPercentTotal = 0f;
-            _runMaxHealthFlatTotal = 0f;
-            _runHealthRegenPerSecondTotal = 0f;
-            _runMoveSpeedPercentTotal = 0f;
-            _runAttackRangePercentTotal = 0f;
-            _runLuckTotal = 0f;
+            _metaBonuses = default;
+            _characterBaseBonuses = default;
+            _characterDynamicBonuses = default;
+            _runBonuses = default;
+            _chainAttackIgnoresDecay = false;
+            _chainAttackBonusJumps = 0;
 
             if (grantStarterRifle)
             {
@@ -95,13 +78,43 @@ namespace EJR.Game.Gameplay
 
         public void ApplyMetaBonuses(MetaBonusValues bonuses)
         {
-            _metaAttackPowerPercentTotal = Mathf.Max(0f, bonuses.attackPowerPercent);
-            _metaAttackSpeedPercentTotal = Mathf.Max(0f, bonuses.attackSpeedPercent);
-            _metaMaxHealthFlatTotal = Mathf.Max(0f, bonuses.maxHealthFlat);
-            _metaHealthRegenPerSecondTotal = Mathf.Max(0f, bonuses.healthRegenPerSecond);
-            _metaMoveSpeedPercentTotal = Mathf.Max(0f, bonuses.moveSpeedPercent);
-            _metaAttackRangePercentTotal = Mathf.Max(0f, bonuses.attackRangePercent);
-            _metaLuckTotal = Mathf.Max(0f, bonuses.luck);
+            _metaBonuses = SanitizeBonuses(bonuses);
+        }
+
+        public void ApplyCharacterBaseBonuses(MetaBonusValues bonuses)
+        {
+            _characterBaseBonuses = SanitizeBonuses(bonuses);
+        }
+
+        public void ApplyCharacterDynamicBonuses(MetaBonusValues bonuses)
+        {
+            _characterDynamicBonuses = SanitizeBonuses(bonuses);
+        }
+
+        public void SetChainAttackModifiers(bool ignoreDecay, int bonusJumps)
+        {
+            _chainAttackIgnoresDecay = ignoreDecay;
+            _chainAttackBonusJumps = Mathf.Max(0, bonusJumps);
+        }
+
+        public void AddRuntimeMaxHealthFlat(float amount)
+        {
+            if (amount <= 0f)
+            {
+                return;
+            }
+
+            _runBonuses.maxHealthFlat += amount;
+        }
+
+        public bool DoesChainAttackIgnoreDecay()
+        {
+            return _chainAttackIgnoresDecay;
+        }
+
+        public int GetChainAttackBonusJumps()
+        {
+            return _chainAttackBonusJumps;
         }
 
         public int GetUnlockedWeaponSlots(int playerLevel)
@@ -198,7 +211,7 @@ namespace EJR.Game.Gameplay
                 WeaponUpgradeId.SniperRifle => milestones,
                 WeaponUpgradeId.Shotgun => milestones * 2,
                 WeaponUpgradeId.Katana => milestones,
-                WeaponUpgradeId.ChainAttack => milestones * 2,
+                WeaponUpgradeId.ChainAttack => (milestones * 2) + _chainAttackBonusJumps,
                 WeaponUpgradeId.RifleTurret => milestones,
                 _ => 0,
             };
@@ -341,25 +354,25 @@ namespace EJR.Game.Gameplay
             switch (option.StatId)
             {
                 case StatUpgradeId.AttackPower:
-                    _runAttackPowerPercentTotal += option.PrimaryValue;
+                    _runBonuses.attackPowerPercent += option.PrimaryValue;
                     break;
                 case StatUpgradeId.AttackSpeed:
-                    _runAttackSpeedPercentTotal += option.PrimaryValue;
+                    _runBonuses.attackSpeedPercent += option.PrimaryValue;
                     break;
                 case StatUpgradeId.MaxHealth:
-                    _runMaxHealthFlatTotal += option.PrimaryValue;
+                    _runBonuses.maxHealthFlat += option.PrimaryValue;
                     break;
                 case StatUpgradeId.HealthRegen:
-                    _runHealthRegenPerSecondTotal += option.PrimaryValue;
+                    _runBonuses.healthRegenPerSecond += option.PrimaryValue;
                     break;
                 case StatUpgradeId.MoveSpeed:
-                    _runMoveSpeedPercentTotal += option.PrimaryValue;
+                    _runBonuses.moveSpeedPercent += option.PrimaryValue;
                     break;
                 case StatUpgradeId.AttackRange:
-                    _runAttackRangePercentTotal += option.PrimaryValue;
+                    _runBonuses.attackRangePercent += option.PrimaryValue;
                     break;
                 case StatUpgradeId.Luck:
-                    _runLuckTotal += option.PrimaryValue;
+                    _runBonuses.luck += option.PrimaryValue;
                     break;
             }
         }
@@ -369,6 +382,20 @@ namespace EJR.Game.Gameplay
             return _weaponBonuses.TryGetValue(id, out var bonuses)
                 ? bonuses
                 : default;
+        }
+
+        private static MetaBonusValues SanitizeBonuses(MetaBonusValues bonuses)
+        {
+            bonuses.attackPowerPercent = Mathf.Max(0f, bonuses.attackPowerPercent);
+            bonuses.attackSpeedPercent = Mathf.Max(0f, bonuses.attackSpeedPercent);
+            bonuses.maxHealthFlat = Mathf.Max(0f, bonuses.maxHealthFlat);
+            bonuses.healthRegenPerSecond = Mathf.Max(0f, bonuses.healthRegenPerSecond);
+            bonuses.moveSpeedPercent = Mathf.Max(0f, bonuses.moveSpeedPercent);
+            bonuses.attackRangePercent = Mathf.Max(0f, bonuses.attackRangePercent);
+            bonuses.luck = Mathf.Max(0f, bonuses.luck);
+            bonuses.experienceGainPercent = Mathf.Max(0f, bonuses.experienceGainPercent);
+            bonuses.creditGainPercent = Mathf.Max(0f, bonuses.creditGainPercent);
+            return bonuses;
         }
     }
 }

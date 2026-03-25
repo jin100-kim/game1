@@ -1,4 +1,5 @@
 using System;
+using EJR.Game.Audio;
 using EJR.Game.Core;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -11,6 +12,7 @@ namespace EJR.Game.UI
 {
     public sealed class HudController
     {
+        private const string FullscreenPreferenceKey = "settings.fullscreen";
         private const float LevelPanelWidth = 860f;
         private const float LevelPanelMinHeight = 300f;
         private const float LevelPanelTopPadding = 34f;
@@ -30,10 +32,14 @@ namespace EJR.Game.UI
         private Text _healthText;
         private Text _xpText;
         private Text _timeText;
+        private GameObject _modeHintCard;
         private Text _modeHintText;
+        private Button _buildToggleButton;
+        private Text _buildToggleText;
         private GameObject _buildPanel;
         private Text _weaponBuildText;
         private Text _statBuildText;
+        private bool _isBuildDrawerOpen;
         private GameObject _bossBarPanel;
         private Text _bossNameText;
         private Image _bossBarFill;
@@ -50,8 +56,18 @@ namespace EJR.Game.UI
         private Text _resultText;
         private Button _restartButton;
         private GameObject _pausePanel;
+        private Button _pauseSettingsButton;
         private Button _pauseResumeButton;
         private Button _pauseQuitButton;
+        private GameObject _pauseSettingsPanel;
+        private Toggle _pauseFullscreenToggle;
+        private Slider _pauseMasterVolumeSlider;
+        private Slider _pauseBgmVolumeSlider;
+        private Slider _pauseSfxVolumeSlider;
+        private Text _pauseMasterVolumeValueText;
+        private Text _pauseBgmVolumeValueText;
+        private Text _pauseSfxVolumeValueText;
+        private bool _suppressPauseSettingsCallbacks;
         private Button _debugAccessButton;
         private GameObject _debugToolsPanel;
         private Button _debugGrantLevelButton;
@@ -93,13 +109,13 @@ namespace EJR.Game.UI
         {
             EnsureEventSystem();
             BuildCanvas();
-            BuildTopBar();
-            BuildBuildPanel();
-            BuildBossBar();
-            BuildLevelUpPanel();
-            BuildResultPanel();
-            BuildPausePanel();
-            BuildDebugPanels();
+            BuildTopBarReference();
+            BuildBuildPanelReference();
+            BuildBossBarReference();
+            BuildLevelUpPanelReference();
+            BuildResultPanelReference();
+            BuildPausePanelReference();
+            BuildDebugPanelsReference();
         }
 
         public void SetCanvasVisible(bool visible)
@@ -184,17 +200,31 @@ namespace EJR.Game.UI
             }
         }
 
-        public void SetModeHint(string modeHint)
+        public void ToggleBuildDrawer()
         {
-            if (_modeHintText == null)
+            SetBuildDrawerOpen(!_isBuildDrawerOpen);
+        }
+
+        public void SetBuildDrawerOpen(bool open)
+        {
+            _isBuildDrawerOpen = open;
+            if (_buildPanel != null)
             {
-                return;
+                _buildPanel.SetActive(open);
             }
 
-            var hasHint = !string.IsNullOrWhiteSpace(modeHint);
-            _modeHintText.gameObject.SetActive(true);
-            _modeHintText.text = hasHint ? modeHint : "표준";
-            _modeHintText.color = hasHint ? new Color(0.95f, 0.74f, 0.18f, 1f) : new Color(0.76f, 0.82f, 0.90f, 1f);
+            if (_buildToggleText != null)
+            {
+                _buildToggleText.text = open ? "빌드 닫기" : "빌드";
+            }
+        }
+
+        public void SetModeHint(string modeHint)
+        {
+            if (_modeHintCard != null)
+            {
+                _modeHintCard.SetActive(false);
+            }
         }
 
         public void ConfigureDebugTools(
@@ -355,6 +385,22 @@ namespace EJR.Game.UI
             _restartButton.GetComponentInChildren<Text>().text = string.IsNullOrEmpty(actionLabel) ? "재시작" : actionLabel;
         }
 
+        public void ShowResult(RunRewardSummary summary, Action onAction, string actionLabel)
+        {
+            if (_resultPanel == null || summary == null)
+            {
+                return;
+            }
+
+            _resultPanel.SetActive(true);
+            _resultText.text = summary.BuildDisplayText();
+            _restartButton.onClick.RemoveAllListeners();
+            _restartButton.onClick.AddListener(() => onAction?.Invoke());
+            _restartButton.GetComponentInChildren<Text>().text = string.IsNullOrEmpty(actionLabel)
+                ? "\uD0C0\uC774\uD2C0\uB85C"
+                : actionLabel;
+        }
+
         public void HideResult()
         {
             if (_resultPanel != null)
@@ -373,6 +419,8 @@ namespace EJR.Game.UI
             }
 
             _pausePanel.SetActive(true);
+            ClosePauseSettings(playCue: false);
+            SyncPauseSettingsControls();
 
             if (_pauseResumeButton != null)
             {
@@ -398,6 +446,7 @@ namespace EJR.Game.UI
         {
             if (_pausePanel != null)
             {
+                ClosePauseSettings(playCue: false);
                 _pausePanel.SetActive(false);
             }
         }
@@ -712,13 +761,14 @@ namespace EJR.Game.UI
 
         private void BuildResultPanel()
         {
-            _resultPanel = CreatePanel(_canvas.transform, "ResultPanel", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(520f, 276f), new Color(0.03f, 0.05f, 0.09f, 0.96f));
+            _resultPanel = CreatePanel(_canvas.transform, "ResultPanel", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(760f, 620f), new Color(0.03f, 0.05f, 0.09f, 0.96f));
             _resultPanel.SetActive(false);
-            _resultText = CreateText(_resultPanel.transform, "ResultText", new Vector2(0f, 62f), "게임 오버");
-            _resultText.fontSize = 32;
+            _resultText = CreateMultilineText(_resultPanel.transform, "ResultText", new Vector2(0f, 246f), new Vector2(660f, 420f), "게임 오버");
+            _resultText.fontSize = 18;
             _resultText.fontStyle = FontStyle.Bold;
-            _restartButton = CreateButton(_resultPanel.transform, "RestartButton", new Vector2(0f, -58f), new Vector2(264f, 56f));
-            _restartButton.GetComponentInChildren<Text>().text = "재시작";
+            _resultText.alignment = TextAnchor.UpperLeft;
+            _restartButton = CreateButton(_resultPanel.transform, "RestartButton", new Vector2(0f, -248f), new Vector2(264f, 56f));
+            _restartButton.GetComponentInChildren<Text>().text = "\uD0C0\uC774\uD2C0\uB85C";
         }
 
         private void BuildPausePanel()
@@ -730,7 +780,7 @@ namespace EJR.Game.UI
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
                 Vector2.zero,
-                new Vector2(480f, 294f),
+                new Vector2(560f, 540f),
                 new Color(0.03f, 0.05f, 0.09f, 0.96f));
             _pausePanel.SetActive(false);
 
@@ -738,16 +788,25 @@ namespace EJR.Game.UI
             title.fontSize = 30;
             title.fontStyle = FontStyle.Bold;
             title.color = new Color(0.95f, 0.74f, 0.18f, 1f);
+            title.text = "일시 정지";
+            title.rectTransform.anchoredPosition = new Vector2(0f, 198f);
 
             var subhead = CreateText(_pausePanel.transform, "PauseSubhead", new Vector2(0f, 42f), "전투를 계속하거나 타이틀로 돌아갑니다.");
             subhead.fontSize = 15;
             subhead.color = new Color(0.78f, 0.84f, 0.92f, 1f);
-            subhead.rectTransform.sizeDelta = new Vector2(320f, 30f);
+            subhead.rectTransform.sizeDelta = new Vector2(440f, 38f);
+            subhead.text = "전투를 계속하거나 설정을 바꾼 뒤 타이틀로 돌아갈 수 있습니다.";
+            subhead.rectTransform.anchoredPosition = new Vector2(0f, 166f);
 
-            _pauseResumeButton = CreateButton(_pausePanel.transform, "ResumeButton", new Vector2(0f, -12f), new Vector2(252f, 56f));
+            _pauseResumeButton = CreateButton(_pausePanel.transform, "ResumeButton", new Vector2(0f, 70f), new Vector2(252f, 56f));
+            _pauseSettingsButton = CreateButton(_pausePanel.transform, "PauseSettingsButton", new Vector2(0f, -2f), new Vector2(252f, 56f));
+            _pauseSettingsButton.GetComponentInChildren<Text>().text = "설정";
+            _pauseSettingsButton.onClick.RemoveAllListeners();
+            _pauseSettingsButton.onClick.AddListener(OpenPauseSettings);
+            _pauseResumeButton.GetComponentInChildren<Text>().text = "계속하기";
             _pauseResumeButton.GetComponentInChildren<Text>().text = "계속하기";
 
-            _pauseQuitButton = CreateButton(_pausePanel.transform, "QuitButton", new Vector2(0f, -86f), new Vector2(272f, 56f));
+            _pauseQuitButton = CreateButton(_pausePanel.transform, "QuitButton", new Vector2(0f, -74f), new Vector2(272f, 56f));
             if (_pauseQuitButton.targetGraphic is Image quitImage)
             {
                 quitImage.color = new Color(0.31f, 0.15f, 0.18f, 0.98f);
@@ -759,6 +818,63 @@ namespace EJR.Game.UI
                 _pauseQuitButton.colors = quitColors;
             }
             _pauseQuitButton.GetComponentInChildren<Text>().text = "타이틀로";
+            _pauseQuitButton.GetComponentInChildren<Text>().text = "타이틀로";
+
+            _pauseSettingsPanel = CreatePanel(
+                _pausePanel.transform,
+                "PauseSettingsPanel",
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -68f),
+                new Vector2(500f, 290f),
+                new Color(0.05f, 0.08f, 0.12f, 0.92f));
+            _pauseSettingsPanel.SetActive(false);
+
+            var settingsTitle = CreateText(_pauseSettingsPanel.transform, "PauseSettingsTitle", new Vector2(0f, 118f), "설정");
+            settingsTitle.fontSize = 22;
+            settingsTitle.fontStyle = FontStyle.Bold;
+            settingsTitle.color = new Color(0.95f, 0.74f, 0.18f, 1f);
+
+            var displayCard = CreatePanel(
+                _pauseSettingsPanel.transform,
+                "PauseDisplayCard",
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 46f),
+                new Vector2(420f, 78f),
+                new Color(0.07f, 0.10f, 0.14f, 0.92f));
+            var displayLabel = CreateText(displayCard.transform, "PauseDisplayLabel", new Vector2(0f, 20f), "화면");
+            displayLabel.fontSize = 16;
+            displayLabel.fontStyle = FontStyle.Bold;
+            displayLabel.color = new Color(0.95f, 0.74f, 0.18f, 1f);
+            displayLabel.rectTransform.sizeDelta = new Vector2(160f, 24f);
+            _pauseFullscreenToggle = CreateToggle(displayCard.transform, "PauseFullscreenToggle", new Vector2(0f, -12f), new Vector2(240f, 32f), "전체 화면", OnPauseFullscreenToggleChanged);
+
+            var audioCard = CreatePanel(
+                _pauseSettingsPanel.transform,
+                "PauseAudioCard",
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -42f),
+                new Vector2(440f, 136f),
+                new Color(0.07f, 0.10f, 0.14f, 0.92f));
+            var audioLabel = CreateText(audioCard.transform, "PauseAudioLabel", new Vector2(0f, 46f), "오디오");
+            audioLabel.fontSize = 16;
+            audioLabel.fontStyle = FontStyle.Bold;
+            audioLabel.color = new Color(0.95f, 0.74f, 0.18f, 1f);
+            audioLabel.rectTransform.sizeDelta = new Vector2(160f, 24f);
+
+            CreateSliderControl(audioCard.transform, "PauseMasterVolume", new Vector2(0f, 12f), "마스터", OnPauseMasterVolumeChanged, out _pauseMasterVolumeSlider, out _pauseMasterVolumeValueText);
+            CreateSliderControl(audioCard.transform, "PauseBgmVolume", new Vector2(0f, -22f), "배경음", OnPauseBgmVolumeChanged, out _pauseBgmVolumeSlider, out _pauseBgmVolumeValueText);
+            CreateSliderControl(audioCard.transform, "PauseSfxVolume", new Vector2(0f, -56f), "효과음", OnPauseSfxVolumeChanged, out _pauseSfxVolumeSlider, out _pauseSfxVolumeValueText);
+
+            var settingsBackButton = CreateButton(_pauseSettingsPanel.transform, "PauseSettingsBackButton", new Vector2(0f, -116f), new Vector2(220f, 44f));
+            settingsBackButton.GetComponentInChildren<Text>().text = "돌아가기";
+            settingsBackButton.onClick.RemoveAllListeners();
+            settingsBackButton.onClick.AddListener(() => ClosePauseSettings());
         }
 
         private void BuildDebugPanels()
@@ -832,6 +948,274 @@ namespace EJR.Game.UI
             ConfigureDebugButton(_debugAutoPlayButton, _debugAutoPlayLabel, _debugAutoPlayEnabled ? "자동 전투: 켜짐" : "자동 전투: 꺼짐", _debugAutoPlayAction);
         }
 
+        private void BuildTopBarReference()
+        {
+            var healthCard = CreatePanel(_canvas.transform, "HealthCardV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -24f), new Vector2(250f, 72f), new Color(0.04f, 0.07f, 0.11f, 0.9f));
+            var xpCard = CreatePanel(_canvas.transform, "XpCardV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(290f, -24f), new Vector2(334f, 72f), new Color(0.04f, 0.07f, 0.11f, 0.9f));
+            var timeCard = CreatePanel(_canvas.transform, "TimeCardV2", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -24f), new Vector2(218f, 72f), new Color(0.04f, 0.07f, 0.11f, 0.9f));
+            _modeHintCard = CreatePanel(_canvas.transform, "ModeHintCardV2", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-256f, -24f), new Vector2(212f, 72f), new Color(0.04f, 0.07f, 0.11f, 0.9f));
+            _modeHintCard.SetActive(false);
+
+            _healthText = CreateText(healthCard.transform, "HealthTextV2", Vector2.zero, "\uCCB4\uB825");
+            _healthText.alignment = TextAnchor.MiddleLeft;
+            _healthText.rectTransform.sizeDelta = new Vector2(210f, 42f);
+            _healthText.fontSize = 21;
+
+            _xpText = CreateText(xpCard.transform, "XPTextV2", Vector2.zero, "\uACBD\uD5D8\uCE58");
+            _xpText.alignment = TextAnchor.MiddleLeft;
+            _xpText.rectTransform.sizeDelta = new Vector2(280f, 42f);
+            _xpText.fontSize = 19;
+
+            _timeText = CreateText(timeCard.transform, "TimeTextV2", Vector2.zero, "\uC2DC\uAC04");
+            _timeText.alignment = TextAnchor.MiddleLeft;
+            _timeText.rectTransform.sizeDelta = new Vector2(172f, 42f);
+            _timeText.fontSize = 19;
+
+            _modeHintText = CreateText(_modeHintCard.transform, "ModeHintTextV2", Vector2.zero, string.Empty);
+            _modeHintText.fontSize = 15;
+            _modeHintText.alignment = TextAnchor.MiddleCenter;
+            _modeHintText.rectTransform.sizeDelta = new Vector2(172f, 42f);
+            _modeHintText.color = new Color(0.76f, 0.82f, 0.90f, 1f);
+        }
+
+        private void BuildBuildPanelReference()
+        {
+            _buildToggleButton = CreateButton(_canvas.transform, "BuildToggleButtonV2", new Vector2(-1f, -1f), new Vector2(132f, 46f));
+            var toggleRect = _buildToggleButton.GetComponent<RectTransform>();
+            toggleRect.anchorMin = new Vector2(0f, 1f);
+            toggleRect.anchorMax = new Vector2(0f, 1f);
+            toggleRect.pivot = new Vector2(0f, 1f);
+            toggleRect.anchoredPosition = new Vector2(24f, -112f);
+            _buildToggleText = _buildToggleButton.GetComponentInChildren<Text>();
+            _buildToggleText.text = "빌드";
+            _buildToggleButton.onClick.RemoveAllListeners();
+            _buildToggleButton.onClick.AddListener(ToggleBuildDrawer);
+
+            _buildPanel = CreatePanel(_canvas.transform, "BuildPanelV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -168f), new Vector2(342f, 402f), new Color(0.03f, 0.05f, 0.09f, 0.9f));
+            _buildPanel.SetActive(false);
+
+            var buildTitle = CreateText(_buildPanel.transform, "BuildTitleV2", new Vector2(0f, 166f), "\uBE4C\uB4DC");
+            buildTitle.fontSize = 22;
+            buildTitle.fontStyle = FontStyle.Bold;
+            buildTitle.color = new Color(0.95f, 0.74f, 0.18f, 1f);
+            buildTitle.rectTransform.sizeDelta = new Vector2(220f, 28f);
+
+            var weaponsCard = CreatePanel(_buildPanel.transform, "WeaponsCardV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 56f), new Vector2(304f, 148f), new Color(0.07f, 0.10f, 0.14f, 0.94f));
+            var weaponsTitle = CreateText(weaponsCard.transform, "WeaponsTitleV2", new Vector2(0f, 52f), "\uBB34\uAE30");
+            weaponsTitle.fontSize = 15;
+            weaponsTitle.fontStyle = FontStyle.Bold;
+            weaponsTitle.alignment = TextAnchor.MiddleLeft;
+            weaponsTitle.rectTransform.sizeDelta = new Vector2(260f, 24f);
+            weaponsTitle.color = new Color(0.72f, 0.79f, 0.89f, 1f);
+            _weaponBuildText = CreateMultilineText(weaponsCard.transform, "WeaponsBuildTextV2", new Vector2(0f, 30f), new Vector2(264f, 92f), "\uBB34\uAE30");
+            _weaponBuildText.fontSize = 14;
+
+            var statsCard = CreatePanel(_buildPanel.transform, "StatsCardV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -114f), new Vector2(304f, 170f), new Color(0.07f, 0.10f, 0.14f, 0.94f));
+            var statsTitle = CreateText(statsCard.transform, "StatsTitleV2", new Vector2(0f, 62f), "\uC804\uD22C \uC218\uCE58");
+            statsTitle.fontSize = 15;
+            statsTitle.fontStyle = FontStyle.Bold;
+            statsTitle.alignment = TextAnchor.MiddleLeft;
+            statsTitle.rectTransform.sizeDelta = new Vector2(260f, 24f);
+            statsTitle.color = new Color(0.72f, 0.79f, 0.89f, 1f);
+            _statBuildText = CreateMultilineText(statsCard.transform, "StatsBuildTextV2", new Vector2(0f, 44f), new Vector2(264f, 118f), "\uC804\uD22C \uC218\uCE58");
+            _statBuildText.fontSize = 14;
+        }
+
+        private void BuildBossBarReference()
+        {
+            _bossBarPanel = CreatePanel(_canvas.transform, "BossBarPanelV2", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -110f), new Vector2(840f, 68f), new Color(0.05f, 0.08f, 0.12f, 0.9f));
+            _bossBarPanel.SetActive(false);
+
+            _bossNameText = CreateText(_bossBarPanel.transform, "BossNameV2", new Vector2(-300f, 0f), "\uBCF4\uC2A4");
+            _bossNameText.alignment = TextAnchor.MiddleLeft;
+            _bossNameText.fontSize = 19;
+            _bossNameText.rectTransform.sizeDelta = new Vector2(200f, 28f);
+            _bossNameText.color = new Color(0.95f, 0.74f, 0.18f, 1f);
+
+            var barRoot = new GameObject("BossBarRootV2");
+            barRoot.transform.SetParent(_bossBarPanel.transform, false);
+            var barRootRect = barRoot.AddComponent<RectTransform>();
+            barRootRect.anchorMin = new Vector2(0.5f, 0.5f);
+            barRootRect.anchorMax = new Vector2(0.5f, 0.5f);
+            barRootRect.pivot = new Vector2(0.5f, 0.5f);
+            barRootRect.anchoredPosition = new Vector2(28f, 0f);
+            barRootRect.sizeDelta = new Vector2(BossBarRootWidth + 40f, BossBarRootHeight + 2f);
+
+            var barBg = barRoot.AddComponent<Image>();
+            barBg.color = new Color(0.14f, 0.15f, 0.18f, 0.95f);
+
+            var barFillObject = new GameObject("BossBarFillV2");
+            barFillObject.transform.SetParent(barRoot.transform, false);
+            var barFillRect = barFillObject.AddComponent<RectTransform>();
+            barFillRect.anchorMin = new Vector2(0f, 0.5f);
+            barFillRect.anchorMax = new Vector2(0f, 0.5f);
+            barFillRect.pivot = new Vector2(0f, 0.5f);
+            barFillRect.anchoredPosition = new Vector2(BossBarPadding, 0f);
+            _bossBarFillMaxWidth = (BossBarRootWidth + 40f) - (BossBarPadding * 2f);
+            var fillHeight = (BossBarRootHeight + 2f) - (BossBarPadding * 2f);
+            barFillRect.sizeDelta = new Vector2(_bossBarFillMaxWidth, fillHeight);
+            _bossBarFillRect = barFillRect;
+
+            _bossBarFill = barFillObject.AddComponent<Image>();
+            _bossBarFill.color = new Color(0.9f, 0.18f, 0.24f, 0.95f);
+
+            _bossBarValueText = CreateText(_bossBarPanel.transform, "BossHpTextV2", new Vector2(332f, 0f), "0/0");
+            _bossBarValueText.alignment = TextAnchor.MiddleRight;
+            _bossBarValueText.fontSize = 16;
+            _bossBarValueText.rectTransform.sizeDelta = new Vector2(128f, 24f);
+        }
+
+        private void BuildLevelUpPanelReference()
+        {
+            _levelUpPanel = CreatePanel(_canvas.transform, "LevelUpPanelV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(LevelPanelWidth, LevelPanelMinHeight), new Color(0.03f, 0.05f, 0.09f, 0.96f));
+            _levelUpPanel.SetActive(false);
+
+            _levelUpTitle = CreateText(_levelUpPanel.transform, "TitleV2", Vector2.zero, "\uB808\uBCA8 \uC5C5");
+            _levelUpTitle.fontSize = 30;
+            _levelUpTitle.fontStyle = FontStyle.Bold;
+            _levelUpTitle.color = new Color(0.95f, 0.74f, 0.18f, 1f);
+            _levelUpTitle.rectTransform.sizeDelta = new Vector2(760f, 72f);
+
+            _levelButtons = new Button[10];
+            _levelButtonTexts = new Text[10];
+            for (var i = 0; i < _levelButtons.Length; i++)
+            {
+                var button = CreateButton(_levelUpPanel.transform, $"OptionButtonV2_{i}", Vector2.zero, new Vector2(LevelButtonWidth, LevelButtonHeight));
+                var label = button.GetComponentInChildren<Text>();
+                label.alignment = TextAnchor.MiddleLeft;
+                label.fontSize = 18;
+                label.rectTransform.offsetMin = new Vector2(22f, 10f);
+                label.rectTransform.offsetMax = new Vector2(-22f, -10f);
+                _levelButtons[i] = button;
+                _levelButtonTexts[i] = label;
+            }
+
+            LayoutLevelUpPanel(3);
+        }
+
+        private void BuildResultPanelReference()
+        {
+            _resultPanel = CreatePanel(_canvas.transform, "ResultPanelV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(900f, 680f), new Color(0.03f, 0.05f, 0.09f, 0.96f));
+            _resultPanel.SetActive(false);
+
+            var title = CreateText(_resultPanel.transform, "ResultTitleV2", new Vector2(0f, 292f), "\uB7F0 \uACB0\uACFC");
+            title.fontSize = 30;
+            title.fontStyle = FontStyle.Bold;
+            title.color = new Color(0.95f, 0.97f, 1f, 1f);
+
+            var bodyCard = CreatePanel(_resultPanel.transform, "ResultBodyCardV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 18f), new Vector2(792f, 486f), new Color(0.07f, 0.10f, 0.15f, 0.96f));
+            _resultText = CreateMultilineText(bodyCard.transform, "ResultTextV2", new Vector2(0f, -24f), new Vector2(724f, 430f), "\uB7F0 \uACB0\uACFC");
+            _resultText.fontSize = 17;
+            _resultText.fontStyle = FontStyle.Normal;
+            _resultText.alignment = TextAnchor.UpperLeft;
+            _restartButton = CreateButton(_resultPanel.transform, "RestartButtonV2", new Vector2(0f, -286f), new Vector2(292f, 56f));
+            _restartButton.GetComponentInChildren<Text>().text = "\uD0C0\uC774\uD2C0\uB85C";
+        }
+
+        private void BuildPausePanelReference()
+        {
+            _pausePanel = CreatePanel(_canvas.transform, "PausePanelV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(700f, 560f), new Color(0.03f, 0.05f, 0.09f, 0.96f));
+            _pausePanel.SetActive(false);
+
+            var title = CreateText(_pausePanel.transform, "PauseTitleV2", new Vector2(0f, 206f), "\uC77C\uC2DC \uC815\uC9C0");
+            title.fontSize = 30;
+            title.fontStyle = FontStyle.Bold;
+            title.color = new Color(0.95f, 0.74f, 0.18f, 1f);
+
+            var subhead = CreateText(_pausePanel.transform, "PauseSubheadV2", new Vector2(0f, 168f), "\uD50C\uB808\uC774 \uACC4\uC18D, \uC124\uC815, \uD0C0\uC774\uD2C0 \uC774\uB3D9\uC744 \uC5EC\uAE30\uC11C \uACE0\uB985\uB2C8\uB2E4.");
+            subhead.fontSize = 15;
+            subhead.color = new Color(0.78f, 0.84f, 0.92f, 1f);
+            subhead.rectTransform.sizeDelta = new Vector2(520f, 38f);
+
+            _pauseResumeButton = CreateButton(_pausePanel.transform, "ResumeButtonV2", new Vector2(-150f, 74f), new Vector2(248f, 56f));
+            _pauseResumeButton.GetComponentInChildren<Text>().text = "\uACC4\uC18D\uD558\uAE30";
+
+            _pauseSettingsButton = CreateButton(_pausePanel.transform, "PauseSettingsButtonV2", new Vector2(150f, 74f), new Vector2(248f, 56f));
+            _pauseSettingsButton.GetComponentInChildren<Text>().text = "\uC124\uC815";
+            _pauseSettingsButton.onClick.RemoveAllListeners();
+            _pauseSettingsButton.onClick.AddListener(OpenPauseSettings);
+
+            _pauseQuitButton = CreateButton(_pausePanel.transform, "QuitButtonV2", new Vector2(0f, 2f), new Vector2(292f, 56f));
+            _pauseQuitButton.GetComponentInChildren<Text>().text = "\uD0C0\uC774\uD2C0\uB85C";
+            if (_pauseQuitButton.targetGraphic is Image quitImage)
+            {
+                quitImage.color = new Color(0.31f, 0.15f, 0.18f, 0.98f);
+                var quitColors = _pauseQuitButton.colors;
+                quitColors.normalColor = quitImage.color;
+                quitColors.highlightedColor = new Color(0.40f, 0.20f, 0.24f, 1f);
+                quitColors.selectedColor = quitColors.highlightedColor;
+                quitColors.pressedColor = new Color(0.23f, 0.11f, 0.14f, 1f);
+                _pauseQuitButton.colors = quitColors;
+            }
+
+            _pauseSettingsPanel = CreatePanel(_pausePanel.transform, "PauseSettingsPanelV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -72f), new Vector2(560f, 306f), new Color(0.05f, 0.08f, 0.12f, 0.92f));
+            _pauseSettingsPanel.SetActive(false);
+
+            var settingsTitle = CreateText(_pauseSettingsPanel.transform, "PauseSettingsTitleV2", new Vector2(0f, 126f), "\uC124\uC815");
+            settingsTitle.fontSize = 22;
+            settingsTitle.fontStyle = FontStyle.Bold;
+            settingsTitle.color = new Color(0.95f, 0.74f, 0.18f, 1f);
+
+            var displayCard = CreatePanel(_pauseSettingsPanel.transform, "PauseDisplayCardV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 54f), new Vector2(460f, 82f), new Color(0.07f, 0.10f, 0.14f, 0.94f));
+            var displayLabel = CreateText(displayCard.transform, "PauseDisplayLabelV2", new Vector2(0f, 20f), "\uD654\uBA74");
+            displayLabel.fontSize = 16;
+            displayLabel.fontStyle = FontStyle.Bold;
+            displayLabel.color = new Color(0.95f, 0.74f, 0.18f, 1f);
+            displayLabel.rectTransform.sizeDelta = new Vector2(160f, 24f);
+            _pauseFullscreenToggle = CreateToggle(displayCard.transform, "PauseFullscreenToggleV2", new Vector2(0f, -12f), new Vector2(248f, 32f), "\uC804\uCCB4 \uD654\uBA74", OnPauseFullscreenToggleChanged);
+
+            var audioCard = CreatePanel(_pauseSettingsPanel.transform, "PauseAudioCardV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -46f), new Vector2(480f, 146f), new Color(0.07f, 0.10f, 0.14f, 0.94f));
+            var audioLabel = CreateText(audioCard.transform, "PauseAudioLabelV2", new Vector2(0f, 50f), "\uC624\uB514\uC624");
+            audioLabel.fontSize = 16;
+            audioLabel.fontStyle = FontStyle.Bold;
+            audioLabel.color = new Color(0.95f, 0.74f, 0.18f, 1f);
+            audioLabel.rectTransform.sizeDelta = new Vector2(160f, 24f);
+
+            CreateSliderControl(audioCard.transform, "PauseMasterVolumeV2", new Vector2(0f, 12f), "\uB9C8\uC2A4\uD130", OnPauseMasterVolumeChanged, out _pauseMasterVolumeSlider, out _pauseMasterVolumeValueText);
+            CreateSliderControl(audioCard.transform, "PauseBgmVolumeV2", new Vector2(0f, -24f), "\uBC30\uACBD\uC74C", OnPauseBgmVolumeChanged, out _pauseBgmVolumeSlider, out _pauseBgmVolumeValueText);
+            CreateSliderControl(audioCard.transform, "PauseSfxVolumeV2", new Vector2(0f, -60f), "\uD6A8\uACFC\uC74C", OnPauseSfxVolumeChanged, out _pauseSfxVolumeSlider, out _pauseSfxVolumeValueText);
+
+            var settingsBackButton = CreateButton(_pauseSettingsPanel.transform, "PauseSettingsBackButtonV2", new Vector2(0f, -126f), new Vector2(228f, 44f));
+            settingsBackButton.GetComponentInChildren<Text>().text = "\uB3CC\uC544\uAC00\uAE30";
+            settingsBackButton.onClick.RemoveAllListeners();
+            settingsBackButton.onClick.AddListener(() => ClosePauseSettings());
+        }
+
+        private void BuildDebugPanelsReference()
+        {
+            _debugAccessButton = CreateButton(_canvas.transform, "DebugAccessButtonV2", Vector2.zero, new Vector2(72f, 38f));
+            var accessRect = _debugAccessButton.GetComponent<RectTransform>();
+            accessRect.anchorMin = new Vector2(0f, 0f);
+            accessRect.anchorMax = new Vector2(0f, 0f);
+            accessRect.pivot = new Vector2(0f, 0f);
+            accessRect.anchoredPosition = new Vector2(18f, 18f);
+            _debugAccessButton.GetComponentInChildren<Text>().text = "DEV";
+            _debugAccessButton.onClick.RemoveAllListeners();
+            _debugAccessButton.onClick.AddListener(ToggleDebugEntry);
+            _debugAccessButton.gameObject.SetActive(false);
+
+            _debugToolsPanel = CreatePanel(_canvas.transform, "DebugToolsPanelV2", new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(18f, 68f), new Vector2(328f, 304f), new Color(0.03f, 0.05f, 0.09f, 0.94f));
+            _debugToolsPanel.SetActive(false);
+
+            var toolsTitle = CreateText(_debugToolsPanel.transform, "DebugToolsTitleV2", new Vector2(0f, 122f), "\uB514\uBC84\uADF8 \uB3C4\uAD6C");
+            toolsTitle.fontSize = 18;
+            toolsTitle.fontStyle = FontStyle.Bold;
+            toolsTitle.color = new Color(0.95f, 0.74f, 0.18f, 1f);
+
+            _debugGrantLevelButton = CreateButton(_debugToolsPanel.transform, "DebugGrantLevelButtonV2", new Vector2(0f, 70f), new Vector2(260f, 40f));
+            _debugGrantLevelLabel = _debugGrantLevelButton.GetComponentInChildren<Text>();
+            _debugAdvanceTimeButton = CreateButton(_debugToolsPanel.transform, "DebugAdvanceTimeButtonV2", new Vector2(0f, 24f), new Vector2(260f, 40f));
+            _debugAdvanceTimeLabel = _debugAdvanceTimeButton.GetComponentInChildren<Text>();
+            _debugRerollButton = CreateButton(_debugToolsPanel.transform, "DebugRerollButtonV2", new Vector2(0f, -22f), new Vector2(260f, 40f));
+            _debugRerollLabel = _debugRerollButton.GetComponentInChildren<Text>();
+            _debugSkipBossButton = CreateButton(_debugToolsPanel.transform, "DebugSkipBossButtonV2", new Vector2(0f, -68f), new Vector2(260f, 40f));
+            _debugSkipBossLabel = _debugSkipBossButton.GetComponentInChildren<Text>();
+            _debugAutoPlayButton = CreateButton(_debugToolsPanel.transform, "DebugAutoPlayButtonV2", new Vector2(0f, -114f), new Vector2(260f, 40f));
+            _debugAutoPlayLabel = _debugAutoPlayButton.GetComponentInChildren<Text>();
+
+            RefreshDebugToolButtons();
+        }
+
         private static void ConfigureDebugButton(Button button, Text label, string text, Action action)
         {
             if (button == null || label == null)
@@ -865,6 +1249,7 @@ namespace EJR.Game.UI
 
             var image = panel.AddComponent<Image>();
             image.color = color;
+            ApplyPanelChrome(panel, name);
             return panel;
         }
 
@@ -921,7 +1306,7 @@ namespace EJR.Game.UI
             shadow.effectColor = new Color(0f, 0f, 0f, 0.26f);
             shadow.effectDistance = new Vector2(0f, -6f);
             var outline = buttonObject.AddComponent<Outline>();
-            outline.effectColor = new Color(0.95f, 0.74f, 0.18f, 0.16f);
+            outline.effectColor = new Color(0.50f, 0.61f, 0.78f, 0.16f);
             outline.effectDistance = new Vector2(1f, -1f);
 
             var label = new GameObject("Label");
@@ -943,6 +1328,22 @@ namespace EJR.Game.UI
             labelText.raycastTarget = false;
 
             return button;
+        }
+
+        private void ApplyPanelChrome(GameObject panel, string name)
+        {
+            if (panel == null)
+            {
+                return;
+            }
+
+            var shadow = panel.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.18f);
+            shadow.effectDistance = new Vector2(0f, -8f);
+
+            var outline = panel.AddComponent<Outline>();
+            outline.effectColor = new Color(0.36f, 0.47f, 0.62f, 0.16f);
+            outline.effectDistance = new Vector2(1f, -1f);
         }
 
         private Text CreateMultilineText(Transform parent, string name, Vector2 anchoredPosition, Vector2 size, string content)
@@ -967,6 +1368,273 @@ namespace EJR.Game.UI
             text.verticalOverflow = VerticalWrapMode.Overflow;
             text.raycastTarget = false;
             return text;
+        }
+
+        private void OpenPauseSettings()
+        {
+            if (_pauseSettingsPanel == null)
+            {
+                return;
+            }
+
+            AudioService.Instance.PlayUi(AudioCueId.UiConfirm);
+            _pauseSettingsPanel.SetActive(true);
+            _pauseResumeButton?.gameObject.SetActive(false);
+            _pauseSettingsButton?.gameObject.SetActive(false);
+            _pauseQuitButton?.gameObject.SetActive(false);
+            SyncPauseSettingsControls();
+        }
+
+        private void ClosePauseSettings(bool playCue = true)
+        {
+            if (_pauseSettingsPanel == null)
+            {
+                return;
+            }
+
+            if (playCue)
+            {
+                AudioService.Instance.PlayUi(AudioCueId.UiBack);
+            }
+
+            _pauseSettingsPanel.SetActive(false);
+            _pauseResumeButton?.gameObject.SetActive(true);
+            _pauseSettingsButton?.gameObject.SetActive(true);
+            _pauseQuitButton?.gameObject.SetActive(true);
+        }
+
+        private void SyncPauseSettingsControls()
+        {
+            _suppressPauseSettingsCallbacks = true;
+            var audio = AudioService.Instance;
+            _pauseFullscreenToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt(FullscreenPreferenceKey, 0) != 0);
+            _pauseMasterVolumeSlider?.SetValueWithoutNotify(audio.MasterVolume);
+            _pauseBgmVolumeSlider?.SetValueWithoutNotify(audio.BgmVolume);
+            _pauseSfxVolumeSlider?.SetValueWithoutNotify(audio.SfxVolume);
+            _suppressPauseSettingsCallbacks = false;
+
+            UpdateSliderValueLabel(_pauseMasterVolumeValueText, audio.MasterVolume);
+            UpdateSliderValueLabel(_pauseBgmVolumeValueText, audio.BgmVolume);
+            UpdateSliderValueLabel(_pauseSfxVolumeValueText, audio.SfxVolume);
+        }
+
+        private void OnPauseFullscreenToggleChanged(bool useFullscreen)
+        {
+            if (_suppressPauseSettingsCallbacks)
+            {
+                return;
+            }
+
+            ApplyDisplayMode(useFullscreen);
+            AudioService.Instance.PlayUi(AudioCueId.UiAdjust);
+        }
+
+        private void OnPauseMasterVolumeChanged(float value)
+        {
+            UpdateSliderValueLabel(_pauseMasterVolumeValueText, value);
+            if (_suppressPauseSettingsCallbacks)
+            {
+                return;
+            }
+
+            AudioService.Instance.SetMasterVolume(value);
+            AudioService.Instance.PlayUi(AudioCueId.UiAdjust);
+        }
+
+        private void OnPauseBgmVolumeChanged(float value)
+        {
+            UpdateSliderValueLabel(_pauseBgmVolumeValueText, value);
+            if (_suppressPauseSettingsCallbacks)
+            {
+                return;
+            }
+
+            AudioService.Instance.SetBgmVolume(value);
+            AudioService.Instance.PlayUi(AudioCueId.UiAdjust);
+        }
+
+        private void OnPauseSfxVolumeChanged(float value)
+        {
+            UpdateSliderValueLabel(_pauseSfxVolumeValueText, value);
+            if (_suppressPauseSettingsCallbacks)
+            {
+                return;
+            }
+
+            AudioService.Instance.SetSfxVolume(value);
+            AudioService.Instance.PlayUi(AudioCueId.UiAdjust);
+        }
+
+        private static void UpdateSliderValueLabel(Text label, float value)
+        {
+            if (label == null)
+            {
+                return;
+            }
+
+            label.text = $"{Mathf.RoundToInt(Mathf.Clamp01(value) * 100f)}%";
+        }
+
+        private static void ApplyDisplayMode(bool useFullscreen)
+        {
+            PlayerPrefs.SetInt(FullscreenPreferenceKey, useFullscreen ? 1 : 0);
+            PlayerPrefs.Save();
+
+            if (useFullscreen)
+            {
+                var resolution = Screen.currentResolution;
+                Screen.SetResolution(Mathf.Max(1, resolution.width), Mathf.Max(1, resolution.height), FullScreenMode.FullScreenWindow);
+                return;
+            }
+
+            var width = Mathf.Max(1280, Mathf.RoundToInt(Screen.currentResolution.width * 0.8f));
+            var height = Mathf.Max(720, Mathf.RoundToInt(Screen.currentResolution.height * 0.8f));
+            Screen.SetResolution(width, height, FullScreenMode.Windowed);
+        }
+
+        private void CreateSliderControl(
+            Transform parent,
+            string name,
+            Vector2 anchoredPosition,
+            string label,
+            UnityEngine.Events.UnityAction<float> onValueChanged,
+            out Slider slider,
+            out Text valueText)
+        {
+            var root = new GameObject(name);
+            root.transform.SetParent(parent, false);
+            var rootRect = root.AddComponent<RectTransform>();
+            rootRect.anchorMin = new Vector2(0.5f, 0.5f);
+            rootRect.anchorMax = new Vector2(0.5f, 0.5f);
+            rootRect.pivot = new Vector2(0.5f, 0.5f);
+            rootRect.anchoredPosition = anchoredPosition;
+            rootRect.sizeDelta = new Vector2(340f, 26f);
+
+            var labelText = CreateText(root.transform, "Label", new Vector2(-126f, 0f), label);
+            labelText.fontSize = 15;
+            labelText.fontStyle = FontStyle.Bold;
+            labelText.alignment = TextAnchor.MiddleLeft;
+            labelText.rectTransform.sizeDelta = new Vector2(84f, 24f);
+
+            var sliderObject = new GameObject("Slider");
+            sliderObject.transform.SetParent(root.transform, false);
+            var sliderRect = sliderObject.AddComponent<RectTransform>();
+            sliderRect.anchorMin = new Vector2(0f, 0.5f);
+            sliderRect.anchorMax = new Vector2(0f, 0.5f);
+            sliderRect.pivot = new Vector2(0f, 0.5f);
+            sliderRect.anchoredPosition = new Vector2(42f, 0f);
+            sliderRect.sizeDelta = new Vector2(224f, 18f);
+
+            var background = new GameObject("Background");
+            background.transform.SetParent(sliderObject.transform, false);
+            var backgroundRect = background.AddComponent<RectTransform>();
+            backgroundRect.anchorMin = new Vector2(0f, 0.5f);
+            backgroundRect.anchorMax = new Vector2(1f, 0.5f);
+            backgroundRect.pivot = new Vector2(0.5f, 0.5f);
+            backgroundRect.sizeDelta = new Vector2(0f, 8f);
+            var backgroundImage = background.AddComponent<Image>();
+            backgroundImage.color = new Color(0.11f, 0.15f, 0.21f, 0.96f);
+
+            var fillArea = new GameObject("Fill Area");
+            fillArea.transform.SetParent(sliderObject.transform, false);
+            var fillAreaRect = fillArea.AddComponent<RectTransform>();
+            fillAreaRect.anchorMin = Vector2.zero;
+            fillAreaRect.anchorMax = Vector2.one;
+            fillAreaRect.offsetMin = new Vector2(0f, 5f);
+            fillAreaRect.offsetMax = new Vector2(0f, -5f);
+
+            var fill = new GameObject("Fill");
+            fill.transform.SetParent(fillArea.transform, false);
+            var fillRect = fill.AddComponent<RectTransform>();
+            fillRect.anchorMin = Vector2.zero;
+            fillRect.anchorMax = Vector2.one;
+            fillRect.offsetMin = Vector2.zero;
+            fillRect.offsetMax = Vector2.zero;
+            var fillImage = fill.AddComponent<Image>();
+            fillImage.color = new Color(0.96f, 0.74f, 0.18f, 0.96f);
+
+            var handleArea = new GameObject("Handle Slide Area");
+            handleArea.transform.SetParent(sliderObject.transform, false);
+            var handleAreaRect = handleArea.AddComponent<RectTransform>();
+            handleAreaRect.anchorMin = Vector2.zero;
+            handleAreaRect.anchorMax = Vector2.one;
+            handleAreaRect.offsetMin = Vector2.zero;
+            handleAreaRect.offsetMax = Vector2.zero;
+
+            var handle = new GameObject("Handle");
+            handle.transform.SetParent(handleArea.transform, false);
+            var handleRect = handle.AddComponent<RectTransform>();
+            handleRect.sizeDelta = new Vector2(16f, 18f);
+            var handleImage = handle.AddComponent<Image>();
+            handleImage.color = new Color(0.98f, 0.98f, 1f, 1f);
+
+            slider = sliderObject.AddComponent<Slider>();
+            slider.direction = Slider.Direction.LeftToRight;
+            slider.minValue = 0f;
+            slider.maxValue = 1f;
+            slider.wholeNumbers = false;
+            slider.targetGraphic = handleImage;
+            slider.fillRect = fillRect;
+            slider.handleRect = handleRect;
+            slider.onValueChanged.AddListener(onValueChanged);
+
+            valueText = CreateText(root.transform, "Value", new Vector2(148f, 0f), "0%");
+            valueText.fontSize = 14;
+            valueText.fontStyle = FontStyle.Bold;
+            valueText.alignment = TextAnchor.MiddleRight;
+            valueText.rectTransform.sizeDelta = new Vector2(56f, 24f);
+            valueText.color = new Color(0.78f, 0.84f, 0.92f, 1f);
+        }
+
+        private Toggle CreateToggle(
+            Transform parent,
+            string name,
+            Vector2 anchoredPosition,
+            Vector2 size,
+            string label,
+            UnityEngine.Events.UnityAction<bool> onValueChanged)
+        {
+            var toggleObject = new GameObject(name);
+            toggleObject.transform.SetParent(parent, false);
+            var rect = toggleObject.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = anchoredPosition;
+            rect.sizeDelta = size;
+
+            var toggle = toggleObject.AddComponent<Toggle>();
+
+            var backgroundObject = new GameObject("Background");
+            backgroundObject.transform.SetParent(toggleObject.transform, false);
+            var backgroundRect = backgroundObject.AddComponent<RectTransform>();
+            backgroundRect.anchorMin = new Vector2(0f, 0.5f);
+            backgroundRect.anchorMax = new Vector2(0f, 0.5f);
+            backgroundRect.pivot = new Vector2(0f, 0.5f);
+            backgroundRect.sizeDelta = new Vector2(26f, 26f);
+            var backgroundImage = backgroundObject.AddComponent<Image>();
+            backgroundImage.color = new Color(0.12f, 0.16f, 0.22f, 0.95f);
+
+            var checkmarkObject = new GameObject("Checkmark");
+            checkmarkObject.transform.SetParent(backgroundObject.transform, false);
+            var checkmarkRect = checkmarkObject.AddComponent<RectTransform>();
+            checkmarkRect.anchorMin = new Vector2(0.5f, 0.5f);
+            checkmarkRect.anchorMax = new Vector2(0.5f, 0.5f);
+            checkmarkRect.pivot = new Vector2(0.5f, 0.5f);
+            checkmarkRect.sizeDelta = new Vector2(14f, 14f);
+            var checkmarkImage = checkmarkObject.AddComponent<Image>();
+            checkmarkImage.color = new Color(0.95f, 0.74f, 0.18f, 1f);
+
+            var labelText = CreateText(toggleObject.transform, "Label", new Vector2(64f, 0f), label);
+            labelText.fontSize = 17;
+            labelText.fontStyle = FontStyle.Bold;
+            labelText.alignment = TextAnchor.MiddleLeft;
+            labelText.rectTransform.sizeDelta = new Vector2(180f, 26f);
+
+            toggle.targetGraphic = backgroundImage;
+            toggle.graphic = checkmarkImage;
+            toggle.onValueChanged.AddListener(onValueChanged);
+            return toggle;
         }
     }
 }

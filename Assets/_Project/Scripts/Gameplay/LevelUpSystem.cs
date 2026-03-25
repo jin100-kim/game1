@@ -331,7 +331,7 @@ namespace EJR.Game.Gameplay
             {
                 WeaponRollKind.AttackSpeedPercent => $"공격 속도 +{value:0.#}%",
                 WeaponRollKind.RangePercent => $"사거리 +{value:0.#}%",
-                _ => $"피해 +{value:0.#}%",
+                _ => $"피해량 +{value:0.#}%",
             };
         }
 
@@ -341,11 +341,11 @@ namespace EJR.Game.Gameplay
             {
                 StatUpgradeId.MaxHealth => $"최대 체력 +{value:0}",
                 StatUpgradeId.HealthRegen => $"체력 재생 +{value:0.##}/초",
-                StatUpgradeId.Luck => $"행운 +{value:0.##}",
+                StatUpgradeId.Luck => $"행운 +{value:0}",
                 StatUpgradeId.AttackSpeed => $"공격 속도 +{value:0.#}%",
                 StatUpgradeId.MoveSpeed => $"이동 속도 +{value:0.#}%",
                 StatUpgradeId.AttackRange => $"공격 범위 +{value:0.#}%",
-                _ => $"공격력 +{value:0.#}%",
+                _ => $"피해량 +{value:0.#}%",
             };
         }
 
