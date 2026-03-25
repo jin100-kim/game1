@@ -1366,7 +1366,6 @@ namespace EJR.Game.UI
 
             _selectedStarterWeaponId = MetaProgressionService.GetCharacterStarterWeapon(_selectedCharacterId);
             var character = SharedGameCatalog.GetCharacter(_inspectedCharacterId);
-            var totalBonuses = MetaProgressionService.GetCombinedRunStartBonuses(_inspectedCharacterId);
             var inspectedUnlocked = MetaProgressionService.IsCharacterUnlocked(_inspectedCharacterId);
 
             _runSetupCharacterText.text = character.DisplayName;
@@ -1377,8 +1376,7 @@ namespace EJR.Game.UI
                 _runSetupBonusText.text =
                     $"시작 무기\n{SharedGameCatalog.GetWeaponDisplayName(character.StarterWeaponId)}\n\n" +
                     $"기본 보너스\n{BuildMetaBonusSummary(character.BaseBonuses)}\n\n" +
-                    $"고유 패시브\n{character.PassiveDescription}\n\n" +
-                    $"출격 시작 보정\n{BuildMetaBonusSummary(totalBonuses)}";
+                    $"고유 패시브\n{character.PassiveDescription}";
             }
 
             if (_runSetupPrimaryActionButton != null)

@@ -120,7 +120,7 @@ namespace EJR.Game.Audio
                     PlaySfx(AudioCueId.WeaponKatana);
                     break;
                 case WeaponUpgradeId.BfSword:
-                    if (request.Kind == WeaponSoundKind.Turn || request.Kind == WeaponSoundKind.Primary)
+                    if (request.Kind == WeaponSoundKind.Primary)
                     {
                         PlaySfx(AudioCueId.WeaponBfSword);
                     }

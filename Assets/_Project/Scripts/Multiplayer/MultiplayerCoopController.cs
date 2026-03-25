@@ -365,6 +365,8 @@ namespace EJR.Game.Multiplayer
                 _teamRequiredExperience.Value = ProgressionMath.RequiredExperienceForLevel(_teamLevel.Value);
             }
 
+            AudioService.Instance.PlaySfx(AudioCueId.XpPickup);
+            PlaySharedXpPickupClientRpc();
             EnterLevelChoicePauseIfNeeded();
         }
 
@@ -396,7 +398,7 @@ namespace EJR.Game.Multiplayer
             orbActor.InitializeServer(
                 value,
                 _playerConfig != null ? _playerConfig.pickupRadius : 1.2f,
-                _playerConfig != null ? _playerConfig.xpAttractRadius : 4f,
+                _playerConfig != null ? _playerConfig.xpAttractRadius : 2f,
                 _playerConfig != null ? _playerConfig.xpAttractSpeed : 6f);
 
             orbActor.NetworkObject.Spawn(true);
@@ -801,6 +803,17 @@ namespace EJR.Game.Multiplayer
             }
 
             AudioService.Instance.PlaySfx(AudioCueId.BossWarning);
+        }
+
+        [ClientRpc]
+        private void PlaySharedXpPickupClientRpc()
+        {
+            if (IsServer)
+            {
+                return;
+            }
+
+            AudioService.Instance.PlaySfx(AudioCueId.XpPickup);
         }
 
         private Vector3 FindSpawnPosition(

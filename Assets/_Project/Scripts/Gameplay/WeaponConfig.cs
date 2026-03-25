@@ -59,6 +59,7 @@ namespace EJR.Game.Gameplay
         [Range(0f, 25f)] public float smgSpreadAngle = 6f;
 
         [Header("Fireball")]
+        [Min(0.1f)] public float fireballBaseDamage = 12f;
         [Min(0.1f)] public float fireballAttackInterval = 0.95f;
         [Min(0.1f)] public float fireballProjectileSpeed = 8f;
         [Min(0.1f)] public float fireballProjectileLifetime = 1.5f;
@@ -76,20 +77,22 @@ namespace EJR.Game.Gameplay
         [Range(0.05f, 1f)] public float sniperMinimumDamageMultiplier = 0.35f;
 
         [Header("Bat")]
+        [Min(0.1f)] public float batBaseDamage = 12f;
         [Min(0.1f)] public float batAttackInterval = 1.5f;
         [Min(0f)] public float batHealthCost = 0f;
         [Min(0f)] public float batLifetime = 0f;
         [Min(0f)] public float batOrbitDuration = 0.5f;
         [Min(0.1f)] public float batOrbitRadius = 1.15f;
         [Min(0.1f)] public float batMoveSpeed = 6.8f;
-        [Min(0.01f)] public float batHitInterval = 0.5f;
-        [Range(0.05f, 5f)] public float batDamageMultiplier = 2.48f;
-        [Range(0.01f, 1f)] public float batHealPerDamageMultiplier = 0.05f;
-        [Min(1f)] public float batMinimumHealPerHit = 1f;
-        [Min(1)] public int batHitsBeforeReturn = 3;
+        [Min(0.01f)] public float batHitInterval = 0.4f;
+        [Range(0.05f, 5f)] public float batDamageMultiplier = 1.2f;
+        [Range(0.01f, 1f)] public float batHealPerDamageMultiplier = 0.06f;
+        [Min(0f)] public float batMinimumHealPerHit = 0f;
+        [Min(1)] public int batHitsBeforeReturn = 5;
         [Min(0.05f)] public float batVisualScale = 0.32f;
 
         [Header("Shotgun")]
+        [Min(0.1f)] public float shotgunBaseDamage = 12f;
         [Min(2)] public int shotgunPelletCount = 4;
         [Range(1f, 120f)] public float shotgunSpreadAngle = 36f;
         [Range(0.05f, 2f)] public float shotgunPelletDamageMultiplier = 0.5f;
@@ -97,7 +100,7 @@ namespace EJR.Game.Gameplay
         [Header("Katana (Melee Cone)")]
         [Min(0.25f)] public float katanaRange = 1.6f;
         [Range(5f, 180f)] public float katanaConeAngle = 80f;
-        [Min(0.1f)] public float katanaBaseDamage = 5f;
+        [Min(0.1f)] public float katanaBaseDamage = 12f;
         [Range(0.05f, 3f)] public float katanaDamageMultiplier = 1f;
         [Min(1)] public int katanaBaseSlashCount = 2;
         [Min(0.01f)] public float katanaComboSlashInterval = 0.2f;
@@ -114,16 +117,19 @@ namespace EJR.Game.Gameplay
         public Vector2 bfSwordVisualLocalOffset = new(0f, -0.16f);
 
         [Header("Chain Attack")]
+        [Min(0.1f)] public float chainAttackBaseDamage = 12f;
         [Min(1)] public int chainBaseJumps = 3;
         [Min(0.1f)] public float chainJumpRange = 3f;
         [Min(0.01f)] public float chainHopDelay = 0.12f;
         [Range(0f, 0.9f)] public float chainDamageDecayPerJump = 0.15f;
 
         [Header("Satellite Beam")]
+        [Min(0.1f)] public float lightningBaseDamage = 12f;
         [Range(0.1f, 5f)] public float lightningDamageMultiplier = 1.25f;
         [Range(0.1f, 5f)] public float lightningIntervalMultiplier = 1.0f;
 
         [Header("Mace")]
+        [Min(0.1f)] public float maceBaseDamage = 12f;
         [Min(0.1f)] public float maceAttackInterval = 1.05f;
         [Min(0.05f)] public float maceSwingDuration = 0.28f;
         [Range(10f, 220f)] public float maceArcAngle = 130f;
@@ -135,6 +141,7 @@ namespace EJR.Game.Gameplay
         [Min(0.05f)] public float maceVisualHeadSize = 0.38f;
 
         [Header("Drone")]
+        [Min(0.1f)] public float droneBaseDamage = 12f;
         [Min(1)] public int satelliteBaseCount = 2;
         [Min(0.2f)] public float satelliteOrbitRadius = 1.2f;
         [Min(30f)] public float satelliteAngularSpeed = 220f;
@@ -143,6 +150,7 @@ namespace EJR.Game.Gameplay
         [Range(0.05f, 5f)] public float satelliteDamageMultiplier = 0.55f;
 
         [Header("Rifle Turret")]
+        [Min(0.1f)] public float rifleTurretBaseDamage = 12f;
         [Min(0.1f)] public float rifleTurretDeployInterval = 3.8f;
         [Min(0.1f)] public float rifleTurretLifetime = 8f;
         [Min(1)] public int rifleTurretMaxCount = 2;
@@ -152,9 +160,10 @@ namespace EJR.Game.Gameplay
         [Min(0.1f)] public float rifleTurretProjectileLifetime = 1.8f;
 
         [Header("Aura")]
-        [Min(0.01f)] public float auraTickInterval = 0.25f;
+        [Min(0.1f)] public float auraBaseDamage = 12f;
+        [Min(0.01f)] public float auraTickInterval = 1f;
         [Min(0.1f)] public float auraRadius = 1.5f;
-        [Range(0.01f, 5f)] public float auraDamageMultiplier = 0.22f;
+        [Range(0.01f, 5f)] public float auraDamageMultiplier = 0.88f;
 
     }
 }

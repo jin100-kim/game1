@@ -102,11 +102,11 @@ MonoBehaviour:
     clip: {fileID: 8300000, guid: efc88412a7803e847ab78c2b281f08a9, type: 3}
     mixerGroup: {fileID: -7268253658415721968, guid: bee018e9a9623344e853ac144257eb3e, type: 2}
     bus: 1
-    volume: 0.78
+    volume: 0.96
     pitchVariance: 0.02
-    minRetriggerInterval: 0.03
+    minRetriggerInterval: 0.01
     maxPlaybackDuration: 0
-    maxVoices: 2
+    maxVoices: 4
     loop: 0
   - cueId: 10
     clip: {fileID: 8300000, guid: dad9331e53d1d43489683983b4d2fd3d, type: 3}
@@ -152,11 +152,11 @@ MonoBehaviour:
     clip: {fileID: 8300000, guid: 72bb274a636ea814d970c05b87228077, type: 3}
     mixerGroup: {fileID: -7268253658415721968, guid: bee018e9a9623344e853ac144257eb3e, type: 2}
     bus: 1
-    volume: 0.9
-    pitchVariance: 0.03
-    minRetriggerInterval: 0.18
+    volume: 0.88
+    pitchVariance: 0.02
+    minRetriggerInterval: 0.06
     maxPlaybackDuration: 0
-    maxVoices: 1
+    maxVoices: 2
     loop: 0
   - cueId: 15
     clip: {fileID: 8300000, guid: 4479d25add2a31b4bbcaa7dda6af6037, type: 3}

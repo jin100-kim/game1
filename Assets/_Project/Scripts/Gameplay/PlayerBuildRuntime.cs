@@ -219,12 +219,17 @@ namespace EJR.Game.Gameplay
 
         public float GetBfSwordWidthMultiplier()
         {
-            return 1f + (HasWeaponMilestone5(WeaponUpgradeId.BfSword) ? 0.20f : 0f);
+            return 1f;
         }
 
         public float GetBfSwordLengthMultiplier()
         {
-            return 1f + (HasWeaponMilestone10(WeaponUpgradeId.BfSword) ? 0.25f : 0f);
+            return 1f;
+        }
+
+        public int GetBfSwordAfterimageCount()
+        {
+            return GetWeaponMilestoneCount(WeaponUpgradeId.BfSword);
         }
 
         public float GetAuraMilestoneRangeMultiplier()

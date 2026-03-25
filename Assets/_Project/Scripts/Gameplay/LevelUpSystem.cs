@@ -254,7 +254,9 @@ namespace EJR.Game.Gameplay
         private LevelUpOption CreateWeaponMilestoneOption(WeaponUpgradeId weaponId, int currentLevel, int nextLevel)
         {
             var title = $"{SharedGameCatalog.GetWeaponDisplayName(weaponId)} 레벨 {nextLevel}";
-            var description = GetWeaponMilestoneDescription(weaponId, nextLevel);
+            var description = weaponId == WeaponUpgradeId.BfSword
+                ? "검 잔상 +1"
+                : GetWeaponMilestoneDescription(weaponId, nextLevel);
             return LevelUpOption.CreateWeaponMilestone(
                 weaponId,
                 GetWeaponMilestoneKind(weaponId, nextLevel),
@@ -376,8 +378,7 @@ namespace EJR.Game.Gameplay
                 WeaponUpgradeId.SniperRifle => 1f,
                 WeaponUpgradeId.Shotgun => 2f,
                 WeaponUpgradeId.ChainAttack => 2f,
-                WeaponUpgradeId.BfSword when nextLevel == 5 => 20f,
-                WeaponUpgradeId.BfSword => 25f,
+                WeaponUpgradeId.BfSword => 1f,
                 WeaponUpgradeId.SatelliteBeam => 25f,
                 WeaponUpgradeId.Aura => 20f,
                 _ => 1f,

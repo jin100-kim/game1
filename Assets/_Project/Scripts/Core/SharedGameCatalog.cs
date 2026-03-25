@@ -77,7 +77,7 @@ namespace EJR.Game.Core
                 WeaponUpgradeId.SniperRifle,
                 new MetaBonusValues { healthRegenPerSecond = 1f },
                 CharacterPassiveId.VampireMaxHealthDamage,
-                "최대 체력 2당 피해량 +1%"),
+                "추가 체력 3당 피해량 +1%"),
             new(
                 2,
                 "검객",

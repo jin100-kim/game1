@@ -12,6 +12,7 @@ namespace EJR.Game.Gameplay
         private float _riseSpeed;
         private float _elapsed;
         private Color _baseColor;
+        private Vector3 _driftVelocity;
         private bool _isShowing;
 
         public void Initialize(TextMesh textMesh, Action<DamageNumberPopup> releaseToPool)
@@ -21,7 +22,7 @@ namespace EJR.Game.Gameplay
             _isShowing = false;
         }
 
-        public void Show(Vector3 worldPosition, string text, Color color, float lifetime, float riseSpeed)
+        public void Show(Vector3 worldPosition, Vector3 driftVelocity, string text, Color color, float lifetime, float riseSpeed)
         {
             if (_textMesh == null)
             {
@@ -34,6 +35,7 @@ namespace EJR.Game.Gameplay
             _riseSpeed = Mathf.Max(0.1f, riseSpeed);
             _elapsed = 0f;
             _baseColor = color;
+            _driftVelocity = driftVelocity;
             _textMesh.text = text;
             _textMesh.color = color;
             _isShowing = true;
@@ -54,7 +56,7 @@ namespace EJR.Game.Gameplay
 
             var deltaTime = Time.unscaledDeltaTime;
             _elapsed += deltaTime;
-            transform.position += new Vector3(0f, _riseSpeed * deltaTime, 0f);
+            transform.position += (_driftVelocity + new Vector3(0f, _riseSpeed, 0f)) * deltaTime;
 
             var normalizedLife = Mathf.Clamp01(_elapsed / _lifetime);
             var color = _baseColor;

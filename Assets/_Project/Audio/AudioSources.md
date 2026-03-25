@@ -9,7 +9,7 @@ Verified on `2026-03-24`.
 | Shotgun | `weapon_shotgun_shot.mp3` | [Freesound - Shotgun Shot sfx](https://freesound.org/people/lumikon/sounds/564480/) | CC0 |
 | Fireball | `weapon_fireball_cast.mp3` | [Freesound - Fire - Rpg](https://freesound.org/people/colorsCrimsonTears/sounds/563541/) | CC0 |
 | Katana | `weapon_katana_slash.mp3` | [Freesound - Clean fast Swoosh.aiff](https://freesound.org/people/Danjocross/sounds/507466/) | CC0 |
-| BF Sword | `weapon_bfsword_swing.mp3` | [Freesound - Hit Swing Sword](https://freesound.org/people/CogFireStudios/sounds/547037/) | CC0 |
+| BF Sword | `weapon_bfsword_swing.mp3` | [Freesound - Deep Cut / Slash / Gash](https://freesound.org/people/SypherZent/sounds/420674/) | CC0 |
 | Chain Attack | `weapon_chain_zap.mp3` | [Freesound - Zap.ogg](https://freesound.org/people/egomassive/sounds/536741/) | CC0 |
 | Mace | `weapon_mace_swing.mp3` | [Freesound - Whoosh.wav](https://freesound.org/people/vmgraw/sounds/257713/) | CC0 |
 | Turret Deploy | `weapon_turret_deploy.mp3` | [Freesound - Flicking a Switch](https://freesound.org/people/njjjjjjjjjjjjjjjjjjjjjjjj/sounds/566176/) | CC0 |

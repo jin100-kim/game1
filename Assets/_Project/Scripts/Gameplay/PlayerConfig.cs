@@ -8,7 +8,7 @@ namespace EJR.Game.Gameplay
         [Min(1f)] public float maxHealth = 100f;
         [Min(0.1f)] public float moveSpeed = 5f;
         [Min(0.1f)] public float pickupRadius = 1.2f;
-        [Min(0.1f)] public float xpAttractRadius = 4f;
+        [Min(0.1f)] public float xpAttractRadius = 2f;
         [Min(0.1f)] public float xpAttractSpeed = 6f;
         [Header("Combat")]
         [Min(0f)] public float damageInvulnerabilitySeconds = 0.35f;

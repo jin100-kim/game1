@@ -49,6 +49,10 @@ namespace EJR.Game.Gameplay
         private const float BossDashTelegraphLength = 6.5f;
         private const float BossDashTelegraphWidth = 0.12f;
         private const float WindKnockbackCooldown = 0.5f;
+        private const float MinorStunInternalCooldown = 0.15f;
+        private const float RifleMinorStunDuration = 0.04f;
+        private const float ShotgunMinorStunDuration = 0.05f;
+        private const float KatanaMinorStunDuration = 0.05f;
         private static readonly Color BossDashTelegraphColor = new(1f, 0.28f, 0.22f, 0.78f);
         private const float StatusIndicatorScale = 0.08f;
         private const float StatusIndicatorHeightOffset = 0.22f;
@@ -101,6 +105,7 @@ namespace EJR.Game.Gameplay
         private float _burnTickTimer;
         private float _burnRemaining;
         private float _stunRemaining;
+        private float _minorStunCooldownUntil = -999f;
         private BossPatternState _bossPatternState;
         private float _bossPatternCooldown;
         private float _bossStateTimer;
@@ -444,6 +449,7 @@ namespace EJR.Game.Gameplay
 
             var basePopupPosition = transform.position + new Vector3(0f, 0.8f, 0f);
             CombatTextSpawner.SpawnDamage(basePopupPosition, appliedDamage, CombatTextSpawner.EnemyDamagedColor);
+            ApplyMinorStunForWeapon(sourceWeaponId);
             Damaged?.Invoke(this, sourceWeaponId, appliedDamage);
             Changed?.Invoke(_health, MaxHealth);
 
@@ -475,6 +481,35 @@ namespace EJR.Game.Gameplay
             }
 
             _stunRemaining = Mathf.Max(_stunRemaining, Mathf.Max(0f, durationSeconds));
+        }
+
+        public void ApplyMinorStun(float durationSeconds)
+        {
+            TryApplyMinorStun(durationSeconds);
+        }
+
+        private void ApplyMinorStunForWeapon(WeaponUpgradeId sourceWeaponId)
+        {
+            var duration = sourceWeaponId switch
+            {
+                WeaponUpgradeId.Rifle => RifleMinorStunDuration,
+                WeaponUpgradeId.Shotgun => ShotgunMinorStunDuration,
+                WeaponUpgradeId.Katana => KatanaMinorStunDuration,
+                _ => 0f,
+            };
+
+            TryApplyMinorStun(duration);
+        }
+
+        private void TryApplyMinorStun(float durationSeconds)
+        {
+            if (_isDead || IsBoss || durationSeconds <= 0f || Time.time < _minorStunCooldownUntil)
+            {
+                return;
+            }
+
+            _minorStunCooldownUntil = Time.time + MinorStunInternalCooldown;
+            _stunRemaining = Mathf.Max(_stunRemaining, durationSeconds);
         }
 
         private void RefreshResolvedTarget()

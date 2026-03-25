@@ -6,6 +6,18 @@ namespace EJR.Game.Gameplay
 {
     public static class CombatTextSpawner
     {
+        private readonly struct PopupClusterState
+        {
+            public PopupClusterState(float lastSpawnTime, int nextSlot)
+            {
+                LastSpawnTime = lastSpawnTime;
+                NextSlot = nextSlot;
+            }
+
+            public float LastSpawnTime { get; }
+            public int NextSlot { get; }
+        }
+
         public static readonly Color EnemyDamagedColor = new Color(0.72f, 0.96f, 1f, 1f);
         public static readonly Color PlayerDamagedColor = new Color(1f, 0.35f, 0.35f, 1f);
         public static readonly Color PlayerHealedColor = new Color(0.35f, 1f, 0.48f, 1f);
@@ -14,8 +26,24 @@ namespace EJR.Game.Gameplay
         private const int PopupPoolPrewarmCount = 40;
         private const float PopupLifetime = 0.65f;
         private const float PopupRiseSpeed = 1.35f;
+        private const float ClusterReuseWindow = 0.18f;
+        private const float ClusterCellSize = 0.55f;
+
+        private static readonly Vector3[] PopupOffsets =
+        {
+            new(-0.22f, 0.00f, 0f),
+            new(0.22f, 0.02f, 0f),
+            new(-0.12f, 0.16f, 0f),
+            new(0.12f, 0.18f, 0f),
+            new(-0.30f, 0.10f, 0f),
+            new(0.30f, 0.12f, 0f),
+            new(0f, 0.26f, 0f),
+            new(-0.18f, 0.28f, 0f),
+            new(0.18f, 0.30f, 0f),
+        };
 
         private static readonly Queue<DamageNumberPopup> PopupPool = new();
+        private static readonly Dictionary<Vector2Int, PopupClusterState> PopupClusters = new();
 
         private static Font _font;
         private static bool _fontInitialized;
@@ -38,8 +66,8 @@ namespace EJR.Game.Gameplay
             }
 
             popup.gameObject.SetActive(true);
-            var jitteredPosition = worldPosition + new Vector3(Random.Range(-0.08f, 0.08f), 0f, 0f);
-            popup.Show(jitteredPosition, damageValue.ToString("0.0", CultureInfo.InvariantCulture), color, PopupLifetime, PopupRiseSpeed);
+            var motion = ReservePopupMotion(worldPosition);
+            popup.Show(motion.position, motion.drift, damageValue.ToString("0.0", CultureInfo.InvariantCulture), color, PopupLifetime, PopupRiseSpeed);
         }
 
         public static void SpawnHealing(Vector3 worldPosition, float healValue)
@@ -59,8 +87,64 @@ namespace EJR.Game.Gameplay
             }
 
             popup.gameObject.SetActive(true);
-            var jitteredPosition = worldPosition + new Vector3(Random.Range(-0.08f, 0.08f), 0f, 0f);
-            popup.Show(jitteredPosition, $"+{displayValue.ToString(CultureInfo.InvariantCulture)}", PlayerHealedColor, PopupLifetime, PopupRiseSpeed);
+            var motion = ReservePopupMotion(worldPosition);
+            popup.Show(motion.position, motion.drift, $"+{displayValue.ToString(CultureInfo.InvariantCulture)}", PlayerHealedColor, PopupLifetime, PopupRiseSpeed);
+        }
+
+        private static (Vector3 position, Vector3 drift) ReservePopupMotion(Vector3 worldPosition)
+        {
+            var now = Time.unscaledTime;
+            CleanupClusterStates(now);
+
+            var key = new Vector2Int(
+                Mathf.RoundToInt(worldPosition.x / ClusterCellSize),
+                Mathf.RoundToInt(worldPosition.y / ClusterCellSize));
+
+            PopupClusterState state;
+            var hasState = PopupClusters.TryGetValue(key, out state);
+            var slot = 0;
+            if (hasState && now - state.LastSpawnTime <= ClusterReuseWindow)
+            {
+                slot = state.NextSlot;
+            }
+
+            var nextSlot = (slot + 1) % PopupOffsets.Length;
+            PopupClusters[key] = new PopupClusterState(now, nextSlot);
+
+            var offset = PopupOffsets[slot];
+            offset.x += Random.Range(-0.025f, 0.025f);
+            offset.y += Random.Range(-0.02f, 0.02f);
+
+            var horizontalDirection = Mathf.Approximately(offset.x, 0f)
+                ? (slot % 2 == 0 ? -1f : 1f)
+                : Mathf.Sign(offset.x);
+
+            var drift = new Vector3(horizontalDirection * 0.16f, 0f, 0f);
+            return (worldPosition + offset, drift);
+        }
+
+        private static void CleanupClusterStates(float now)
+        {
+            if (PopupClusters.Count <= 32)
+            {
+                return;
+            }
+
+            var staleKeys = ListPool<Vector2Int>.Get();
+            foreach (var pair in PopupClusters)
+            {
+                if (now - pair.Value.LastSpawnTime > ClusterReuseWindow * 2f)
+                {
+                    staleKeys.Add(pair.Key);
+                }
+            }
+
+            for (var i = 0; i < staleKeys.Count; i++)
+            {
+                PopupClusters.Remove(staleKeys[i]);
+            }
+
+            ListPool<Vector2Int>.Release(staleKeys);
         }
 
         private static void EnsurePoolPrepared()
@@ -162,6 +246,27 @@ namespace EJR.Game.Gameplay
 
             _fontInitialized = true;
             _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        }
+
+        private static class ListPool<T>
+        {
+            private static readonly Stack<List<T>> Pool = new();
+
+            public static List<T> Get()
+            {
+                if (Pool.Count > 0)
+                {
+                    return Pool.Pop();
+                }
+
+                return new List<T>();
+            }
+
+            public static void Release(List<T> list)
+            {
+                list.Clear();
+                Pool.Push(list);
+            }
         }
     }
 }

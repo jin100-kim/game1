@@ -12,6 +12,7 @@ namespace EJR.Game.Gameplay
         private const float FireballBurnDuration = 2.5f;
         private const float FireballBurnTickInterval = 0.5f;
         private const float FireballBurnDamageMultiplier = 0.32f;
+        private const float FireballExplosionMinorStunDuration = 0.04f;
         private static readonly Color FireballExplosionColor = new(1f, 0.45f, 0.12f, 0.9f);
         private EnemyRegistry _registry;
         private Vector3 _direction;
@@ -110,10 +111,13 @@ namespace EJR.Game.Gameplay
 
                 try
                 {
-                    enemy.ReceiveWeaponDamage(_currentDamage, _sourceWeaponId);
                     if (_sourceWeaponId == WeaponUpgradeId.Smg)
                     {
                         TriggerFireballExplosion(transform.position);
+                    }
+                    else
+                    {
+                        enemy.ReceiveWeaponDamage(_currentDamage, _sourceWeaponId);
                     }
                 }
                 finally
@@ -206,6 +210,7 @@ namespace EJR.Game.Gameplay
                 }
 
                 enemy.ReceiveWeaponDamage(explosionDamage, _sourceWeaponId);
+                enemy.ApplyMinorStun(FireballExplosionMinorStunDuration);
                 enemy.ApplyBurn(burnDamage, FireballBurnDuration, FireballBurnTickInterval);
             }
         }

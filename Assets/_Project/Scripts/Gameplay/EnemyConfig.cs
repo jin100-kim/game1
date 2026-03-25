@@ -215,11 +215,11 @@ namespace EJR.Game.Gameplay
         public bool enableTimedWaves = true;
         [Min(1f)] public float wave1TimeSeconds = 180f;
         [Min(1f)] public float wave2TimeSeconds = 360f;
-        [Min(0)] public int wave1SlimeCount = 10;
+        [Min(0)] public int wave1SlimeCount = 18;
         [Min(0)] public int wave1MushroomCount = 0;
         [Min(0)] public int wave1SkeletonCount = 0;
         [Min(0)] public int wave2SlimeCount = 0;
-        [Min(0)] public int wave2MushroomCount = 15;
+        [Min(0)] public int wave2MushroomCount = 18;
         [Min(0)] public int wave2SkeletonCount = 0;
         [Min(0.1f)] public float timedWaveMinRadius = 9.5f;
         [Min(0.1f)] public float timedWaveMaxRadius = 13f;

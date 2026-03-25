@@ -689,8 +689,10 @@ namespace EJR.Game.Multiplayer
                     break;
                 case CharacterPassiveId.VampireMaxHealthDamage:
                 {
+                    var baseMaxHealth = Mathf.Max(1f, _playerConfig != null ? _playerConfig.maxHealth : 100f);
                     var currentMaxHealth = _playerHealth != null ? _playerHealth.MaxHealth : GetCurrentMaxHealth();
-                    dynamicBonuses.attackPowerPercent = Mathf.Floor(Mathf.Max(0f, currentMaxHealth) / 2f);
+                    var bonusMaxHealth = Mathf.Max(0f, currentMaxHealth - baseMaxHealth);
+                    dynamicBonuses.attackPowerPercent = Mathf.Floor(bonusMaxHealth / 3f);
                     break;
                 }
                 case CharacterPassiveId.SwordsmanLevelMoveSpeed:
