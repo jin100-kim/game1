@@ -148,7 +148,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 511e6a92bc669b94a905e9c4fca1f29e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: EJR.Game::EJR.Game.UI.TitleMenuController
-  gameplaySceneName: ExpandedMapScene
+  gameplaySceneName: SampleScene
 --- !u!4 &523766196
 Transform:
   m_ObjectHideFlags: 0

@@ -20,7 +20,7 @@ namespace EJR.Game.UI
     [DisallowMultipleComponent]
     public sealed partial class TitleMenuController : MonoBehaviour
     {
-        [SerializeField] private string gameplaySceneName = "SampleScene";
+        [SerializeField] private string gameplaySceneName = "ExpandedMapScene";
 
         private const string FullscreenPreferenceKey = "settings.fullscreen";
         private const float OptionsSliderWidth = 268f;

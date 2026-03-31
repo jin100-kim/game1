@@ -119,7 +119,7 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
---- !u!1 &523766194
+--- !u!1 &473536851
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -127,35 +127,61 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 523766196}
-  - component: {fileID: 523766195}
+  - component: {fileID: 473536853}
+  - component: {fileID: 473536852}
   m_Layer: 0
-  m_Name: TitleMenuRoot
+  m_Name: GameRoot
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &523766195
+--- !u!114 &473536852
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 523766194}
+  m_GameObject: {fileID: 473536851}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 511e6a92bc669b94a905e9c4fca1f29e, type: 3}
+  m_Script: {fileID: 11500000, guid: 2e74782cdd73c714a8bac05087409a17, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: EJR.Game::EJR.Game.UI.TitleMenuController
-  gameplaySceneName: ExpandedMapScene
---- !u!4 &523766196
+  m_EditorClassIdentifier: EJR.Game::EJR.Game.Gameplay.RunStateController
+  playerConfig: {fileID: 0}
+  weaponConfig: {fileID: 0}
+  enemyConfig: {fileID: 0}
+  levelUpBalanceConfig: {fileID: 0}
+  arenaBounds:
+    serializedVersion: 2
+    x: -36
+    y: -21
+    width: 72
+    height: 42
+  runDurationSeconds: 600
+  cameraOffset: {x: 0, y: 0, z: -10}
+  cameraFollowSmoothTime: 0.08
+  hudRefreshInterval: 0.1
+  enableDebugTimeSkip: 1
+  debugGrantLevelsPerPress: 1
+  debugAdvanceSeconds: 60
+  debugSkipBossTargetLevel: 40
+  enableDebugAutoPlay: 1
+  startWithAutoPlayEnabled: 0
+  autoPlayChoiceDelay: 0.2
+  showWeaponAimGizmos: 1
+  weaponGizmoPointRadius: 0.06
+  weaponAimSmoothingDegreesPerSecond: 540
+  weaponFrontSortingOffset: 1
+  weaponBackSortingOffset: -1
+  weaponLayerSwapDeadZone: 0.02
+--- !u!4 &473536853
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 523766194}
+  m_GameObject: {fileID: 473536851}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -164,7 +190,7 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1337530778
+--- !u!1 &559043257
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -172,9 +198,9 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 1337530781}
-  - component: {fileID: 1337530780}
-  - component: {fileID: 1337530779}
+  - component: {fileID: 559043260}
+  - component: {fileID: 559043259}
+  - component: {fileID: 559043258}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -182,21 +208,21 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!81 &1337530779
+--- !u!81 &559043258
 AudioListener:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1337530778}
+  m_GameObject: {fileID: 559043257}
   m_Enabled: 1
---- !u!20 &1337530780
+--- !u!20 &559043259
 Camera:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1337530778}
+  m_GameObject: {fileID: 559043257}
   m_Enabled: 1
   serializedVersion: 2
   m_ClearFlags: 1
@@ -241,16 +267,60 @@ Camera:
   m_OcclusionCulling: 1
   m_StereoConvergence: 10
   m_StereoSeparation: 0.022
---- !u!4 &1337530781
+--- !u!4 &559043260
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1337530778}
+  m_GameObject: {fileID: 559043257}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: -10}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1224606508
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1224606510}
+  - component: {fileID: 1224606509}
+  m_Layer: 0
+  m_Name: GameplaySceneRoot
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1224606509
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1224606508}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 253a06fd6082064468857f7957a263b5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: EJR.Game::EJR.Game.Core.GameplaySceneMarker
+--- !u!4 &1224606510
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1224606508}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -260,5 +330,6 @@ Transform:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
-  - {fileID: 1337530781}
-  - {fileID: 523766196}
+  - {fileID: 559043260}
+  - {fileID: 473536853}
+  - {fileID: 1224606510}
