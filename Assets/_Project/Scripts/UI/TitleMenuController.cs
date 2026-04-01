@@ -33,7 +33,8 @@ namespace EJR.Game.UI
         private enum MetaTab
         {
             Unlocks,
-            Research,
+            Upgrades,
+            Research = Upgrades,
         }
 
         private Font _font;
@@ -82,6 +83,7 @@ namespace EJR.Game.UI
         private Button _confirmCancelButton;
         private Button[] _runSetupCharacterOptionButtons = System.Array.Empty<Button>();
         private Button[] _runSetupWeaponOptionButtons = System.Array.Empty<Button>();
+        private Button[] _metaCharacterButtons = System.Array.Empty<Button>();
         private Button[] _metaUpgradeButtons = System.Array.Empty<Button>();
         private InputField _joinCodeInput;
         private Toggle _fullscreenToggle;
@@ -567,7 +569,7 @@ namespace EJR.Game.UI
             var baseY = 150f;
             _singlePlayButton = CreateButton(actionCard.transform, "SinglePlayButtonV2", new Vector2(0f, baseY), "싱글 플레이", OnSinglePlayClicked, new Vector2(304f, 58f));
             _multiPlayButton = CreateButton(actionCard.transform, "MultiPlayButtonV2", new Vector2(0f, baseY - (ButtonHeight + ButtonSpacing)), "멀티플레이", OnMultiPlayClicked, new Vector2(304f, 58f));
-            _metaButton = CreateButton(actionCard.transform, "MetaButtonV2", new Vector2(0f, baseY - ((ButtonHeight + ButtonSpacing) * 2f)), "메타 강화", OnMetaClicked, new Vector2(304f, 58f));
+            _metaButton = CreateButton(actionCard.transform, "MetaButtonV2", new Vector2(0f, baseY - ((ButtonHeight + ButtonSpacing) * 2f)), "코인 상점", OnMetaClicked, new Vector2(304f, 58f));
             _optionsButton = CreateButton(actionCard.transform, "OptionsButtonV2", new Vector2(0f, baseY - ((ButtonHeight + ButtonSpacing) * 3f)), "설정", OnOptionsClicked, new Vector2(304f, 58f));
             CreateButton(actionCard.transform, "QuitButtonV2", new Vector2(0f, baseY - ((ButtonHeight + ButtonSpacing) * 4f)), "종료", OnQuitClicked, new Vector2(304f, 58f));
         }
@@ -673,6 +675,7 @@ namespace EJR.Game.UI
             _runSetupPrimaryActionButton = CreateButton(detailCard.transform, "RunSetupPrimaryActionButtonV2", Vector2.zero, "선택", () => TrySelectOrPurchaseCharacter(_inspectedCharacterId), new Vector2(388f, 48f));
             SetBottomCenterRect(_runSetupPrimaryActionButton.GetComponent<RectTransform>(), new Vector2(0f, 92f), new Vector2(388f, 48f));
             _runSetupPrimaryActionText = _runSetupPrimaryActionButton.GetComponentInChildren<Text>();
+            _runSetupPrimaryActionButton.gameObject.SetActive(false);
 
             _runSetupWeaponOptionsRoot = null;
             _runSetupStartButton = CreateButton(_runSetupPanel.transform, "RunSetupStartButtonV2", new Vector2(-126f, -338f), "출격 시작", StartSinglePlay, new Vector2(240f, 52f));
@@ -689,12 +692,12 @@ namespace EJR.Game.UI
             title.alignment = TextAnchor.MiddleLeft;
             title.color = new Color(0.96f, 0.74f, 0.18f, 1f);
 
-            _metaUnlocksTabButton = CreateButton(_metaPanel.transform, "MetaResetButtonV2", new Vector2(408f, 0f), "재분배", PromptUpgradeReset, new Vector2(232f, 44f));
-            SetTopLeftRect(_metaUnlocksTabButton.GetComponent<RectTransform>(), new Vector2(920f, 24f), new Vector2(232f, 44f));
+            _metaUnlocksTabButton = CreateButton(_metaPanel.transform, "MetaUnlocksTabV2", Vector2.zero, "해금", () => SetMetaTab(MetaTab.Unlocks), new Vector2(172f, 44f));
+            SetTopLeftRect(_metaUnlocksTabButton.GetComponent<RectTransform>(), new Vector2(780f, 24f), new Vector2(172f, 44f));
             _metaUnlocksTabText = _metaUnlocksTabButton.GetComponentInChildren<Text>();
 
-            _metaResearchTabButton = CreateButton(_metaPanel.transform, "MetaUnusedTabV2", new Vector2(0f, 0f), "\uC608\uBE44", () => { }, new Vector2(160f, 40f));
-            _metaResearchTabButton.gameObject.SetActive(false);
+            _metaResearchTabButton = CreateButton(_metaPanel.transform, "MetaUpgradesTabV2", Vector2.zero, "강화", () => SetMetaTab(MetaTab.Upgrades), new Vector2(172f, 44f));
+            SetTopLeftRect(_metaResearchTabButton.GetComponent<RectTransform>(), new Vector2(972f, 24f), new Vector2(172f, 44f));
             _metaResearchTabText = _metaResearchTabButton.GetComponentInChildren<Text>();
 
             var statsCard = CreatePanel(_metaPanel.transform, "MetaStatsCardV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(28f, -92f), new Vector2(1124f, 88f), new Color(0.05f, 0.08f, 0.12f, 0.9f));
@@ -759,14 +762,15 @@ namespace EJR.Game.UI
             _selectedStarterWeaponId = MetaProgressionService.GetSingleSelectedStarterWeapon();
             RefreshRunSetupPanel();
             ShowPanel(_runSetupPanel, _runSetupCharacterButton);
-            SetStatus("캐릭터를 선택하세요.");
+            SetStatus("캐릭터를 선택하세요. 잠긴 캐릭터는 상점에서 해금합니다.");
         }
 
         private void OnMetaClicked()
         {
+            _currentMetaTab = MetaTab.Unlocks;
             RefreshMetaPanel();
             ShowPanel(_metaPanel, _metaUnlocksTabButton);
-            SetStatus("코인으로 영구 강화를 구매하세요.");
+            SetStatus("코인 상점에서 캐릭터 해금과 영구 강화를 관리하세요.");
         }
 
         private void OnOptionsClicked()
@@ -1170,29 +1174,22 @@ namespace EJR.Game.UI
 
         private void TrySelectOrPurchaseCharacter(int characterId)
         {
-            var definition = SharedGameCatalog.GetCharacter(characterId);
-            if (!MetaProgressionService.IsCharacterUnlocked(characterId))
-            {
-                if (!MetaProgressionService.TryPurchaseCharacter(characterId, out var purchaseReason))
-                {
-                    SetStatus(purchaseReason);
-                    RefreshRunSetupPanel();
-                    return;
-                }
-
-                SetStatus($"{definition.DisplayName} \uD574\uAE08 \uC644\uB8CC");
-            }
-
-            _selectedCharacterId = characterId;
-            _inspectedCharacterId = characterId;
-            _selectedStarterWeaponId = definition.StarterWeaponId;
-            MetaProgressionService.SetSingleSelectedCharacterId(characterId);
-            RefreshRunSetupPanel();
+            SelectSingleCharacter(characterId);
         }
 
         private void SelectSingleCharacter(int characterId)
         {
-            _inspectedCharacterId = SharedGameCatalog.NormalizeCharacterId(characterId);
+            characterId = SharedGameCatalog.NormalizeCharacterId(characterId);
+            if (!MetaProgressionService.IsCharacterUnlocked(characterId))
+            {
+                return;
+            }
+
+            var definition = SharedGameCatalog.GetCharacter(characterId);
+            _selectedCharacterId = characterId;
+            _inspectedCharacterId = characterId;
+            _selectedStarterWeaponId = definition.StarterWeaponId;
+            MetaProgressionService.SetSingleSelectedCharacterId(characterId);
             RefreshRunSetupPanel();
         }
 
@@ -1210,15 +1207,9 @@ namespace EJR.Game.UI
                 return;
             }
 
-            if (_inspectedCharacterId != _selectedCharacterId)
-            {
-                SetStatus("\uBA3C\uC800 \uCE90\uB9AD\uD130\uB97C \uC120\uD0DD\uD558\uC138\uC694.");
-                return;
-            }
-
             if (!MetaProgressionService.IsCharacterUnlocked(_selectedCharacterId))
             {
-                SetStatus("\uBA3C\uC800 \uCE90\uB9AD\uD130\uB97C \uD574\uAE08\uD558\uAC70\uB098 \uC120\uD0DD\uD558\uC138\uC694.");
+                SetStatus("\uBA3C\uC800 \uD574\uAE08\uB41C \uCE90\uB9AD\uD130\uB97C \uC120\uD0DD\uD558\uC138\uC694.");
                 return;
             }
 
@@ -1359,14 +1350,10 @@ namespace EJR.Game.UI
                 }
             }
 
-            if (_inspectedCharacterId < 0 || _inspectedCharacterId >= SharedGameCatalog.CharacterCount)
-            {
-                _inspectedCharacterId = _selectedCharacterId;
-            }
-
             _selectedStarterWeaponId = MetaProgressionService.GetCharacterStarterWeapon(_selectedCharacterId);
-            var character = SharedGameCatalog.GetCharacter(_inspectedCharacterId);
-            var inspectedUnlocked = MetaProgressionService.IsCharacterUnlocked(_inspectedCharacterId);
+            _inspectedCharacterId = _selectedCharacterId;
+            var character = SharedGameCatalog.GetCharacter(_selectedCharacterId);
+            var selectedUnlocked = MetaProgressionService.IsCharacterUnlocked(_selectedCharacterId);
 
             _runSetupCharacterText.text = character.DisplayName;
             _runSetupCharacterText.color = character.Color;
@@ -1374,53 +1361,25 @@ namespace EJR.Game.UI
             if (_runSetupBonusText != null)
             {
                 _runSetupBonusText.text =
+                    "잠긴 캐릭터는 상점 해금\n\n" +
                     $"시작 무기\n{SharedGameCatalog.GetWeaponDisplayName(character.StarterWeaponId)}\n\n" +
                     $"기본 보너스\n{BuildMetaBonusSummary(character.BaseBonuses)}\n\n" +
-                    $"고유 패시브\n{character.PassiveDescription}";
+                    $"고유 특성\n{character.PassiveDescription}";
             }
 
             if (_runSetupPrimaryActionButton != null)
             {
-                if (!inspectedUnlocked)
-                {
-                    var canUnlock = MetaProgressionService.CurrentCredits >= character.UnlockCost;
-                    _runSetupPrimaryActionButton.interactable = canUnlock;
-                    if (_runSetupPrimaryActionText != null)
-                    {
-                        _runSetupPrimaryActionText.text = canUnlock
-                            ? $"해금 ({character.UnlockCost} 코인)"
-                            : $"코인 부족 ({character.UnlockCost})";
-                    }
-                }
-                else if (_inspectedCharacterId == _selectedCharacterId)
-                {
-                    _runSetupPrimaryActionButton.interactable = false;
-                    if (_runSetupPrimaryActionText != null)
-                    {
-                        _runSetupPrimaryActionText.text = "\uD604\uC7AC \uC120\uD0DD\uB428";
-                    }
-                }
-                else
-                {
-                    _runSetupPrimaryActionButton.interactable = true;
-                    if (_runSetupPrimaryActionText != null)
-                    {
-                        _runSetupPrimaryActionText.text = "\uC774 \uCE90\uB9AD\uD130 \uC120\uD0DD";
-                    }
-                }
+                _runSetupPrimaryActionButton.gameObject.SetActive(false);
             }
 
             if (_runSetupStartButton != null)
             {
-                var canStart = inspectedUnlocked && _inspectedCharacterId == _selectedCharacterId;
-                _runSetupStartButton.interactable = canStart;
+                _runSetupStartButton.interactable = selectedUnlocked;
                 if (_runSetupStartText != null)
                 {
-                    _runSetupStartText.text = canStart
+                    _runSetupStartText.text = selectedUnlocked
                         ? "\uCD9C\uACA9 \uC2DC\uC791"
-                        : inspectedUnlocked
-                            ? "\uC120\uD0DD \uD6C4 \uCD9C\uACA9"
-                            : "\uD574\uAE08 \uD6C4 \uCD9C\uACA9";
+                        : "\uD574\uAE08 \uD6C4 \uCD9C\uACA9";
                 }
             }
 
@@ -1437,10 +1396,9 @@ namespace EJR.Game.UI
                 var definition = SharedGameCatalog.CharacterDefinitions[i];
                 var unlocked = MetaProgressionService.IsCharacterUnlocked(definition.Id);
                 var selected = definition.Id == _selectedCharacterId;
-                var inspected = definition.Id == _inspectedCharacterId;
                 var state = unlocked
-                    ? (selected ? "\uC120\uD0DD\uB428" : "\uC0AC\uC6A9 \uAC00\uB2A5")
-                    : $"해금 {definition.UnlockCost} 코인";
+                    ? (selected ? "\uC120\uD0DD\uB428" : "사용 가능")
+                    : "잠김 · 상점 해금";
                 var label =
                     $"{definition.DisplayName}  |  {SharedGameCatalog.GetWeaponDisplayName(definition.StarterWeaponId)}\n" +
                     state;
@@ -1450,11 +1408,21 @@ namespace EJR.Game.UI
                     new Vector2(0f, i * 82f),
                     new Vector2(608f, 74f),
                     label,
-                    true,
+                    unlocked,
                     () => SelectSingleCharacter(definition.Id));
                 var labelText = button.GetComponentInChildren<Text>();
-                ApplyRunSetupOptionState(button, labelText, inspected, definition.Color);
-                if (inspected)
+                if (labelText != null)
+                {
+                    labelText.fontStyle = FontStyle.Bold;
+                }
+
+                ApplyRunSetupOptionState(button, labelText, selected, definition.Color);
+                if (!unlocked && labelText != null)
+                {
+                    labelText.color = new Color(0.72f, 0.75f, 0.82f, 1f);
+                }
+
+                if (selected)
                 {
                     _runSetupCharacterButton = button;
                 }
@@ -1498,38 +1466,179 @@ namespace EJR.Game.UI
             RefreshMetaTabVisuals();
             RebuildMetaContent();
             UpdateToolkitOverviewSummary();
+            UpdateMultiplayerInteractivity();
         }
 
         private void RefreshMetaTabVisuals()
         {
-            if (_metaUnlocksTabButton != null)
+            if (_metaUnlocksTabText != null)
             {
-                _metaResetButton = _metaUnlocksTabButton;
-                _metaUnlocksTabButton.gameObject.SetActive(true);
-                _metaUnlocksTabButton.onClick.RemoveAllListeners();
-                _metaUnlocksTabButton.onClick.AddListener(PromptUpgradeReset);
-                if (_metaUnlocksTabText != null)
-                {
-                    _metaUnlocksTabText.text = $"재분배 ({MetaProgressionService.GetUpgradeRefundPreview()})";
-                    _metaUnlocksTabText.color = new Color(0.98f, 0.86f, 0.42f, 1f);
-                }
+                _metaUnlocksTabText.text = "해금";
             }
 
-            if (_metaResearchTabButton != null)
+            if (_metaResearchTabText != null)
             {
-                _metaResearchTabButton.gameObject.SetActive(false);
+                _metaResearchTabText.text = "강화";
             }
+
+            ApplyMetaTabState(_metaUnlocksTabButton, _metaUnlocksTabText, _currentMetaTab == MetaTab.Unlocks);
+            ApplyMetaTabState(_metaResearchTabButton, _metaResearchTabText, _currentMetaTab == MetaTab.Upgrades);
         }
 
         private void RebuildMetaContent()
         {
             ClearChildren(_metaContentRoot.transform);
-            BuildUpgradeShopContent();
+            if (_currentMetaTab == MetaTab.Unlocks)
+            {
+                BuildCharacterShopContent();
+            }
+            else
+            {
+                BuildUpgradeShopContent();
+            }
+        }
+
+        private void BuildCharacterShopContent()
+        {
+            CreateSectionText(_metaContentRoot.transform, "CharacterUnlockHeader", new Vector2(0f, 0f), "캐릭터 해금");
+
+            var buttons = new List<Button>();
+            for (var i = 0; i < SharedGameCatalog.CharacterDefinitions.Count; i++)
+            {
+                var definition = SharedGameCatalog.CharacterDefinitions[i];
+                var unlocked = MetaProgressionService.IsCharacterUnlocked(definition.Id);
+                var canBuy = CanPurchaseCharacter(definition.Id);
+                var rowTop = 44f + (i * 88f);
+                var row = CreatePanel(
+                    _metaContentRoot.transform,
+                    $"MetaCharacterRow{definition.Id}",
+                    new Vector2(0f, 1f),
+                    new Vector2(0f, 1f),
+                    new Vector2(0f, 1f),
+                    new Vector2(0f, -rowTop),
+                    new Vector2(1116f, 80f),
+                    unlocked
+                        ? new Color(0.07f, 0.11f, 0.16f, 0.96f)
+                        : new Color(0.08f, 0.10f, 0.14f, 0.96f));
+
+                CreatePanel(
+                    row.transform,
+                    $"MetaCharacterAccent{definition.Id}",
+                    new Vector2(0f, 0f),
+                    new Vector2(0f, 1f),
+                    new Vector2(0f, 0.5f),
+                    Vector2.zero,
+                    new Vector2(6f, 0f),
+                    definition.Color);
+
+                var nameText = CreateText(
+                    row.transform,
+                    $"MetaCharacterName{definition.Id}",
+                    new Vector2(0f, 1f),
+                    new Vector2(0f, 1f),
+                    new Vector2(0f, 1f),
+                    new Vector2(20f, -14f),
+                    new Vector2(700f, 22f),
+                    $"{definition.DisplayName}  |  {SharedGameCatalog.GetWeaponDisplayName(definition.StarterWeaponId)}",
+                    16,
+                    FontStyle.Bold);
+                nameText.alignment = TextAnchor.MiddleLeft;
+                nameText.color = definition.Color;
+
+                var detailText = CreateText(
+                    row.transform,
+                    $"MetaCharacterDetail{definition.Id}",
+                    new Vector2(0f, 1f),
+                    new Vector2(0f, 1f),
+                    new Vector2(0f, 1f),
+                    new Vector2(20f, -40f),
+                    new Vector2(760f, 34f),
+                    $"기본 보너스 {BuildMetaBonusSummary(definition.BaseBonuses)}\n고유 특성 {definition.PassiveDescription}",
+                    13,
+                    FontStyle.Normal);
+                detailText.alignment = TextAnchor.UpperLeft;
+                detailText.color = new Color(0.82f, 0.87f, 0.95f, 1f);
+
+                var buttonLabelText = unlocked
+                    ? "해금 완료"
+                    : canBuy
+                        ? $"구매 가능 - {definition.UnlockCost} 코인"
+                        : $"코인 부족 - {definition.UnlockCost} 코인";
+                var button = CreateButton(
+                    row.transform,
+                    $"MetaCharacter{definition.Id}",
+                    Vector2.zero,
+                    buttonLabelText,
+                    () => PromptCharacterPurchase(definition.Id),
+                    new Vector2(226f, 46f));
+                var buttonRect = button.GetComponent<RectTransform>();
+                if (buttonRect != null)
+                {
+                    buttonRect.anchorMin = new Vector2(1f, 0.5f);
+                    buttonRect.anchorMax = new Vector2(1f, 0.5f);
+                    buttonRect.pivot = new Vector2(1f, 0.5f);
+                    buttonRect.anchoredPosition = new Vector2(-18f, 0f);
+                    buttonRect.sizeDelta = new Vector2(226f, 46f);
+                }
+
+                button.interactable = !unlocked && canBuy;
+                var buttonLabel = button.GetComponentInChildren<Text>();
+                if (buttonLabel != null)
+                {
+                    buttonLabel.fontSize = 14;
+                    buttonLabel.fontStyle = FontStyle.Bold;
+                    buttonLabel.alignment = TextAnchor.MiddleCenter;
+                }
+
+                buttons.Add(button);
+            }
+
+            _metaCharacterButtons = buttons.ToArray();
+            _metaUpgradeButtons = System.Array.Empty<Button>();
+            _metaResetButton = null;
+        }
+
+        private void PromptCharacterPurchase(int characterId)
+        {
+            var definition = SharedGameCatalog.GetCharacter(characterId);
+            if (MetaProgressionService.IsCharacterUnlocked(characterId))
+            {
+                SetStatus("이미 해금된 캐릭터입니다.");
+                return;
+            }
+
+            if (MetaProgressionService.CurrentCredits < definition.UnlockCost)
+            {
+                SetStatus("코인이 부족합니다.");
+                return;
+            }
+
+            OpenConfirmModal(
+                $"{definition.DisplayName} 해금하시겠습니까?\n{definition.UnlockCost} 코인을 사용합니다.",
+                () => TryPurchaseCharacter(characterId));
         }
 
         private void BuildUpgradeShopContent()
         {
             CreateSectionText(_metaContentRoot.transform, "UpgradeHeader", new Vector2(0f, 0f), "\uC601\uAD6C \uAC15\uD654");
+
+            var refund = MetaProgressionService.GetUpgradeRefundPreview();
+            _metaResetButton = CreateMetaEntryButton(
+                _metaContentRoot.transform,
+                "MetaUpgradeReset",
+                new Vector2(0f, 44f),
+                new Vector2(1116f, 76f),
+                $"재분배\n구매한 영구 강화를 모두 초기화하고 {refund} 코인을 돌려받습니다.",
+                refund > 0,
+                PromptUpgradeReset);
+            var resetLabel = _metaResetButton.GetComponentInChildren<Text>();
+            if (resetLabel != null)
+            {
+                resetLabel.fontSize = 15;
+                resetLabel.fontStyle = FontStyle.Bold;
+                resetLabel.rectTransform.offsetMin = new Vector2(16f, 12f);
+                resetLabel.rectTransform.offsetMax = new Vector2(-16f, -12f);
+            }
 
             var buttons = new List<Button>();
             var definitions = MetaProgressionService.Config.UpgradeDefinitions;
@@ -1548,7 +1657,7 @@ namespace EJR.Game.UI
                 var button = CreateMetaEntryButton(
                     _metaContentRoot.transform,
                     $"Upgrade{i}",
-                    new Vector2(column * 356f, 44f + (row * 116f)),
+                    new Vector2(column * 356f, 136f + (row * 116f)),
                     new Vector2(340f, 102f),
                     label,
                     canBuy,
@@ -1564,16 +1673,22 @@ namespace EJR.Game.UI
                 buttons.Add(button);
             }
 
+            _metaCharacterButtons = System.Array.Empty<Button>();
             _metaUpgradeButtons = buttons.ToArray();
-            if (_metaResetButton != null)
-            {
-                _metaResetButton.interactable = MetaProgressionService.GetUpgradeRefundPreview() > 0;
-            }
         }
 
         private void TryPurchaseCharacter(int characterId)
         {
-            TrySelectOrPurchaseCharacter(characterId);
+            if (MetaProgressionService.TryPurchaseCharacter(characterId, out var reason))
+            {
+                RefreshMetaPanel();
+                RefreshRunSetupPanel();
+                SetStatus($"{SharedGameCatalog.GetCharacter(characterId).DisplayName} 해금 완료. 런 준비 화면에서 선택하세요.");
+            }
+            else
+            {
+                SetStatus(reason);
+            }
         }
 
         private void TryPurchaseUpgrade(MetaUpgradeId upgradeId)
@@ -1660,6 +1775,53 @@ namespace EJR.Game.UI
 
             builder.AppendFormat(format, value);
         }
+
+        private static void ApplyMetaTabState(Button button, Text label, bool selected)
+        {
+            if (button == null || label == null || button.targetGraphic is not Image image)
+            {
+                return;
+            }
+
+            image.color = selected ? new Color(0.28f, 0.34f, 0.46f, 1f) : new Color(0.16f, 0.20f, 0.29f, 0.96f);
+            label.color = selected ? new Color(0.98f, 0.86f, 0.42f, 1f) : new Color(0.86f, 0.89f, 0.95f, 1f);
+        }
+
+        private static bool TryParseTrailingInt(string value, string prefix, out int parsedValue)
+        {
+            parsedValue = 0;
+            if (string.IsNullOrWhiteSpace(value) || !value.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            return int.TryParse(value.Substring(prefix.Length), out parsedValue);
+        }
+
+        private static bool CanPurchaseCharacter(int characterId)
+        {
+            var definition = SharedGameCatalog.GetCharacter(characterId);
+            return !MetaProgressionService.IsCharacterUnlocked(characterId)
+                && MetaProgressionService.CurrentCredits >= definition.UnlockCost;
+        }
+
+        private static bool CanPurchaseUpgrade(MetaUpgradeId upgradeId)
+        {
+            if (!MetaProgressionService.Config.TryGetUpgradeDefinition(upgradeId, out var definition))
+            {
+                return false;
+            }
+
+            var level = MetaProgressionService.GetUpgradeLevel(upgradeId);
+            if (level >= definition.MaxLevel)
+            {
+                return false;
+            }
+
+            var cost = MetaProgressionService.Config.GetUpgradeCost(upgradeId, level);
+            return MetaProgressionService.CurrentCredits >= cost;
+        }
+
         private void UpdateMultiplayerInteractivity()
         {
             var interactable = !MultiplayerSessionController.EnsureInstance().IsBusy;
@@ -1675,26 +1837,38 @@ namespace EJR.Game.UI
             SetInteractable(_runSetupWeaponButton, interactable);
             if (_runSetupPrimaryActionButton != null && _inspectedCharacterId > 0)
             {
-                var inspectedUnlocked = MetaProgressionService.IsCharacterUnlocked(_inspectedCharacterId);
-                var inspectedDefinition = SharedGameCatalog.GetCharacter(_inspectedCharacterId);
-                var canUsePrimary = inspectedUnlocked
-                    ? _inspectedCharacterId != _selectedCharacterId
-                    : MetaProgressionService.CurrentCredits >= inspectedDefinition.UnlockCost;
-                _runSetupPrimaryActionButton.interactable = interactable && canUsePrimary;
+                _runSetupPrimaryActionButton.gameObject.SetActive(false);
+                _runSetupPrimaryActionButton.interactable = false;
             }
-            if (_runSetupStartButton != null && _inspectedCharacterId > 0)
+            if (_runSetupStartButton != null && _selectedCharacterId >= 0)
             {
                 _runSetupStartButton.interactable =
                     interactable &&
-                    MetaProgressionService.IsCharacterUnlocked(_inspectedCharacterId) &&
-                    _inspectedCharacterId == _selectedCharacterId;
+                    MetaProgressionService.IsCharacterUnlocked(_selectedCharacterId);
             }
-            SetInteractable(_metaResetButton, interactable);
+            SetInteractable(_metaUnlocksTabButton, interactable);
+            SetInteractable(_metaResearchTabButton, interactable);
+            if (_metaResetButton != null)
+            {
+                _metaResetButton.interactable =
+                    interactable &&
+                    _currentMetaTab == MetaTab.Upgrades &&
+                    MetaProgressionService.GetUpgradeRefundPreview() > 0;
+            }
             SetInteractable(_confirmConfirmButton, interactable);
             SetInteractable(_confirmCancelButton, interactable);
             for (var i = 0; i < _runSetupCharacterOptionButtons.Length; i++)
             {
-                SetInteractable(_runSetupCharacterOptionButtons[i], interactable);
+                var button = _runSetupCharacterOptionButtons[i];
+                if (button == null)
+                {
+                    continue;
+                }
+
+                button.interactable =
+                    interactable &&
+                    TryParseTrailingInt(button.name, "RunSetupCharacter", out var characterId) &&
+                    MetaProgressionService.IsCharacterUnlocked(characterId);
             }
 
             for (var i = 0; i < _runSetupWeaponOptionButtons.Length; i++)
@@ -1702,9 +1876,34 @@ namespace EJR.Game.UI
                 SetInteractable(_runSetupWeaponOptionButtons[i], interactable);
             }
 
+            for (var i = 0; i < _metaCharacterButtons.Length; i++)
+            {
+                var button = _metaCharacterButtons[i];
+                if (button == null)
+                {
+                    continue;
+                }
+
+                button.interactable =
+                    interactable &&
+                    TryParseTrailingInt(button.name, "MetaCharacter", out var characterId) &&
+                    CanPurchaseCharacter(characterId);
+            }
+
             for (var i = 0; i < _metaUpgradeButtons.Length; i++)
             {
-                SetInteractable(_metaUpgradeButtons[i], interactable);
+                var button = _metaUpgradeButtons[i];
+                if (button == null)
+                {
+                    continue;
+                }
+
+                button.interactable =
+                    interactable &&
+                    TryParseTrailingInt(button.name, "Upgrade", out var upgradeIndex) &&
+                    upgradeIndex >= 0 &&
+                    upgradeIndex < MetaProgressionService.Config.UpgradeDefinitions.Count &&
+                    CanPurchaseUpgrade(MetaProgressionService.Config.UpgradeDefinitions[upgradeIndex].Id);
             }
 
             if (_joinCodeInput != null) _joinCodeInput.interactable = interactable;

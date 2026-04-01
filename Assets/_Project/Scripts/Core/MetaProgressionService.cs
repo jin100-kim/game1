@@ -256,7 +256,6 @@ namespace EJR.Game.Core
 
             s_profile.currentCredits -= definition.UnlockCost;
             s_profile.unlockedCharacterIds.Add(definition.Id);
-            s_profile.lastSingleCharacterId = definition.Id;
             SaveNow();
             reason = string.Empty;
             return true;

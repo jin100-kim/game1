@@ -33,7 +33,7 @@ namespace EJR.Game.Multiplayer
         [SerializeField, Min(0.05f)] private float katanaSlashFxForwardOffset = 0.72f;
         [SerializeField] private Vector2 katanaSlashFxLocalOffset = new(-0.22f, -2.0f);
         [SerializeField, Min(0.05f)] private float katanaSlashFxScale = 6f;
-        [SerializeField, Min(0.01f)] private float chainFxDuration = 0.08f;
+        [SerializeField, Min(0.01f)] private float chainFxDuration = 0.25f;
         [SerializeField, Min(0.005f)] private float chainFxWidth = 0.05f;
         [SerializeField] private Color chainFxColor = new(0.45f, 0.85f, 1f, 0.95f);
         [SerializeField, Min(0.01f)] private float auraFxDuration = 0.08f;
@@ -408,7 +408,10 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
-            SpawnPolylineFx(points, chainFxColor, chainFxWidth, chainFxDuration, loop: false, "ChainFx");
+            for (var i = 1; i < points.Length; i++)
+            {
+                SpawnChainBeamFx(points[i - 1], points[i]);
+            }
         }
 
         public void PlayAuraPulseFx(Vector3 center, float radius)
@@ -447,6 +450,20 @@ namespace EJR.Game.Multiplayer
                 satelliteBeamVisualYOffset,
                 satelliteBeamVisualFps,
                 0.1f,
+                36);
+        }
+
+        private void SpawnChainBeamFx(Vector3 from, Vector3 to)
+        {
+            WeaponFxRenderer.SpawnStretchBeamFx(
+                null,
+                from,
+                to,
+                satelliteBeamVisualScale,
+                chainFxDuration,
+                chainFxColor,
+                chainFxWidth,
+                "ChainFx",
                 36);
         }
 

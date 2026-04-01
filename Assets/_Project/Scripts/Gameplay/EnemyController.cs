@@ -25,7 +25,7 @@ namespace EJR.Game.Gameplay
         private const int FireExplosionFxSegments = 28;
         private static readonly Color FireExplosionFxColor = new(1f, 0.45f, 0.1f, 0.9f);
         private const float FireStackFxFps = 10f;
-        private const float FireBoomFxFps = 14f;
+        private const float FireBoomFxFps = 10f;
         private const float FireStackFxScale = 2.7f;
         private const float FireBoomFxScale = 6f;
         private const float BossTelegraphDuration = 1f;
@@ -470,6 +470,7 @@ namespace EJR.Game.Gameplay
             _burnTickInterval = Mathf.Max(0.05f, tickInterval);
             _burnTickTimer = _burnTickTimer > 0f ? Mathf.Min(_burnTickTimer, _burnTickInterval) : _burnTickInterval;
             _burnRemaining = Mathf.Max(_burnRemaining, duration);
+            ShowFireStackFx();
             UpdateStatusIndicators();
         }
 
@@ -538,6 +539,7 @@ namespace EJR.Game.Gameplay
             }
 
             _isDead = true;
+            HideFireStackFx();
             EndBossPattern();
             TriggerFireExplosionIfReady();
 
@@ -626,6 +628,7 @@ namespace EJR.Game.Gameplay
                     _burnDamagePerTick = 0f;
                     _burnTickInterval = 0f;
                     _burnTickTimer = 0f;
+                    HideFireStackFx();
                 }
             }
 
@@ -1082,7 +1085,6 @@ namespace EJR.Game.Gameplay
             _fireAccumulatedDamage += Mathf.Max(0f, dealtDamage) * accumulateRatio;
             _fireAccumulatedHits++;
             _fireTriggerHitCount = hitThreshold;
-            ShowFireStackFx();
             UpdateStatusIndicators();
 
             if (_fireAccumulatedHits >= _fireTriggerHitCount)
@@ -1211,25 +1213,15 @@ namespace EJR.Game.Gameplay
 
         private void SpawnFireBoomFx(Vector2 origin, float explosionRadius)
         {
-            var frames = RuntimeSpriteFactory.GetSexyFireBoomAnimationFrames();
-            if (frames == null || frames.Length <= 0)
-            {
-                return;
-            }
-
-            var fxObject = new GameObject("FireBoomFx");
-            var boomScale = Mathf.Max(0.1f, FireBoomFxScale * explosionRadius);
-            fxObject.transform.localScale = Vector3.one * boomScale;
-
-            var renderer = fxObject.AddComponent<SpriteRenderer>();
-            renderer.sprite = frames[0];
-            renderer.color = Color.white;
-            renderer.sortingOrder = 530;
-            var centeredOffset = GetColliderCenteredOffset(renderer.sprite, boomScale, -0.02f);
-            fxObject.transform.position = new Vector3(origin.x, origin.y, 0f) + centeredOffset;
-
-            var animator = fxObject.AddComponent<SpriteFxAnimator>();
-            animator.Initialize(renderer, frames, FireBoomFxFps, loop: false, destroyOnComplete: true);
+            var frameCount = Mathf.Max(1, RuntimeSpriteFactory.GetSexyFireBoomAnimationFrames().Length);
+            var animationDuration = frameCount / Mathf.Max(0.1f, FireBoomFxFps);
+            WeaponFxRenderer.SpawnFireBurstFx(
+                transform.parent,
+                new Vector3(origin.x, origin.y, 0f),
+                Mathf.Max(0.1f, FireBoomFxScale * explosionRadius),
+                animationDuration,
+                530,
+                "FireBoomFx");
         }
 
         private static Vector3 GetColliderCenteredOffset(Sprite sprite, float uniformScale, float z)
@@ -1351,8 +1343,19 @@ namespace EJR.Game.Gameplay
             _fireAccumulatedDamage = 0f;
             _fireAccumulatedHits = 0;
             _fireTriggerHitCount = int.MaxValue;
-            HideFireStackFx();
+            RefreshFireStackFxVisibility();
             UpdateStatusIndicators();
+        }
+
+        private void RefreshFireStackFxVisibility()
+        {
+            if (_burnRemaining > 0f && _burnDamagePerTick > 0f && !_isDead)
+            {
+                ShowFireStackFx();
+                return;
+            }
+
+            HideFireStackFx();
         }
 
         private void UpdateStatusIndicators()

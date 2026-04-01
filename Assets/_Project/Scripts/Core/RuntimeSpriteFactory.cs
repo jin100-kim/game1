@@ -33,6 +33,8 @@ namespace EJR.Game.Core
         private const int SexyFireStackEndFrame = 3;
         private const int SexyFireBoomStartFrame = 4;
         private const int SexyFireBoomEndFrame = 7;
+        private const int SexySatelliteBeamCoreStartFrame = 1;
+        private const int SexySatelliteBeamCoreEndFrame = 3;
         private const int SexySwordAttackStartFrame = 0;
         private const int SexySwordAttackEndFrame = 4;
         private const int WeaponFrameCanvasSize = 64;
@@ -89,6 +91,7 @@ namespace EJR.Game.Core
         private static Sprite[] _sexyDroneFrames;
         private static Sprite[] _sexyTurretFrames;
         private static Sprite[] _sexySatelliteBeamFrames;
+        private static Sprite[] _sexySatelliteBeamCoreFrames;
 
         private static Sprite _squareSprite;
 
@@ -353,6 +356,21 @@ namespace EJR.Game.Core
                 new Vector2(SatelliteBeamFrameCanvasSize * 0.5f, 0f),
                 new Vector2(0.5f, 0.5f));
             return _sexySatelliteBeamFrames;
+        }
+
+        public static Sprite[] GetSexySatelliteBeamCoreAnimationFrames()
+        {
+            if (_sexySatelliteBeamCoreFrames != null && _sexySatelliteBeamCoreFrames.Length > 0)
+            {
+                return _sexySatelliteBeamCoreFrames;
+            }
+
+            var beamFrames = GetSexySatelliteBeamAnimationFrames();
+            _sexySatelliteBeamCoreFrames = SliceFramesInclusive(
+                beamFrames,
+                SexySatelliteBeamCoreStartFrame,
+                SexySatelliteBeamCoreEndFrame);
+            return _sexySatelliteBeamCoreFrames;
         }
 
         public static Sprite GetEnemySprite(EnemyVisualKind kind)

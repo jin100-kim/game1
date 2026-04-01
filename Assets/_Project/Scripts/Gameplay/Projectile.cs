@@ -13,7 +13,8 @@ namespace EJR.Game.Gameplay
         private const float FireballBurnTickInterval = 0.5f;
         private const float FireballBurnDamageMultiplier = 0.32f;
         private const float FireballExplosionMinorStunDuration = 0.04f;
-        private static readonly Color FireballExplosionColor = new(1f, 0.45f, 0.12f, 0.9f);
+        private const float FireballExplosionFxScaleMultiplier = 6f;
+        private const float FireballExplosionFxDuration = 0.4f;
         private EnemyRegistry _registry;
         private Vector3 _direction;
         private float _speed;
@@ -176,14 +177,12 @@ namespace EJR.Game.Gameplay
         private void TriggerFireballExplosion(Vector3 center)
         {
             var fxParent = transform.parent != null ? transform.parent : transform;
-            WeaponFxRenderer.SpawnRingFx(
+            WeaponFxRenderer.SpawnFireBurstFx(
                 fxParent,
                 center,
-                FireballExplosionRadius,
-                24,
-                FireballExplosionColor,
-                0.05f,
-                0.12f,
+                Mathf.Max(0.1f, FireballExplosionRadius * FireballExplosionFxScaleMultiplier),
+                FireballExplosionFxDuration,
+                530,
                 "FireballExplosionFx");
 
             if (_registry == null)
