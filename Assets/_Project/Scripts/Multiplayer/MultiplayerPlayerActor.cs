@@ -264,6 +264,13 @@ namespace EJR.Game.Multiplayer
             AttachOwnerCamera();
         }
 
+        public void ApplyArenaBounds(Rect bounds)
+        {
+            arenaBounds = bounds;
+            InitializeRuntime();
+            _playerMover?.Initialize(_playerConfig, null, arenaBounds);
+        }
+
         public void PlayWeaponAttack(Vector2 direction)
         {
             _weaponAimDirection = NormalizeDirection(direction, _weaponAimDirection);

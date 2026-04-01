@@ -47,10 +47,17 @@ namespace EJR.Game.Multiplayer
         private readonly NetworkVariable<bool> _resultCleared =
             new(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
+        private readonly NetworkVariable<int> _selectedMapIndex =
+            new(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<int> _selectedDifficultyIndex =
+            new(1, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
         private readonly List<MultiplayerPlayerCombatant> _spawnedPlayers = new(4);
         private readonly List<MultiplayerPlayerCombatant> _combatPlayers = new(4);
 
         private EnemyRegistry _enemyRegistry;
+        private EnemyConfig _enemyConfigTemplate;
         private EnemyConfig _enemyConfig;
         private PlayerConfig _playerConfig;
         private WeaponConfig _weaponConfig;
@@ -69,7 +76,8 @@ namespace EJR.Game.Multiplayer
         public static MultiplayerCoopController Instance { get; private set; }
 
         public EnemyRegistry EnemyRegistry => _enemyRegistry;
-        public Rect ArenaBounds => arenaBounds;
+        public Rect ArenaBounds => IsServer ? arenaBounds : SelectedMapDefinition.ArenaBounds;
+        public EnemyConfig CurrentEnemyConfig => _enemyConfig;
         public float PlayerCollisionRadius => _playerConfig != null ? Mathf.Max(0.05f, _playerConfig.collisionRadius) : 0.35f;
         public MultiplayerRunPhase Phase => (MultiplayerRunPhase)_phase.Value;
         public int TeamLevel => _teamLevel.Value;
@@ -82,6 +90,13 @@ namespace EJR.Game.Multiplayer
         public bool ResultCleared => _resultCleared.Value;
         public bool AllowsJoin => Phase == MultiplayerRunPhase.Lobby;
         public float ReviveRadius => reviveRadius;
+        public int SelectedMapIndex => Mathf.Clamp(_selectedMapIndex.Value, 0, SharedRunCatalog.MapDefinitions.Count - 1);
+        public int SelectedDifficultyIndex => Mathf.Clamp(_selectedDifficultyIndex.Value, 0, SharedRunCatalog.DifficultyDefinitions.Count - 1);
+        public RunMapDefinition SelectedMapDefinition => SharedRunCatalog.GetMapByIndex(SelectedMapIndex);
+        public RunDifficultyDefinition SelectedDifficultyDefinition => SharedRunCatalog.GetDifficultyByIndex(SelectedDifficultyIndex);
+        public string SelectedMapId => SelectedMapDefinition.Id;
+        public string SelectedDifficultyId => SelectedDifficultyDefinition.Id;
+        public RuntimeSpriteFactory.EnemyVisualKind SelectedBossVisualKind => SelectedMapDefinition.BossVisualKind;
 
         private void Awake()
         {
@@ -93,6 +108,7 @@ namespace EJR.Game.Multiplayer
 
             Instance = this;
             EnsureConfigs();
+            ApplyCurrentRunSelectionRuntime();
             EnsureRuntime();
             LoadPrefabs();
         }
@@ -110,6 +126,7 @@ namespace EJR.Game.Multiplayer
 
             EnemyController.Defeated += HandleEnemyDefeated;
             Time.timeScale = 1f;
+            ApplyCurrentRunSelectionRuntime();
             ReturnPlayersToLobby();
         }
 
@@ -203,6 +220,26 @@ namespace EJR.Game.Multiplayer
             }
 
             RequestStartGameServerRpc();
+        }
+
+        public void RequestSelectMap(int mapIndex)
+        {
+            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening)
+            {
+                return;
+            }
+
+            SetSelectedMapServerRpc(mapIndex);
+        }
+
+        public void RequestSelectDifficulty(int difficultyIndex)
+        {
+            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening)
+            {
+                return;
+            }
+
+            SetSelectedDifficultyServerRpc(difficultyIndex);
         }
 
         public string GetStartBlockReason()
@@ -547,7 +584,8 @@ namespace EJR.Game.Multiplayer
                 _elapsedSeconds,
                 _teamEnemiesDefeated,
                 bossThresholdsReached,
-                SceneManager.GetActiveScene().name);
+                SelectedMapId,
+                SelectedDifficultyId);
             _resultCleared.Value = cleared;
             _phase.Value = (int)MultiplayerRunPhase.Result;
             _resultReturnAt = Time.unscaledTime + Mathf.Max(1f, resultReturnDelaySeconds);
@@ -563,6 +601,7 @@ namespace EJR.Game.Multiplayer
             }
 
             Time.timeScale = 1f;
+            ApplyCurrentRunSelectionRuntime();
             CleanupSharedWorld();
             CollectSpawnedPlayers(_spawnedPlayers);
 
@@ -592,6 +631,7 @@ namespace EJR.Game.Multiplayer
 
         private void BeginRun()
         {
+            ApplyCurrentRunSelectionRuntime();
             CleanupSharedWorld();
             CollectSpawnedPlayers(_spawnedPlayers);
             for (var i = 0; i < _spawnedPlayers.Count; i++)
@@ -649,9 +689,17 @@ namespace EJR.Game.Multiplayer
 
         private void EnsureConfigs()
         {
+            _enemyConfigTemplate ??= ScriptableObject.CreateInstance<EnemyConfig>();
             _enemyConfig ??= ScriptableObject.CreateInstance<EnemyConfig>();
             _playerConfig ??= ScriptableObject.CreateInstance<PlayerConfig>();
             _weaponConfig ??= ScriptableObject.CreateInstance<WeaponConfig>();
+        }
+
+        private void ApplyCurrentRunSelectionRuntime()
+        {
+            EnsureConfigs();
+            arenaBounds = SelectedMapDefinition.ArenaBounds;
+            SharedRunCatalog.ApplySelectionToEnemyConfig(_enemyConfig, _enemyConfigTemplate, SelectedMapId, SelectedDifficultyId);
         }
 
         private void EnsureRuntime()
@@ -766,7 +814,7 @@ namespace EJR.Game.Multiplayer
             _remainingSeconds.Value = 0f;
             AudioService.Instance.PlaySfx(AudioCueId.BossWarning);
             PlayBossWarningClientRpc();
-            _currentBoss = SpawnSharedEnemy(alivePlayers, RuntimeSpriteFactory.EnemyVisualKind.Boss, isBoss: true);
+            _currentBoss = SpawnSharedEnemy(alivePlayers, SelectedBossVisualKind, isBoss: true);
 
             var skeletonCount = Mathf.Max(3, _enemyConfig.bossWaveSkeletonCount);
             for (var i = 0; i < skeletonCount; i++)
@@ -789,7 +837,7 @@ namespace EJR.Game.Multiplayer
                 return null;
             }
 
-            enemyActor.InitializeServer(this, visualKind, spawnPosition, _elapsedSeconds);
+            enemyActor.InitializeServer(this, visualKind, spawnPosition, _elapsedSeconds, isBoss);
             enemyActor.NetworkObject.Spawn(true);
             return enemyActor;
         }
@@ -821,7 +869,7 @@ namespace EJR.Game.Multiplayer
             RuntimeSpriteFactory.EnemyVisualKind visualKind,
             bool isBoss)
         {
-            var statProfile = _enemyConfig.GetStatProfile(visualKind);
+            var statProfile = _enemyConfig.GetStatProfile(isBoss ? RuntimeSpriteFactory.EnemyVisualKind.Boss : visualKind);
             var collisionRadius = GetCollisionRadius(statProfile);
             var minRadius = isBoss
                 ? Mathf.Max(2.5f, _enemyConfig.bossSpawnRadius * 0.9f)
@@ -1026,13 +1074,59 @@ namespace EJR.Game.Multiplayer
             BeginRun();
         }
 
+        [ServerRpc(RequireOwnership = false)]
+        private void SetSelectedMapServerRpc(int mapIndex, ServerRpcParams rpcParams = default)
+        {
+            var manager = NetworkManager.Singleton;
+            if (manager == null || rpcParams.Receive.SenderClientId != manager.LocalClientId || Phase != MultiplayerRunPhase.Lobby)
+            {
+                return;
+            }
+
+            var nextMap = SharedRunCatalog.GetMapByIndex(mapIndex);
+            if (!SharedRunCatalog.IsMapUnlocked(nextMap.Id))
+            {
+                return;
+            }
+
+            var normalizedIndex = SharedRunCatalog.GetMapIndex(nextMap.Id);
+            if (_selectedMapIndex.Value == normalizedIndex)
+            {
+                return;
+            }
+
+            _selectedMapIndex.Value = normalizedIndex;
+            ReturnPlayersToLobby();
+        }
+
+        [ServerRpc(RequireOwnership = false)]
+        private void SetSelectedDifficultyServerRpc(int difficultyIndex, ServerRpcParams rpcParams = default)
+        {
+            var manager = NetworkManager.Singleton;
+            if (manager == null || rpcParams.Receive.SenderClientId != manager.LocalClientId || Phase != MultiplayerRunPhase.Lobby)
+            {
+                return;
+            }
+
+            var normalizedIndex = SharedRunCatalog.GetDifficultyIndex(SharedRunCatalog.GetDifficultyByIndex(difficultyIndex).Id);
+            if (_selectedDifficultyIndex.Value == normalizedIndex)
+            {
+                return;
+            }
+
+            _selectedDifficultyIndex.Value = normalizedIndex;
+            ReturnPlayersToLobby();
+        }
+
         [ClientRpc]
-        private void DeliverRunSummaryClientRpc(bool cleared, int teamLevel, float elapsedSeconds, int enemiesDefeated, int bossThresholdsReached, string mapId)
+        private void DeliverRunSummaryClientRpc(bool cleared, int teamLevel, float elapsedSeconds, int enemiesDefeated, int bossThresholdsReached, string mapId, string difficultyId)
         {
             var localPlayer = MultiplayerPlayerCombatant.FindOwnedLocalPlayer();
             var creditGainPercent = localPlayer != null
                 ? localPlayer.CurrentCreditGainPercent
                 : MetaProgressionService.GetPurchasedUpgradeBonuses().creditGainPercent;
+            var mapDefinition = SharedRunCatalog.GetMap(mapId);
+            var difficultyDefinition = SharedRunCatalog.GetDifficulty(difficultyId);
             var detailedSummary = MetaProgressionService.BuildRunRewardSummary(
                 "협동",
                 cleared,
@@ -1042,6 +1136,8 @@ namespace EJR.Game.Multiplayer
                 new RunCombatStats(),
                 bossThresholdsReached,
                 mapId,
+                mapDefinition.DisplayName,
+                difficultyDefinition.DisplayName,
                 creditGainPercent);
             MetaProgressionService.RecordRunSummary(detailedSummary);
             return;

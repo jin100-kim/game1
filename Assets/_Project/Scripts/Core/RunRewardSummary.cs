@@ -9,6 +9,8 @@ namespace EJR.Game.Core
     {
         public string modeLabel = "\uC2F1\uAE00";
         public string mapId = string.Empty;
+        public string mapDisplayName = string.Empty;
+        public string difficultyLabel = string.Empty;
         public bool cleared;
         public bool bossReached;
         public int finalLevel = 1;
@@ -23,6 +25,8 @@ namespace EJR.Game.Core
             var builder = new StringBuilder();
             builder.AppendLine(cleared ? "\uD074\uB9AC\uC5B4" : "\uAC8C\uC784 \uC624\uBC84");
             builder.Append("\uBAA8\uB4DC ").Append(modeLabel)
+                .Append(" | \uB9F5 ").Append(string.IsNullOrWhiteSpace(mapDisplayName) ? mapId : mapDisplayName)
+                .Append(" | \uB09C\uC774\uB3C4 ").Append(string.IsNullOrWhiteSpace(difficultyLabel) ? "-" : difficultyLabel)
                 .Append(" | \uB808\uBCA8 ").Append(finalLevel)
                 .Append(" | \uC2DC\uAC04 ").Append(survivalTimeSeconds.ToString("0.0"))
                 .Append("\uCD08 | \uCC98\uCE58 ").Append(enemiesDefeated)

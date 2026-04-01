@@ -375,6 +375,8 @@ namespace EJR.Game.Core
             RunCombatStats combatStats,
             int bossThresholdsReached,
             string mapId,
+            string mapDisplayName,
+            string difficultyLabel,
             float creditGainPercent)
         {
             EnsureLoaded();
@@ -392,6 +394,8 @@ namespace EJR.Game.Core
             {
                 modeLabel = string.IsNullOrWhiteSpace(modeLabel) ? "싱글" : modeLabel,
                 mapId = safeMapId,
+                mapDisplayName = string.IsNullOrWhiteSpace(mapDisplayName) ? safeMapId : mapDisplayName,
+                difficultyLabel = string.IsNullOrWhiteSpace(difficultyLabel) ? "보통" : difficultyLabel,
                 cleared = cleared,
                 bossReached = bossThresholdsReached > 0,
                 finalLevel = Mathf.Max(1, finalLevel),
@@ -420,6 +424,8 @@ namespace EJR.Game.Core
                 new RunCombatStats(),
                 bossReached ? 1 : 0,
                 "Gameplay",
+                "Gameplay",
+                "보통",
                 0f);
         }
 

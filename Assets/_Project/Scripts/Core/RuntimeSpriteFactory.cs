@@ -12,6 +12,8 @@ namespace EJR.Game.Core
             Mushroom,
             Skeleton,
             Boss,
+            Warrior,
+            Wizard,
         }
 
         private readonly struct VisualAssetDescriptor
@@ -53,6 +55,12 @@ namespace EJR.Game.Core
         private static readonly VisualAssetDescriptor BossDescriptor = new(
             "Aseprite/boss",
             "Assets/_Project/Art/Aseprite/boss.aseprite");
+        private static readonly VisualAssetDescriptor WarriorDescriptor = new(
+            "Aseprite/Knight",
+            "Assets/Resources/Aseprite/Knight.aseprite");
+        private static readonly VisualAssetDescriptor WizardDescriptor = new(
+            "Aseprite/Wizard",
+            "Assets/Resources/Aseprite/Wizard.aseprite");
         private static readonly VisualAssetDescriptor PlayerDescriptor = new(
             "Aseprite/player001",
             "Assets/_Project/Art/Aseprite/player001.aseprite");
@@ -412,6 +420,8 @@ namespace EJR.Game.Core
                 EnemyVisualKind.Mushroom => MushroomDescriptor,
                 EnemyVisualKind.Skeleton => SkeletonDescriptor,
                 EnemyVisualKind.Boss => BossDescriptor,
+                EnemyVisualKind.Warrior => WarriorDescriptor,
+                EnemyVisualKind.Wizard => WizardDescriptor,
                 _ => SlimeDescriptor,
             };
         }

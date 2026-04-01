@@ -98,6 +98,8 @@ namespace EJR.Game.Gameplay
         private int _enemiesDefeated;
         private readonly RunCombatTracker _combatTracker = new();
         private float _lastObservedPlayerMaxHealth = -1f;
+        private RunMapDefinition _currentMapDefinition;
+        private RunDifficultyDefinition _currentDifficultyDefinition;
 
         private const string DebugRevealCode = "admin";
 
@@ -108,6 +110,7 @@ namespace EJR.Game.Gameplay
             Time.timeScale = 1f;
             EnsureCamera();
             EnsureConfigs();
+            ApplySingleRunSelection();
             _remainingSeconds = Mathf.Max(30f, enemyConfig != null ? enemyConfig.bossWaveStartSeconds : runDurationSeconds);
             _bossWaveTriggered = false;
         }
@@ -331,6 +334,24 @@ namespace EJR.Game.Gameplay
             weaponConfig ??= ScriptableObject.CreateInstance<WeaponConfig>();
             enemyConfig ??= ScriptableObject.CreateInstance<EnemyConfig>();
             levelUpBalanceConfig ??= LevelUpBalanceConfig.CreateRuntimeDefault();
+        }
+
+        private void ApplySingleRunSelection()
+        {
+            _currentMapDefinition = RunSelectionService.SingleMapDefinition;
+            _currentDifficultyDefinition = RunSelectionService.SingleDifficultyDefinition;
+            enemyConfig = SharedRunCatalog.CreateRuntimeEnemyConfig(
+                enemyConfig,
+                _currentMapDefinition.Id,
+                _currentDifficultyDefinition.Id);
+            arenaBounds = _currentMapDefinition.ArenaBounds;
+            ApplyArenaPresentation();
+        }
+
+        private void ApplyArenaPresentation()
+        {
+            var mapDefinition = _currentMapDefinition ?? SharedRunCatalog.GetMap(SharedRunCatalog.DefaultMapId);
+            ArenaVisualPresenter.Apply(arenaBounds, mapDefinition.CameraBackgroundColor, mapDefinition.BoundaryColor, Camera.main);
         }
 
         private void CaptureDebugRevealInput()
@@ -731,7 +752,7 @@ namespace EJR.Game.Gameplay
             playerMover.Initialize(playerConfig, _playerStats, arenaBounds);
             SetAutoPlayEnabled(startWithAutoPlayEnabled);
             _cameraFollow?.Initialize(player.transform, cameraOffset, cameraFollowSmoothTime);
-            EnsureArenaBoundaryVisual();
+            ApplyArenaPresentation();
 
             var systems = new GameObject("Systems");
             _enemyRegistry = systems.AddComponent<EnemyRegistry>();
@@ -739,7 +760,15 @@ namespace EJR.Game.Gameplay
             _experienceSystem.Initialize(player.transform, playerConfig, _levelUp, _playerStats);
 
             var enemySpawner = systems.AddComponent<EnemySpawner>();
-            enemySpawner.Initialize(enemyConfig, player.transform, _playerHealth, _enemyRegistry, _experienceSystem, playerConfig.collisionRadius, arenaBounds);
+            enemySpawner.Initialize(
+                enemyConfig,
+                player.transform,
+                _playerHealth,
+                _enemyRegistry,
+                _experienceSystem,
+                playerConfig.collisionRadius,
+                arenaBounds,
+                (_currentMapDefinition ?? RunSelectionService.SingleMapDefinition).BossVisualKind);
             _enemySpawner = enemySpawner;
             if (enemySpawner.BossWaveStartSeconds > 0f)
             {
@@ -1002,19 +1031,7 @@ namespace EJR.Game.Gameplay
 
         private void EnsureArenaBoundaryVisual()
         {
-            var boundaryObject = GameObject.Find("ArenaBoundary");
-            if (boundaryObject == null)
-            {
-                boundaryObject = new GameObject("ArenaBoundary");
-            }
-
-            var visualizer = boundaryObject.GetComponent<ArenaBoundaryVisualizer>();
-            if (visualizer == null)
-            {
-                visualizer = boundaryObject.AddComponent<ArenaBoundaryVisualizer>();
-            }
-
-            visualizer.Initialize(arenaBounds);
+            ApplyArenaPresentation();
         }
 
         private static void ApplyVisualScale(Transform targetTransform, Sprite sprite, float desiredWorldSize)
@@ -1589,6 +1606,8 @@ namespace EJR.Game.Gameplay
         }
 
 #endif
+            var mapDefinition = _currentMapDefinition ?? RunSelectionService.SingleMapDefinition;
+            var difficultyDefinition = _currentDifficultyDefinition ?? RunSelectionService.SingleDifficultyDefinition;
             var summary = MetaProgressionService.BuildRunRewardSummary(
                 "\uC2F1\uAE00",
                 cleared,
@@ -1597,7 +1616,9 @@ namespace EJR.Game.Gameplay
                 _enemiesDefeated,
                 _combatTracker.BuildSummary(),
                 _combatTracker.BossThresholdsReached,
-                SceneManager.GetActiveScene().name,
+                mapDefinition.Id,
+                mapDefinition.DisplayName,
+                difficultyDefinition.DisplayName,
                 _playerStats != null ? _playerStats.CreditGainPercent : 0f);
 
             MetaProgressionService.RecordRunSummary(summary);

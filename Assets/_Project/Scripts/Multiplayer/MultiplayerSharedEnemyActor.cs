@@ -93,7 +93,8 @@ namespace EJR.Game.Multiplayer
             MultiplayerCoopController coopController,
             RuntimeSpriteFactory.EnemyVisualKind visualKind,
             Vector3 spawnPosition,
-            float elapsedSeconds)
+            float elapsedSeconds,
+            bool isBoss)
         {
             if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer || coopController == null)
             {
@@ -107,8 +108,9 @@ namespace EJR.Game.Multiplayer
             _enemyController.Changed += HandleServerEnemyHealthChanged;
             _enemyController.BossProjectileSpawned -= HandleServerBossProjectileSpawned;
             _enemyController.BossProjectileSpawned += HandleServerBossProjectileSpawned;
+            SharedRunCatalog.CopyEnemyConfig(_enemyConfig, coopController.CurrentEnemyConfig);
 
-            var statProfile = _enemyConfig.GetStatProfile(visualKind);
+            var statProfile = _enemyConfig.GetStatProfile(isBoss ? RuntimeSpriteFactory.EnemyVisualKind.Boss : visualKind);
             var collisionRadius = GetCollisionRadius(statProfile);
             var runtimeMinuteTier = Mathf.Max(0, Mathf.FloorToInt(elapsedSeconds / 60f));
             var runtimeMoveSpeedMultiplier = 1f + (runtimeMinuteTier * 0.05f);
@@ -131,6 +133,7 @@ namespace EJR.Game.Multiplayer
                 collisionRadius,
                 runtimeHealthMultiplier,
                 runtimeMoveSpeedMultiplier,
+                isBoss,
                 true,
                 coopController.ArenaBounds);
 

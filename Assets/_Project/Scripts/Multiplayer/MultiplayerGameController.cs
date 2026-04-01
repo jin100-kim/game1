@@ -43,10 +43,12 @@ namespace EJR.Game.Multiplayer
         private Text _resultText;
         private Button _characterButton;
         private Button _starterButton;
+        private Button _difficultyButton;
         private Button _readyButton;
         private Button _startButton;
         private Text _characterButtonText;
         private Text _starterButtonText;
+        private Text _difficultyButtonText;
         private Text _readyButtonText;
         private Text _startButtonText;
         private readonly Button[] _choiceButtons = new Button[3];
@@ -66,6 +68,7 @@ namespace EJR.Game.Multiplayer
         private bool _autoPlayEnabled;
         private PlayerMover _boundAutoPlayMover;
         private string _debugRevealBuffer = string.Empty;
+        private string _lastArenaPresentationSignature = string.Empty;
 
         private const string DebugRevealCode = "admin";
 
@@ -220,7 +223,7 @@ namespace EJR.Game.Multiplayer
 
             mainCamera.orthographic = true;
             mainCamera.orthographicSize = 5.8f;
-            mainCamera.backgroundColor = new Color(0.05f, 0.06f, 0.10f, 1f);
+            mainCamera.backgroundColor = SharedRunCatalog.GetMap(SharedRunCatalog.DefaultMapId).CameraBackgroundColor;
             mainCamera.clearFlags = CameraClearFlags.SolidColor;
             mainCamera.transform.position = new Vector3(0f, 0f, -10f);
         }
@@ -239,17 +242,28 @@ namespace EJR.Game.Multiplayer
 
         private void EnsureArenaVisuals()
         {
-            if (GameObject.Find("ArenaVisuals") != null)
+            ApplyArenaPresentation(MultiplayerCoopController.Instance);
+        }
+
+        private void ApplyArenaPresentation(MultiplayerCoopController coop)
+        {
+            var mapDefinition = coop != null ? coop.SelectedMapDefinition : SharedRunCatalog.GetMap(SharedRunCatalog.DefaultMapId);
+            var bounds = coop != null ? coop.ArenaBounds : mapDefinition.ArenaBounds;
+            var signature = $"{mapDefinition.Id}:{bounds.xMin:0.##}:{bounds.yMin:0.##}:{bounds.width:0.##}:{bounds.height:0.##}";
+            if (string.Equals(signature, _lastArenaPresentationSignature, StringComparison.Ordinal))
             {
                 return;
             }
 
-            var root = new GameObject("ArenaVisuals");
-            CreateQuad(root.transform, "ArenaBackground", Vector2.zero, new Vector2(arenaBounds.width, arenaBounds.height), new Color(0.10f, 0.12f, 0.18f, 1f), -10);
-            CreateQuad(root.transform, "BorderTop", new Vector2(0f, arenaBounds.yMax), new Vector2(arenaBounds.width + 0.5f, 0.3f), new Color(0.92f, 0.74f, 0.18f, 1f), -9);
-            CreateQuad(root.transform, "BorderBottom", new Vector2(0f, arenaBounds.yMin), new Vector2(arenaBounds.width + 0.5f, 0.3f), new Color(0.92f, 0.74f, 0.18f, 1f), -9);
-            CreateQuad(root.transform, "BorderLeft", new Vector2(arenaBounds.xMin, 0f), new Vector2(0.3f, arenaBounds.height + 0.5f), new Color(0.92f, 0.74f, 0.18f, 1f), -9);
-            CreateQuad(root.transform, "BorderRight", new Vector2(arenaBounds.xMax, 0f), new Vector2(0.3f, arenaBounds.height + 0.5f), new Color(0.92f, 0.74f, 0.18f, 1f), -9);
+            arenaBounds = bounds;
+            ArenaVisualPresenter.Apply(bounds, mapDefinition.CameraBackgroundColor, mapDefinition.BoundaryColor, Camera.main);
+            var actors = FindObjectsByType<MultiplayerPlayerActor>(FindObjectsSortMode.None);
+            for (var i = 0; i < actors.Length; i++)
+            {
+                actors[i]?.ApplyArenaBounds(bounds);
+            }
+
+            _lastArenaPresentationSignature = signature;
         }
 
         private void EnsureOverlay()
@@ -292,12 +306,13 @@ namespace EJR.Game.Multiplayer
             _playerListText.rectTransform.sizeDelta = new Vector2(330f, 436f);
 
             _characterButton = CreateActionButton(_lobbyPanel.transform, "CharacterButton", new Vector2(396f, 90f), new Vector2(392f, 92f), out _characterButtonText, HandleCharacterClicked);
-            _starterButton = CreateActionButton(_lobbyPanel.transform, "StarterButton", new Vector2(396f, 198f), new Vector2(392f, 72f), out _starterButtonText, HandleStarterClicked);
-            _readyButton = CreateActionButton(_lobbyPanel.transform, "ReadyButton", new Vector2(396f, 292f), new Vector2(188f, 56f), out _readyButtonText, HandleReadyClicked);
-            _startButton = CreateActionButton(_lobbyPanel.transform, "StartButton", new Vector2(600f, 292f), new Vector2(188f, 56f), out _startButtonText, HandleStartClicked);
+            _starterButton = CreateActionButton(_lobbyPanel.transform, "MapButton", new Vector2(396f, 198f), new Vector2(392f, 72f), out _starterButtonText, HandleStarterClicked);
+            _difficultyButton = CreateActionButton(_lobbyPanel.transform, "DifficultyButton", new Vector2(396f, 286f), new Vector2(392f, 72f), out _difficultyButtonText, HandleDifficultyClicked);
+            _readyButton = CreateActionButton(_lobbyPanel.transform, "ReadyButton", new Vector2(396f, 380f), new Vector2(188f, 56f), out _readyButtonText, HandleReadyClicked);
+            _startButton = CreateActionButton(_lobbyPanel.transform, "StartButton", new Vector2(600f, 380f), new Vector2(188f, 56f), out _startButtonText, HandleStartClicked);
 
-            _startHintText = CreateText(_lobbyPanel.transform, "StartHint", Vector2.zero, new Vector2(396f, -376f), new Vector2(1f, 1f), 16, TextAnchor.UpperLeft);
-            _startHintText.rectTransform.sizeDelta = new Vector2(392f, 148f);
+            _startHintText = CreateText(_lobbyPanel.transform, "StartHint", Vector2.zero, new Vector2(396f, -462f), new Vector2(1f, 1f), 16, TextAnchor.UpperLeft);
+            _startHintText.rectTransform.sizeDelta = new Vector2(392f, 126f);
 
             _characterSelectPanel = CreatePanel(_lobbyPanel.transform, "CharacterSelectPanel", new Vector2(20f, -74f), new Vector2(780f, 510f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Color(0.03f, 0.05f, 0.09f, 0.96f));
             _characterSelectPanel.SetActive(false);
@@ -372,6 +387,7 @@ namespace EJR.Game.Multiplayer
             var localPlayer = MultiplayerPlayerCombatant.FindOwnedLocalPlayer();
             var allPlayers = FindObjectsByType<MultiplayerPlayerCombatant>(FindObjectsSortMode.None);
 
+            ApplyArenaPresentation(coop);
             RefreshStatusText(session, manager, coop, localPlayer, allPlayers);
             RefreshLobbyUi(manager, coop, localPlayer, allPlayers);
             RefreshRunUi(coop, localPlayer, allPlayers);
@@ -489,8 +505,24 @@ namespace EJR.Game.Multiplayer
             _playerListText.text = builder.Length > 0 ? builder.ToString() : "플레이어를 기다리는 중...";
 
             var canInteract = localPlayer != null && coop != null && coop.Phase == MultiplayerRunPhase.Lobby;
+            _starterButtonText.text = coop != null
+                ? $"맵\n{coop.SelectedMapDefinition.DisplayName}"
+                : "맵\n-";
+            if (_difficultyButtonText != null)
+            {
+                _difficultyButtonText.text = coop != null
+                    ? $"난이도\n{coop.SelectedDifficultyDefinition.DisplayName}"
+                    : "난이도\n-";
+            }
+
+            var lobbyHost = manager != null && manager.IsHost;
             _characterButton.interactable = canInteract;
-            _starterButton.interactable = false;
+            _starterButton.interactable = canInteract && lobbyHost;
+            if (_difficultyButton != null)
+            {
+                _difficultyButton.interactable = canInteract && lobbyHost;
+            }
+
             _readyButton.interactable = canInteract;
 
             _characterButtonText.text = localPlayer != null
@@ -502,6 +534,26 @@ namespace EJR.Game.Multiplayer
             _readyButtonText.text = localPlayer != null && localPlayer.IsReady ? "준비 취소" : "준비";
 
             var isHost = manager != null && manager.IsHost;
+            _starterButtonText.text = coop != null
+                ? $"맵\n{coop.SelectedMapDefinition.DisplayName}"
+                : "맵\n-";
+            if (_difficultyButtonText != null)
+            {
+                _difficultyButtonText.text = coop != null
+                    ? $"난이도\n{coop.SelectedDifficultyDefinition.DisplayName}"
+                    : "난이도\n-";
+            }
+
+            _starterButtonText.text = coop != null
+                ? $"맵\n{coop.SelectedMapDefinition.DisplayName}"
+                : "맵\n-";
+            if (_difficultyButtonText != null)
+            {
+                _difficultyButtonText.text = coop != null
+                    ? $"난이도\n{coop.SelectedDifficultyDefinition.DisplayName}"
+                    : "난이도\n-";
+            }
+
             _startButton.gameObject.SetActive(isHost);
             _startButton.interactable = isHost && coop != null && string.IsNullOrWhiteSpace(coop.GetStartBlockReason());
             _startButtonText.text = "게임 시작";
@@ -545,7 +597,7 @@ namespace EJR.Game.Multiplayer
                 coop.TeamExperience,
                 coop.TeamRequiredExperience,
                 coop.RemainingSeconds);
-            _gameplayHud.SetModeHint(string.Empty);
+            _gameplayHud.SetModeHint($"{coop.SelectedMapDefinition.DisplayName} | {coop.SelectedDifficultyDefinition.DisplayName}");
             _gameplayHud.SetBuildInfo(localPlayer.WeaponSummary, localPlayer.StatSummary);
             if (coop.BossActive)
             {
@@ -569,9 +621,16 @@ namespace EJR.Game.Multiplayer
             }
 
             var sessionCode = MultiplayerSessionController.EnsureInstance().SessionCode;
+            var selectionSummary = coop != null
+                ? $"맵 {coop.SelectedMapDefinition.DisplayName} | 난이도 {coop.SelectedDifficultyDefinition.DisplayName}"
+                : "맵 - | 난이도 -";
             _lobbyHeaderText.text = string.IsNullOrWhiteSpace(sessionCode)
                 ? "멀티플레이 대기실"
                 : $"멀티플레이 대기실  |  코드 {sessionCode}";
+
+            _lobbyHeaderText.text = string.IsNullOrWhiteSpace(sessionCode)
+                ? $"멀티플레이 대기실\n{selectionSummary}"
+                : $"멀티플레이 대기실  |  코드 {sessionCode}\n{selectionSummary}";
 
             var playerList = BuildLobbyPlayerList(allPlayers);
             _playerListText.text = playerList.Length > 0 ? playerList.ToString() : "플레이어를 기다리는 중...";
@@ -580,6 +639,12 @@ namespace EJR.Game.Multiplayer
             _characterButton.interactable = canInteract;
             _starterButton.interactable = false;
             _readyButton.interactable = canInteract;
+            var isHost = manager != null && manager.IsHost;
+            _starterButton.interactable = canInteract && isHost;
+            if (_difficultyButton != null)
+            {
+                _difficultyButton.interactable = canInteract && isHost;
+            }
 
             _characterButtonText.text = localPlayer != null
                 ? $"내 캐릭터\n{MultiplayerCatalog.GetCharacter(localPlayer.SelectedCharacterId).DisplayName}"
@@ -589,7 +654,6 @@ namespace EJR.Game.Multiplayer
                 : "시작 무기\n-";
             _readyButtonText.text = localPlayer != null && localPlayer.IsReady ? "준비 취소" : "준비";
 
-            var isHost = manager != null && manager.IsHost;
             _startButton.gameObject.SetActive(isHost);
             _startButton.interactable = isHost && coop != null && string.IsNullOrWhiteSpace(coop.GetStartBlockReason());
             _startButtonText.text = "시작";
@@ -598,6 +662,23 @@ namespace EJR.Game.Multiplayer
                     ? coop.GetStartBlockReason()
                     : "모든 플레이어가 준비되면 시작할 수 있습니다.")
                 : "호스트가 준비를 확인한 뒤 시작합니다.";
+
+            _startButtonText.text = "시작";
+            _startHintText.text = isHost
+                ? (coop != null && !string.IsNullOrWhiteSpace(coop.GetStartBlockReason())
+                    ? $"{selectionSummary}\n{coop.GetStartBlockReason()}"
+                    : $"{selectionSummary}\n모든 플레이어가 준비되면 시작할 수 있습니다.")
+                : $"{selectionSummary}\n호스트가 준비를 확인한 뒤 시작합니다.";
+
+            _starterButtonText.text = coop != null
+                ? $"맵\n{coop.SelectedMapDefinition.DisplayName}"
+                : "맵\n-";
+            if (_difficultyButtonText != null)
+            {
+                _difficultyButtonText.text = coop != null
+                    ? $"난이도\n{coop.SelectedDifficultyDefinition.DisplayName}"
+                    : "난이도\n-";
+            }
 
             var showSelector = canInteract && _inspectedLobbyCharacterId >= 0;
             if (_characterSelectPanel != null)
@@ -777,7 +858,40 @@ namespace EJR.Game.Multiplayer
 
         private void HandleStarterClicked()
         {
-            // Starter weapon choice is fixed by character selection.
+            var manager = NetworkManager.Singleton;
+            var coop = MultiplayerCoopController.Instance;
+            if (manager == null || !manager.IsHost || coop == null)
+            {
+                return;
+            }
+
+            for (var offset = 1; offset <= SharedRunCatalog.MapDefinitions.Count; offset++)
+            {
+                var index = (coop.SelectedMapIndex + offset) % SharedRunCatalog.MapDefinitions.Count;
+                var mapDefinition = SharedRunCatalog.GetMapByIndex(index);
+                if (!SharedRunCatalog.IsMapUnlocked(mapDefinition.Id))
+                {
+                    continue;
+                }
+
+                coop.RequestSelectMap(index);
+                RefreshUi();
+                return;
+            }
+        }
+
+        private void HandleDifficultyClicked()
+        {
+            var manager = NetworkManager.Singleton;
+            var coop = MultiplayerCoopController.Instance;
+            if (manager == null || !manager.IsHost || coop == null)
+            {
+                return;
+            }
+
+            var nextIndex = (coop.SelectedDifficultyIndex + 1) % SharedRunCatalog.DifficultyDefinitions.Count;
+            coop.RequestSelectDifficulty(nextIndex);
+            RefreshUi();
         }
 
         private void HandleReadyClicked()

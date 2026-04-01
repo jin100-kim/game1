@@ -23,6 +23,7 @@ namespace EJR.Game.Gameplay
         private bool _wave2Triggered;
         private EnemyController _bossEnemy;
         private Camera _spawnReferenceCamera;
+        private RuntimeSpriteFactory.EnemyVisualKind _bossVisualKind = RuntimeSpriteFactory.EnemyVisualKind.Boss;
 
         public float ElapsedSeconds => _elapsedSeconds;
         public bool IsBossWaveTriggered => _bossWaveTriggered;
@@ -37,7 +38,8 @@ namespace EJR.Game.Gameplay
             EnemyRegistry registry,
             ExperienceSystem experienceSystem,
             float playerCollisionRadius,
-            Rect arenaBounds)
+            Rect arenaBounds,
+            RuntimeSpriteFactory.EnemyVisualKind bossVisualKind = RuntimeSpriteFactory.EnemyVisualKind.Boss)
         {
             _config = config;
             _target = target;
@@ -54,6 +56,7 @@ namespace EJR.Game.Gameplay
             _wave2Triggered = false;
             _bossEnemy = null;
             _spawnReferenceCamera = Camera.main;
+            _bossVisualKind = bossVisualKind;
         }
 
         private void Update()
@@ -102,7 +105,7 @@ namespace EJR.Game.Gameplay
                 bossRadius,
                 bossSpawnRadius * 0.9f,
                 bossSpawnRadius * 1.15f);
-            _bossEnemy = SpawnEnemy(RuntimeSpriteFactory.EnemyVisualKind.Boss, bossPosition);
+            _bossEnemy = SpawnEnemy(_bossVisualKind, bossPosition, bossProfile, isBoss: true);
             if (_bossEnemy != null)
             {
                 _bossEnemy.BossProjectileVolleyStarted += HandleBossProjectileVolleyStarted;
@@ -179,9 +182,14 @@ namespace EJR.Game.Gameplay
             }
         }
 
-        private EnemyController SpawnEnemy(RuntimeSpriteFactory.EnemyVisualKind visualKind, Vector3? requestedPosition = null)
+        private EnemyController SpawnEnemy(
+            RuntimeSpriteFactory.EnemyVisualKind visualKind,
+            Vector3? requestedPosition = null,
+            EnemyStatProfile statProfileOverride = null,
+            bool isBoss = false)
         {
-            var statProfile = _config.GetStatProfile(visualKind);
+            var visualStatProfile = _config.GetStatProfile(visualKind);
+            var statProfile = statProfileOverride ?? visualStatProfile;
             var collisionRadius = CalculateCollisionRadius(statProfile);
             var runtimeMinuteTier = Mathf.Max(0, Mathf.FloorToInt(_elapsedSeconds / 60f));
             var runtimeMoveSpeedMultiplier = 1f + (runtimeMinuteTier * 0.05f);
@@ -196,7 +204,7 @@ namespace EJR.Game.Gameplay
                 spawnPosition = FindSpawnPosition(collisionRadius, _config.minSpawnRadius, _config.maxSpawnRadius);
             }
 
-            var enemyObject = new GameObject(visualKind == RuntimeSpriteFactory.EnemyVisualKind.Boss ? "BossEnemy" : "Enemy");
+            var enemyObject = new GameObject(isBoss ? "BossEnemy" : "Enemy");
             enemyObject.transform.position = spawnPosition;
 
             var animationProfile = _config.GetAnimationProfile(visualKind);
@@ -210,7 +218,7 @@ namespace EJR.Game.Gameplay
             var renderer = visualObject.AddComponent<SpriteRenderer>();
             renderer.sprite = baseSprite;
             renderer.color = Color.white;
-            var scaleMultiplier = statProfile != null ? Mathf.Max(0.1f, statProfile.visualScaleMultiplier) : 1f;
+            var scaleMultiplier = visualStatProfile != null ? Mathf.Max(0.1f, visualStatProfile.visualScaleMultiplier) : 1f;
             var visualWorldSize = Mathf.Max(0.1f, _config.visualScale * scaleMultiplier);
             ApplyVisualScale(visualObject.transform, renderer.sprite, visualWorldSize);
             if (enemyFrames.Length > 1)
@@ -232,10 +240,11 @@ namespace EJR.Game.Gameplay
                 collisionRadius,
                 runtimeHealthMultiplier,
                 runtimeMoveSpeedMultiplier,
+                isBoss,
                 _hasArenaBounds,
                 _arenaBounds);
 
-            if (visualKind != RuntimeSpriteFactory.EnemyVisualKind.Boss)
+            if (!isBoss)
             {
                 var healthBar = enemyObject.AddComponent<WorldHealthBar>();
                 var healthBarYOffset = _config.visualYOffset + Mathf.Max(0.28f, visualWorldSize * 0.36f);

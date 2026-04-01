@@ -37,12 +37,20 @@ namespace EJR.Game.UI
             Research = Upgrades,
         }
 
+        private enum SingleRunSetupStep
+        {
+            MapSelect,
+            CharacterSelect,
+        }
+
         private Font _font;
         private Canvas _canvas;
         private GameObject _mainMenuPanel;
         private GameObject _multiplayerPanel;
         private GameObject _optionsPanel;
         private GameObject _runSetupPanel;
+        private GameObject _runSetupMapStepRoot;
+        private GameObject _runSetupCharacterStepRoot;
         private GameObject _runSetupCharacterOptionsRoot;
         private GameObject _runSetupWeaponOptionsRoot;
         private RectTransform _runSetupCharacterOptionsContentRect;
@@ -53,10 +61,16 @@ namespace EJR.Game.UI
         private GameObject _accentBar;
         private Text _titleText;
         private Text _subtitleText;
+        private Text _runSetupHeaderText;
+        private Text _runSetupHintText;
         private Text _runSetupCharacterText;
         private Text _runSetupWeaponText;
         private Text _runSetupBonusText;
+        private Text _runSetupSelectionSummaryText;
+        private Text _runSetupMapStepSelectionText;
+        private Text _runSetupMapLockText;
         private Text _runSetupPrimaryActionText;
+        private Text _runSetupMapNextText;
         private Text _runSetupStartText;
         private Text _metaHeaderText;
         private Text _metaRecentText;
@@ -74,7 +88,10 @@ namespace EJR.Game.UI
         private Button _runSetupCharacterButton;
         private Button _runSetupWeaponButton;
         private Button _runSetupPrimaryActionButton;
+        private Button _runSetupMapNextButton;
+        private Button _runSetupMapBackButton;
         private Button _runSetupStartButton;
+        private Button _runSetupCharacterBackButton;
         private Button _summaryMetaButton;
         private Button _metaResetButton;
         private Button _metaUnlocksTabButton;
@@ -83,6 +100,10 @@ namespace EJR.Game.UI
         private Button _confirmCancelButton;
         private Button[] _runSetupCharacterOptionButtons = System.Array.Empty<Button>();
         private Button[] _runSetupWeaponOptionButtons = System.Array.Empty<Button>();
+        private Button[] _runSetupMapButtons = System.Array.Empty<Button>();
+        private Button[] _runSetupDifficultyButtons = System.Array.Empty<Button>();
+        private Text[] _runSetupMapButtonTexts = System.Array.Empty<Text>();
+        private Text[] _runSetupDifficultyButtonTexts = System.Array.Empty<Text>();
         private Button[] _metaCharacterButtons = System.Array.Empty<Button>();
         private Button[] _metaUpgradeButtons = System.Array.Empty<Button>();
         private InputField _joinCodeInput;
@@ -98,8 +119,11 @@ namespace EJR.Game.UI
         private int _selectedCharacterId;
         private int _inspectedCharacterId;
         private WeaponUpgradeId _selectedStarterWeaponId;
+        private string _selectedMapId = SharedRunCatalog.DefaultMapId;
+        private string _selectedDifficultyId = SharedRunCatalog.DefaultDifficultyId;
         private string _recentRunSummaryText = "최근 전적이 없습니다.";
         private MetaTab _currentMetaTab;
+        private SingleRunSetupStep _currentRunSetupStep;
         private GameObject _confirmModal;
         private Text _confirmModalText;
         private Action _pendingConfirmAction;
@@ -111,6 +135,9 @@ namespace EJR.Game.UI
             _selectedCharacterId = MetaProgressionService.GetSingleSelectedCharacterId();
             _inspectedCharacterId = _selectedCharacterId;
             _selectedStarterWeaponId = MetaProgressionService.GetSingleSelectedStarterWeapon();
+            _selectedMapId = RunSelectionService.SingleMapId;
+            _selectedDifficultyId = RunSelectionService.SingleDifficultyId;
+            _currentRunSetupStep = SingleRunSetupStep.MapSelect;
             InitializeDisplaySettings();
             EnsureCamera();
             EnsureEventSystem();
@@ -138,7 +165,7 @@ namespace EJR.Game.UI
                 MetaProgressionService.ClearPendingRunSummary();
             }
 
-            RefreshRunSetupPanel();
+            RefreshRunSetupPanelV2();
             RefreshMetaPanel();
             ShowMainMenu();
             UpdateMultiplayerInteractivity();
@@ -638,6 +665,7 @@ namespace EJR.Game.UI
             _optionsBackButton = CreateButton(_optionsPanel.transform, "OptionsBackButtonV2", new Vector2(0f, -250f), "\uB4A4\uB85C", ShowMainMenu, new Vector2(248f, 46f));
         }
 
+        #if false
         private void BuildRunSetupPanelReference(Transform parent)
         {
             _runSetupPanel = CreatePanel(parent, "RunSetupPanelV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -16f), new Vector2(1240f, 778f), new Color(0.02f, 0.03f, 0.06f, 0.9f));
@@ -661,7 +689,165 @@ namespace EJR.Game.UI
             _runSetupCharacterText = CreateText(detailCard.transform, "RunSetupCharacterTextV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -74f), new Vector2(388f, 42f), string.Empty, 24, FontStyle.Bold);
             _runSetupCharacterText.alignment = TextAnchor.UpperLeft;
 
-            var detailViewport = CreateScrollViewport(detailCard.transform, "RunDetailScrollV2", new Vector2(24f, 128f), new Vector2(388f, 320f), out _runSetupDetailContentRect);
+            var detailViewport = CreateScrollViewport(detailCard.transform, "RunDetailScrollV2", new Vector2(24f, 128f), new Vector2(388f, 232f), out _runSetupDetailContentRect);
+            if (detailViewport.TryGetComponent<Image>(out var detailViewportImage))
+            {
+                detailViewportImage.color = new Color(0.07f, 0.10f, 0.14f, 0.94f);
+            }
+
+            _runSetupBonusText = CreateText(_runSetupDetailContentRect.transform, "RunSetupBonusTextV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(18f, -18f), new Vector2(352f, 0f), string.Empty, 16, FontStyle.Normal);
+            _runSetupBonusText.alignment = TextAnchor.UpperLeft;
+            _runSetupBonusText.color = new Color(0.82f, 0.87f, 0.95f, 1f);
+            _runSetupWeaponText = null;
+            _runSetupSelectionSummaryText = CreateText(detailCard.transform, "RunSetupSelectionSummaryV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -384f), new Vector2(388f, 24f), string.Empty, 15, FontStyle.Bold);
+            _runSetupSelectionSummaryText.alignment = TextAnchor.MiddleLeft;
+            _runSetupSelectionSummaryText.color = new Color(0.96f, 0.74f, 0.18f, 1f);
+
+            var mapHeader = CreateText(detailCard.transform, "RunSetupMapHeaderV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -416f), new Vector2(180f, 20f), "맵", 15, FontStyle.Bold);
+            mapHeader.alignment = TextAnchor.MiddleLeft;
+            mapHeader.color = new Color(0.78f, 0.84f, 0.92f, 1f);
+
+            var mapDefinitions = SharedRunCatalog.MapDefinitions;
+            _runSetupMapButtons = new Button[mapDefinitions.Count];
+            _runSetupMapButtonTexts = new Text[mapDefinitions.Count];
+            for (var i = 0; i < mapDefinitions.Count; i++)
+            {
+                var mapId = mapDefinitions[i].Id;
+                var button = CreateButton(detailCard.transform, $"RunSetupMapButton{i}", Vector2.zero, mapDefinitions[i].DisplayName, () => SelectSingleMap(mapId), new Vector2(120f, 42f));
+                SetTopLeftRect(button.GetComponent<RectTransform>(), new Vector2(24f + (i * 132f), 446f), new Vector2(120f, 42f));
+                _runSetupMapButtons[i] = button;
+                _runSetupMapButtonTexts[i] = button.GetComponentInChildren<Text>();
+                if (_runSetupMapButtonTexts[i] != null)
+                {
+                    _runSetupMapButtonTexts[i].fontSize = 15;
+                }
+            }
+
+            _runSetupMapLockText = CreateText(detailCard.transform, "RunSetupMapLockTextV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -498f), new Vector2(388f, 22f), string.Empty, 13, FontStyle.Normal);
+            _runSetupMapLockText.alignment = TextAnchor.MiddleLeft;
+            _runSetupMapLockText.color = new Color(0.72f, 0.79f, 0.89f, 1f);
+
+            var difficultyHeader = CreateText(detailCard.transform, "RunSetupDifficultyHeaderV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -530f), new Vector2(180f, 20f), "난이도", 15, FontStyle.Bold);
+            difficultyHeader.alignment = TextAnchor.MiddleLeft;
+            difficultyHeader.color = new Color(0.78f, 0.84f, 0.92f, 1f);
+
+            var difficultyDefinitions = SharedRunCatalog.DifficultyDefinitions;
+            _runSetupDifficultyButtons = new Button[difficultyDefinitions.Count];
+            _runSetupDifficultyButtonTexts = new Text[difficultyDefinitions.Count];
+            for (var i = 0; i < difficultyDefinitions.Count; i++)
+            {
+                var difficultyId = difficultyDefinitions[i].Id;
+                var button = CreateButton(detailCard.transform, $"RunSetupDifficultyButton{i}", Vector2.zero, difficultyDefinitions[i].DisplayName, () => SelectSingleDifficulty(difficultyId), new Vector2(120f, 42f));
+                SetTopLeftRect(button.GetComponent<RectTransform>(), new Vector2(24f + (i * 132f), 560f), new Vector2(120f, 42f));
+                _runSetupDifficultyButtons[i] = button;
+                _runSetupDifficultyButtonTexts[i] = button.GetComponentInChildren<Text>();
+                if (_runSetupDifficultyButtonTexts[i] != null)
+                {
+                    _runSetupDifficultyButtonTexts[i].fontSize = 15;
+                }
+            }
+
+            _runSetupPrimaryActionButton = CreateButton(detailCard.transform, "RunSetupPrimaryActionButtonV2", Vector2.zero, "선택", () => TrySelectOrPurchaseCharacter(_inspectedCharacterId), new Vector2(388f, 48f));
+            SetBottomCenterRect(_runSetupPrimaryActionButton.GetComponent<RectTransform>(), new Vector2(0f, 92f), new Vector2(388f, 48f));
+            _runSetupPrimaryActionText = _runSetupPrimaryActionButton.GetComponentInChildren<Text>();
+            _runSetupPrimaryActionButton.gameObject.SetActive(false);
+
+            _runSetupWeaponOptionsRoot = null;
+            _runSetupStartButton = CreateButton(_runSetupPanel.transform, "RunSetupStartButtonV2", new Vector2(-126f, -338f), "출격 시작", StartSinglePlay, new Vector2(240f, 52f));
+            _runSetupStartText = _runSetupStartButton.GetComponentInChildren<Text>();
+            CreateButton(_runSetupPanel.transform, "RunSetupBackButtonV2", new Vector2(126f, -338f), "뒤로", ShowMainMenu, new Vector2(240f, 52f));
+        }
+
+        #endif
+
+        private void BuildRunSetupPanelReference(Transform parent)
+        {
+            _runSetupPanel = CreatePanel(parent, "RunSetupPanelV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -16f), new Vector2(1240f, 778f), new Color(0.02f, 0.03f, 0.06f, 0.9f));
+            _runSetupPanel.SetActive(false);
+
+            _runSetupHeaderText = CreateText(_runSetupPanel.transform, "RunSetupHeaderV2", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -34f), new Vector2(420f, 34f), "맵 선택", 24, FontStyle.Bold);
+            _runSetupHeaderText.color = new Color(0.96f, 0.74f, 0.18f, 1f);
+            _runSetupHintText = CreateText(_runSetupPanel.transform, "RunSetupHintV2", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -72f), new Vector2(640f, 22f), "출격할 맵과 난이도를 먼저 고르세요.", 14, FontStyle.Normal);
+            _runSetupHintText.color = new Color(0.78f, 0.84f, 0.92f, 1f);
+
+            _runSetupMapStepRoot = CreateStretchRoot(_runSetupPanel.transform, "RunSetupMapStepRootV2");
+            var mapCard = CreatePanel(_runSetupMapStepRoot.transform, "RunSetupMapCardV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 8f), new Vector2(976f, 560f), new Color(0.05f, 0.08f, 0.12f, 0.9f));
+            var mapCardTitle = CreateText(mapCard.transform, "RunSetupMapCardTitleV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(32f, -34f), new Vector2(320f, 28f), "출격 지역", 18, FontStyle.Bold);
+            mapCardTitle.alignment = TextAnchor.MiddleLeft;
+            mapCardTitle.color = new Color(0.96f, 0.74f, 0.18f, 1f);
+            _runSetupMapStepSelectionText = CreateText(mapCard.transform, "RunSetupMapStepSelectionV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(32f, -82f), new Vector2(912f, 72f), string.Empty, 18, FontStyle.Bold);
+            _runSetupMapStepSelectionText.alignment = TextAnchor.UpperLeft;
+            _runSetupMapStepSelectionText.color = new Color(0.97f, 0.98f, 1f, 1f);
+
+            var mapHeader = CreateText(mapCard.transform, "RunSetupMapHeaderV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(32f, -184f), new Vector2(180f, 20f), "맵", 15, FontStyle.Bold);
+            mapHeader.alignment = TextAnchor.MiddleLeft;
+            mapHeader.color = new Color(0.78f, 0.84f, 0.92f, 1f);
+
+            var mapDefinitions = SharedRunCatalog.MapDefinitions;
+            _runSetupMapButtons = new Button[mapDefinitions.Count];
+            _runSetupMapButtonTexts = new Text[mapDefinitions.Count];
+            for (var i = 0; i < mapDefinitions.Count; i++)
+            {
+                var mapId = mapDefinitions[i].Id;
+                var button = CreateButton(mapCard.transform, $"RunSetupMapButton{i}", Vector2.zero, mapDefinitions[i].DisplayName, () => SelectSingleMap(mapId), new Vector2(280f, 52f));
+                SetTopLeftRect(button.GetComponent<RectTransform>(), new Vector2(32f + (i * 300f), 214f), new Vector2(280f, 52f));
+                _runSetupMapButtons[i] = button;
+                _runSetupMapButtonTexts[i] = button.GetComponentInChildren<Text>();
+                if (_runSetupMapButtonTexts[i] != null)
+                {
+                    _runSetupMapButtonTexts[i].fontSize = 17;
+                }
+            }
+
+            _runSetupMapLockText = CreateText(mapCard.transform, "RunSetupMapLockTextV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(32f, -286f), new Vector2(912f, 22f), string.Empty, 13, FontStyle.Normal);
+            _runSetupMapLockText.alignment = TextAnchor.MiddleLeft;
+            _runSetupMapLockText.color = new Color(0.72f, 0.79f, 0.89f, 1f);
+
+            var difficultyHeader = CreateText(mapCard.transform, "RunSetupDifficultyHeaderV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(32f, -340f), new Vector2(180f, 20f), "난이도", 15, FontStyle.Bold);
+            difficultyHeader.alignment = TextAnchor.MiddleLeft;
+            difficultyHeader.color = new Color(0.78f, 0.84f, 0.92f, 1f);
+
+            var difficultyDefinitions = SharedRunCatalog.DifficultyDefinitions;
+            _runSetupDifficultyButtons = new Button[difficultyDefinitions.Count];
+            _runSetupDifficultyButtonTexts = new Text[difficultyDefinitions.Count];
+            for (var i = 0; i < difficultyDefinitions.Count; i++)
+            {
+                var difficultyId = difficultyDefinitions[i].Id;
+                var button = CreateButton(mapCard.transform, $"RunSetupDifficultyButton{i}", Vector2.zero, difficultyDefinitions[i].DisplayName, () => SelectSingleDifficulty(difficultyId), new Vector2(280f, 52f));
+                SetTopLeftRect(button.GetComponent<RectTransform>(), new Vector2(32f + (i * 300f), 370f), new Vector2(280f, 52f));
+                _runSetupDifficultyButtons[i] = button;
+                _runSetupDifficultyButtonTexts[i] = button.GetComponentInChildren<Text>();
+                if (_runSetupDifficultyButtonTexts[i] != null)
+                {
+                    _runSetupDifficultyButtonTexts[i].fontSize = 17;
+                }
+            }
+
+            _runSetupMapNextButton = CreateButton(_runSetupMapStepRoot.transform, "RunSetupNextButtonV2", new Vector2(-126f, -338f), "다음", GoToRunSetupCharacterStep, new Vector2(240f, 52f));
+            _runSetupMapNextText = _runSetupMapNextButton.GetComponentInChildren<Text>();
+            _runSetupMapBackButton = CreateButton(_runSetupMapStepRoot.transform, "RunSetupMapBackButtonV2", new Vector2(126f, -338f), "뒤로", ShowMainMenu, new Vector2(240f, 52f));
+
+            _runSetupCharacterStepRoot = CreateStretchRoot(_runSetupPanel.transform, "RunSetupCharacterStepRootV2");
+            var rosterCard = CreatePanel(_runSetupCharacterStepRoot.transform, "CharacterRosterCardV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-244f, 6f), new Vector2(664f, 616f), new Color(0.05f, 0.08f, 0.12f, 0.9f));
+            var rosterHeader = CreateText(rosterCard.transform, "RosterHeaderV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -28f), new Vector2(240f, 24f), "캐릭터 선택", 17, FontStyle.Bold);
+            rosterHeader.alignment = TextAnchor.MiddleLeft;
+            rosterHeader.color = new Color(0.96f, 0.74f, 0.18f, 1f);
+            CreateScrollViewport(rosterCard.transform, "RunSetupCharacterScrollV2", new Vector2(24f, 68f), new Vector2(608f, 524f), out _runSetupCharacterOptionsContentRect);
+            _runSetupCharacterOptionsRoot = _runSetupCharacterOptionsContentRect.gameObject;
+
+            var detailCard = CreatePanel(_runSetupCharacterStepRoot.transform, "RunDetailCardV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(338f, 6f), new Vector2(436f, 616f), new Color(0.05f, 0.08f, 0.12f, 0.9f));
+            var detailHeader = CreateText(detailCard.transform, "DetailHeaderV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -28f), new Vector2(220f, 24f), "출격 정보", 17, FontStyle.Bold);
+            detailHeader.alignment = TextAnchor.MiddleLeft;
+            detailHeader.color = new Color(0.96f, 0.74f, 0.18f, 1f);
+
+            _runSetupSelectionSummaryText = CreateText(detailCard.transform, "RunSetupSelectionSummaryV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -74f), new Vector2(388f, 24f), string.Empty, 15, FontStyle.Bold);
+            _runSetupSelectionSummaryText.alignment = TextAnchor.MiddleLeft;
+            _runSetupSelectionSummaryText.color = new Color(0.96f, 0.74f, 0.18f, 1f);
+
+            _runSetupCharacterText = CreateText(detailCard.transform, "RunSetupCharacterTextV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -108f), new Vector2(388f, 42f), string.Empty, 24, FontStyle.Bold);
+            _runSetupCharacterText.alignment = TextAnchor.UpperLeft;
+
+            var detailViewport = CreateScrollViewport(detailCard.transform, "RunDetailScrollV2", new Vector2(24f, 164f), new Vector2(388f, 316f), out _runSetupDetailContentRect);
             if (detailViewport.TryGetComponent<Image>(out var detailViewportImage))
             {
                 detailViewportImage.color = new Color(0.07f, 0.10f, 0.14f, 0.94f);
@@ -678,9 +864,9 @@ namespace EJR.Game.UI
             _runSetupPrimaryActionButton.gameObject.SetActive(false);
 
             _runSetupWeaponOptionsRoot = null;
-            _runSetupStartButton = CreateButton(_runSetupPanel.transform, "RunSetupStartButtonV2", new Vector2(-126f, -338f), "출격 시작", StartSinglePlay, new Vector2(240f, 52f));
+            _runSetupStartButton = CreateButton(_runSetupCharacterStepRoot.transform, "RunSetupStartButtonV2", new Vector2(-126f, -338f), "출격 시작", StartSinglePlay, new Vector2(240f, 52f));
             _runSetupStartText = _runSetupStartButton.GetComponentInChildren<Text>();
-            CreateButton(_runSetupPanel.transform, "RunSetupBackButtonV2", new Vector2(126f, -338f), "뒤로", ShowMainMenu, new Vector2(240f, 52f));
+            _runSetupCharacterBackButton = CreateButton(_runSetupCharacterStepRoot.transform, "RunSetupBackButtonV2", new Vector2(126f, -338f), "뒤로", GoToRunSetupMapStep, new Vector2(240f, 52f));
         }
 
         private void BuildMetaPanelReference(Transform parent)
@@ -760,8 +946,13 @@ namespace EJR.Game.UI
             _selectedCharacterId = MetaProgressionService.GetSingleSelectedCharacterId();
             _inspectedCharacterId = _selectedCharacterId;
             _selectedStarterWeaponId = MetaProgressionService.GetSingleSelectedStarterWeapon();
-            RefreshRunSetupPanel();
-            ShowPanel(_runSetupPanel, _runSetupCharacterButton);
+            _selectedMapId = RunSelectionService.SingleMapId;
+            _selectedDifficultyId = RunSelectionService.SingleDifficultyId;
+            _currentRunSetupStep = SingleRunSetupStep.MapSelect;
+            RefreshRunSetupPanelV2();
+            ShowPanel(_runSetupPanel, GetRunSetupPreferredSelection());
+            SetStatus("맵과 난이도를 먼저 선택하세요.");
+            return;
             SetStatus("캐릭터를 선택하세요. 잠긴 캐릭터는 상점에서 해금합니다.");
         }
 
@@ -838,14 +1029,14 @@ namespace EJR.Game.UI
         {
             _selectedCharacterId = MetaProgressionService.GetNextUnlockedCharacterId(_selectedCharacterId);
             MetaProgressionService.SetSingleSelectedCharacterId(_selectedCharacterId);
-            RefreshRunSetupPanel();
+            RefreshRunSetupPanelV2();
         }
 
         private void OnCycleSingleStarterWeapon()
         {
             _selectedStarterWeaponId = MetaProgressionService.GetNextUnlockedStarterWeapon(_selectedStarterWeaponId);
             MetaProgressionService.SetSingleSelectedStarterWeapon(_selectedStarterWeaponId);
-            RefreshRunSetupPanel();
+            RefreshRunSetupPanelV2();
         }
 
         private void SelectSingleCharacter(int characterId)
@@ -857,7 +1048,7 @@ namespace EJR.Game.UI
 
             _selectedCharacterId = characterId;
             MetaProgressionService.SetSingleSelectedCharacterId(characterId);
-            RefreshRunSetupPanel();
+            RefreshRunSetupPanelV2();
         }
 
         private void SelectSingleStarterWeapon(WeaponUpgradeId weaponId)
@@ -869,7 +1060,7 @@ namespace EJR.Game.UI
 
             _selectedStarterWeaponId = weaponId;
             MetaProgressionService.SetSingleSelectedStarterWeapon(weaponId);
-            RefreshRunSetupPanel();
+            RefreshRunSetupPanelV2();
         }
 
         private void StartSinglePlay()
@@ -1156,7 +1347,7 @@ namespace EJR.Game.UI
             if (MetaProgressionService.TryPurchaseNode(nodeId, out var reason))
             {
                 RefreshMetaPanel();
-                RefreshRunSetupPanel();
+                RefreshRunSetupPanelV2();
                 SetStatus($"{GetNodeTitle(nodeId)} 연구 완료.");
             }
             else
@@ -1190,13 +1381,61 @@ namespace EJR.Game.UI
             _inspectedCharacterId = characterId;
             _selectedStarterWeaponId = definition.StarterWeaponId;
             MetaProgressionService.SetSingleSelectedCharacterId(characterId);
-            RefreshRunSetupPanel();
+            RefreshRunSetupPanelV2();
+        }
+
+        private void SelectSingleMap(string mapId)
+        {
+            var definition = SharedRunCatalog.GetMap(mapId);
+            if (!SharedRunCatalog.IsMapUnlocked(definition.Id))
+            {
+                return;
+            }
+
+            _selectedMapId = definition.Id;
+            RefreshRunSetupPanelV2();
+        }
+
+        private void SelectSingleDifficulty(string difficultyId)
+        {
+            _selectedDifficultyId = SharedRunCatalog.GetDifficulty(difficultyId).Id;
+            RefreshRunSetupPanelV2();
+        }
+
+        private void GoToRunSetupCharacterStep()
+        {
+            if (!SharedRunCatalog.IsMapUnlocked(_selectedMapId))
+            {
+                SetStatus("선택한 맵이 아직 잠겨 있습니다.");
+                return;
+            }
+
+            _currentRunSetupStep = SingleRunSetupStep.CharacterSelect;
+            RefreshRunSetupPanelV2();
+            if (_runSetupPanel != null && _runSetupPanel.activeSelf)
+            {
+                ShowPanel(_runSetupPanel, GetRunSetupPreferredSelection());
+            }
+
+            SetStatus("캐릭터를 선택하고 출격하세요.");
+        }
+
+        private void GoToRunSetupMapStep()
+        {
+            _currentRunSetupStep = SingleRunSetupStep.MapSelect;
+            RefreshRunSetupPanelV2();
+            if (_runSetupPanel != null && _runSetupPanel.activeSelf)
+            {
+                ShowPanel(_runSetupPanel, GetRunSetupPreferredSelection());
+            }
+
+            SetStatus("맵과 난이도를 먼저 선택하세요.");
         }
 
         private void SelectSingleStarterWeapon(WeaponUpgradeId weaponId)
         {
             _selectedStarterWeaponId = weaponId;
-            RefreshRunSetupPanel();
+            RefreshRunSetupPanelV2();
         }
 
         private void StartSinglePlay()
@@ -1213,7 +1452,14 @@ namespace EJR.Game.UI
                 return;
             }
 
+            if (!SharedRunCatalog.IsMapUnlocked(_selectedMapId))
+            {
+                SetStatus("선택한 맵이 아직 잠겨 있습니다.");
+                return;
+            }
+
             MetaProgressionService.SetSingleSelectedCharacterId(_selectedCharacterId);
+            RunSelectionService.SetSingleSelection(_selectedMapId, _selectedDifficultyId);
             Time.timeScale = 1f;
             SceneManager.LoadScene(gameplaySceneName);
         }
@@ -1350,13 +1596,31 @@ namespace EJR.Game.UI
                 }
             }
 
+            _selectedMapId = SharedRunCatalog.IsMapUnlocked(_selectedMapId)
+                ? SharedRunCatalog.GetMap(_selectedMapId).Id
+                : GetFirstUnlockedMapId();
+            _selectedDifficultyId = SharedRunCatalog.GetDifficulty(_selectedDifficultyId).Id;
+
             _selectedStarterWeaponId = MetaProgressionService.GetCharacterStarterWeapon(_selectedCharacterId);
             _inspectedCharacterId = _selectedCharacterId;
             var character = SharedGameCatalog.GetCharacter(_selectedCharacterId);
+            var selectedMap = SharedRunCatalog.GetMap(_selectedMapId);
+            var selectedDifficulty = SharedRunCatalog.GetDifficulty(_selectedDifficultyId);
             var selectedUnlocked = MetaProgressionService.IsCharacterUnlocked(_selectedCharacterId);
+            var selectedMapUnlocked = SharedRunCatalog.IsMapUnlocked(selectedMap.Id);
 
             _runSetupCharacterText.text = character.DisplayName;
             _runSetupCharacterText.color = character.Color;
+
+            if (_runSetupSelectionSummaryText != null)
+            {
+                _runSetupSelectionSummaryText.text = $"현재 출격: {selectedMap.DisplayName} | {selectedDifficulty.DisplayName}";
+            }
+
+            if (_runSetupMapLockText != null)
+            {
+                _runSetupMapLockText.text = BuildRunSetupMapLockText();
+            }
 
             if (_runSetupBonusText != null)
             {
@@ -1374,12 +1638,12 @@ namespace EJR.Game.UI
 
             if (_runSetupStartButton != null)
             {
-                _runSetupStartButton.interactable = selectedUnlocked;
+                _runSetupStartButton.interactable = selectedUnlocked && selectedMapUnlocked;
                 if (_runSetupStartText != null)
                 {
-                    _runSetupStartText.text = selectedUnlocked
+                    _runSetupStartText.text = selectedUnlocked && selectedMapUnlocked
                         ? "\uCD9C\uACA9 \uC2DC\uC791"
-                        : "\uD574\uAE08 \uD6C4 \uCD9C\uACA9";
+                        : (!selectedUnlocked ? "\uD574\uAE08 \uD6C4 \uCD9C\uACA9" : "맵 해금 후 출격");
                 }
             }
 
@@ -1430,6 +1694,278 @@ namespace EJR.Game.UI
                 buttons.Add(button);
             }
 
+            for (var i = 0; i < _runSetupMapButtons.Length && i < SharedRunCatalog.MapDefinitions.Count; i++)
+            {
+                var definition = SharedRunCatalog.MapDefinitions[i];
+                var button = _runSetupMapButtons[i];
+                var label = _runSetupMapButtonTexts[i];
+                var unlocked = SharedRunCatalog.IsMapUnlocked(definition.Id);
+                var selected = string.Equals(definition.Id, _selectedMapId, StringComparison.Ordinal);
+                if (label != null)
+                {
+                    label.text = unlocked ? definition.DisplayName : $"{definition.DisplayName}\n잠김";
+                }
+
+                ApplyRunSetupOptionState(button, label, selected && unlocked, definition.BoundaryColor);
+                if (button != null)
+                {
+                    button.interactable = unlocked;
+                }
+
+                if (!unlocked && label != null)
+                {
+                    label.color = new Color(0.72f, 0.75f, 0.82f, 1f);
+                }
+            }
+
+            for (var i = 0; i < _runSetupDifficultyButtons.Length && i < SharedRunCatalog.DifficultyDefinitions.Count; i++)
+            {
+                var definition = SharedRunCatalog.DifficultyDefinitions[i];
+                var button = _runSetupDifficultyButtons[i];
+                var label = _runSetupDifficultyButtonTexts[i];
+                var selected = string.Equals(definition.Id, _selectedDifficultyId, StringComparison.Ordinal);
+                if (label != null)
+                {
+                    label.text = definition.DisplayName;
+                }
+
+                ApplyRunSetupOptionState(button, label, selected, new Color(0.96f, 0.74f, 0.18f, 1f));
+                if (button != null)
+                {
+                    button.interactable = true;
+                }
+            }
+
+            _runSetupCharacterOptionButtons = buttons.ToArray();
+            _runSetupWeaponOptionButtons = System.Array.Empty<Button>();
+            RefreshRunSetupScrollContent();
+            UpdateMultiplayerInteractivity();
+        }
+        private Selectable GetRunSetupPreferredSelection()
+        {
+            if (_currentRunSetupStep == SingleRunSetupStep.MapSelect)
+            {
+                var selectedMapIndex = SharedRunCatalog.GetMapIndex(_selectedMapId);
+                if (selectedMapIndex >= 0 && selectedMapIndex < _runSetupMapButtons.Length)
+                {
+                    var selectedMapButton = _runSetupMapButtons[selectedMapIndex];
+                    if (selectedMapButton != null && selectedMapButton.IsActive() && selectedMapButton.interactable)
+                    {
+                        return selectedMapButton;
+                    }
+                }
+
+                if (_runSetupMapNextButton != null && _runSetupMapNextButton.IsActive() && _runSetupMapNextButton.interactable)
+                {
+                    return _runSetupMapNextButton;
+                }
+
+                return _runSetupMapBackButton;
+            }
+
+            if (_runSetupCharacterButton != null && _runSetupCharacterButton.IsActive() && _runSetupCharacterButton.interactable)
+            {
+                return _runSetupCharacterButton;
+            }
+
+            if (_runSetupStartButton != null && _runSetupStartButton.IsActive() && _runSetupStartButton.interactable)
+            {
+                return _runSetupStartButton;
+            }
+
+            return _runSetupCharacterBackButton;
+        }
+
+        private void RefreshRunSetupPanelV2()
+        {
+            if (_runSetupCharacterText == null || _runSetupCharacterOptionsRoot == null || _runSetupMapStepRoot == null || _runSetupCharacterStepRoot == null)
+            {
+                return;
+            }
+
+            if (!MetaProgressionService.IsCharacterUnlocked(_selectedCharacterId))
+            {
+                _selectedCharacterId = MetaProgressionService.GetSingleSelectedCharacterId();
+                if (!MetaProgressionService.IsCharacterUnlocked(_selectedCharacterId))
+                {
+                    _selectedCharacterId = SharedGameCatalog.GetDefaultUnlockedCharacterId();
+                }
+            }
+
+            _selectedMapId = SharedRunCatalog.IsMapUnlocked(_selectedMapId)
+                ? SharedRunCatalog.GetMap(_selectedMapId).Id
+                : GetFirstUnlockedMapId();
+            _selectedDifficultyId = SharedRunCatalog.GetDifficulty(_selectedDifficultyId).Id;
+
+            _selectedStarterWeaponId = MetaProgressionService.GetCharacterStarterWeapon(_selectedCharacterId);
+            _inspectedCharacterId = _selectedCharacterId;
+
+            var character = SharedGameCatalog.GetCharacter(_selectedCharacterId);
+            var selectedMap = SharedRunCatalog.GetMap(_selectedMapId);
+            var selectedDifficulty = SharedRunCatalog.GetDifficulty(_selectedDifficultyId);
+            var selectedUnlocked = MetaProgressionService.IsCharacterUnlocked(_selectedCharacterId);
+            var selectedMapUnlocked = SharedRunCatalog.IsMapUnlocked(selectedMap.Id);
+            var isMapStep = _currentRunSetupStep == SingleRunSetupStep.MapSelect;
+
+            _runSetupMapStepRoot.SetActive(isMapStep);
+            _runSetupCharacterStepRoot.SetActive(!isMapStep);
+
+            if (_runSetupHeaderText != null)
+            {
+                _runSetupHeaderText.text = isMapStep ? "맵 선택" : "캐릭터 선택";
+            }
+
+            if (_runSetupHintText != null)
+            {
+                _runSetupHintText.text = isMapStep
+                    ? "출격할 맵과 난이도를 먼저 고르세요."
+                    : "출격할 캐릭터를 선택하세요.";
+            }
+
+            if (_runSetupMapStepSelectionText != null)
+            {
+                _runSetupMapStepSelectionText.text =
+                    $"{selectedMap.DisplayName}\n" +
+                    $"전장 {selectedMap.ArenaBounds.width:0} x {selectedMap.ArenaBounds.height:0} | 난이도 {selectedDifficulty.DisplayName}";
+            }
+
+            _runSetupCharacterText.text = character.DisplayName;
+            _runSetupCharacterText.color = character.Color;
+
+            if (_runSetupSelectionSummaryText != null)
+            {
+                _runSetupSelectionSummaryText.text = $"현재 출격: {selectedMap.DisplayName} | {selectedDifficulty.DisplayName}";
+            }
+
+            if (_runSetupMapLockText != null)
+            {
+                _runSetupMapLockText.text = BuildRunSetupMapLockText();
+            }
+
+            if (_runSetupBonusText != null)
+            {
+                _runSetupBonusText.text =
+                    "잠긴 캐릭터는 상점에서 해금\n\n" +
+                    $"시작 무기\n{SharedGameCatalog.GetWeaponDisplayName(character.StarterWeaponId)}\n\n" +
+                    $"기본 보너스\n{BuildMetaBonusSummary(character.BaseBonuses)}\n\n" +
+                    $"고유 특성\n{character.PassiveDescription}";
+            }
+
+            if (_runSetupPrimaryActionButton != null)
+            {
+                _runSetupPrimaryActionButton.gameObject.SetActive(false);
+            }
+
+            if (_runSetupMapNextButton != null)
+            {
+                _runSetupMapNextButton.interactable = selectedMapUnlocked;
+            }
+
+            if (_runSetupMapNextText != null)
+            {
+                _runSetupMapNextText.text = selectedMapUnlocked ? "다음" : "맵 해금 필요";
+            }
+
+            if (_runSetupStartButton != null)
+            {
+                _runSetupStartButton.interactable = selectedUnlocked && selectedMapUnlocked;
+                if (_runSetupStartText != null)
+                {
+                    _runSetupStartText.text = selectedUnlocked && selectedMapUnlocked
+                        ? "출격 시작"
+                        : (!selectedUnlocked ? "해금 후 출격" : "맵 해금 후 출격");
+                }
+            }
+
+            ClearChildren(_runSetupCharacterOptionsRoot.transform);
+            if (_runSetupWeaponOptionsRoot != null)
+            {
+                ClearChildren(_runSetupWeaponOptionsRoot.transform);
+            }
+
+            var buttons = new List<Button>();
+            _runSetupCharacterButton = null;
+            for (var i = 0; i < SharedGameCatalog.CharacterDefinitions.Count; i++)
+            {
+                var definition = SharedGameCatalog.CharacterDefinitions[i];
+                var unlocked = MetaProgressionService.IsCharacterUnlocked(definition.Id);
+                var selected = definition.Id == _selectedCharacterId;
+                var state = unlocked
+                    ? (selected ? "선택됨" : "사용 가능")
+                    : "상점 해금";
+                var label =
+                    $"{definition.DisplayName}  |  {SharedGameCatalog.GetWeaponDisplayName(definition.StarterWeaponId)}\n" +
+                    state;
+                var button = CreateMetaEntryButton(
+                    _runSetupCharacterOptionsRoot.transform,
+                    $"RunSetupCharacter{definition.Id}",
+                    new Vector2(0f, i * 82f),
+                    new Vector2(608f, 74f),
+                    label,
+                    unlocked,
+                    () => SelectSingleCharacter(definition.Id));
+                var labelText = button.GetComponentInChildren<Text>();
+                if (labelText != null)
+                {
+                    labelText.fontStyle = FontStyle.Bold;
+                }
+
+                ApplyRunSetupOptionState(button, labelText, selected, definition.Color);
+                if (!unlocked && labelText != null)
+                {
+                    labelText.color = new Color(0.72f, 0.75f, 0.82f, 1f);
+                }
+
+                if (selected)
+                {
+                    _runSetupCharacterButton = button;
+                }
+
+                buttons.Add(button);
+            }
+
+            for (var i = 0; i < _runSetupMapButtons.Length && i < SharedRunCatalog.MapDefinitions.Count; i++)
+            {
+                var definition = SharedRunCatalog.MapDefinitions[i];
+                var button = _runSetupMapButtons[i];
+                var label = _runSetupMapButtonTexts[i];
+                var unlocked = SharedRunCatalog.IsMapUnlocked(definition.Id);
+                var selected = string.Equals(definition.Id, _selectedMapId, StringComparison.Ordinal);
+                if (label != null)
+                {
+                    label.text = unlocked ? definition.DisplayName : $"{definition.DisplayName}\n잠김";
+                }
+
+                ApplyRunSetupOptionState(button, label, selected && unlocked, definition.BoundaryColor);
+                if (button != null)
+                {
+                    button.interactable = unlocked;
+                }
+
+                if (!unlocked && label != null)
+                {
+                    label.color = new Color(0.72f, 0.75f, 0.82f, 1f);
+                }
+            }
+
+            for (var i = 0; i < _runSetupDifficultyButtons.Length && i < SharedRunCatalog.DifficultyDefinitions.Count; i++)
+            {
+                var definition = SharedRunCatalog.DifficultyDefinitions[i];
+                var button = _runSetupDifficultyButtons[i];
+                var label = _runSetupDifficultyButtonTexts[i];
+                var selected = string.Equals(definition.Id, _selectedDifficultyId, StringComparison.Ordinal);
+                if (label != null)
+                {
+                    label.text = definition.DisplayName;
+                }
+
+                ApplyRunSetupOptionState(button, label, selected, new Color(0.96f, 0.74f, 0.18f, 1f));
+                if (button != null)
+                {
+                    button.interactable = true;
+                }
+            }
+
             _runSetupCharacterOptionButtons = buttons.ToArray();
             _runSetupWeaponOptionButtons = System.Array.Empty<Button>();
             RefreshRunSetupScrollContent();
@@ -1452,7 +1988,37 @@ namespace EJR.Game.UI
             Canvas.ForceUpdateCanvases();
             var preferredHeight = Mathf.CeilToInt(_runSetupBonusText.preferredHeight) + 36f;
             _runSetupBonusText.rectTransform.sizeDelta = new Vector2(352f, preferredHeight);
-            _runSetupDetailContentRect.sizeDelta = new Vector2(388f, Mathf.Max(320f, preferredHeight + 36f));
+            _runSetupDetailContentRect.sizeDelta = new Vector2(388f, Mathf.Max(316f, preferredHeight + 36f));
+        }
+
+        private static string GetFirstUnlockedMapId()
+        {
+            for (var i = 0; i < SharedRunCatalog.MapDefinitions.Count; i++)
+            {
+                var definition = SharedRunCatalog.MapDefinitions[i];
+                if (SharedRunCatalog.IsMapUnlocked(definition.Id))
+                {
+                    return definition.Id;
+                }
+            }
+
+            return SharedRunCatalog.DefaultMapId;
+        }
+
+        private static string BuildRunSetupMapLockText()
+        {
+            for (var i = 0; i < SharedRunCatalog.MapDefinitions.Count; i++)
+            {
+                var definition = SharedRunCatalog.MapDefinitions[i];
+                if (SharedRunCatalog.IsMapUnlocked(definition.Id))
+                {
+                    continue;
+                }
+
+                return $"{definition.DisplayName}: {SharedRunCatalog.GetMapUnlockRequirementText(definition.Id)}";
+            }
+
+            return "모든 맵 해금 완료";
         }
 
         private void RefreshMetaPanel()
@@ -1682,7 +2248,7 @@ namespace EJR.Game.UI
             if (MetaProgressionService.TryPurchaseCharacter(characterId, out var reason))
             {
                 RefreshMetaPanel();
-                RefreshRunSetupPanel();
+                RefreshRunSetupPanelV2();
                 SetStatus($"{SharedGameCatalog.GetCharacter(characterId).DisplayName} 해금 완료. 런 준비 화면에서 선택하세요.");
             }
             else
@@ -1721,7 +2287,7 @@ namespace EJR.Game.UI
             if (MetaProgressionService.TryRefundAllUpgrades(out var refundedCredits, out var reason))
             {
                 RefreshMetaPanel();
-                RefreshRunSetupPanel();
+                RefreshRunSetupPanelV2();
                 SetStatus($"{refundedCredits} 코인 환불 완료");
             }
             else
@@ -1834,7 +2400,10 @@ namespace EJR.Game.UI
             SetInteractable(_backButton, interactable);
             SetInteractable(_optionsBackButton, interactable);
             SetInteractable(_runSetupCharacterButton, interactable);
+            SetInteractable(_runSetupMapNextButton, interactable);
+            SetInteractable(_runSetupMapBackButton, interactable);
             SetInteractable(_runSetupWeaponButton, interactable);
+            SetInteractable(_runSetupCharacterBackButton, interactable);
             if (_runSetupPrimaryActionButton != null && _inspectedCharacterId > 0)
             {
                 _runSetupPrimaryActionButton.gameObject.SetActive(false);
@@ -1844,7 +2413,16 @@ namespace EJR.Game.UI
             {
                 _runSetupStartButton.interactable =
                     interactable &&
-                    MetaProgressionService.IsCharacterUnlocked(_selectedCharacterId);
+                    _currentRunSetupStep == SingleRunSetupStep.CharacterSelect &&
+                    MetaProgressionService.IsCharacterUnlocked(_selectedCharacterId) &&
+                    SharedRunCatalog.IsMapUnlocked(_selectedMapId);
+            }
+            if (_runSetupMapNextButton != null)
+            {
+                _runSetupMapNextButton.interactable =
+                    interactable &&
+                    _currentRunSetupStep == SingleRunSetupStep.MapSelect &&
+                    SharedRunCatalog.IsMapUnlocked(_selectedMapId);
             }
             SetInteractable(_metaUnlocksTabButton, interactable);
             SetInteractable(_metaResearchTabButton, interactable);
@@ -1874,6 +2452,22 @@ namespace EJR.Game.UI
             for (var i = 0; i < _runSetupWeaponOptionButtons.Length; i++)
             {
                 SetInteractable(_runSetupWeaponOptionButtons[i], interactable);
+            }
+
+            for (var i = 0; i < _runSetupMapButtons.Length && i < SharedRunCatalog.MapDefinitions.Count; i++)
+            {
+                var button = _runSetupMapButtons[i];
+                if (button == null)
+                {
+                    continue;
+                }
+
+                button.interactable = interactable && SharedRunCatalog.IsMapUnlocked(SharedRunCatalog.MapDefinitions[i].Id);
+            }
+
+            for (var i = 0; i < _runSetupDifficultyButtons.Length; i++)
+            {
+                SetInteractable(_runSetupDifficultyButtons[i], interactable);
             }
 
             for (var i = 0; i < _metaCharacterButtons.Length; i++)
@@ -2092,6 +2686,19 @@ namespace EJR.Game.UI
         private GameObject CreateFullscreenPanel(Transform parent, string name, Color color)
         {
             return CreatePanel(parent, name, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero, color);
+        }
+
+        private static GameObject CreateStretchRoot(Transform parent, string name)
+        {
+            var root = new GameObject(name);
+            root.transform.SetParent(parent, false);
+            var rect = root.AddComponent<RectTransform>();
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = Vector2.zero;
+            rect.sizeDelta = Vector2.zero;
+            return root;
         }
 
         private static GameObject CreateAnchoredRoot(Transform parent, string name, Vector2 topLeft, Vector2 size)

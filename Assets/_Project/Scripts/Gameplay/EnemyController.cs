@@ -76,6 +76,7 @@ namespace EJR.Game.Gameplay
         private ExperienceSystem _experienceSystem;
         private Action<Vector3, int> _experienceOrbSpawner;
         private RuntimeSpriteFactory.EnemyVisualKind _visualKind;
+        private bool _isBossBehavior;
         private NetworkObject _networkObject;
 
         private float _health;
@@ -134,7 +135,7 @@ namespace EJR.Game.Gameplay
         public float CurrentHealth => _health;
         public float CollisionRadius => _collisionRadius;
         public RuntimeSpriteFactory.EnemyVisualKind VisualKind => _visualKind;
-        public bool IsBoss => _visualKind == RuntimeSpriteFactory.EnemyVisualKind.Boss;
+        public bool IsBoss => _isBossBehavior;
         public bool IsDead => _isDead;
 
         public void Initialize(
@@ -149,11 +150,13 @@ namespace EJR.Game.Gameplay
             float collisionRadius,
             float runtimeHealthMultiplier = 1f,
             float runtimeMoveSpeedMultiplier = 1f,
+            bool isBossBehavior = false,
             bool hasArenaBounds = false,
             Rect arenaBounds = default)
         {
             _config = config;
             _visualKind = visualKind;
+            _isBossBehavior = isBossBehavior;
             _target = target;
             _playerHealth = playerHealth;
             _registry = registry;
@@ -441,7 +444,7 @@ namespace EJR.Game.Gameplay
             var appliedDamage = Mathf.Min(baseDamage, Mathf.Max(0f, _health));
             _health = Mathf.Max(0f, _health - baseDamage);
             if (_health > 0f &&
-                _visualKind != RuntimeSpriteFactory.EnemyVisualKind.Boss &&
+                !IsBoss &&
                 _visualKind != RuntimeSpriteFactory.EnemyVisualKind.Skeleton)
             {
                 _spriteAnimator?.PlayHurt();

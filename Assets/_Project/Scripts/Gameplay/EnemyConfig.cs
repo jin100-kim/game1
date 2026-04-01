@@ -364,6 +364,26 @@ namespace EJR.Game.Gameplay
                 visualScaleMultiplier = 1.8f,
                 collisionRadiusMultiplier = 2.16f,
             },
+            new EnemyStatProfile
+            {
+                visualKind = RuntimeSpriteFactory.EnemyVisualKind.Warrior,
+                healthMultiplier = 1f,
+                moveSpeedMultiplier = 1f,
+                contactDamageMultiplier = 1f,
+                experienceMultiplier = 1f,
+                visualScaleMultiplier = 1.35f,
+                collisionRadiusMultiplier = 1.1f,
+            },
+            new EnemyStatProfile
+            {
+                visualKind = RuntimeSpriteFactory.EnemyVisualKind.Wizard,
+                healthMultiplier = 1f,
+                moveSpeedMultiplier = 1f,
+                contactDamageMultiplier = 1f,
+                experienceMultiplier = 1f,
+                visualScaleMultiplier = 1.25f,
+                collisionRadiusMultiplier = 1f,
+            },
         };
 
         [Header("Crowd")]
