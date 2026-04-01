@@ -80,12 +80,14 @@ namespace EJR.Game.Tests.EditMode
         {
             var profile = new MetaProfileData
             {
-                saveVersion = 2,
+                saveVersion = 3,
                 currentCredits = currentCredits,
                 totalCreditsEarned = currentCredits,
                 unlockedCharacterIds = new List<int>(unlockedCharacterIds),
                 upgradeLevels = new List<MetaUpgradeProgressEntry>(),
                 clearedMapIds = new List<string>(),
+                completedAchievementIds = new List<string>(),
+                unseenAchievementIds = new List<string>(),
                 lastSingleCharacterId = selectedCharacterId,
                 bestLevel = 1,
             };

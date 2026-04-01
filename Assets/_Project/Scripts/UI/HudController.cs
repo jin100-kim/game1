@@ -25,6 +25,7 @@ namespace EJR.Game.UI
         private const float BossBarRootWidth = 430f;
         private const float BossBarRootHeight = 18f;
         private const float BossBarPadding = 3f;
+        private const float DefaultWaveBannerDuration = 1.8f;
 
         private readonly Font _font;
 
@@ -46,6 +47,11 @@ namespace EJR.Game.UI
         private RectTransform _bossBarFillRect;
         private Text _bossBarValueText;
         private float _bossBarFillMaxWidth;
+        private GameObject _waveStatusPanel;
+        private Text _waveStatusText;
+        private GameObject _waveBannerPanel;
+        private Text _waveBannerText;
+        private float _waveBannerHideAt = -1f;
 
         private GameObject _levelUpPanel;
         private Text _levelUpTitle;
@@ -99,6 +105,7 @@ namespace EJR.Game.UI
         private int _lastBossCurrentHp = int.MinValue;
         private int _lastBossMaxHp = int.MinValue;
         private string _lastBossLabel = string.Empty;
+        private string _lastWaveStatus = string.Empty;
 
         public HudController()
         {
@@ -130,6 +137,8 @@ namespace EJR.Game.UI
             {
                 HideLevelUpOptions();
                 HideBossBar();
+                HideWaveStatus();
+                HideWaveBanner();
                 HidePauseMenu();
                 HideResult();
                 HideDebugPanels();
@@ -167,6 +176,8 @@ namespace EJR.Game.UI
                 _timeText.text = $"시간 {FormatTime(remainingSecondsInt)}";
                 _lastRemainingSeconds = remainingSecondsInt;
             }
+
+            RefreshTransientPanels();
         }
 
         private static string FormatTime(int totalSeconds)
@@ -325,6 +336,64 @@ namespace EJR.Game.UI
             _lastBossLabel = string.Empty;
         }
 
+        public void SetWaveStatus(int waveIndex, int remainingCount)
+        {
+            if (_waveStatusPanel == null || _waveStatusText == null)
+            {
+                return;
+            }
+
+            if (waveIndex <= 0 || remainingCount <= 0)
+            {
+                HideWaveStatus();
+                return;
+            }
+
+            var nextText = $"웨이브 {waveIndex} | 남은 대상 {remainingCount}";
+            if (!string.Equals(_lastWaveStatus, nextText, StringComparison.Ordinal))
+            {
+                _waveStatusText.text = nextText;
+                _lastWaveStatus = nextText;
+            }
+
+            if (!_waveStatusPanel.activeSelf)
+            {
+                _waveStatusPanel.SetActive(true);
+            }
+        }
+
+        public void HideWaveStatus()
+        {
+            if (_waveStatusPanel != null && _waveStatusPanel.activeSelf)
+            {
+                _waveStatusPanel.SetActive(false);
+            }
+
+            _lastWaveStatus = string.Empty;
+        }
+
+        public void ShowWaveBanner(string message, float duration = DefaultWaveBannerDuration)
+        {
+            if (_waveBannerPanel == null || _waveBannerText == null || string.IsNullOrWhiteSpace(message))
+            {
+                return;
+            }
+
+            _waveBannerText.text = message;
+            _waveBannerPanel.SetActive(true);
+            _waveBannerHideAt = Time.unscaledTime + Mathf.Max(0.2f, duration);
+        }
+
+        public void HideWaveBanner()
+        {
+            if (_waveBannerPanel != null && _waveBannerPanel.activeSelf)
+            {
+                _waveBannerPanel.SetActive(false);
+            }
+
+            _waveBannerHideAt = -1f;
+        }
+
         public void ShowLevelUpOptions(LevelUpOption[] options, Action<int> onSelected, string title = "레벨 업 - 하나 선택")
         {
             if (_levelUpPanel == null || options == null || options.Length == 0)
@@ -361,6 +430,8 @@ namespace EJR.Game.UI
                 eventSystem.SetSelectedGameObject(null);
                 eventSystem.SetSelectedGameObject(_levelButtons[0].gameObject);
             }
+
+            RefreshTransientPanels();
         }
 
         public void HideLevelUpOptions()
@@ -955,6 +1026,10 @@ namespace EJR.Game.UI
             var timeCard = CreatePanel(_canvas.transform, "TimeCardV2", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -24f), new Vector2(218f, 72f), new Color(0.04f, 0.07f, 0.11f, 0.9f));
             _modeHintCard = CreatePanel(_canvas.transform, "ModeHintCardV2", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-256f, -24f), new Vector2(212f, 72f), new Color(0.04f, 0.07f, 0.11f, 0.9f));
             _modeHintCard.SetActive(false);
+            _waveStatusPanel = CreatePanel(_canvas.transform, "WaveStatusPanelV2", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -24f), new Vector2(300f, 60f), new Color(0.04f, 0.07f, 0.11f, 0.92f));
+            _waveStatusPanel.SetActive(false);
+            _waveBannerPanel = CreatePanel(_canvas.transform, "WaveBannerPanelV2", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -94f), new Vector2(360f, 54f), new Color(0.08f, 0.11f, 0.16f, 0.95f));
+            _waveBannerPanel.SetActive(false);
 
             _healthText = CreateText(healthCard.transform, "HealthTextV2", Vector2.zero, "\uCCB4\uB825");
             _healthText.alignment = TextAnchor.MiddleLeft;
@@ -976,6 +1051,17 @@ namespace EJR.Game.UI
             _modeHintText.alignment = TextAnchor.MiddleCenter;
             _modeHintText.rectTransform.sizeDelta = new Vector2(172f, 42f);
             _modeHintText.color = new Color(0.76f, 0.82f, 0.90f, 1f);
+            _waveStatusText = CreateText(_waveStatusPanel.transform, "WaveStatusTextV2", Vector2.zero, string.Empty);
+            _waveStatusText.fontSize = 17;
+            _waveStatusText.alignment = TextAnchor.MiddleCenter;
+            _waveStatusText.rectTransform.sizeDelta = new Vector2(260f, 36f);
+            _waveStatusText.color = new Color(0.95f, 0.96f, 1f, 1f);
+            _waveBannerText = CreateText(_waveBannerPanel.transform, "WaveBannerTextV2", Vector2.zero, string.Empty);
+            _waveBannerText.fontSize = 18;
+            _waveBannerText.fontStyle = FontStyle.Bold;
+            _waveBannerText.alignment = TextAnchor.MiddleCenter;
+            _waveBannerText.rectTransform.sizeDelta = new Vector2(320f, 34f);
+            _waveBannerText.color = new Color(1f, 0.92f, 0.42f, 1f);
         }
 
         private void BuildBuildPanelReference()
@@ -1233,6 +1319,19 @@ namespace EJR.Game.UI
             label.text = text;
             button.onClick.RemoveAllListeners();
             button.onClick.AddListener(() => action.Invoke());
+        }
+
+        private void RefreshTransientPanels()
+        {
+            if (_waveBannerPanel == null || !_waveBannerPanel.activeSelf || _waveBannerHideAt < 0f)
+            {
+                return;
+            }
+
+            if (Time.unscaledTime >= _waveBannerHideAt)
+            {
+                HideWaveBanner();
+            }
         }
 
         private GameObject CreatePanel(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 anchoredPosition, Vector2 size, Color color)

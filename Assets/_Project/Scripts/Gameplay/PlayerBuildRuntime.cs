@@ -38,6 +38,7 @@ namespace EJR.Game.Gameplay
         private readonly List<WeaponUpgradeId> _weaponOrder = new(3);
         private readonly Dictionary<WeaponUpgradeId, int> _weaponLevels = new();
         private readonly Dictionary<WeaponUpgradeId, WeaponBonusTotals> _weaponBonuses = new();
+        private readonly HashSet<RunAugmentId> _runAugments = new();
 
         private MetaBonusValues _metaBonuses;
         private MetaBonusValues _characterBaseBonuses;
@@ -47,6 +48,7 @@ namespace EJR.Game.Gameplay
         private int _chainAttackBonusJumps;
 
         public IReadOnlyList<WeaponUpgradeId> OwnedWeapons => _weaponOrder;
+        public IReadOnlyCollection<RunAugmentId> ActiveAugments => _runAugments;
 
         public float GlobalAttackPowerPercentTotal => _metaBonuses.attackPowerPercent + _characterBaseBonuses.attackPowerPercent + _characterDynamicBonuses.attackPowerPercent + _runBonuses.attackPowerPercent;
         public float GlobalAttackSpeedPercentTotal => _metaBonuses.attackSpeedPercent + _characterBaseBonuses.attackSpeedPercent + _characterDynamicBonuses.attackSpeedPercent + _runBonuses.attackSpeedPercent;
@@ -63,6 +65,7 @@ namespace EJR.Game.Gameplay
             _weaponOrder.Clear();
             _weaponLevels.Clear();
             _weaponBonuses.Clear();
+            _runAugments.Clear();
             _metaBonuses = default;
             _characterBaseBonuses = default;
             _characterDynamicBonuses = default;
@@ -268,7 +271,15 @@ namespace EJR.Game.Gameplay
                 case LevelUpOptionDomain.GlobalStatRoll:
                     ApplyGlobalStatRoll(option);
                     break;
+                case LevelUpOptionDomain.Augment:
+                    ApplyAugment(option);
+                    break;
             }
+        }
+
+        public bool HasAugment(RunAugmentId augmentId)
+        {
+            return _runAugments.Contains(augmentId);
         }
 
         private void AcquireWeaponInternal(WeaponUpgradeId weaponId)
@@ -380,6 +391,19 @@ namespace EJR.Game.Gameplay
                     _runBonuses.luck += option.PrimaryValue;
                     break;
             }
+        }
+
+        private void ApplyAugment(LevelUpOption option)
+        {
+            var augmentId = SharedAugmentCatalog.NormalizeAugmentId(option.AugmentId);
+            if (_runAugments.Contains(augmentId))
+            {
+                return;
+            }
+
+            var definition = SharedAugmentCatalog.GetDefinition(augmentId);
+            _runAugments.Add(definition.Id);
+            _runBonuses += definition.Bonuses;
         }
 
         private WeaponBonusTotals GetWeaponBonuses(WeaponUpgradeId id)

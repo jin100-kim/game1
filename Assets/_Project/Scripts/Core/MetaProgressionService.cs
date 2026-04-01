@@ -8,7 +8,7 @@ namespace EJR.Game.Core
     public static class MetaProgressionService
     {
         private const string SaveFileName = "meta-profile.json";
-        private const int CurrentSaveVersion = 2;
+        private const int CurrentSaveVersion = 3;
 
         private static bool s_loaded;
         private static MetaProfileData s_profile;
@@ -86,6 +86,16 @@ namespace EJR.Game.Core
             }
         }
 
+        public static bool HasUnseenAchievements
+        {
+            get
+            {
+                EnsureLoaded();
+                s_profile.unseenAchievementIds ??= new List<string>();
+                return s_profile.unseenAchievementIds.Count > 0;
+            }
+        }
+
         public static void EnsureLoaded()
         {
             if (s_loaded)
@@ -95,11 +105,15 @@ namespace EJR.Game.Core
 
             s_config = MetaProgressionConfig.CreateRuntimeDefault();
             var loadedProfile = LoadProfile();
-            s_profile = loadedProfile != null && loadedProfile.saveVersion == CurrentSaveVersion
-                ? loadedProfile
-                : CreateDefaultProfile();
+            s_profile = loadedProfile ?? CreateDefaultProfile();
+            var needsSave = loadedProfile != null && loadedProfile.saveVersion != CurrentSaveVersion;
             SanitizeProfile();
             s_loaded = true;
+            needsSave |= EvaluateAchievements();
+            if (needsSave)
+            {
+                SaveNow();
+            }
         }
 
         public static void SaveNow()
@@ -245,6 +259,18 @@ namespace EJR.Game.Core
             if (IsCharacterUnlocked(definition.Id))
             {
                 reason = "이미 해금된 캐릭터입니다.";
+                return false;
+            }
+
+            if (definition.UnlockSource == CharacterUnlockSource.Achievement)
+            {
+                reason = "도전과제로 해금할 수 있는 캐릭터입니다.";
+                return false;
+            }
+
+            if (definition.UnlockSource != CharacterUnlockSource.Shop)
+            {
+                reason = "구매할 수 없는 캐릭터입니다.";
                 return false;
             }
 
@@ -454,6 +480,7 @@ namespace EJR.Game.Core
             s_profile.bestTimeSeconds = Mathf.Max(s_profile.bestTimeSeconds, Mathf.Max(0f, summary.survivalTimeSeconds));
             s_profile.totalEnemiesDefeated += Mathf.Max(0, summary.enemiesDefeated);
             s_profile.pendingRunSummary = summary;
+            EvaluateAchievements();
             SaveNow();
         }
 
@@ -480,6 +507,48 @@ namespace EJR.Game.Core
         {
             EnsureLoaded();
             return s_profile.upgradeLevels;
+        }
+
+        public static IReadOnlyList<AchievementEntryView> GetAchievementEntries()
+        {
+            EnsureLoaded();
+            s_profile.completedAchievementIds ??= new List<string>();
+            s_profile.unseenAchievementIds ??= new List<string>();
+
+            var completedIds = new HashSet<string>(s_profile.completedAchievementIds, StringComparer.Ordinal);
+            var unseenIds = new HashSet<string>(s_profile.unseenAchievementIds, StringComparer.Ordinal);
+            var entries = new List<AchievementEntryView>(SharedAchievementCatalog.Definitions.Count);
+            for (var i = 0; i < SharedAchievementCatalog.Definitions.Count; i++)
+            {
+                var definition = SharedAchievementCatalog.Definitions[i];
+                var currentValue = GetAchievementCurrentValue(definition);
+                var isCompleted = completedIds.Contains(definition.Id);
+                entries.Add(new AchievementEntryView(
+                    definition.Id,
+                    definition.DisplayName,
+                    definition.Description,
+                    BuildAchievementProgressText(isCompleted, currentValue, definition.TargetValue),
+                    BuildAchievementRewardText(definition.Reward),
+                    isCompleted,
+                    unseenIds.Contains(definition.Id),
+                    Mathf.Min(currentValue, definition.TargetValue),
+                    definition.TargetValue));
+            }
+
+            return entries;
+        }
+
+        public static void MarkAchievementsSeen()
+        {
+            EnsureLoaded();
+            s_profile.unseenAchievementIds ??= new List<string>();
+            if (s_profile.unseenAchievementIds.Count <= 0)
+            {
+                return;
+            }
+
+            s_profile.unseenAchievementIds.Clear();
+            SaveNow();
         }
 
         private static MetaProfileData LoadProfile()
@@ -529,6 +598,8 @@ namespace EJR.Game.Core
             s_profile.unlockedCharacterIds ??= new List<int>();
             s_profile.upgradeLevels ??= new List<MetaUpgradeProgressEntry>();
             s_profile.clearedMapIds ??= new List<string>();
+            s_profile.completedAchievementIds ??= new List<string>();
+            s_profile.unseenAchievementIds ??= new List<string>();
 
             for (var i = 0; i < SharedGameCatalog.CharacterDefinitions.Count; i++)
             {
@@ -541,7 +612,17 @@ namespace EJR.Game.Core
 
             DeduplicateInts(s_profile.unlockedCharacterIds);
             DeduplicateStrings(s_profile.clearedMapIds);
+            SanitizeAchievementIds(s_profile.completedAchievementIds);
+            SanitizeAchievementIds(s_profile.unseenAchievementIds);
             SanitizeUpgradeLevels();
+
+            for (var i = s_profile.unseenAchievementIds.Count - 1; i >= 0; i--)
+            {
+                if (!s_profile.completedAchievementIds.Contains(s_profile.unseenAchievementIds[i]))
+                {
+                    s_profile.unseenAchievementIds.RemoveAt(i);
+                }
+            }
 
             var normalizedCharacterId = SharedGameCatalog.NormalizeCharacterId(s_profile.lastSingleCharacterId);
             if (!s_profile.unlockedCharacterIds.Contains(normalizedCharacterId))
@@ -560,6 +641,102 @@ namespace EJR.Game.Core
             s_profile.bestLevel = Mathf.Max(1, s_profile.bestLevel);
             s_profile.bestTimeSeconds = Mathf.Max(0f, s_profile.bestTimeSeconds);
             s_profile.totalEnemiesDefeated = Mathf.Max(0, s_profile.totalEnemiesDefeated);
+        }
+
+        private static bool EvaluateAchievements()
+        {
+            var changed = false;
+            s_profile.completedAchievementIds ??= new List<string>();
+            s_profile.unseenAchievementIds ??= new List<string>();
+
+            for (var i = 0; i < SharedAchievementCatalog.Definitions.Count; i++)
+            {
+                var definition = SharedAchievementCatalog.Definitions[i];
+                if (s_profile.completedAchievementIds.Contains(definition.Id))
+                {
+                    continue;
+                }
+
+                if (GetAchievementCurrentValue(definition) < definition.TargetValue)
+                {
+                    continue;
+                }
+
+                s_profile.completedAchievementIds.Add(definition.Id);
+                if (!s_profile.unseenAchievementIds.Contains(definition.Id))
+                {
+                    s_profile.unseenAchievementIds.Add(definition.Id);
+                }
+
+                ApplyAchievementReward(definition);
+                changed = true;
+            }
+
+            if (changed)
+            {
+                DeduplicateStrings(s_profile.completedAchievementIds);
+                DeduplicateStrings(s_profile.unseenAchievementIds);
+            }
+
+            return changed;
+        }
+
+        private static void ApplyAchievementReward(AchievementDefinition definition)
+        {
+            if (definition?.Reward == null)
+            {
+                return;
+            }
+
+            if (definition.Reward.Kind != AchievementRewardKind.UnlockCharacter)
+            {
+                return;
+            }
+
+            var characterId = SharedGameCatalog.NormalizeCharacterId(definition.Reward.CharacterId);
+            if (!s_profile.unlockedCharacterIds.Contains(characterId))
+            {
+                s_profile.unlockedCharacterIds.Add(characterId);
+                DeduplicateInts(s_profile.unlockedCharacterIds);
+            }
+        }
+
+        private static int GetAchievementCurrentValue(AchievementDefinition definition)
+        {
+            if (definition == null)
+            {
+                return 0;
+            }
+
+            return definition.MetricKind switch
+            {
+                AchievementMetricKind.RunsPlayed => Mathf.Max(0, s_profile.runsPlayed),
+                AchievementMetricKind.RunsCleared => Mathf.Max(0, s_profile.runsCleared),
+                AchievementMetricKind.MapCleared => s_profile.clearedMapIds.Contains(definition.TargetMapId) ? 1 : 0,
+                AchievementMetricKind.TotalEnemiesDefeated => Mathf.Max(0, s_profile.totalEnemiesDefeated),
+                AchievementMetricKind.BestLevel => Mathf.Max(1, s_profile.bestLevel),
+                _ => 0,
+            };
+        }
+
+        private static string BuildAchievementProgressText(bool isCompleted, int currentValue, int targetValue)
+        {
+            var normalizedTarget = Mathf.Max(1, targetValue);
+            return $"{Mathf.Min(isCompleted ? normalizedTarget : currentValue, normalizedTarget)} / {normalizedTarget}";
+        }
+
+        private static string BuildAchievementRewardText(AchievementRewardDefinition reward)
+        {
+            if (reward == null || reward.Kind == AchievementRewardKind.None)
+            {
+                return "보상 없음";
+            }
+
+            return reward.Kind switch
+            {
+                AchievementRewardKind.UnlockCharacter => $"캐릭터 해금: {SharedGameCatalog.GetCharacter(reward.CharacterId).DisplayName}",
+                _ => "보상 없음",
+            };
         }
 
         private static void SanitizeUpgradeLevels()
@@ -632,6 +809,21 @@ namespace EJR.Game.Core
             {
                 var value = values[i];
                 if (string.IsNullOrWhiteSpace(value) || !seen.Add(value))
+                {
+                    values.RemoveAt(i);
+                }
+            }
+        }
+
+        private static void SanitizeAchievementIds(List<string> values)
+        {
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            for (var i = values.Count - 1; i >= 0; i--)
+            {
+                var value = values[i];
+                if (string.IsNullOrWhiteSpace(value)
+                    || !SharedAchievementCatalog.TryGetDefinition(value, out _)
+                    || !seen.Add(value))
                 {
                     values.RemoveAt(i);
                 }

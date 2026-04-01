@@ -32,6 +32,7 @@ namespace EJR.Game.Core
         WeaponLevelRoll = 1,
         WeaponMilestone = 2,
         GlobalStatRoll = 3,
+        Augment = 4,
     }
 
     public enum OptionRarity
@@ -73,6 +74,7 @@ namespace EJR.Game.Core
             OptionRarity rarity,
             WeaponUpgradeId weaponId,
             StatUpgradeId statId,
+            RunAugmentId augmentId,
             WeaponRollKind weaponRollKind,
             WeaponMilestoneKind milestoneKind,
             float primaryValue,
@@ -89,6 +91,7 @@ namespace EJR.Game.Core
             Rarity = rarity;
             WeaponId = weaponId;
             StatId = statId;
+            AugmentId = augmentId;
             WeaponRollKind = weaponRollKind;
             MilestoneKind = milestoneKind;
             PrimaryValue = primaryValue;
@@ -106,6 +109,7 @@ namespace EJR.Game.Core
         public OptionRarity Rarity { get; }
         public WeaponUpgradeId WeaponId { get; }
         public StatUpgradeId StatId { get; }
+        public RunAugmentId AugmentId { get; }
         public WeaponRollKind WeaponRollKind { get; }
         public WeaponMilestoneKind MilestoneKind { get; }
         public float PrimaryValue { get; }
@@ -128,6 +132,7 @@ namespace EJR.Game.Core
                 LevelUpOptionDomain.WeaponAcquire,
                 OptionRarity.Common,
                 weaponId,
+                default,
                 default,
                 default,
                 default,
@@ -158,6 +163,7 @@ namespace EJR.Game.Core
                 rarity,
                 weaponId,
                 default,
+                default,
                 rollKind,
                 default,
                 primaryValue,
@@ -187,6 +193,7 @@ namespace EJR.Game.Core
                 weaponId,
                 default,
                 default,
+                default,
                 milestoneKind,
                 primaryValue,
                 0f,
@@ -214,12 +221,38 @@ namespace EJR.Game.Core
                 statId,
                 default,
                 default,
+                default,
                 primaryValue,
                 0f,
                 0,
                 0,
                 isNewAcquire: false,
                 isSpecialMilestone: false,
+                title,
+                description,
+                label);
+        }
+
+        public static LevelUpOption CreateAugment(
+            RunAugmentId augmentId,
+            string title,
+            string description,
+            string label)
+        {
+            return new LevelUpOption(
+                LevelUpOptionDomain.Augment,
+                OptionRarity.Special,
+                default,
+                default,
+                augmentId,
+                default,
+                default,
+                0f,
+                0f,
+                0,
+                0,
+                isNewAcquire: false,
+                isSpecialMilestone: true,
                 title,
                 description,
                 label);

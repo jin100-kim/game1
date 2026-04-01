@@ -10,20 +10,24 @@ namespace EJR.Game.Core
             Color color,
             int unlockCost,
             bool defaultUnlocked,
+            CharacterUnlockSource unlockSource,
             WeaponUpgradeId starterWeaponId,
             MetaBonusValues baseBonuses,
             CharacterPassiveId passiveId,
-            string passiveDescription)
+            string passiveDescription,
+            string requiredAchievementId = null)
         {
             Id = id;
             DisplayName = displayName;
             Color = color;
             UnlockCost = unlockCost;
             DefaultUnlocked = defaultUnlocked;
+            UnlockSource = unlockSource;
             StarterWeaponId = starterWeaponId;
             BaseBonuses = baseBonuses;
             PassiveId = passiveId;
             PassiveDescription = passiveDescription ?? string.Empty;
+            RequiredAchievementId = requiredAchievementId ?? string.Empty;
         }
 
         public int Id { get; }
@@ -31,11 +35,13 @@ namespace EJR.Game.Core
         public Color Color { get; }
         public int UnlockCost { get; }
         public bool DefaultUnlocked { get; }
+        public CharacterUnlockSource UnlockSource { get; }
         public WeaponUpgradeId StarterWeaponId { get; }
         public MetaBonusValues BaseBonuses { get; }
         public MetaBonusValues TraitBonuses => BaseBonuses;
         public CharacterPassiveId PassiveId { get; }
         public string PassiveDescription { get; }
+        public string RequiredAchievementId { get; }
     }
 
     public readonly struct SharedWeaponDefinition
@@ -64,6 +70,7 @@ namespace EJR.Game.Core
                 new Color(0.92f, 0.92f, 0.82f, 1f),
                 0,
                 true,
+                CharacterUnlockSource.Default,
                 WeaponUpgradeId.Rifle,
                 new MetaBonusValues { attackSpeedPercent = 10f },
                 CharacterPassiveId.SoldierLevelAttackSpeed,
@@ -74,6 +81,7 @@ namespace EJR.Game.Core
                 new Color(0.94f, 0.42f, 0.56f, 1f),
                 100,
                 false,
+                CharacterUnlockSource.Shop,
                 WeaponUpgradeId.SniperRifle,
                 new MetaBonusValues { healthRegenPerSecond = 1f },
                 CharacterPassiveId.VampireMaxHealthDamage,
@@ -84,6 +92,7 @@ namespace EJR.Game.Core
                 new Color(0.76f, 0.90f, 1f, 1f),
                 100,
                 false,
+                CharacterUnlockSource.Shop,
                 WeaponUpgradeId.Katana,
                 new MetaBonusValues { moveSpeedPercent = 10f },
                 CharacterPassiveId.SwordsmanLevelMoveSpeed,
@@ -94,6 +103,7 @@ namespace EJR.Game.Core
                 new Color(0.96f, 0.74f, 0.38f, 1f),
                 100,
                 false,
+                CharacterUnlockSource.Shop,
                 WeaponUpgradeId.Smg,
                 new MetaBonusValues { attackPowerPercent = 10f },
                 CharacterPassiveId.WizardLevelDamage,
@@ -104,33 +114,37 @@ namespace EJR.Game.Core
                 new Color(0.72f, 1f, 0.84f, 1f),
                 100,
                 false,
+                CharacterUnlockSource.Achievement,
                 WeaponUpgradeId.Aura,
                 new MetaBonusValues { attackRangePercent = 10f },
                 CharacterPassiveId.PriestLevelRange,
-                "현재 레벨만큼 범위 +1%"),
+                "현재 레벨만큼 범위 +1%",
+                "desert_clear"),
             new(
                 5,
                 "번개술사",
                 new Color(1f, 0.94f, 0.42f, 1f),
                 100,
                 false,
+                CharacterUnlockSource.Achievement,
                 WeaponUpgradeId.ChainAttack,
                 default,
                 CharacterPassiveId.LightningMageChainMastery,
-                "체인어택 감쇠 제거, 체인 수 +2"),
+                "체인어택 감쇠 제거, 체인 수 +2",
+                "snow_clear"),
         };
 
         private static readonly SharedWeaponDefinition[] StarterWeapons =
         {
             new(WeaponUpgradeId.Rifle, "라이플"),
-            new(WeaponUpgradeId.Smg, "화염구"),
-            new(WeaponUpgradeId.SniperRifle, "박쥐"),
+            new(WeaponUpgradeId.Smg, "기관단총"),
+            new(WeaponUpgradeId.SniperRifle, "저격총"),
             new(WeaponUpgradeId.Shotgun, "샷건"),
             new(WeaponUpgradeId.BfSword, "BF소드"),
             new(WeaponUpgradeId.Katana, "카타나"),
             new(WeaponUpgradeId.ChainAttack, "체인어택"),
-            new(WeaponUpgradeId.SatelliteBeam, "메이스"),
-            new(WeaponUpgradeId.Drone, "레거시 드론", isSelectable: false),
+            new(WeaponUpgradeId.SatelliteBeam, "위성빔"),
+            new(WeaponUpgradeId.Drone, "드론 사출", isSelectable: false),
             new(WeaponUpgradeId.RifleTurret, "터렛"),
             new(WeaponUpgradeId.Aura, "오라"),
         };

@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Collections.Generic;
 using System.Text;
 using EJR.Game.Audio;
 using EJR.Game.Core;
@@ -15,6 +16,27 @@ namespace EJR.Game.Multiplayer
     [RequireComponent(typeof(SpriteRenderer))]
     public sealed class MultiplayerPlayerCombatant : NetworkBehaviour
     {
+        private enum PendingChoiceContext
+        {
+            None = 0,
+            LevelUp = 1,
+            WaveAugment = 2,
+        }
+
+        private readonly struct PendingChoiceRequest
+        {
+            public PendingChoiceRequest(PendingChoiceContext context, LevelUpOption[] options, string title)
+            {
+                Context = context;
+                Options = options ?? Array.Empty<LevelUpOption>();
+                Title = title ?? string.Empty;
+            }
+
+            public PendingChoiceContext Context { get; }
+            public LevelUpOption[] Options { get; }
+            public string Title { get; }
+        }
+
         private readonly NetworkVariable<float> _currentHealth =
             new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
@@ -83,9 +105,11 @@ namespace EJR.Game.Multiplayer
         private LevelUpSystem _levelUp;
         private LevelUpBalanceConfig _levelUpBalanceConfig;
         private LevelUpOption[] _serverPendingOptions = Array.Empty<LevelUpOption>();
+        private readonly Queue<PendingChoiceRequest> _serverQueuedChoices = new();
+        private PendingChoiceContext _serverPendingChoiceContext;
         private string[] _localPendingLabels = Array.Empty<string>();
         private string _localPendingTitle = string.Empty;
-        private string _localWeaponSummary = "무기";
+        private string _localWeaponSummary = "臾닿린";
         private string _localStatSummary = "능력치";
         private bool _serverChoiceSubmitted;
         private bool _serverInitialized;
@@ -111,10 +135,14 @@ namespace EJR.Game.Multiplayer
         public int LocalPendingChoiceCount => _localPendingLabels.Length;
         public bool IsAlive => IsSpawned && !_isDowned.Value && _currentHealth.Value > 0.001f;
         public bool IsTargetable => IsSpawned && !_isDowned.Value && _currentHealth.Value > 0.001f;
-        public bool HasPendingServerChoice => _levelUp != null && _levelUp.IsAwaitingChoice;
+        public bool HasPendingServerChoice => _serverPendingOptions.Length > 0 || _serverQueuedChoices.Count > 0;
         public bool HasSubmittedServerChoice => _serverChoiceSubmitted;
         public string DisplayName => MultiplayerCatalog.GetPlayerDisplayName(OwnerClientId, _selectedCharacterId.Value);
         public float CurrentCreditGainPercent => _playerStats != null ? _playerStats.CreditGainPercent : 0f;
+        private int optionCount => Mathf.Min(_serverPendingOptions.Length, 3);
+        private string option0 => optionCount > 0 ? _serverPendingOptions[0].Label : string.Empty;
+        private string option1 => optionCount > 1 ? _serverPendingOptions[1].Label : string.Empty;
+        private string option2 => optionCount > 2 ? _serverPendingOptions[2].Label : string.Empty;
 
         public static MultiplayerPlayerCombatant FindOwnedLocalPlayer()
         {
@@ -332,6 +360,23 @@ namespace EJR.Game.Multiplayer
             SubmitLevelChoiceServerRpc(optionIndex);
         }
 
+        public bool QueueWaveAugmentChoiceServer(int waveIndex)
+        {
+            if (!IsServer || _buildRuntime == null)
+            {
+                return false;
+            }
+
+            var options = SharedAugmentCatalog.BuildRandomOptions(_buildRuntime.ActiveAugments);
+            if (options.Length <= 0)
+            {
+                return false;
+            }
+
+            EnqueueServerChoice(PendingChoiceContext.WaveAugment, options, $"웨이브 {Mathf.Max(1, waveIndex)} 보상 - 증강 선택");
+            return true;
+        }
+
         public void ServerPrepareForRun(Vector3 spawnPosition, Rect arenaBounds)
         {
             if (!IsServer)
@@ -349,6 +394,9 @@ namespace EJR.Game.Multiplayer
             _combatTracker.Reset();
             _isDowned.Value = false;
             _reviveProgress.Value = 0f;
+            _serverPendingOptions = Array.Empty<LevelUpOption>();
+            _serverQueuedChoices.Clear();
+            _serverPendingChoiceContext = PendingChoiceContext.None;
             _serverChoiceSubmitted = false;
             _lastObservedPlayerMaxHealth = _playerHealth.MaxHealth;
             _weaponSystem?.ClearActiveProjectiles();
@@ -371,6 +419,9 @@ namespace EJR.Game.Multiplayer
             _selectionComplete.Value = true;
             _isDowned.Value = false;
             _reviveProgress.Value = 0f;
+            _serverPendingOptions = Array.Empty<LevelUpOption>();
+            _serverQueuedChoices.Clear();
+            _serverPendingChoiceContext = PendingChoiceContext.None;
             _serverChoiceSubmitted = false;
             ResetBuildRuntimeForLobby();
             _playerMover.Initialize(_playerConfig, _playerStats, arenaBounds);
@@ -542,8 +593,8 @@ namespace EJR.Game.Multiplayer
             _selectedStarterWeaponId.Value = MultiplayerCatalog.GetStarterWeaponIndex(starterWeapon);
             _buildRuntime.Apply(LevelUpOption.CreateWeaponAcquire(
                 starterWeapon,
-                $"{MultiplayerCatalog.GetWeaponDisplayName(starterWeapon)} 레벨 1",
-                "무기 획득",
+                $"{MultiplayerCatalog.GetWeaponDisplayName(starterWeapon)} ?덈꺼 1",
+                "臾닿린 ?띾뱷",
                 MultiplayerCatalog.GetWeaponDisplayName(starterWeapon)));
 
             RecreateLevelSystem();
@@ -737,7 +788,7 @@ namespace EJR.Game.Multiplayer
 
         private string BuildWeaponSummary()
         {
-            var builder = new StringBuilder("무기");
+            var builder = new StringBuilder("臾닿린");
             var playerLevel = _levelUp != null ? _levelUp.Level : 1;
             var unlockedSlots = _buildRuntime != null ? _buildRuntime.GetUnlockedWeaponSlots(playerLevel) : 1;
 
@@ -749,7 +800,7 @@ namespace EJR.Game.Multiplayer
                     var requiredLevel = slotIndex == 1
                         ? PlayerBuildRuntime.SecondWeaponUnlockLevel
                         : PlayerBuildRuntime.ThirdWeaponUnlockLevel;
-                    builder.Append('\n').Append(slotNumber).Append(") 잠김 (레벨 ").Append(requiredLevel).Append(')');
+                    builder.Append('\n').Append(slotNumber).Append(") ?좉? (?덈꺼 ").Append(requiredLevel).Append(')');
                     continue;
                 }
 
@@ -763,21 +814,21 @@ namespace EJR.Game.Multiplayer
                     var milestoneCount = _buildRuntime.GetWeaponMilestoneCount(weaponId);
                     builder.Append('\n').Append(slotNumber).Append(") ")
                         .Append(MultiplayerCatalog.GetWeaponDisplayName(weaponId))
-                        .Append(" 레벨 ").Append(level)
-                        .Append(" [피해량+").Append(damageBonus.ToString("0.#"))
-                        .Append(" 공속+").Append(attackSpeedBonus.ToString("0.#"))
-                        .Append(" 범위+").Append(rangeBonus.ToString("0.#"));
+                        .Append(" ?덈꺼 ").Append(level)
+                        .Append(" [?쇳빐??").Append(damageBonus.ToString("0.#"))
+                        .Append(" 怨듭냽+").Append(attackSpeedBonus.ToString("0.#"))
+                        .Append(" 踰붿쐞+").Append(rangeBonus.ToString("0.#"));
 
                     if (milestoneCount > 0)
                     {
-                        builder.Append(" 특수+").Append(milestoneCount);
+                        builder.Append(" ?뱀닔+").Append(milestoneCount);
                     }
 
                     builder.Append(']');
                 }
                 else
                 {
-                    builder.Append('\n').Append(slotNumber).Append(") 비어 있음");
+                    builder.Append('\n').Append(slotNumber).Append(") 鍮꾩뼱 ?덉쓬");
                 }
             }
 
@@ -788,10 +839,10 @@ namespace EJR.Game.Multiplayer
         {
             if (_buildRuntime == null)
             {
-                return "전역 능력치";
+                return "전체 능력치";
             }
 
-            var builder = new StringBuilder("전역 능력치");
+            var builder = new StringBuilder("전체 능력치");
             builder.Append('\n').Append("피해량 +").Append(_buildRuntime.GlobalAttackPowerPercentTotal.ToString("0.#")).Append('%');
             builder.Append('\n').Append("공격 속도 +").Append(_buildRuntime.GlobalAttackSpeedPercentTotal.ToString("0.#")).Append('%');
             builder.Append('\n').Append("최대 체력 +").Append(_buildRuntime.GlobalMaxHealthFlatTotal.ToString("0"));
@@ -857,14 +908,57 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
-            _serverPendingOptions = options;
-            _serverChoiceSubmitted = false;
+            EnqueueServerChoice(PendingChoiceContext.LevelUp, options, "레벨 업 - 하나 선택");
+        }
 
-            var optionCount = Mathf.Min(options.Length, 3);
-            var option0 = optionCount > 0 ? options[0].Label : string.Empty;
-            var option1 = optionCount > 1 ? options[1].Label : string.Empty;
-            var option2 = optionCount > 2 ? options[2].Label : string.Empty;
-            ShowLevelChoiceClientRpc("레벨 업 - 하나 선택", optionCount, option0, option1, option2, BuildOwnerClientRpcParams());
+        private void EnqueueServerChoice(PendingChoiceContext context, LevelUpOption[] options, string title)
+        {
+            if (!IsServer || options == null || options.Length <= 0)
+            {
+                return;
+            }
+
+            if (_serverPendingOptions.Length <= 0)
+            {
+                _serverPendingOptions = options;
+                _serverPendingChoiceContext = context;
+                _serverChoiceSubmitted = false;
+                ShowActiveChoiceToOwner(title);
+                return;
+            }
+
+            _serverQueuedChoices.Enqueue(new PendingChoiceRequest(context, options, title));
+            MultiplayerCoopController.Instance?.EnterLevelChoicePauseIfNeeded();
+        }
+
+        private void TryShowNextQueuedChoice()
+        {
+            if (!IsServer || _serverPendingOptions.Length > 0 || _serverQueuedChoices.Count <= 0)
+            {
+                return;
+            }
+
+            var nextChoice = _serverQueuedChoices.Dequeue();
+            _serverPendingOptions = nextChoice.Options;
+            _serverPendingChoiceContext = nextChoice.Context;
+            _serverChoiceSubmitted = false;
+            ShowActiveChoiceToOwner(nextChoice.Title);
+        }
+
+        private void ShowActiveChoiceToOwner(string title)
+        {
+            if (!IsServer || _serverPendingOptions.Length <= 0)
+            {
+                return;
+            }
+
+            ShowLevelChoiceClientRpc(
+                title,
+                optionCount,
+                option0,
+                option1,
+                option2,
+                BuildOwnerClientRpcParams());
 
             MultiplayerCoopController.Instance?.EnterLevelChoicePauseIfNeeded();
         }
@@ -1307,24 +1401,35 @@ namespace EJR.Game.Multiplayer
         [ServerRpc]
         private void SubmitLevelChoiceServerRpc(int optionIndex)
         {
-            if (_serverPendingOptions == null || _serverPendingOptions.Length <= 0 || _levelUp == null || !_levelUp.IsAwaitingChoice)
+            if (_serverPendingOptions == null || _serverPendingOptions.Length <= 0)
             {
                 return;
             }
 
             optionIndex = Mathf.Clamp(optionIndex, 0, _serverPendingOptions.Length - 1);
             _serverChoiceSubmitted = true;
-            _levelUp.ApplyOption(optionIndex, _serverPendingOptions);
-            RefreshCharacterPassiveBonuses();
-
-            if (_levelUp.IsAwaitingChoice)
+            var selectedOption = _serverPendingOptions[optionIndex];
+            if (_serverPendingChoiceContext == PendingChoiceContext.WaveAugment)
             {
-                return;
+                _buildRuntime?.Apply(selectedOption);
+                RefreshCharacterPassiveBonuses();
+            }
+            else
+            {
+                if (_levelUp == null || !_levelUp.IsAwaitingChoice)
+                {
+                    return;
+                }
+
+                _levelUp.ApplyOption(optionIndex, _serverPendingOptions);
+                RefreshCharacterPassiveBonuses();
             }
 
             _serverPendingOptions = Array.Empty<LevelUpOption>();
+            _serverPendingChoiceContext = PendingChoiceContext.None;
             _serverChoiceSubmitted = false;
             ClearPendingChoiceClientRpc(BuildOwnerClientRpcParams());
+            TryShowNextQueuedChoice();
             MultiplayerCoopController.Instance?.ResumeRunIfChoicesResolved();
         }
 
@@ -1379,7 +1484,7 @@ namespace EJR.Game.Multiplayer
         [ClientRpc]
         private void UpdateBuildSummaryClientRpc(string weaponSummary, string statSummary, ClientRpcParams clientRpcParams = default)
         {
-            _localWeaponSummary = string.IsNullOrWhiteSpace(weaponSummary) ? "무기" : weaponSummary;
+            _localWeaponSummary = string.IsNullOrWhiteSpace(weaponSummary) ? "臾닿린" : weaponSummary;
             _localStatSummary = string.IsNullOrWhiteSpace(statSummary) ? "능력치" : statSummary;
         }
 
@@ -1610,3 +1715,6 @@ namespace EJR.Game.Multiplayer
         }
     }
 }
+
+
+

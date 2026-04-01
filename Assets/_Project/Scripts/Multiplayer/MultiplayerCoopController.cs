@@ -53,8 +53,24 @@ namespace EJR.Game.Multiplayer
         private readonly NetworkVariable<int> _selectedDifficultyIndex =
             new(1, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
+        private readonly NetworkVariable<int> _activeWaveIndex =
+            new(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<int> _activeWaveRemainingCount =
+            new(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<int> _waveBannerSequence =
+            new(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<int> _waveBannerKind =
+            new(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<int> _waveBannerWaveIndex =
+            new(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
         private readonly List<MultiplayerPlayerCombatant> _spawnedPlayers = new(4);
         private readonly List<MultiplayerPlayerCombatant> _combatPlayers = new(4);
+        private readonly HashSet<EnemyController> _activeWaveEnemies = new();
 
         private EnemyRegistry _enemyRegistry;
         private EnemyConfig _enemyConfigTemplate;
@@ -70,6 +86,10 @@ namespace EJR.Game.Multiplayer
         private float _allDownAt = -1f;
         private float _resultReturnAt = -1f;
         private bool _bossWaveTriggered;
+        private bool _wave1Triggered;
+        private bool _wave2Triggered;
+        private bool _pendingWave2;
+        private bool _pendingBoss;
         private bool _resultSessionEnding;
         private int _teamEnemiesDefeated;
 
@@ -97,6 +117,12 @@ namespace EJR.Game.Multiplayer
         public string SelectedMapId => SelectedMapDefinition.Id;
         public string SelectedDifficultyId => SelectedDifficultyDefinition.Id;
         public RuntimeSpriteFactory.EnemyVisualKind SelectedBossVisualKind => SelectedMapDefinition.BossVisualKind;
+        public bool HasActiveWave => _activeWaveIndex.Value > 0 && _activeWaveRemainingCount.Value > 0;
+        public int ActiveWaveIndex => _activeWaveIndex.Value;
+        public int ActiveWaveRemainingCount => _activeWaveRemainingCount.Value;
+        public int WaveBannerSequence => _waveBannerSequence.Value;
+        public int WaveBannerKind => _waveBannerKind.Value;
+        public int WaveBannerWaveIndex => _waveBannerWaveIndex.Value;
 
         private void Awake()
         {
@@ -351,6 +377,8 @@ namespace EJR.Game.Multiplayer
 
             Time.timeScale = 1f;
             _phase.Value = (int)MultiplayerRunPhase.Running;
+            CollectCombatPlayers(_combatPlayers);
+            TryResolveDeferredWaveEvents(_combatPlayers);
         }
 
         public bool TryResolveExperienceCollector(Vector3 fromPosition, float maxDistance, out MultiplayerPlayerCombatant collector, out float distance)
@@ -477,13 +505,21 @@ namespace EJR.Game.Multiplayer
 
             _allDownAt = -1f;
             _elapsedSeconds += Time.deltaTime;
+            TryTriggerTimedWaves(_combatPlayers);
 
             if (!_bossWaveTriggered)
             {
                 _remainingSeconds.Value = Mathf.Max(0f, Mathf.Max(30f, _enemyConfig.bossWaveStartSeconds) - _elapsedSeconds);
                 if (_remainingSeconds.Value <= 0.001f)
                 {
-                    TriggerBossWave(_combatPlayers);
+                    if (HasActiveWave)
+                    {
+                        _pendingBoss = true;
+                    }
+                    else
+                    {
+                        TriggerBossWave(_combatPlayers);
+                    }
                 }
             }
 
@@ -616,15 +652,24 @@ namespace EJR.Game.Multiplayer
             _allDownAt = -1f;
             _resultReturnAt = -1f;
             _bossWaveTriggered = false;
+            _wave1Triggered = false;
+            _wave2Triggered = false;
+            _pendingWave2 = false;
+            _pendingBoss = false;
             _resultSessionEnding = false;
             _teamEnemiesDefeated = 0;
             _currentBoss = null;
+            _activeWaveEnemies.Clear();
             _teamLevel.Value = 1;
             _teamExperience.Value = 0;
             _teamRequiredExperience.Value = ProgressionMath.RequiredExperienceForLevel(1);
             _remainingSeconds.Value = Mathf.Max(30f, _enemyConfig.bossWaveStartSeconds);
             _bossCurrentHealth.Value = 0f;
             _bossMaxHealth.Value = 0f;
+            _activeWaveIndex.Value = 0;
+            _activeWaveRemainingCount.Value = 0;
+            _waveBannerKind.Value = 0;
+            _waveBannerWaveIndex.Value = 0;
             _resultCleared.Value = false;
             _phase.Value = (int)MultiplayerRunPhase.Lobby;
         }
@@ -645,15 +690,24 @@ namespace EJR.Game.Multiplayer
             _allDownAt = -1f;
             _resultReturnAt = -1f;
             _bossWaveTriggered = false;
+            _wave1Triggered = false;
+            _wave2Triggered = false;
+            _pendingWave2 = false;
+            _pendingBoss = false;
             _resultSessionEnding = false;
             _teamEnemiesDefeated = 0;
             _currentBoss = null;
+            _activeWaveEnemies.Clear();
             _teamLevel.Value = 1;
             _teamExperience.Value = 0;
             _teamRequiredExperience.Value = ProgressionMath.RequiredExperienceForLevel(1);
             _remainingSeconds.Value = Mathf.Max(30f, _enemyConfig.bossWaveStartSeconds);
             _bossCurrentHealth.Value = 0f;
             _bossMaxHealth.Value = 0f;
+            _activeWaveIndex.Value = 0;
+            _activeWaveRemainingCount.Value = 0;
+            _waveBannerKind.Value = 0;
+            _waveBannerWaveIndex.Value = 0;
             _resultCleared.Value = false;
             _phase.Value = (int)MultiplayerRunPhase.Running;
             Time.timeScale = 1f;
@@ -780,6 +834,132 @@ namespace EJR.Game.Multiplayer
             return bestPlayer != null;
         }
 
+        private void TryTriggerTimedWaves(IReadOnlyList<MultiplayerPlayerCombatant> alivePlayers)
+        {
+            if (!IsServer || _enemyConfig == null || alivePlayers == null || alivePlayers.Count <= 0 || _bossWaveTriggered || !_enemyConfig.enableTimedWaves)
+            {
+                return;
+            }
+
+            var bossStart = Mathf.Max(1f, _enemyConfig.bossWaveStartSeconds);
+            if (!_wave1Triggered &&
+                _elapsedSeconds >= Mathf.Max(1f, _enemyConfig.wave1TimeSeconds) &&
+                _enemyConfig.wave1TimeSeconds < bossStart)
+            {
+                _wave1Triggered = true;
+                StartConfiguredWave(alivePlayers, 1, _enemyConfig.wave1SlimeCount, _enemyConfig.wave1MushroomCount, _enemyConfig.wave1SkeletonCount);
+            }
+
+            if (!_wave2Triggered &&
+                _elapsedSeconds >= Mathf.Max(1f, _enemyConfig.wave2TimeSeconds) &&
+                _enemyConfig.wave2TimeSeconds < bossStart)
+            {
+                _wave2Triggered = true;
+                if (HasActiveWave)
+                {
+                    _pendingWave2 = true;
+                }
+                else
+                {
+                    StartConfiguredWave(alivePlayers, 2, _enemyConfig.wave2SlimeCount, _enemyConfig.wave2MushroomCount, _enemyConfig.wave2SkeletonCount);
+                }
+            }
+        }
+
+        private void StartConfiguredWave(IReadOnlyList<MultiplayerPlayerCombatant> alivePlayers, int waveIndex, int slimeCount, int mushroomCount, int skeletonCount)
+        {
+            if (!IsServer || alivePlayers == null || alivePlayers.Count <= 0)
+            {
+                return;
+            }
+
+            _activeWaveEnemies.Clear();
+            _activeWaveIndex.Value = Mathf.Max(0, waveIndex);
+            _activeWaveRemainingCount.Value = 0;
+
+            SpawnWaveEnemies(alivePlayers, RuntimeSpriteFactory.EnemyVisualKind.Slime, _enemyConfig.spawnSlime ? Mathf.Max(0, slimeCount) : 0);
+            SpawnWaveEnemies(alivePlayers, RuntimeSpriteFactory.EnemyVisualKind.Mushroom, _enemyConfig.spawnMushroom ? Mathf.Max(0, mushroomCount) : 0);
+            SpawnWaveEnemies(alivePlayers, RuntimeSpriteFactory.EnemyVisualKind.Skeleton, _enemyConfig.spawnSkeleton ? Mathf.Max(0, skeletonCount) : 0);
+            PublishWaveBanner(1, _activeWaveIndex.Value);
+        }
+
+        private void SpawnWaveEnemies(IReadOnlyList<MultiplayerPlayerCombatant> alivePlayers, RuntimeSpriteFactory.EnemyVisualKind visualKind, int count)
+        {
+            for (var i = 0; i < count; i++)
+            {
+                var enemyActor = SpawnSharedEnemy(alivePlayers, visualKind, isBoss: false);
+                if (enemyActor == null)
+                {
+                    continue;
+                }
+
+                var enemy = enemyActor.GetComponent<EnemyController>();
+                if (enemy == null || !_activeWaveEnemies.Add(enemy))
+                {
+                    continue;
+                }
+
+                _activeWaveRemainingCount.Value = _activeWaveEnemies.Count;
+            }
+        }
+
+        private void CompleteActiveWave()
+        {
+            if (!IsServer || _activeWaveIndex.Value <= 0)
+            {
+                return;
+            }
+
+            var clearedWaveIndex = _activeWaveIndex.Value;
+            _activeWaveEnemies.Clear();
+            _activeWaveIndex.Value = 0;
+            _activeWaveRemainingCount.Value = 0;
+            PublishWaveBanner(2, clearedWaveIndex);
+
+            CollectCombatPlayers(_combatPlayers);
+            var openedChoice = false;
+            for (var i = 0; i < _combatPlayers.Count; i++)
+            {
+                openedChoice |= _combatPlayers[i] != null && _combatPlayers[i].QueueWaveAugmentChoiceServer(clearedWaveIndex);
+            }
+
+            if (openedChoice)
+            {
+                EnterLevelChoicePauseIfNeeded();
+                return;
+            }
+
+            TryResolveDeferredWaveEvents(_combatPlayers);
+        }
+
+        private void TryResolveDeferredWaveEvents(IReadOnlyList<MultiplayerPlayerCombatant> alivePlayers)
+        {
+            if (!IsServer || alivePlayers == null || alivePlayers.Count <= 0 || HasActiveWave || Phase == MultiplayerRunPhase.LevelChoice)
+            {
+                return;
+            }
+
+            if (_pendingWave2)
+            {
+                _pendingWave2 = false;
+                StartConfiguredWave(alivePlayers, 2, _enemyConfig.wave2SlimeCount, _enemyConfig.wave2MushroomCount, _enemyConfig.wave2SkeletonCount);
+                return;
+            }
+
+            if (_pendingBoss)
+            {
+                _pendingBoss = false;
+                TriggerBossWave(alivePlayers);
+            }
+        }
+
+        private void PublishWaveBanner(int bannerKind, int waveIndex)
+        {
+            _waveBannerKind.Value = bannerKind;
+            _waveBannerWaveIndex.Value = Mathf.Max(0, waveIndex);
+            _waveBannerSequence.Value++;
+        }
+
         private void TryMaintainEnemyPressure(IReadOnlyList<MultiplayerPlayerCombatant> alivePlayers)
         {
             if (_enemyRegistry == null || _enemyPrefab == null)
@@ -805,8 +985,14 @@ namespace EJR.Game.Multiplayer
 
         private void TriggerBossWave(IReadOnlyList<MultiplayerPlayerCombatant> alivePlayers)
         {
-            if (_bossWaveTriggered)
+            if (_bossWaveTriggered || alivePlayers == null || alivePlayers.Count <= 0)
             {
+                return;
+            }
+
+            if (HasActiveWave)
+            {
+                _pendingBoss = true;
                 return;
             }
 
@@ -1168,6 +1354,14 @@ namespace EJR.Game.Multiplayer
             }
 
             _teamEnemiesDefeated++;
+            if (_activeWaveEnemies.Remove(enemy))
+            {
+                _activeWaveRemainingCount.Value = _activeWaveEnemies.Count;
+                if (_activeWaveRemainingCount.Value <= 0)
+                {
+                    CompleteActiveWave();
+                }
+            }
         }
 
         private void LeaveSessionAfterResult()

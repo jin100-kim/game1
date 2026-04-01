@@ -69,6 +69,7 @@ namespace EJR.Game.Multiplayer
         private PlayerMover _boundAutoPlayMover;
         private string _debugRevealBuffer = string.Empty;
         private string _lastArenaPresentationSignature = string.Empty;
+        private int _lastWaveBannerSequence = -1;
 
         private const string DebugRevealCode = "admin";
 
@@ -581,12 +582,17 @@ namespace EJR.Game.Multiplayer
             if (!showRun)
             {
                 _gameplayHud.SetModeHint(string.Empty);
+                _gameplayHud.HideWaveStatus();
+                _gameplayHud.HideWaveBanner();
                 _gameplayHud.HideBossBar();
+                _lastWaveBannerSequence = -1;
                 return;
             }
 
             if (localPlayer == null)
             {
+                _gameplayHud.HideWaveStatus();
+                _gameplayHud.HideWaveBanner();
                 return;
             }
 
@@ -599,6 +605,30 @@ namespace EJR.Game.Multiplayer
                 coop.RemainingSeconds);
             _gameplayHud.SetModeHint($"{coop.SelectedMapDefinition.DisplayName} | {coop.SelectedDifficultyDefinition.DisplayName}");
             _gameplayHud.SetBuildInfo(localPlayer.WeaponSummary, localPlayer.StatSummary);
+            if (coop.HasActiveWave)
+            {
+                _gameplayHud.SetWaveStatus(coop.ActiveWaveIndex, coop.ActiveWaveRemainingCount);
+            }
+            else
+            {
+                _gameplayHud.HideWaveStatus();
+            }
+
+            if (coop.WaveBannerSequence > 0 && coop.WaveBannerSequence != _lastWaveBannerSequence)
+            {
+                _lastWaveBannerSequence = coop.WaveBannerSequence;
+                switch (coop.WaveBannerKind)
+                {
+                    case 1:
+                        _gameplayHud.ShowWaveBanner($"웨이브 {Mathf.Max(1, coop.WaveBannerWaveIndex)} 시작\n보상: 증강 선택");
+                        break;
+
+                    case 2:
+                        _gameplayHud.ShowWaveBanner("웨이브 정리 완료");
+                        break;
+                }
+            }
+
             if (coop.BossActive)
             {
                 _gameplayHud.SetBossBar(coop.BossCurrentHealth, coop.BossMaxHealth, "보스");

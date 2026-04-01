@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using EJR.Game.Audio;
 using EJR.Game.Core;
 using EJR.Game.Multiplayer;
@@ -13,6 +14,28 @@ namespace EJR.Game.Gameplay
 {
     public sealed class RunStateController : MonoBehaviour
     {
+        private enum PendingChoiceContext
+        {
+            None = 0,
+            StarterWeapon = 1,
+            LevelUp = 2,
+            WaveAugment = 3,
+        }
+
+        private readonly struct PendingChoiceRequest
+        {
+            public PendingChoiceRequest(PendingChoiceContext context, LevelUpOption[] options, string title)
+            {
+                Context = context;
+                Options = options ?? Array.Empty<LevelUpOption>();
+                Title = title ?? string.Empty;
+            }
+
+            public PendingChoiceContext Context { get; }
+            public LevelUpOption[] Options { get; }
+            public string Title { get; }
+        }
+
         [Header("Configs (optional, runtime defaults used if empty)")]
         [SerializeField] private PlayerConfig playerConfig;
         [SerializeField] private WeaponConfig weaponConfig;
@@ -80,10 +103,11 @@ namespace EJR.Game.Gameplay
         private HudController _hud;
 
         private LevelUpOption[] _currentOptions;
+        private readonly Queue<PendingChoiceRequest> _pendingChoices = new();
+        private PendingChoiceContext _activeChoiceContext;
 
         private float _remainingSeconds;
         private bool _isGameOver;
-        private bool _isAwaitingStarterWeaponChoice;
         private bool _isPauseMenuOpen;
         private bool _bossWaveTriggered;
         private bool _lastRunCleared;
@@ -504,14 +528,14 @@ namespace EJR.Game.Gameplay
 
             while (iterationGuard++ < maxIterations)
             {
-                if (_isAwaitingStarterWeaponChoice)
+                if (_activeChoiceContext == PendingChoiceContext.StarterWeapon)
                 {
                     if (_currentOptions == null || _currentOptions.Length <= 0)
                     {
                         break;
                     }
 
-                    SelectStarterWeaponOption(UnityEngine.Random.Range(0, _currentOptions.Length));
+                    SelectLevelUpOption(UnityEngine.Random.Range(0, _currentOptions.Length));
                     continue;
                 }
 
@@ -769,6 +793,8 @@ namespace EJR.Game.Gameplay
                 playerConfig.collisionRadius,
                 arenaBounds,
                 (_currentMapDefinition ?? RunSelectionService.SingleMapDefinition).BossVisualKind);
+            enemySpawner.WaveStarted += HandleWaveStarted;
+            enemySpawner.WaveCleared += HandleWaveCleared;
             _enemySpawner = enemySpawner;
             if (enemySpawner.BossWaveStartSeconds > 0f)
             {
@@ -802,6 +828,9 @@ namespace EJR.Game.Gameplay
             RefreshCharacterPassiveBonuses();
             ApplySelectedCharacterPresentation(isDowned: false);
             _enemiesDefeated = 0;
+            _pendingChoices.Clear();
+            _activeChoiceContext = PendingChoiceContext.None;
+            _currentOptions = null;
             _lastObservedPlayerMaxHealth = _playerHealth != null ? _playerHealth.MaxHealth : -1f;
         }
 
@@ -877,7 +906,7 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            var selectedIndex = _isAwaitingStarterWeaponChoice
+            var selectedIndex = _activeChoiceContext == PendingChoiceContext.StarterWeapon
                 ? ChooseAutoPlayStarterWeaponIndex(_currentOptions)
                 : ChooseAutoPlayLevelChoiceIndex(_currentOptions);
 
@@ -942,6 +971,15 @@ namespace EJR.Game.Gameplay
 
                 var score = option.Domain switch
                 {
+                    LevelUpOptionDomain.Augment => option.AugmentId switch
+                    {
+                        RunAugmentId.Berserk => 58,
+                        RunAugmentId.Overclock => 56,
+                        RunAugmentId.LongReach => 50,
+                        RunAugmentId.Fleetfoot => 46,
+                        RunAugmentId.VitalCore => 44 + Mathf.RoundToInt((1f - healthRatio) * 18f),
+                        _ => 40,
+                    },
                     LevelUpOptionDomain.WeaponMilestone => 64 + option.NextLevel,
                     LevelUpOptionDomain.WeaponAcquire => 48,
                     LevelUpOptionDomain.WeaponLevelRoll => 40 + option.NextLevel + rarityScore + (option.WeaponRollKind switch
@@ -1474,39 +1512,87 @@ namespace EJR.Game.Gameplay
             _combatTracker.RecordDamageDealt(weaponId, damage, enemy.IsBoss, enemy.CurrentHealth, enemy.MaxHealth);
         }
 
-        private void OnLevelUpRequested(LevelUpOption[] options)
+        private void HandleWaveStarted(int waveIndex)
         {
-            if (_isGameOver || _isAwaitingStarterWeaponChoice)
+            _hud?.ShowWaveBanner($"웨이브 {waveIndex} 시작\n보상: 증강 선택");
+            UpdateHud();
+        }
+
+        private void HandleWaveCleared(int waveIndex)
+        {
+            if (_isGameOver || _buildRuntime == null)
             {
                 return;
             }
 
-            _currentOptions = options;
-            Time.timeScale = 0f;
-            AudioService.Instance.PlaySfx(AudioCueId.LevelUpAppear);
-            _hud.ShowLevelUpOptions(options, SelectLevelUpOption);
+            _hud?.ShowWaveBanner("웨이브 정리 완료");
+            var options = SharedAugmentCatalog.BuildRandomOptions(_buildRuntime.ActiveAugments);
+            if (options.Length > 0)
+            {
+                EnqueueChoice(PendingChoiceContext.WaveAugment, options, $"웨이브 {waveIndex} 보상 - 증강 선택");
+            }
+
+            UpdateHud();
+        }
+
+        private void OnLevelUpRequested(LevelUpOption[] options)
+        {
+            if (_isGameOver)
+            {
+                return;
+            }
+
+            EnqueueChoice(PendingChoiceContext.LevelUp, options, "레벨 업 - 하나 선택");
         }
 
         private void SelectLevelUpOption(int optionIndex)
         {
-            AudioService.Instance.PlaySfx(AudioCueId.LevelUpSelect);
-            if (_isAwaitingStarterWeaponChoice)
+            if (_currentOptions == null || _currentOptions.Length <= 0)
             {
-                SelectStarterWeaponOption(optionIndex);
                 return;
             }
 
+            AudioService.Instance.PlaySfx(AudioCueId.LevelUpSelect);
+            optionIndex = Mathf.Clamp(optionIndex, 0, _currentOptions.Length - 1);
+            var currentContext = _activeChoiceContext;
+            var currentOptions = _currentOptions;
+
+            _currentOptions = null;
+            _activeChoiceContext = PendingChoiceContext.None;
             _hud.HideLevelUpOptions();
-            _levelUp.ApplyOption(optionIndex, _currentOptions);
-            RefreshCharacterPassiveBonuses();
+
+            switch (currentContext)
+            {
+                case PendingChoiceContext.StarterWeapon:
+                case PendingChoiceContext.WaveAugment:
+                    if (_buildRuntime == null)
+                    {
+                        return;
+                    }
+
+                    _buildRuntime.Apply(currentOptions[optionIndex]);
+                    RefreshCharacterPassiveBonuses();
+                    break;
+
+                case PendingChoiceContext.LevelUp:
+                    if (_levelUp == null)
+                    {
+                        return;
+                    }
+
+                    _levelUp.ApplyOption(optionIndex, currentOptions);
+                    RefreshCharacterPassiveBonuses();
+                    break;
+            }
 
             if (_isGameOver)
             {
                 return;
             }
 
-            if (_levelUp.IsAwaitingChoice)
+            if (_pendingChoices.Count > 0)
             {
+                TryOpenNextQueuedChoice();
                 return;
             }
 
@@ -1531,11 +1617,7 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            _isAwaitingStarterWeaponChoice = true;
-            _currentOptions = options;
-            Time.timeScale = 0f;
-            AudioService.Instance.PlaySfx(AudioCueId.LevelUpAppear);
-            _hud.ShowLevelUpOptions(options, SelectLevelUpOption, "\uC2DC\uC791 \uBB34\uAE30 \uC120\uD0DD");
+            EnqueueChoice(PendingChoiceContext.StarterWeapon, options, "시작 무기 선택");
         }
 
         private LevelUpOption[] CreateStarterWeaponOptions()
@@ -1555,25 +1637,30 @@ namespace EJR.Game.Gameplay
             return options;
         }
 
-        private void SelectStarterWeaponOption(int optionIndex)
+        private void EnqueueChoice(PendingChoiceContext context, LevelUpOption[] options, string title)
         {
-            if (_buildRuntime == null || _currentOptions == null || _currentOptions.Length <= 0)
+            if (options == null || options.Length <= 0)
             {
                 return;
             }
 
-            optionIndex = Mathf.Clamp(optionIndex, 0, _currentOptions.Length - 1);
-            _buildRuntime.Apply(_currentOptions[optionIndex]);
-            _isAwaitingStarterWeaponChoice = false;
-            _currentOptions = null;
-            _hud.HideLevelUpOptions();
-            RefreshCharacterPassiveBonuses();
+            _pendingChoices.Enqueue(new PendingChoiceRequest(context, options, title));
+            TryOpenNextQueuedChoice();
+        }
 
-            if (!_isGameOver && Time.timeScale <= 0f)
+        private void TryOpenNextQueuedChoice()
+        {
+            if (_isGameOver || _hud == null || _activeChoiceContext != PendingChoiceContext.None || _pendingChoices.Count <= 0)
             {
-                Time.timeScale = 1f;
+                return;
             }
 
+            var nextChoice = _pendingChoices.Dequeue();
+            _activeChoiceContext = nextChoice.Context;
+            _currentOptions = nextChoice.Options;
+            Time.timeScale = 0f;
+            AudioService.Instance.PlaySfx(AudioCueId.LevelUpAppear);
+            _hud.ShowLevelUpOptions(nextChoice.Options, SelectLevelUpOption, nextChoice.Title);
             UpdateHud();
         }
 
@@ -1587,6 +1674,9 @@ namespace EJR.Game.Gameplay
             _isGameOver = true;
             _lastRunCleared = cleared;
             _isPauseMenuOpen = false;
+            _pendingChoices.Clear();
+            _activeChoiceContext = PendingChoiceContext.None;
+            _currentOptions = null;
             Time.timeScale = 0f;
 #if false
             MetaProgressionService.RecordRunSummary(MetaProgressionService.BuildRunRewardSummary(
@@ -1625,6 +1715,8 @@ namespace EJR.Game.Gameplay
             _hud.HideLevelUpOptions();
             _hud.HidePauseMenu();
             _hud.HideBossBar();
+            _hud.HideWaveStatus();
+            _hud.HideWaveBanner();
             _hud.ShowResult(summary, ReturnToLobby, "\uD0C0\uC774\uD2C0\uB85C");
         }
 
@@ -1669,6 +1761,14 @@ namespace EJR.Game.Gameplay
 
             _hud.SetModeHint(string.Empty);
             _hud.SetBuildInfo(BuildWeaponSummary(), BuildStatSummary());
+            if (_enemySpawner != null && _enemySpawner.HasActiveWave)
+            {
+                _hud.SetWaveStatus(_enemySpawner.ActiveWaveIndex, _enemySpawner.ActiveWaveRemainingCount);
+            }
+            else
+            {
+                _hud.HideWaveStatus();
+            }
             UpdateBossHud();
         }
 
@@ -1887,7 +1987,7 @@ namespace EJR.Game.Gameplay
 
         private bool IsAnyChoiceAwaiting()
         {
-            return _isAwaitingStarterWeaponChoice || (_levelUp != null && _levelUp.IsAwaitingChoice);
+            return _activeChoiceContext != PendingChoiceContext.None || _pendingChoices.Count > 0;
         }
 
         private void UpdateWeaponVisualActivation()

@@ -55,6 +55,8 @@ namespace EJR.Game.UI
         private GameObject _runSetupWeaponOptionsRoot;
         private RectTransform _runSetupCharacterOptionsContentRect;
         private RectTransform _runSetupDetailContentRect;
+        private GameObject _achievementPanel;
+        private RectTransform _achievementContentRect;
         private GameObject _metaPanel;
         private GameObject _metaContentRoot;
         private GameObject _summaryModal;
@@ -72,13 +74,16 @@ namespace EJR.Game.UI
         private Text _runSetupPrimaryActionText;
         private Text _runSetupMapNextText;
         private Text _runSetupStartText;
+        private Text _achievementSummaryText;
         private Text _metaHeaderText;
         private Text _metaRecentText;
         private Text _summaryModalText;
         private Text _metaUnlocksTabText;
         private Text _metaResearchTabText;
+        private Text _achievementButtonText;
         private Button _singlePlayButton;
         private Button _multiPlayButton;
+        private Button _achievementButton;
         private Button _metaButton;
         private Button _optionsButton;
         private Button _hostButton;
@@ -94,6 +99,7 @@ namespace EJR.Game.UI
         private Button _runSetupCharacterBackButton;
         private Button _summaryMetaButton;
         private Button _metaResetButton;
+        private Button _achievementBackButton;
         private Button _metaUnlocksTabButton;
         private Button _metaResearchTabButton;
         private Button _confirmConfirmButton;
@@ -166,6 +172,7 @@ namespace EJR.Game.UI
             }
 
             RefreshRunSetupPanelV2();
+            RefreshAchievementButtonState();
             RefreshMetaPanel();
             ShowMainMenu();
             UpdateMultiplayerInteractivity();
@@ -277,6 +284,7 @@ namespace EJR.Game.UI
             BuildOptionsPanelReference(root.transform);
             BuildRunSetupPanelReference(root.transform);
             BuildMetaPanelReference(root.transform);
+            BuildAchievementPanelReference(root.transform);
             BuildSummaryModalReference(root.transform);
             BuildConfirmModalReference(root.transform);
             BuildToolkitMainMenu();
@@ -544,9 +552,11 @@ namespace EJR.Game.UI
             var fallbackBaseY = 118f;
             _singlePlayButton = CreateButton(_mainMenuPanel.transform, "SinglePlayButtonV2", new Vector2(0f, fallbackBaseY), "\uC2F1\uAE00 \uD50C\uB808\uC774", OnSinglePlayClicked, new Vector2(296f, 58f));
             _multiPlayButton = CreateButton(_mainMenuPanel.transform, "MultiPlayButtonV2", new Vector2(0f, fallbackBaseY - (ButtonHeight + ButtonSpacing)), "\uBA40\uD2F0\uD50C\uB808\uC774", OnMultiPlayClicked, new Vector2(296f, 58f));
-            _metaButton = CreateButton(_mainMenuPanel.transform, "MetaButtonV2", new Vector2(0f, fallbackBaseY - ((ButtonHeight + ButtonSpacing) * 2f)), "\uCF54\uC778 \uC0C1\uC810", OnMetaClicked, new Vector2(296f, 58f));
-            _optionsButton = CreateButton(_mainMenuPanel.transform, "OptionsButtonV2", new Vector2(0f, fallbackBaseY - ((ButtonHeight + ButtonSpacing) * 3f)), "\uC124\uC815", OnOptionsClicked, new Vector2(296f, 58f));
-            CreateButton(_mainMenuPanel.transform, "QuitButtonV2", new Vector2(0f, fallbackBaseY - ((ButtonHeight + ButtonSpacing) * 4f)), "\uC885\uB8CC", OnQuitClicked, new Vector2(296f, 58f));
+            _achievementButton = CreateButton(_mainMenuPanel.transform, "AchievementButtonV2", new Vector2(0f, fallbackBaseY - ((ButtonHeight + ButtonSpacing) * 2f)), "\uB3C4\uC804\uACFC\uC81C", OnAchievementsClicked, new Vector2(296f, 58f));
+            _achievementButtonText = _achievementButton.GetComponentInChildren<Text>();
+            _metaButton = CreateButton(_mainMenuPanel.transform, "MetaButtonV2", new Vector2(0f, fallbackBaseY - ((ButtonHeight + ButtonSpacing) * 3f)), "\uCF54\uC778 \uC0C1\uC810", OnMetaClicked, new Vector2(296f, 58f));
+            _optionsButton = CreateButton(_mainMenuPanel.transform, "OptionsButtonV2", new Vector2(0f, fallbackBaseY - ((ButtonHeight + ButtonSpacing) * 4f)), "\uC124\uC815", OnOptionsClicked, new Vector2(296f, 58f));
+            CreateButton(_mainMenuPanel.transform, "QuitButtonV2", new Vector2(0f, fallbackBaseY - ((ButtonHeight + ButtonSpacing) * 5f)), "\uC885\uB8CC", OnQuitClicked, new Vector2(296f, 58f));
             return;
         }
 
@@ -907,6 +917,31 @@ namespace EJR.Game.UI
             SetBottomCenterRect(backButton.GetComponent<RectTransform>(), new Vector2(0f, 24f), new Vector2(248f, 46f));
         }
 
+        private void BuildAchievementPanelReference(Transform parent)
+        {
+            _achievementPanel = CreatePanel(parent, "AchievementPanelV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -8f), new Vector2(1180f, 820f), new Color(0.02f, 0.03f, 0.06f, 0.9f));
+            _achievementPanel.SetActive(false);
+
+            var title = CreateText(_achievementPanel.transform, "AchievementTitleV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(28f, -24f), new Vector2(280f, 32f), "도전과제", 26, FontStyle.Bold);
+            title.alignment = TextAnchor.MiddleLeft;
+            title.color = new Color(0.96f, 0.74f, 0.18f, 1f);
+
+            var summaryCard = CreatePanel(_achievementPanel.transform, "AchievementSummaryCardV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(28f, -92f), new Vector2(1124f, 88f), new Color(0.05f, 0.08f, 0.12f, 0.9f));
+            _achievementSummaryText = CreateText(summaryCard.transform, "AchievementSummaryTextV2", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero, string.Empty, 16, FontStyle.Bold);
+            _achievementSummaryText.rectTransform.offsetMin = new Vector2(24f, 14f);
+            _achievementSummaryText.rectTransform.offsetMax = new Vector2(-24f, -14f);
+            _achievementSummaryText.alignment = TextAnchor.MiddleLeft;
+
+            var viewport = CreateScrollViewport(_achievementPanel.transform, "AchievementScrollV2", new Vector2(32f, 160f), new Vector2(1116f, 580f), out _achievementContentRect);
+            if (viewport.TryGetComponent<Image>(out var viewportImage))
+            {
+                viewportImage.color = new Color(0f, 0f, 0f, 0.001f);
+            }
+
+            _achievementBackButton = CreateButton(_achievementPanel.transform, "AchievementBackButtonV2", new Vector2(0f, -384f), "뒤로", ShowMainMenu, new Vector2(248f, 46f));
+            SetBottomCenterRect(_achievementBackButton.GetComponent<RectTransform>(), new Vector2(0f, 24f), new Vector2(248f, 46f));
+        }
+
         private void BuildSummaryModalReference(Transform parent)
         {
             _summaryModal = CreatePanel(parent, "SummaryModalV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -12f), new Vector2(820f, 472f), new Color(0.02f, 0.03f, 0.06f, 0.94f));
@@ -954,6 +989,15 @@ namespace EJR.Game.UI
             SetStatus("맵과 난이도를 먼저 선택하세요.");
             return;
             SetStatus("캐릭터를 선택하세요. 잠긴 캐릭터는 상점에서 해금합니다.");
+        }
+
+        private void OnAchievementsClicked()
+        {
+            RefreshAchievementPanel();
+            ShowPanel(_achievementPanel, _achievementBackButton);
+            MetaProgressionService.MarkAchievementsSeen();
+            RefreshAchievementButtonState();
+            SetStatus("도전과제 목록을 확인하세요.");
         }
 
         private void OnMetaClicked()
@@ -1541,6 +1585,7 @@ namespace EJR.Game.UI
 
         private void ShowMainMenu()
         {
+            RefreshAchievementButtonState();
             ShowPanel(_mainMenuPanel, _singlePlayButton);
             UpdateMultiplayerInteractivity();
         }
@@ -1551,6 +1596,7 @@ namespace EJR.Game.UI
             if (_multiplayerPanel != null) _multiplayerPanel.SetActive(activePanel == _multiplayerPanel);
             if (_optionsPanel != null) _optionsPanel.SetActive(activePanel == _optionsPanel);
             if (_runSetupPanel != null) _runSetupPanel.SetActive(activePanel == _runSetupPanel);
+            if (_achievementPanel != null) _achievementPanel.SetActive(activePanel == _achievementPanel);
             if (_metaPanel != null) _metaPanel.SetActive(activePanel == _metaPanel);
             SetTitleChromeVisible(activePanel == _mainMenuPanel && (_summaryModal == null || !_summaryModal.activeSelf));
 
@@ -1631,6 +1677,15 @@ namespace EJR.Game.UI
                     $"고유 특성\n{character.PassiveDescription}";
             }
 
+            if (_runSetupBonusText != null)
+            {
+                _runSetupBonusText.text =
+                    "잠긴 캐릭터는 상점 또는 도전과제로 해금\n\n" +
+                    $"시작 무기\n{SharedGameCatalog.GetWeaponDisplayName(character.StarterWeaponId)}\n\n" +
+                    $"기본 보너스\n{BuildMetaBonusSummary(character.BaseBonuses)}\n\n" +
+                    $"고유 특성\n{character.PassiveDescription}";
+            }
+
             if (_runSetupPrimaryActionButton != null)
             {
                 _runSetupPrimaryActionButton.gameObject.SetActive(false);
@@ -1663,6 +1718,7 @@ namespace EJR.Game.UI
                 var state = unlocked
                     ? (selected ? "\uC120\uD0DD\uB428" : "사용 가능")
                     : "잠김 · 상점 해금";
+                state = BuildRunSetupCharacterState(definition, unlocked, selected);
                 var label =
                     $"{definition.DisplayName}  |  {SharedGameCatalog.GetWeaponDisplayName(definition.StarterWeaponId)}\n" +
                     state;
@@ -2021,6 +2077,172 @@ namespace EJR.Game.UI
             return "모든 맵 해금 완료";
         }
 
+        private static string BuildRunSetupCharacterState(SharedCharacterDefinition definition, bool unlocked, bool selected)
+        {
+            if (unlocked)
+            {
+                return selected ? "선택됨" : "사용 가능";
+            }
+
+            return GetLockedCharacterStatus(definition);
+        }
+
+        private static string GetLockedCharacterStatus(SharedCharacterDefinition definition)
+        {
+            return definition.UnlockSource == CharacterUnlockSource.Achievement
+                ? "도전과제 해금"
+                : "상점 해금";
+        }
+
+        private void RefreshAchievementButtonState()
+        {
+            var label = MetaProgressionService.HasUnseenAchievements ? "도전과제 NEW" : "도전과제";
+            if (_achievementButtonText != null)
+            {
+                _achievementButtonText.text = label;
+            }
+
+            if (_toolkitAchievementButton != null)
+            {
+                _toolkitAchievementButton.text = label;
+            }
+        }
+
+        private void RefreshAchievementPanel()
+        {
+            if (_achievementSummaryText == null || _achievementContentRect == null)
+            {
+                return;
+            }
+
+            ClearChildren(_achievementContentRect.transform);
+
+            var entries = MetaProgressionService.GetAchievementEntries();
+            var completedCount = 0;
+            for (var i = 0; i < entries.Count; i++)
+            {
+                var entry = entries[i];
+                if (entry.IsCompleted)
+                {
+                    completedCount++;
+                }
+
+                var rowTop = i * 104f;
+                var row = CreatePanel(
+                    _achievementContentRect.transform,
+                    $"AchievementRow{entry.Id}",
+                    new Vector2(0f, 1f),
+                    new Vector2(0f, 1f),
+                    new Vector2(0f, 1f),
+                    new Vector2(0f, -rowTop),
+                    new Vector2(1116f, 92f),
+                    entry.IsCompleted
+                        ? new Color(0.07f, 0.11f, 0.16f, 0.96f)
+                        : new Color(0.08f, 0.10f, 0.14f, 0.96f));
+
+                CreatePanel(
+                    row.transform,
+                    $"AchievementAccent{entry.Id}",
+                    new Vector2(0f, 0f),
+                    new Vector2(0f, 1f),
+                    new Vector2(0f, 0.5f),
+                    Vector2.zero,
+                    new Vector2(6f, 0f),
+                    entry.IsCompleted ? new Color(0.32f, 0.72f, 0.48f, 1f) : new Color(0.42f, 0.50f, 0.62f, 1f));
+
+                var titleText = CreateText(
+                    row.transform,
+                    $"AchievementTitle{entry.Id}",
+                    new Vector2(0f, 1f),
+                    new Vector2(0f, 1f),
+                    new Vector2(0f, 1f),
+                    new Vector2(20f, -12f),
+                    new Vector2(520f, 22f),
+                    entry.DisplayName,
+                    16,
+                    FontStyle.Bold);
+                titleText.alignment = TextAnchor.MiddleLeft;
+                titleText.color = entry.IsCompleted ? new Color(0.94f, 0.98f, 0.94f, 1f) : new Color(0.97f, 0.98f, 1f, 1f);
+
+                var statusText = CreateText(
+                    row.transform,
+                    $"AchievementStatus{entry.Id}",
+                    new Vector2(1f, 1f),
+                    new Vector2(1f, 1f),
+                    new Vector2(1f, 1f),
+                    new Vector2(-20f, -12f),
+                    new Vector2(220f, 22f),
+                    entry.IsCompleted ? "달성 완료" : "진행 중",
+                    14,
+                    FontStyle.Bold);
+                statusText.alignment = TextAnchor.MiddleRight;
+                statusText.color = entry.IsCompleted ? new Color(0.46f, 0.88f, 0.58f, 1f) : new Color(0.96f, 0.74f, 0.18f, 1f);
+
+                if (entry.IsNew)
+                {
+                    var newText = CreateText(
+                        row.transform,
+                        $"AchievementNew{entry.Id}",
+                        new Vector2(1f, 1f),
+                        new Vector2(1f, 1f),
+                        new Vector2(1f, 1f),
+                        new Vector2(-248f, -12f),
+                        new Vector2(80f, 20f),
+                        "NEW",
+                        12,
+                        FontStyle.Bold);
+                    newText.alignment = TextAnchor.MiddleRight;
+                    newText.color = new Color(1f, 0.84f, 0.36f, 1f);
+                }
+
+                var descriptionText = CreateText(
+                    row.transform,
+                    $"AchievementDescription{entry.Id}",
+                    new Vector2(0f, 1f),
+                    new Vector2(0f, 1f),
+                    new Vector2(0f, 1f),
+                    new Vector2(20f, -38f),
+                    new Vector2(760f, 20f),
+                    entry.Description,
+                    14,
+                    FontStyle.Normal);
+                descriptionText.alignment = TextAnchor.MiddleLeft;
+                descriptionText.color = new Color(0.82f, 0.87f, 0.95f, 1f);
+
+                var progressText = CreateText(
+                    row.transform,
+                    $"AchievementProgress{entry.Id}",
+                    new Vector2(0f, 1f),
+                    new Vector2(0f, 1f),
+                    new Vector2(0f, 1f),
+                    new Vector2(20f, -64f),
+                    new Vector2(320f, 18f),
+                    $"진행도 {entry.ProgressText}",
+                    13,
+                    FontStyle.Normal);
+                progressText.alignment = TextAnchor.MiddleLeft;
+                progressText.color = new Color(0.72f, 0.79f, 0.89f, 1f);
+
+                var rewardText = CreateText(
+                    row.transform,
+                    $"AchievementReward{entry.Id}",
+                    new Vector2(1f, 1f),
+                    new Vector2(1f, 1f),
+                    new Vector2(1f, 1f),
+                    new Vector2(-20f, -64f),
+                    new Vector2(460f, 18f),
+                    $"보상 {entry.RewardText}",
+                    13,
+                    FontStyle.Normal);
+                rewardText.alignment = TextAnchor.MiddleRight;
+                rewardText.color = new Color(0.72f, 0.79f, 0.89f, 1f);
+            }
+
+            _achievementContentRect.sizeDelta = new Vector2(1116f, Mathf.Max(580f, entries.Count * 104f));
+            _achievementSummaryText.text = $"달성 {completedCount} / {entries.Count}";
+            RefreshAchievementButtonState();
+        }
+
         private void RefreshMetaPanel()
         {
             if (_metaHeaderText == null || _metaContentRoot == null)
@@ -2031,6 +2253,7 @@ namespace EJR.Game.UI
             _metaHeaderText.text = $"보유 코인  {MetaProgressionService.CurrentCredits}";
             RefreshMetaTabVisuals();
             RebuildMetaContent();
+            RefreshAchievementButtonState();
             UpdateToolkitOverviewSummary();
             UpdateMultiplayerInteractivity();
         }
@@ -2069,12 +2292,18 @@ namespace EJR.Game.UI
             CreateSectionText(_metaContentRoot.transform, "CharacterUnlockHeader", new Vector2(0f, 0f), "캐릭터 해금");
 
             var buttons = new List<Button>();
+            var displayIndex = 0;
             for (var i = 0; i < SharedGameCatalog.CharacterDefinitions.Count; i++)
             {
                 var definition = SharedGameCatalog.CharacterDefinitions[i];
+                if (definition.UnlockSource == CharacterUnlockSource.Achievement)
+                {
+                    continue;
+                }
+
                 var unlocked = MetaProgressionService.IsCharacterUnlocked(definition.Id);
                 var canBuy = CanPurchaseCharacter(definition.Id);
-                var rowTop = 44f + (i * 88f);
+                var rowTop = 44f + (displayIndex * 88f);
                 var row = CreatePanel(
                     _metaContentRoot.transform,
                     $"MetaCharacterRow{definition.Id}",
@@ -2167,6 +2396,11 @@ namespace EJR.Game.UI
         private void PromptCharacterPurchase(int characterId)
         {
             var definition = SharedGameCatalog.GetCharacter(characterId);
+            if (definition.UnlockSource == CharacterUnlockSource.Achievement)
+            {
+                SetStatus("도전과제로 해금할 수 있는 캐릭터입니다.");
+                return;
+            }
             if (MetaProgressionService.IsCharacterUnlocked(characterId))
             {
                 SetStatus("이미 해금된 캐릭터입니다.");
@@ -2367,7 +2601,8 @@ namespace EJR.Game.UI
         private static bool CanPurchaseCharacter(int characterId)
         {
             var definition = SharedGameCatalog.GetCharacter(characterId);
-            return !MetaProgressionService.IsCharacterUnlocked(characterId)
+            return definition.UnlockSource == CharacterUnlockSource.Shop
+                && !MetaProgressionService.IsCharacterUnlocked(characterId)
                 && MetaProgressionService.CurrentCredits >= definition.UnlockCost;
         }
 
@@ -2393,12 +2628,14 @@ namespace EJR.Game.UI
             var interactable = !MultiplayerSessionController.EnsureInstance().IsBusy;
             SetInteractable(_singlePlayButton, interactable);
             SetInteractable(_multiPlayButton, interactable);
+            SetInteractable(_achievementButton, interactable);
             SetInteractable(_metaButton, interactable);
             SetInteractable(_optionsButton, interactable);
             SetInteractable(_hostButton, interactable);
             SetInteractable(_joinButton, interactable);
             SetInteractable(_backButton, interactable);
             SetInteractable(_optionsBackButton, interactable);
+            SetInteractable(_achievementBackButton, interactable);
             SetInteractable(_runSetupCharacterButton, interactable);
             SetInteractable(_runSetupMapNextButton, interactable);
             SetInteractable(_runSetupMapBackButton, interactable);

@@ -1,5 +1,8 @@
+using System;
+using System.Collections.Generic;
 using EJR.Game.Core;
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 namespace EJR.Game.Gameplay
 {
@@ -21,15 +24,27 @@ namespace EJR.Game.Gameplay
         private bool _bossWaveTriggered;
         private bool _wave1Triggered;
         private bool _wave2Triggered;
+        private bool _pendingWave2;
+        private bool _pendingBoss;
+        private int _activeWaveIndex;
+        private int _activeWaveRemainingCount;
         private EnemyController _bossEnemy;
         private Camera _spawnReferenceCamera;
         private RuntimeSpriteFactory.EnemyVisualKind _bossVisualKind = RuntimeSpriteFactory.EnemyVisualKind.Boss;
+        private readonly HashSet<EnemyController> _activeWaveEnemies = new();
 
         public float ElapsedSeconds => _elapsedSeconds;
         public bool IsBossWaveTriggered => _bossWaveTriggered;
         public bool IsBossWaveCleared => _bossWaveTriggered && _bossEnemy == null;
         public float BossWaveStartSeconds => GetBossWaveStartSeconds();
         public EnemyController CurrentBoss => _bossEnemy;
+        public bool HasActiveWave => _activeWaveIndex > 0 && _activeWaveRemainingCount > 0;
+        public int ActiveWaveIndex => _activeWaveIndex;
+        public int ActiveWaveRemainingCount => _activeWaveRemainingCount;
+
+        public event Action<int> WaveStarted;
+        public event Action<int> WaveCleared;
+        public event Action<int, int> WaveStateChanged;
 
         public void Initialize(
             EnemyConfig config,
@@ -54,9 +69,14 @@ namespace EJR.Game.Gameplay
             _bossWaveTriggered = false;
             _wave1Triggered = false;
             _wave2Triggered = false;
+            _pendingWave2 = false;
+            _pendingBoss = false;
+            _activeWaveIndex = 0;
+            _activeWaveRemainingCount = 0;
             _bossEnemy = null;
             _spawnReferenceCamera = Camera.main;
             _bossVisualKind = bossVisualKind;
+            _activeWaveEnemies.Clear();
         }
 
         private void Update()
@@ -68,10 +88,6 @@ namespace EJR.Game.Gameplay
 
             _elapsedSeconds += Time.deltaTime;
             TryTriggerTimedWaves();
-            if (!_bossWaveTriggered && _elapsedSeconds >= GetBossWaveStartSeconds())
-            {
-                TriggerBossWave();
-            }
 
             if (_bossWaveTriggered)
             {
@@ -90,8 +106,13 @@ namespace EJR.Game.Gameplay
 
         public void TriggerBossWave()
         {
-            if (_bossWaveTriggered || _config == null || _target == null)
+            if (_bossWaveTriggered || _config == null || _target == null || HasActiveWave)
             {
+                if (!_bossWaveTriggered && HasActiveWave)
+                {
+                    _pendingBoss = true;
+                }
+
                 return;
             }
 
@@ -167,10 +188,6 @@ namespace EJR.Game.Gameplay
         {
             _elapsedSeconds = Mathf.Max(0f, seconds);
             TryTriggerTimedWaves();
-            if (!_bossWaveTriggered && _elapsedSeconds >= GetBossWaveStartSeconds())
-            {
-                TriggerBossWave();
-            }
         }
 
         public void DebugSkipToBossWave()
@@ -186,7 +203,8 @@ namespace EJR.Game.Gameplay
             RuntimeSpriteFactory.EnemyVisualKind visualKind,
             Vector3? requestedPosition = null,
             EnemyStatProfile statProfileOverride = null,
-            bool isBoss = false)
+            bool isBoss = false,
+            bool trackWaveTarget = false)
         {
             var visualStatProfile = _config.GetStatProfile(visualKind);
             var statProfile = statProfileOverride ?? visualStatProfile;
@@ -259,6 +277,11 @@ namespace EJR.Game.Gameplay
                 enemy.Changed += healthBar.SetHealth;
             }
 
+            if (trackWaveTarget)
+            {
+                TrackWaveEnemy(enemy);
+            }
+
             return enemy;
         }
 
@@ -275,20 +298,39 @@ namespace EJR.Game.Gameplay
                 _elapsedSeconds >= Mathf.Max(1f, _config.wave1TimeSeconds) &&
                 _config.wave1TimeSeconds < bossStart)
             {
-                TriggerConfiguredWave(_config.wave1SlimeCount, _config.wave1MushroomCount, _config.wave1SkeletonCount);
                 _wave1Triggered = true;
+                StartConfiguredWave(1, _config.wave1SlimeCount, _config.wave1MushroomCount, _config.wave1SkeletonCount);
             }
 
             if (!_wave2Triggered &&
                 _elapsedSeconds >= Mathf.Max(1f, _config.wave2TimeSeconds) &&
                 _config.wave2TimeSeconds < bossStart)
             {
-                TriggerConfiguredWave(_config.wave2SlimeCount, _config.wave2MushroomCount, _config.wave2SkeletonCount);
                 _wave2Triggered = true;
+                if (HasActiveWave)
+                {
+                    _pendingWave2 = true;
+                }
+                else
+                {
+                    StartConfiguredWave(2, _config.wave2SlimeCount, _config.wave2MushroomCount, _config.wave2SkeletonCount);
+                }
+            }
+
+            if (!_bossWaveTriggered && _elapsedSeconds >= bossStart)
+            {
+                if (HasActiveWave)
+                {
+                    _pendingBoss = true;
+                }
+                else
+                {
+                    TriggerBossWave();
+                }
             }
         }
 
-        private void TriggerConfiguredWave(int slimeCount, int mushroomCount, int skeletonCount)
+        private void StartConfiguredWave(int waveIndex, int slimeCount, int mushroomCount, int skeletonCount)
         {
             var validSlimeCount = _config.spawnSlime ? Mathf.Max(0, slimeCount) : 0;
             var validMushroomCount = _config.spawnMushroom ? Mathf.Max(0, mushroomCount) : 0;
@@ -296,8 +338,13 @@ namespace EJR.Game.Gameplay
             var total = validSlimeCount + validMushroomCount + validSkeletonCount;
             if (total <= 0)
             {
+                TryProcessPendingWaveSchedule();
                 return;
             }
+
+            _activeWaveIndex = Mathf.Max(0, waveIndex);
+            _activeWaveRemainingCount = 0;
+            _activeWaveEnemies.Clear();
 
             var minRadius = Mathf.Max(0.1f, _config.timedWaveMinRadius);
             var maxRadius = Mathf.Max(minRadius + 0.1f, _config.timedWaveMaxRadius);
@@ -307,6 +354,8 @@ namespace EJR.Game.Gameplay
             SpawnWaveEnemies(RuntimeSpriteFactory.EnemyVisualKind.Slime, validSlimeCount, total, ref spawnIndex, angleOffset, minRadius, maxRadius);
             SpawnWaveEnemies(RuntimeSpriteFactory.EnemyVisualKind.Mushroom, validMushroomCount, total, ref spawnIndex, angleOffset, minRadius, maxRadius);
             SpawnWaveEnemies(RuntimeSpriteFactory.EnemyVisualKind.Skeleton, validSkeletonCount, total, ref spawnIndex, angleOffset, minRadius, maxRadius);
+            WaveStarted?.Invoke(_activeWaveIndex);
+            RaiseWaveStateChanged();
         }
 
         private void SpawnWaveEnemies(
@@ -329,8 +378,78 @@ namespace EJR.Game.Gameplay
                 var angle = angleOffset + (Mathf.PI * 2f * t) + Random.Range(-0.15f, 0.15f);
                 var radius = Random.Range(adjustedMinRadius, adjustedMaxRadius);
                 var position = _target.position + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius;
-                SpawnEnemy(visualKind, position);
+                SpawnEnemy(visualKind, position, trackWaveTarget: true);
                 spawnIndex++;
+            }
+        }
+
+        private void OnEnable()
+        {
+            EnemyController.Defeated += HandleTrackedEnemyDefeated;
+        }
+
+        private void OnDisable()
+        {
+            EnemyController.Defeated -= HandleTrackedEnemyDefeated;
+        }
+
+        private void HandleTrackedEnemyDefeated(EnemyController enemy)
+        {
+            if (enemy == null || _activeWaveEnemies.Count <= 0 || !_activeWaveEnemies.Remove(enemy))
+            {
+                return;
+            }
+
+            _activeWaveRemainingCount = Mathf.Max(0, _activeWaveEnemies.Count);
+            RaiseWaveStateChanged();
+            if (_activeWaveRemainingCount > 0)
+            {
+                return;
+            }
+
+            var clearedWaveIndex = _activeWaveIndex;
+            _activeWaveIndex = 0;
+            _activeWaveRemainingCount = 0;
+            _activeWaveEnemies.Clear();
+            WaveCleared?.Invoke(clearedWaveIndex);
+            RaiseWaveStateChanged();
+            TryProcessPendingWaveSchedule();
+        }
+
+        private void TrackWaveEnemy(EnemyController enemy)
+        {
+            if (enemy == null)
+            {
+                return;
+            }
+
+            _activeWaveEnemies.Add(enemy);
+            _activeWaveRemainingCount = _activeWaveEnemies.Count;
+        }
+
+        private void RaiseWaveStateChanged()
+        {
+            WaveStateChanged?.Invoke(_activeWaveIndex, _activeWaveRemainingCount);
+        }
+
+        private void TryProcessPendingWaveSchedule()
+        {
+            if (HasActiveWave || _bossWaveTriggered || _config == null)
+            {
+                return;
+            }
+
+            if (_pendingWave2)
+            {
+                _pendingWave2 = false;
+                StartConfiguredWave(2, _config.wave2SlimeCount, _config.wave2MushroomCount, _config.wave2SkeletonCount);
+                return;
+            }
+
+            if (_pendingBoss)
+            {
+                _pendingBoss = false;
+                TriggerBossWave();
             }
         }
 

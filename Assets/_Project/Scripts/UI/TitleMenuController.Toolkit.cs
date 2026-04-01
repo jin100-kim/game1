@@ -18,6 +18,7 @@ namespace EJR.Game.UI
         private Label _toolkitRecentRunLabel;
         private Button _toolkitSinglePlayButton;
         private Button _toolkitMultiPlayButton;
+        private Button _toolkitAchievementButton;
         private Button _toolkitMetaButton;
         private Button _toolkitOptionsButton;
         private Button _toolkitQuitButton;
@@ -67,17 +68,20 @@ namespace EJR.Game.UI
             _toolkitRecentRunLabel = root.Q<Label>("recent-run-summary");
             _toolkitSinglePlayButton = root.Q<Button>("single-play-button");
             _toolkitMultiPlayButton = root.Q<Button>("multi-play-button");
+            _toolkitAchievementButton = root.Q<Button>("achievement-button");
             _toolkitMetaButton = root.Q<Button>("meta-button");
             _toolkitOptionsButton = root.Q<Button>("options-button");
             _toolkitQuitButton = root.Q<Button>("quit-button");
 
             if (_toolkitSinglePlayButton != null) _toolkitSinglePlayButton.clicked += OnSinglePlayClicked;
             if (_toolkitMultiPlayButton != null) _toolkitMultiPlayButton.clicked += OnMultiPlayClicked;
+            if (_toolkitAchievementButton != null) _toolkitAchievementButton.clicked += OnAchievementsClicked;
             if (_toolkitMetaButton != null) _toolkitMetaButton.clicked += OnMetaClicked;
             if (_toolkitOptionsButton != null) _toolkitOptionsButton.clicked += OnOptionsClicked;
             if (_toolkitQuitButton != null) _toolkitQuitButton.clicked += OnQuitClicked;
 
             UpdateToolkitOverviewSummary();
+            RefreshAchievementButtonState();
             UpdateToolkitStatus(string.Empty);
             UpdateToolkitInteractivity(!MultiplayerSessionController.EnsureInstance().IsBusy);
             UpdateToolkitMainMenuVisibility(false);
@@ -147,6 +151,7 @@ namespace EJR.Game.UI
         {
             _toolkitSinglePlayButton?.SetEnabled(interactable);
             _toolkitMultiPlayButton?.SetEnabled(interactable);
+            _toolkitAchievementButton?.SetEnabled(interactable);
             _toolkitMetaButton?.SetEnabled(interactable);
             _toolkitOptionsButton?.SetEnabled(interactable);
             _toolkitQuitButton?.SetEnabled(interactable);
@@ -168,6 +173,7 @@ namespace EJR.Game.UI
             {
                 if (_toolkitSinglePlayButton != null) _toolkitSinglePlayButton.clicked -= OnSinglePlayClicked;
                 if (_toolkitMultiPlayButton != null) _toolkitMultiPlayButton.clicked -= OnMultiPlayClicked;
+                if (_toolkitAchievementButton != null) _toolkitAchievementButton.clicked -= OnAchievementsClicked;
                 if (_toolkitMetaButton != null) _toolkitMetaButton.clicked -= OnMetaClicked;
                 if (_toolkitOptionsButton != null) _toolkitOptionsButton.clicked -= OnOptionsClicked;
                 if (_toolkitQuitButton != null) _toolkitQuitButton.clicked -= OnQuitClicked;
