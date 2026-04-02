@@ -150,6 +150,7 @@ namespace EJR.Game.Gameplay
             float collisionRadius,
             float runtimeHealthMultiplier = 1f,
             float runtimeMoveSpeedMultiplier = 1f,
+            float runtimeContactDamageMultiplier = 1f,
             bool isBossBehavior = false,
             bool hasArenaBounds = false,
             Rect arenaBounds = default)
@@ -174,10 +175,11 @@ namespace EJR.Game.Gameplay
             var experienceMultiplier = statProfile != null ? Mathf.Max(0.1f, statProfile.experienceMultiplier) : 1f;
             var elapsedHealthMultiplier = Mathf.Max(0.1f, runtimeHealthMultiplier);
             var elapsedMoveMultiplier = Mathf.Max(0.1f, runtimeMoveSpeedMultiplier);
+            var elapsedContactDamageMultiplier = Mathf.Max(0.1f, runtimeContactDamageMultiplier);
 
             _maxHealth = Mathf.Max(1f, config.maxHealth * healthMultiplier * elapsedHealthMultiplier);
             _moveSpeed = Mathf.Max(0.1f, config.moveSpeed * moveMultiplier * elapsedMoveMultiplier);
-            _contactDamage = Mathf.Max(0f, config.contactDamage * contactDamageMultiplier);
+            _contactDamage = Mathf.Max(0f, config.contactDamage * contactDamageMultiplier * elapsedContactDamageMultiplier);
             _contactDamageCooldown = Mathf.Max(0.05f, config.contactDamageCooldown);
             _experienceOnDeath = Mathf.Max(1, Mathf.RoundToInt(config.experienceOnDeath * experienceMultiplier));
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 using EJR.Game.Core;
 using EJR.Game.Gameplay;
@@ -70,6 +71,7 @@ namespace EJR.Game.Multiplayer
         private string _debugRevealBuffer = string.Empty;
         private string _lastArenaPresentationSignature = string.Empty;
         private int _lastWaveBannerSequence = -1;
+        private readonly List<Vector3> _rewardChestWorldPositions = new();
 
         private const string DebugRevealCode = "admin";
 
@@ -585,6 +587,8 @@ namespace EJR.Game.Multiplayer
                 _gameplayHud.HideWaveStatus();
                 _gameplayHud.HideWaveBanner();
                 _gameplayHud.HideBossBar();
+                _gameplayHud.HideWaveTargetDirectionIndicator();
+                _gameplayHud.HideRewardDirectionIndicator();
                 _lastWaveBannerSequence = -1;
                 return;
             }
@@ -593,6 +597,9 @@ namespace EJR.Game.Multiplayer
             {
                 _gameplayHud.HideWaveStatus();
                 _gameplayHud.HideWaveBanner();
+                _gameplayHud.HideBossBar();
+                _gameplayHud.HideWaveTargetDirectionIndicator();
+                _gameplayHud.HideRewardDirectionIndicator();
                 return;
             }
 
@@ -629,9 +636,85 @@ namespace EJR.Game.Multiplayer
                 }
             }
 
-            if (coop.BossActive)
+            RefreshTrackedTargetHud();
+        }
+
+        private void RefreshTrackedTargetHud()
+        {
+            if (_gameplayHud == null)
             {
-                _gameplayHud.SetBossBar(coop.BossCurrentHealth, coop.BossMaxHealth, "보스");
+                return;
+            }
+
+            MultiplayerSharedEnemyActor latestHudTarget = null;
+            MultiplayerSharedEnemyActor bossTarget = null;
+            MultiplayerSharedEnemyActor waveTarget = null;
+            var actors = MultiplayerSharedEnemyActor.SpawnedActors;
+            for (var i = 0; i < actors.Count; i++)
+            {
+                var actor = actors[i];
+                if (actor == null || !actor.IsSpawned)
+                {
+                    continue;
+                }
+
+                if (actor.IsHudBossTarget && bossTarget == null)
+                {
+                    bossTarget = actor;
+                }
+
+                if (actor.IsHudWaveTarget && waveTarget == null)
+                {
+                    waveTarget = actor;
+                }
+
+                if (!actor.IsHudBossTarget && !actor.IsHudWaveTarget)
+                {
+                    continue;
+                }
+
+                if (latestHudTarget == null || actor.HudSpawnSequence >= latestHudTarget.HudSpawnSequence)
+                {
+                    latestHudTarget = actor;
+                }
+            }
+
+            if (bossTarget != null)
+            {
+                _gameplayHud.UpdateBossDirectionIndicator(Camera.main, bossTarget.transform.position);
+            }
+            else
+            {
+                _gameplayHud.HideBossDirectionIndicator();
+            }
+
+            if (waveTarget != null)
+            {
+                _gameplayHud.UpdateWaveTargetDirectionIndicator(Camera.main, waveTarget.transform.position);
+            }
+            else
+            {
+                _gameplayHud.HideWaveTargetDirectionIndicator();
+            }
+
+            _rewardChestWorldPositions.Clear();
+            var pickups = MultiplayerSharedExperienceOrbActor.SpawnedActors;
+            for (var i = 0; i < pickups.Count; i++)
+            {
+                var pickup = pickups[i];
+                if (pickup == null || !pickup.IsSpawned || !pickup.IsWaveRewardChest)
+                {
+                    continue;
+                }
+
+                _rewardChestWorldPositions.Add(pickup.transform.position);
+            }
+
+            _gameplayHud.UpdateRewardDirectionIndicators(Camera.main, _rewardChestWorldPositions);
+
+            if (latestHudTarget != null)
+            {
+                _gameplayHud.SetBossBar(latestHudTarget.CurrentHealthValue, latestHudTarget.MaxHealthValue, latestHudTarget.HudLabel);
             }
             else
             {

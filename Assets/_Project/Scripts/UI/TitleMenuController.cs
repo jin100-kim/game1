@@ -544,7 +544,7 @@ namespace EJR.Game.UI
 
         private void BuildMainMenuPanelReference(Transform parent)
         {
-            _mainMenuPanel = CreatePanel(parent, "MainMenuPanelV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -12f), new Vector2(420f, 520f), new Color(0.04f, 0.07f, 0.11f, 0.92f));
+            _mainMenuPanel = CreatePanel(parent, "MainMenuPanelV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -12f), new Vector2(432f, 612f), new Color(0.04f, 0.07f, 0.11f, 0.92f));
 
             var fallbackTitle = CreateText(_mainMenuPanel.transform, "MainMenuTitleV2", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -54f), new Vector2(320f, 44f), "\uC804\uC790\uC624\uB77D \uC6D0\uC815\uB300", 34, FontStyle.Bold);
             fallbackTitle.color = new Color(0.95f, 0.97f, 1f, 1f);

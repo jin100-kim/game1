@@ -81,6 +81,7 @@ namespace EJR.Game.Multiplayer
         private GameObject _projectilePrefab;
         private GameObject _experienceOrbPrefab;
         private MultiplayerSharedEnemyActor _currentBoss;
+        private MultiplayerSharedEnemyActor _currentWaveTarget;
         private float _elapsedSeconds;
         private float _nextSpawnAt;
         private float _allDownAt = -1f;
@@ -92,6 +93,7 @@ namespace EJR.Game.Multiplayer
         private bool _pendingBoss;
         private bool _resultSessionEnding;
         private int _teamEnemiesDefeated;
+        private int _hudSpawnSequenceCounter;
 
         public static MultiplayerCoopController Instance { get; private set; }
 
@@ -107,6 +109,8 @@ namespace EJR.Game.Multiplayer
         public bool BossActive => _bossMaxHealth.Value > 0.0001f;
         public float BossCurrentHealth => _bossCurrentHealth.Value;
         public float BossMaxHealth => _bossMaxHealth.Value;
+        public Transform CurrentBossTransform => _currentBoss != null && _currentBoss.IsSpawned ? _currentBoss.transform : null;
+        public Transform CurrentWaveTargetTransform => _currentWaveTarget != null && _currentWaveTarget.IsSpawned ? _currentWaveTarget.transform : null;
         public bool ResultCleared => _resultCleared.Value;
         public bool AllowsJoin => Phase == MultiplayerRunPhase.Lobby;
         public float ReviveRadius => reviveRadius;
@@ -659,7 +663,9 @@ namespace EJR.Game.Multiplayer
             _resultSessionEnding = false;
             _teamEnemiesDefeated = 0;
             _currentBoss = null;
+            _currentWaveTarget = null;
             _activeWaveEnemies.Clear();
+            _hudSpawnSequenceCounter = 0;
             _teamLevel.Value = 1;
             _teamExperience.Value = 0;
             _teamRequiredExperience.Value = ProgressionMath.RequiredExperienceForLevel(1);
@@ -697,7 +703,9 @@ namespace EJR.Game.Multiplayer
             _resultSessionEnding = false;
             _teamEnemiesDefeated = 0;
             _currentBoss = null;
+            _currentWaveTarget = null;
             _activeWaveEnemies.Clear();
+            _hudSpawnSequenceCounter = 0;
             _teamLevel.Value = 1;
             _teamExperience.Value = 0;
             _teamRequiredExperience.Value = ProgressionMath.RequiredExperienceForLevel(1);
@@ -873,13 +881,44 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
+            var targetVisualKind = waveIndex <= 1
+                ? RuntimeSpriteFactory.EnemyVisualKind.Slime
+                : RuntimeSpriteFactory.EnemyVisualKind.Mushroom;
+            var validSlimeCount = _enemyConfig.spawnSlime ? Mathf.Max(0, slimeCount) : 0;
+            var validMushroomCount = _enemyConfig.spawnMushroom ? Mathf.Max(0, mushroomCount) : 0;
+            var validSkeletonCount = _enemyConfig.spawnSkeleton ? Mathf.Max(0, skeletonCount) : 0;
+            if (targetVisualKind == RuntimeSpriteFactory.EnemyVisualKind.Slime && validSlimeCount > 0)
+            {
+                validSlimeCount--;
+            }
+            else if (targetVisualKind == RuntimeSpriteFactory.EnemyVisualKind.Mushroom && validMushroomCount > 0)
+            {
+                validMushroomCount--;
+            }
+
             _activeWaveEnemies.Clear();
             _activeWaveIndex.Value = Mathf.Max(0, waveIndex);
             _activeWaveRemainingCount.Value = 0;
+            _currentWaveTarget = null;
 
-            SpawnWaveEnemies(alivePlayers, RuntimeSpriteFactory.EnemyVisualKind.Slime, _enemyConfig.spawnSlime ? Mathf.Max(0, slimeCount) : 0);
-            SpawnWaveEnemies(alivePlayers, RuntimeSpriteFactory.EnemyVisualKind.Mushroom, _enemyConfig.spawnMushroom ? Mathf.Max(0, mushroomCount) : 0);
-            SpawnWaveEnemies(alivePlayers, RuntimeSpriteFactory.EnemyVisualKind.Skeleton, _enemyConfig.spawnSkeleton ? Mathf.Max(0, skeletonCount) : 0);
+            SpawnWaveEnemies(alivePlayers, RuntimeSpriteFactory.EnemyVisualKind.Slime, validSlimeCount);
+            SpawnWaveEnemies(alivePlayers, RuntimeSpriteFactory.EnemyVisualKind.Mushroom, validMushroomCount);
+            SpawnWaveEnemies(alivePlayers, RuntimeSpriteFactory.EnemyVisualKind.Skeleton, validSkeletonCount);
+            _currentWaveTarget = SpawnSharedEnemy(
+                alivePlayers,
+                targetVisualKind,
+                isBoss: false,
+                hudTargetKind: MultiplayerSharedEnemyActor.HudTargetKind.WaveTarget,
+                hudSpawnSequence: ++_hudSpawnSequenceCounter);
+            if (_currentWaveTarget != null)
+            {
+                var enemy = _currentWaveTarget.GetComponent<EnemyController>();
+                if (enemy != null)
+                {
+                    _activeWaveEnemies.Add(enemy);
+                    _activeWaveRemainingCount.Value = _activeWaveEnemies.Count;
+                }
+            }
             PublishWaveBanner(1, _activeWaveIndex.Value);
         }
 
@@ -911,25 +950,54 @@ namespace EJR.Game.Multiplayer
             }
 
             var clearedWaveIndex = _activeWaveIndex.Value;
+            var rewardPosition = _currentWaveTarget != null ? _currentWaveTarget.transform.position : Vector3.zero;
             _activeWaveEnemies.Clear();
             _activeWaveIndex.Value = 0;
             _activeWaveRemainingCount.Value = 0;
+            _currentWaveTarget = null;
             PublishWaveBanner(2, clearedWaveIndex);
+            SpawnWaveRewardChest(rewardPosition, clearedWaveIndex);
+            CollectCombatPlayers(_combatPlayers);
+            TryResolveDeferredWaveEvents(_combatPlayers);
+        }
+
+        public void CollectWaveRewardChest(int waveIndex)
+        {
+            if (!IsServer || Phase != MultiplayerRunPhase.Running)
+            {
+                return;
+            }
 
             CollectCombatPlayers(_combatPlayers);
             var openedChoice = false;
             for (var i = 0; i < _combatPlayers.Count; i++)
             {
-                openedChoice |= _combatPlayers[i] != null && _combatPlayers[i].QueueWaveAugmentChoiceServer(clearedWaveIndex);
+                openedChoice |= _combatPlayers[i] != null && _combatPlayers[i].QueueWaveAugmentChoiceServer(waveIndex);
             }
 
             if (openedChoice)
             {
                 EnterLevelChoicePauseIfNeeded();
+            }
+        }
+
+        private void SpawnWaveRewardChest(Vector3 position, int waveIndex)
+        {
+            if (!IsServer || _experienceOrbPrefab == null)
+            {
                 return;
             }
 
-            TryResolveDeferredWaveEvents(_combatPlayers);
+            var chestObject = Instantiate(_experienceOrbPrefab, position, Quaternion.identity);
+            var chestActor = chestObject.GetComponent<MultiplayerSharedExperienceOrbActor>();
+            if (chestActor == null)
+            {
+                Destroy(chestObject);
+                return;
+            }
+
+            chestActor.InitializeWaveRewardChestServer(waveIndex, ++_hudSpawnSequenceCounter, _playerConfig != null ? _playerConfig.pickupRadius : 1.2f);
+            chestActor.NetworkObject.Spawn(true);
         }
 
         private void TryResolveDeferredWaveEvents(IReadOnlyList<MultiplayerPlayerCombatant> alivePlayers)
@@ -1000,7 +1068,12 @@ namespace EJR.Game.Multiplayer
             _remainingSeconds.Value = 0f;
             AudioService.Instance.PlaySfx(AudioCueId.BossWarning);
             PlayBossWarningClientRpc();
-            _currentBoss = SpawnSharedEnemy(alivePlayers, SelectedBossVisualKind, isBoss: true);
+            _currentBoss = SpawnSharedEnemy(
+                alivePlayers,
+                SelectedBossVisualKind,
+                isBoss: true,
+                hudTargetKind: MultiplayerSharedEnemyActor.HudTargetKind.Boss,
+                hudSpawnSequence: ++_hudSpawnSequenceCounter);
 
             var skeletonCount = Mathf.Max(3, _enemyConfig.bossWaveSkeletonCount);
             for (var i = 0; i < skeletonCount; i++)
@@ -1012,7 +1085,9 @@ namespace EJR.Game.Multiplayer
         private MultiplayerSharedEnemyActor SpawnSharedEnemy(
             IReadOnlyList<MultiplayerPlayerCombatant> alivePlayers,
             RuntimeSpriteFactory.EnemyVisualKind visualKind,
-            bool isBoss)
+            bool isBoss,
+            MultiplayerSharedEnemyActor.HudTargetKind hudTargetKind = MultiplayerSharedEnemyActor.HudTargetKind.None,
+            int hudSpawnSequence = 0)
         {
             var spawnPosition = FindSpawnPosition(alivePlayers, visualKind, isBoss);
             var enemyObject = Instantiate(_enemyPrefab, spawnPosition, Quaternion.identity);
@@ -1023,7 +1098,7 @@ namespace EJR.Game.Multiplayer
                 return null;
             }
 
-            enemyActor.InitializeServer(this, visualKind, spawnPosition, _elapsedSeconds, isBoss);
+            enemyActor.InitializeServer(this, visualKind, spawnPosition, _elapsedSeconds, isBoss, hudTargetKind, hudSpawnSequence);
             enemyActor.NetworkObject.Spawn(true);
             return enemyActor;
         }
@@ -1354,6 +1429,24 @@ namespace EJR.Game.Multiplayer
             }
 
             _teamEnemiesDefeated++;
+            if (_currentBoss != null)
+            {
+                var bossEnemy = _currentBoss.GetComponent<EnemyController>();
+                if (bossEnemy == enemy)
+                {
+                    _currentBoss = null;
+                }
+            }
+
+            if (_currentWaveTarget != null)
+            {
+                var waveTargetEnemy = _currentWaveTarget.GetComponent<EnemyController>();
+                if (waveTargetEnemy == enemy)
+                {
+                    _currentWaveTarget = null;
+                }
+            }
+
             if (_activeWaveEnemies.Remove(enemy))
             {
                 _activeWaveRemainingCount.Value = _activeWaveEnemies.Count;

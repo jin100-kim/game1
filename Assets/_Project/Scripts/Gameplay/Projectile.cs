@@ -27,6 +27,7 @@ namespace EJR.Game.Gameplay
         private int _remainingHits;
         private WeaponUpgradeId _sourceWeaponId;
         private Action<Projectile> _releaseToPool;
+        private Action _directHitCallback;
         private bool _isActive;
         private bool _useBoundsCulling;
         private Rect _bounds;
@@ -46,6 +47,7 @@ namespace EJR.Game.Gameplay
             float minimumDamageMultiplier,
             WeaponUpgradeId sourceWeaponId,
             Action<Projectile> releaseToPool,
+            Action directHitCallback = null,
             bool useBoundsCulling = false,
             Rect bounds = default)
         {
@@ -61,6 +63,7 @@ namespace EJR.Game.Gameplay
             _damageFalloffPerHit = Mathf.Clamp01(damageFalloffPerHit);
             _sourceWeaponId = sourceWeaponId;
             _releaseToPool = releaseToPool;
+            _directHitCallback = directHitCallback;
             _useBoundsCulling = useBoundsCulling;
             _bounds = bounds;
             _isActive = true;
@@ -119,6 +122,7 @@ namespace EJR.Game.Gameplay
                     else
                     {
                         enemy.ReceiveWeaponDamage(_currentDamage, _sourceWeaponId);
+                        _directHitCallback?.Invoke();
                     }
                 }
                 finally
@@ -209,6 +213,7 @@ namespace EJR.Game.Gameplay
                 }
 
                 enemy.ReceiveWeaponDamage(explosionDamage, _sourceWeaponId);
+                _directHitCallback?.Invoke();
                 enemy.ApplyMinorStun(FireballExplosionMinorStunDuration);
                 enemy.ApplyBurn(burnDamage, FireballBurnDuration, FireballBurnTickInterval);
             }

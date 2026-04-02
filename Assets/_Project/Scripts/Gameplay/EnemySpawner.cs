@@ -9,6 +9,7 @@ namespace EJR.Game.Gameplay
     public sealed class EnemySpawner : MonoBehaviour
     {
         private const int BossProjectileVolleySkeletonCount = 5;
+        private const float WaveRewardPickupRadius = 0.8f;
 
         private EnemyConfig _config;
         private Transform _target;
@@ -29,22 +30,52 @@ namespace EJR.Game.Gameplay
         private int _activeWaveIndex;
         private int _activeWaveRemainingCount;
         private EnemyController _bossEnemy;
+        private EnemyController _activeWaveTargetEnemy;
+        private string _activeWaveTargetLabel = string.Empty;
         private Camera _spawnReferenceCamera;
         private RuntimeSpriteFactory.EnemyVisualKind _bossVisualKind = RuntimeSpriteFactory.EnemyVisualKind.Boss;
         private readonly HashSet<EnemyController> _activeWaveEnemies = new();
+        private readonly List<WaveRewardChest> _activeRewardChests = new();
+        private int _spawnSequenceCounter;
+        private int _bossSpawnSequence;
+        private int _waveTargetSpawnSequence;
 
         public float ElapsedSeconds => _elapsedSeconds;
         public bool IsBossWaveTriggered => _bossWaveTriggered;
         public bool IsBossWaveCleared => _bossWaveTriggered && _bossEnemy == null;
         public float BossWaveStartSeconds => GetBossWaveStartSeconds();
         public EnemyController CurrentBoss => _bossEnemy;
+        public EnemyController CurrentWaveTarget => _activeWaveTargetEnemy;
         public bool HasActiveWave => _activeWaveIndex > 0 && _activeWaveRemainingCount > 0;
         public int ActiveWaveIndex => _activeWaveIndex;
         public int ActiveWaveRemainingCount => _activeWaveRemainingCount;
+        public Transform CurrentRewardChestTransform => GetLatestRewardChest()?.transform;
 
         public event Action<int> WaveStarted;
         public event Action<int> WaveCleared;
+        public event Action<int> WaveRewardChestCollected;
         public event Action<int, int> WaveStateChanged;
+
+        public void GetRewardChestWorldPositions(List<Vector3> results)
+        {
+            if (results == null)
+            {
+                return;
+            }
+
+            results.Clear();
+            for (var i = _activeRewardChests.Count - 1; i >= 0; i--)
+            {
+                var chest = _activeRewardChests[i];
+                if (chest == null)
+                {
+                    _activeRewardChests.RemoveAt(i);
+                    continue;
+                }
+
+                results.Add(chest.transform.position);
+            }
+        }
 
         public void Initialize(
             EnemyConfig config,
@@ -74,9 +105,15 @@ namespace EJR.Game.Gameplay
             _activeWaveIndex = 0;
             _activeWaveRemainingCount = 0;
             _bossEnemy = null;
+            _activeWaveTargetEnemy = null;
+            _activeWaveTargetLabel = string.Empty;
             _spawnReferenceCamera = Camera.main;
             _bossVisualKind = bossVisualKind;
             _activeWaveEnemies.Clear();
+            _activeRewardChests.Clear();
+            _spawnSequenceCounter = 0;
+            _bossSpawnSequence = 0;
+            _waveTargetSpawnSequence = 0;
         }
 
         private void Update()
@@ -129,6 +166,7 @@ namespace EJR.Game.Gameplay
             _bossEnemy = SpawnEnemy(_bossVisualKind, bossPosition, bossProfile, isBoss: true);
             if (_bossEnemy != null)
             {
+                _bossSpawnSequence = ++_spawnSequenceCounter;
                 _bossEnemy.BossProjectileVolleyStarted += HandleBossProjectileVolleyStarted;
             }
 
@@ -212,6 +250,7 @@ namespace EJR.Game.Gameplay
             var runtimeMinuteTier = Mathf.Max(0, Mathf.FloorToInt(_elapsedSeconds / 60f));
             var runtimeMoveSpeedMultiplier = 1f + (runtimeMinuteTier * 0.05f);
             var runtimeHealthMultiplier = 1f + (runtimeMinuteTier * 0.10f);
+            var runtimeContactDamageMultiplier = 1f + (Mathf.Min(runtimeMinuteTier, 10) * 0.10f);
 
             var spawnPosition = requestedPosition.HasValue
                 ? requestedPosition.Value
@@ -258,6 +297,7 @@ namespace EJR.Game.Gameplay
                 collisionRadius,
                 runtimeHealthMultiplier,
                 runtimeMoveSpeedMultiplier,
+                runtimeContactDamageMultiplier,
                 isBoss,
                 _hasArenaBounds,
                 _arenaBounds);
@@ -332,10 +372,21 @@ namespace EJR.Game.Gameplay
 
         private void StartConfiguredWave(int waveIndex, int slimeCount, int mushroomCount, int skeletonCount)
         {
+            var targetVisualKind = GetWaveTargetVisualKind(waveIndex);
             var validSlimeCount = _config.spawnSlime ? Mathf.Max(0, slimeCount) : 0;
             var validMushroomCount = _config.spawnMushroom ? Mathf.Max(0, mushroomCount) : 0;
             var validSkeletonCount = _config.spawnSkeleton ? Mathf.Max(0, skeletonCount) : 0;
-            var total = validSlimeCount + validMushroomCount + validSkeletonCount;
+
+            if (targetVisualKind == RuntimeSpriteFactory.EnemyVisualKind.Slime && validSlimeCount > 0)
+            {
+                validSlimeCount--;
+            }
+            else if (targetVisualKind == RuntimeSpriteFactory.EnemyVisualKind.Mushroom && validMushroomCount > 0)
+            {
+                validMushroomCount--;
+            }
+
+            var total = validSlimeCount + validMushroomCount + validSkeletonCount + 1;
             if (total <= 0)
             {
                 TryProcessPendingWaveSchedule();
@@ -345,6 +396,9 @@ namespace EJR.Game.Gameplay
             _activeWaveIndex = Mathf.Max(0, waveIndex);
             _activeWaveRemainingCount = 0;
             _activeWaveEnemies.Clear();
+            _activeWaveTargetEnemy = null;
+            _activeWaveTargetLabel = GetWaveTargetLabel(_activeWaveIndex);
+            _waveTargetSpawnSequence = 0;
 
             var minRadius = Mathf.Max(0.1f, _config.timedWaveMinRadius);
             var maxRadius = Mathf.Max(minRadius + 0.1f, _config.timedWaveMaxRadius);
@@ -354,6 +408,7 @@ namespace EJR.Game.Gameplay
             SpawnWaveEnemies(RuntimeSpriteFactory.EnemyVisualKind.Slime, validSlimeCount, total, ref spawnIndex, angleOffset, minRadius, maxRadius);
             SpawnWaveEnemies(RuntimeSpriteFactory.EnemyVisualKind.Mushroom, validMushroomCount, total, ref spawnIndex, angleOffset, minRadius, maxRadius);
             SpawnWaveEnemies(RuntimeSpriteFactory.EnemyVisualKind.Skeleton, validSkeletonCount, total, ref spawnIndex, angleOffset, minRadius, maxRadius);
+            SpawnWaveTargetEnemy(targetVisualKind, total, ref spawnIndex, angleOffset, minRadius, maxRadius);
             WaveStarted?.Invoke(_activeWaveIndex);
             RaiseWaveStateChanged();
         }
@@ -378,9 +433,181 @@ namespace EJR.Game.Gameplay
                 var angle = angleOffset + (Mathf.PI * 2f * t) + Random.Range(-0.15f, 0.15f);
                 var radius = Random.Range(adjustedMinRadius, adjustedMaxRadius);
                 var position = _target.position + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius;
-                SpawnEnemy(visualKind, position, trackWaveTarget: true);
+                SpawnEnemy(visualKind, position);
                 spawnIndex++;
             }
+        }
+
+        private void SpawnWaveTargetEnemy(
+            RuntimeSpriteFactory.EnemyVisualKind visualKind,
+            int total,
+            ref int spawnIndex,
+            float angleOffset,
+            float minRadius,
+            float maxRadius)
+        {
+            var baseProfile = _config.GetStatProfile(visualKind);
+            var targetProfile = new EnemyStatProfile
+            {
+                healthMultiplier = Mathf.Max(1f, baseProfile != null ? baseProfile.healthMultiplier : 1f) * 5.5f,
+                moveSpeedMultiplier = Mathf.Max(0.1f, baseProfile != null ? baseProfile.moveSpeedMultiplier : 1f) * 0.92f,
+                contactDamageMultiplier = Mathf.Max(0.1f, baseProfile != null ? baseProfile.contactDamageMultiplier : 1f) * 1.25f,
+                experienceMultiplier = Mathf.Max(0.1f, baseProfile != null ? baseProfile.experienceMultiplier : 1f) * 3f,
+                visualScaleMultiplier = Mathf.Max(0.1f, baseProfile != null ? baseProfile.visualScaleMultiplier : 1f) * 1.55f,
+                collisionRadiusMultiplier = Mathf.Max(0.1f, baseProfile != null ? baseProfile.collisionRadiusMultiplier : 1f) * 1.35f,
+            };
+
+            var candidateRadius = CalculateCollisionRadius(targetProfile);
+            var adjustedMinRadius = Mathf.Max(0.1f, minRadius);
+            var adjustedMaxRadius = Mathf.Max(adjustedMinRadius + 0.1f, maxRadius);
+            ApplyOffscreenRadiusFloor(candidateRadius, ref adjustedMinRadius, ref adjustedMaxRadius);
+
+            var t = total > 0 ? spawnIndex / (float)total : 0f;
+            var angle = angleOffset + (Mathf.PI * 2f * t) + Random.Range(-0.08f, 0.08f);
+            var radius = Random.Range(adjustedMinRadius, adjustedMaxRadius);
+            var position = _target.position + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius;
+            var enemy = SpawnEnemy(visualKind, position, targetProfile, trackWaveTarget: true);
+            spawnIndex++;
+            if (enemy == null)
+            {
+                return;
+            }
+
+            _activeWaveTargetEnemy = enemy;
+            _waveTargetSpawnSequence = ++_spawnSequenceCounter;
+            ApplyWaveTargetPresentation(enemy);
+        }
+
+        public bool TryGetPriorityBossBarTarget(out EnemyController enemy, out string label)
+        {
+            enemy = null;
+            label = string.Empty;
+
+            var boss = _bossEnemy;
+            if (boss == null || boss.IsDead)
+            {
+                boss = null;
+            }
+
+            var waveTarget = _activeWaveTargetEnemy;
+            if (waveTarget == null || waveTarget.IsDead)
+            {
+                waveTarget = null;
+            }
+
+            if (boss == null && waveTarget == null)
+            {
+                return false;
+            }
+
+            if (waveTarget != null && (boss == null || _waveTargetSpawnSequence >= _bossSpawnSequence))
+            {
+                enemy = waveTarget;
+                label = string.IsNullOrWhiteSpace(_activeWaveTargetLabel) ? "웨이브 목표" : _activeWaveTargetLabel;
+                return true;
+            }
+
+            enemy = boss;
+            label = "보스";
+            return true;
+        }
+
+        private RuntimeSpriteFactory.EnemyVisualKind GetWaveTargetVisualKind(int waveIndex)
+        {
+            return waveIndex <= 1
+                ? RuntimeSpriteFactory.EnemyVisualKind.Slime
+                : RuntimeSpriteFactory.EnemyVisualKind.Mushroom;
+        }
+
+        private string GetWaveTargetLabel(int waveIndex)
+        {
+            return waveIndex <= 1 ? "거대 슬라임" : "거대 버섯";
+        }
+
+        private void ApplyWaveTargetPresentation(EnemyController enemy)
+        {
+            if (enemy == null)
+            {
+                return;
+            }
+
+            enemy.gameObject.name = $"{GetWaveTargetLabel(_activeWaveIndex)}Enemy";
+            var visualRoot = enemy.transform.Find("Visual");
+            if (visualRoot == null)
+            {
+                return;
+            }
+
+            var glowObject = new GameObject("WaveTargetGlow");
+            glowObject.transform.SetParent(visualRoot, false);
+            glowObject.transform.localPosition = new Vector3(0f, -0.02f, 0.02f);
+            var glowRenderer = glowObject.AddComponent<SpriteRenderer>();
+            glowRenderer.sprite = RuntimeSpriteFactory.GetSquareSprite();
+            glowRenderer.color = new Color(1f, 1f, 1f, 0.18f);
+            glowRenderer.sortingOrder = 13;
+            var glowScale = Mathf.Max(0.6f, enemy.CollisionRadius * 3f);
+            glowObject.transform.localScale = new Vector3(glowScale, glowScale, 1f);
+        }
+
+        private WaveRewardChest GetLatestRewardChest()
+        {
+            WaveRewardChest latestChest = null;
+            var latestSequence = int.MinValue;
+            for (var i = _activeRewardChests.Count - 1; i >= 0; i--)
+            {
+                var chest = _activeRewardChests[i];
+                if (chest == null)
+                {
+                    _activeRewardChests.RemoveAt(i);
+                    continue;
+                }
+
+                if (chest.SpawnSequence <= latestSequence)
+                {
+                    continue;
+                }
+
+                latestSequence = chest.SpawnSequence;
+                latestChest = chest;
+            }
+
+            return latestChest;
+        }
+
+        private void SpawnWaveRewardChest(int waveIndex, Vector3 position)
+        {
+            var chestObject = new GameObject($"WaveRewardChest_{Mathf.Max(1, waveIndex)}");
+            chestObject.transform.position = position;
+            var chest = chestObject.AddComponent<WaveRewardChest>();
+            _activeRewardChests.Add(chest);
+            chest.Initialize(
+                _target,
+                waveIndex,
+                ++_spawnSequenceCounter,
+                WaveRewardPickupRadius,
+                HandleWaveRewardChestCollected,
+                HandleWaveRewardChestReleased);
+        }
+
+        private void HandleWaveRewardChestCollected(WaveRewardChest chest)
+        {
+            if (chest == null)
+            {
+                return;
+            }
+
+            _activeRewardChests.Remove(chest);
+            WaveRewardChestCollected?.Invoke(chest.WaveIndex);
+        }
+
+        private void HandleWaveRewardChestReleased(WaveRewardChest chest)
+        {
+            if (chest == null)
+            {
+                return;
+            }
+
+            _activeRewardChests.Remove(chest);
         }
 
         private void OnEnable()
@@ -395,9 +622,28 @@ namespace EJR.Game.Gameplay
 
         private void HandleTrackedEnemyDefeated(EnemyController enemy)
         {
-            if (enemy == null || _activeWaveEnemies.Count <= 0 || !_activeWaveEnemies.Remove(enemy))
+            if (enemy == null)
             {
                 return;
+            }
+
+            if (_bossEnemy == enemy)
+            {
+                _bossEnemy = null;
+                _bossSpawnSequence = 0;
+            }
+
+            if (_activeWaveEnemies.Count <= 0 || !_activeWaveEnemies.Remove(enemy))
+            {
+                return;
+            }
+
+            if (_activeWaveTargetEnemy == enemy)
+            {
+                SpawnWaveRewardChest(_activeWaveIndex, enemy.transform.position);
+                _activeWaveTargetEnemy = null;
+                _activeWaveTargetLabel = string.Empty;
+                _waveTargetSpawnSequence = 0;
             }
 
             _activeWaveRemainingCount = Mathf.Max(0, _activeWaveEnemies.Count);

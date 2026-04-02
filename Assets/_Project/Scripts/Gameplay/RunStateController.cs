@@ -104,6 +104,7 @@ namespace EJR.Game.Gameplay
 
         private LevelUpOption[] _currentOptions;
         private readonly Queue<PendingChoiceRequest> _pendingChoices = new();
+        private readonly List<Vector3> _rewardChestWorldPositions = new();
         private PendingChoiceContext _activeChoiceContext;
 
         private float _remainingSeconds;
@@ -795,6 +796,7 @@ namespace EJR.Game.Gameplay
                 (_currentMapDefinition ?? RunSelectionService.SingleMapDefinition).BossVisualKind);
             enemySpawner.WaveStarted += HandleWaveStarted;
             enemySpawner.WaveCleared += HandleWaveCleared;
+            enemySpawner.WaveRewardChestCollected += HandleWaveRewardChestCollected;
             _enemySpawner = enemySpawner;
             if (enemySpawner.BossWaveStartSeconds > 0f)
             {
@@ -1460,9 +1462,14 @@ namespace EJR.Game.Gameplay
         private void OnPlayerHealthChanged(float currentHealth, float maxHealth)
         {
             _playerHealthBar?.SetHealth(currentHealth, maxHealth);
-            if (!Mathf.Approximately(_lastObservedPlayerMaxHealth, maxHealth))
+            var maxHealthChanged = !Mathf.Approximately(_lastObservedPlayerMaxHealth, maxHealth);
+            if (maxHealthChanged)
             {
                 _lastObservedPlayerMaxHealth = maxHealth;
+            }
+
+            if (maxHealthChanged || (_buildRuntime != null && _buildRuntime.HasLowHealthBonuses))
+            {
                 RefreshCharacterPassiveBonuses();
             }
 
@@ -1520,12 +1527,22 @@ namespace EJR.Game.Gameplay
 
         private void HandleWaveCleared(int waveIndex)
         {
+            if (_isGameOver)
+            {
+                return;
+            }
+
+            _hud?.ShowWaveBanner($"웨이브 {waveIndex} 정리 완료\n보상 상자 드롭");
+            UpdateHud();
+        }
+
+        private void HandleWaveRewardChestCollected(int waveIndex)
+        {
             if (_isGameOver || _buildRuntime == null)
             {
                 return;
             }
 
-            _hud?.ShowWaveBanner("웨이브 정리 완료");
             var options = SharedAugmentCatalog.BuildRandomOptions(_buildRuntime.ActiveAugments);
             if (options.Length > 0)
             {
@@ -1774,20 +1791,42 @@ namespace EJR.Game.Gameplay
 
         private void UpdateBossHud()
         {
-            if (_hud == null || _enemySpawner == null || !_enemySpawner.IsBossWaveTriggered)
+            if (_hud == null || _enemySpawner == null)
             {
                 _hud?.HideBossBar();
+                _hud?.HideWaveTargetDirectionIndicator();
+                _hud?.HideRewardDirectionIndicator();
                 return;
             }
 
-            var boss = _enemySpawner.CurrentBoss;
-            if (boss == null)
+            if (_enemySpawner.CurrentBoss != null)
+            {
+                _hud.UpdateBossDirectionIndicator(Camera.main, _enemySpawner.CurrentBoss.transform.position);
+            }
+            else
+            {
+                _hud.HideBossDirectionIndicator();
+            }
+
+            if (_enemySpawner.CurrentWaveTarget != null)
+            {
+                _hud.UpdateWaveTargetDirectionIndicator(Camera.main, _enemySpawner.CurrentWaveTarget.transform.position);
+            }
+            else
+            {
+                _hud.HideWaveTargetDirectionIndicator();
+            }
+
+            _enemySpawner.GetRewardChestWorldPositions(_rewardChestWorldPositions);
+            _hud.UpdateRewardDirectionIndicators(Camera.main, _rewardChestWorldPositions);
+
+            if (!_enemySpawner.TryGetPriorityBossBarTarget(out var trackedTarget, out var trackedLabel) || trackedTarget == null)
             {
                 _hud.HideBossBar();
                 return;
             }
 
-            _hud.SetBossBar(boss.CurrentHealth, boss.MaxHealth, "보스");
+            _hud.SetBossBar(trackedTarget.CurrentHealth, trackedTarget.MaxHealth, trackedLabel);
         }
 
         private void ApplyBuildToRuntimeSystems()
@@ -1808,7 +1847,8 @@ namespace EJR.Game.Gameplay
 
             if (_playerHealth != null)
             {
-                _playerHealth.SetMaxHealth(GetCurrentMaxHealth(), healDelta: true);
+                var preserveCurrentRatio = _buildRuntime != null && !Mathf.Approximately(_buildRuntime.GlobalMaxHealthScale, 1f);
+                _playerHealth.SetMaxHealth(GetCurrentMaxHealth(), healDelta: !preserveCurrentRatio, preserveCurrentRatio: preserveCurrentRatio);
             }
 
             if (_playerMover != null)
@@ -1863,6 +1903,7 @@ namespace EJR.Game.Gameplay
                     break;
             }
 
+            dynamicBonuses += _buildRuntime.GetLowHealthDynamicBonuses(GetCurrentHealthRatio());
             _buildRuntime.ApplyCharacterDynamicBonuses(dynamicBonuses);
             _buildRuntime.SetChainAttackModifiers(ignoreChainDecay, bonusChains);
             ApplyBuildToRuntimeSystems();
@@ -1872,14 +1913,15 @@ namespace EJR.Game.Gameplay
         {
             var baseMaxHealth = playerConfig != null ? Mathf.Max(1f, playerConfig.maxHealth) : 100f;
             var bonus = _playerStats != null ? Mathf.Max(0f, _playerStats.MaxHealthBonus) : 0f;
-            return baseMaxHealth + bonus;
+            var scale = _playerStats != null ? Mathf.Max(0.05f, _playerStats.MaxHealthScale) : 1f;
+            return Mathf.Max(1f, (baseMaxHealth + bonus) * scale);
         }
 
         private string BuildWeaponSummary()
         {
             if (_buildRuntime == null || _levelUp == null)
             {
-                return $"무기\n1) 비어 있음\n2) 잠김 (레벨 {PlayerBuildRuntime.SecondWeaponUnlockLevel})\n3) 잠김 (레벨 {PlayerBuildRuntime.ThirdWeaponUnlockLevel})";
+                return $"무기\n1) 비어 있음\n2) 잠김 (레벨 {PlayerBuildRuntime.SecondWeaponUnlockLevel})\n3) 잠김 (레벨 {PlayerBuildRuntime.ThirdWeaponUnlockLevel})\n4) 잠김 (양손잡이 필요)";
             }
 
             var unlockedSlots = _buildRuntime.GetUnlockedWeaponSlots(_levelUp.Level);
@@ -1890,10 +1932,7 @@ namespace EJR.Game.Gameplay
                 var slotNumber = slotIndex + 1;
                 if (slotIndex >= unlockedSlots)
                 {
-                    var requiredLevel = slotIndex == 1
-                        ? PlayerBuildRuntime.SecondWeaponUnlockLevel
-                        : PlayerBuildRuntime.ThirdWeaponUnlockLevel;
-                    lines += $"\n{slotNumber}) 잠김 (레벨 {requiredLevel})";
+                    lines += $"\n{slotNumber}) {GetLockedWeaponSlotText(slotIndex)}";
                     continue;
                 }
 
@@ -1932,12 +1971,31 @@ namespace EJR.Game.Gameplay
 
             var lines = "전역 능력치";
             lines += $"\n피해량 +{_buildRuntime.GlobalAttackPowerPercentTotal:0.#}%";
-            lines += $"\n공격 속도 +{_buildRuntime.GlobalAttackSpeedPercentTotal:0.#}%";
+            lines += $"\n공격 속도 {FormatSignedPercent(_buildRuntime.GlobalAttackSpeedPercentTotal)}";
             lines += $"\n최대 체력 +{_buildRuntime.GlobalMaxHealthFlatTotal:0}";
-            lines += $"\n체력 재생 +{_buildRuntime.GlobalHealthRegenPerSecondTotal:0.##}/초";
-            lines += $"\n이동 속도 +{_buildRuntime.GlobalMoveSpeedPercentTotal:0.#}%";
+            if (_buildRuntime.SuppressesPassiveRegen)
+            {
+                lines += "\n체력 재생 0/초 (흡혈)";
+            }
+            else
+            {
+                var regenPerSecond = _playerStats != null ? _playerStats.HealthRegenPerSecond : _buildRuntime.GlobalHealthRegenPerSecondTotal;
+                lines += $"\n체력 재생 +{regenPerSecond:0.##}/초";
+            }
+
+            lines += $"\n이동 속도 {FormatSignedPercent(_buildRuntime.GlobalMoveSpeedPercentTotal)}";
             lines += $"\n공격 범위 +{_buildRuntime.GlobalAttackRangePercentTotal:0.#}%";
             lines += $"\n행운 {_buildRuntime.GlobalLuckTotal:0}";
+            if (!Mathf.Approximately(_buildRuntime.GlobalMaxHealthScale, 1f))
+            {
+                lines += $"\n최대 체력 배율 x{_buildRuntime.GlobalMaxHealthScale:0.##}";
+            }
+
+            if (_buildRuntime.LifestealHealPerHit > 0)
+            {
+                lines += $"\n흡혈 {_buildRuntime.LifestealHealPerHit}/타격";
+            }
+
             if (!Mathf.Approximately(_buildRuntime.GlobalExperienceGainPercentTotal, 0f))
             {
                 lines += $"\nXP +{_buildRuntime.GlobalExperienceGainPercentTotal:0.#}%";
@@ -1949,6 +2007,33 @@ namespace EJR.Game.Gameplay
             }
 
             return lines;
+        }
+
+        private float GetCurrentHealthRatio()
+        {
+            if (_playerHealth == null || _playerHealth.MaxHealth <= 0.0001f)
+            {
+                return 1f;
+            }
+
+            return Mathf.Clamp01(_playerHealth.CurrentHealth / _playerHealth.MaxHealth);
+        }
+
+        private static string GetLockedWeaponSlotText(int slotIndex)
+        {
+            return slotIndex switch
+            {
+                1 => $"잠김 (레벨 {PlayerBuildRuntime.SecondWeaponUnlockLevel})",
+                2 => $"잠김 (레벨 {PlayerBuildRuntime.ThirdWeaponUnlockLevel})",
+                3 => "잠김 (양손잡이 필요)",
+                _ => "잠김",
+            };
+        }
+
+        private static string FormatSignedPercent(float value)
+        {
+            var prefix = value >= 0f ? "+" : string.Empty;
+            return $"{prefix}{value:0.#}%";
         }
 
         private static string GetWeaponDisplayName(WeaponUpgradeId weaponId)

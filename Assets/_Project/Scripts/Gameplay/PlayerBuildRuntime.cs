@@ -7,7 +7,7 @@ namespace EJR.Game.Gameplay
     [System.Serializable]
     public sealed class PlayerBuildRuntime
     {
-        public const int MaxWeaponSlotsAbsolute = 3;
+        public const int MaxWeaponSlotsAbsolute = 4;
         public const int MaxWeaponLevel = 10;
         public const int SecondWeaponUnlockLevel = 5;
         public const int ThirdWeaponUnlockLevel = 10;
@@ -35,7 +35,7 @@ namespace EJR.Game.Gameplay
             public bool Milestone10Taken { get; }
         }
 
-        private readonly List<WeaponUpgradeId> _weaponOrder = new(3);
+        private readonly List<WeaponUpgradeId> _weaponOrder = new(MaxWeaponSlotsAbsolute);
         private readonly Dictionary<WeaponUpgradeId, int> _weaponLevels = new();
         private readonly Dictionary<WeaponUpgradeId, WeaponBonusTotals> _weaponBonuses = new();
         private readonly HashSet<RunAugmentId> _runAugments = new();
@@ -44,6 +44,14 @@ namespace EJR.Game.Gameplay
         private MetaBonusValues _characterBaseBonuses;
         private MetaBonusValues _characterDynamicBonuses;
         private MetaBonusValues _runBonuses;
+        private int _extraWeaponSlots;
+        private float _maxHealthScale = 1f;
+        private bool _suppressPassiveRegen;
+        private int _lifestealHealPerHit;
+        private float _lifestealInternalCooldown;
+        private float _lowHealthDamagePercentMax;
+        private float _lowHealthMoveSpeedPercentMax;
+        private float _lowHealthMaxThreshold;
         private bool _chainAttackIgnoresDecay;
         private int _chainAttackBonusJumps;
 
@@ -59,6 +67,12 @@ namespace EJR.Game.Gameplay
         public float GlobalLuckTotal => _metaBonuses.luck + _characterBaseBonuses.luck + _characterDynamicBonuses.luck + _runBonuses.luck;
         public float GlobalExperienceGainPercentTotal => _metaBonuses.experienceGainPercent + _characterBaseBonuses.experienceGainPercent + _characterDynamicBonuses.experienceGainPercent + _runBonuses.experienceGainPercent;
         public float GlobalCreditGainPercentTotal => _metaBonuses.creditGainPercent + _characterBaseBonuses.creditGainPercent + _characterDynamicBonuses.creditGainPercent + _runBonuses.creditGainPercent;
+        public int ExtraWeaponSlots => _extraWeaponSlots;
+        public float GlobalMaxHealthScale => _maxHealthScale;
+        public bool SuppressesPassiveRegen => _suppressPassiveRegen;
+        public int LifestealHealPerHit => _lifestealHealPerHit;
+        public float LifestealInternalCooldown => _lifestealInternalCooldown;
+        public bool HasLowHealthBonuses => _lowHealthDamagePercentMax > 0f || _lowHealthMoveSpeedPercentMax > 0f;
 
         public void InitializeDefaults(bool grantStarterRifle = true)
         {
@@ -70,6 +84,14 @@ namespace EJR.Game.Gameplay
             _characterBaseBonuses = default;
             _characterDynamicBonuses = default;
             _runBonuses = default;
+            _extraWeaponSlots = 0;
+            _maxHealthScale = 1f;
+            _suppressPassiveRegen = false;
+            _lifestealHealPerHit = 0;
+            _lifestealInternalCooldown = 0f;
+            _lowHealthDamagePercentMax = 0f;
+            _lowHealthMoveSpeedPercentMax = 0f;
+            _lowHealthMaxThreshold = 0f;
             _chainAttackIgnoresDecay = false;
             _chainAttackBonusJumps = 0;
 
@@ -122,17 +144,17 @@ namespace EJR.Game.Gameplay
 
         public int GetUnlockedWeaponSlots(int playerLevel)
         {
+            var baseUnlockedSlots = 1;
             if (playerLevel >= ThirdWeaponUnlockLevel)
             {
-                return 3;
+                baseUnlockedSlots = 3;
             }
-
-            if (playerLevel >= SecondWeaponUnlockLevel)
+            else if (playerLevel >= SecondWeaponUnlockLevel)
             {
-                return 2;
+                baseUnlockedSlots = 2;
             }
 
-            return 1;
+            return Mathf.Clamp(baseUnlockedSlots + _extraWeaponSlots, 1, MaxWeaponSlotsAbsolute);
         }
 
         public bool HasWeapon(WeaponUpgradeId id)
@@ -282,6 +304,23 @@ namespace EJR.Game.Gameplay
             return _runAugments.Contains(augmentId);
         }
 
+        public MetaBonusValues GetLowHealthDynamicBonuses(float healthRatio)
+        {
+            if (!HasLowHealthBonuses)
+            {
+                return default;
+            }
+
+            var threshold = Mathf.Clamp(_lowHealthMaxThreshold, 0.01f, 1f);
+            var clampedRatio = Mathf.Clamp01(healthRatio);
+            var normalized = Mathf.InverseLerp(1f, threshold, clampedRatio);
+            return new MetaBonusValues
+            {
+                attackPowerPercent = _lowHealthDamagePercentMax * normalized,
+                moveSpeedPercent = _lowHealthMoveSpeedPercentMax * normalized,
+            };
+        }
+
         private void AcquireWeaponInternal(WeaponUpgradeId weaponId)
         {
             if (_weaponLevels.ContainsKey(weaponId))
@@ -404,6 +443,14 @@ namespace EJR.Game.Gameplay
             var definition = SharedAugmentCatalog.GetDefinition(augmentId);
             _runAugments.Add(definition.Id);
             _runBonuses += definition.Bonuses;
+            _extraWeaponSlots += definition.ExtraWeaponSlots;
+            _maxHealthScale *= definition.MaxHealthScale;
+            _suppressPassiveRegen |= definition.SuppressPassiveRegen;
+            _lifestealHealPerHit += definition.LifestealHealPerHit;
+            _lifestealInternalCooldown = Mathf.Max(_lifestealInternalCooldown, definition.LifestealInternalCooldown);
+            _lowHealthDamagePercentMax += definition.LowHealthDamagePercentMax;
+            _lowHealthMoveSpeedPercentMax += definition.LowHealthMoveSpeedPercentMax;
+            _lowHealthMaxThreshold = Mathf.Max(_lowHealthMaxThreshold, definition.LowHealthMaxThreshold);
         }
 
         private WeaponBonusTotals GetWeaponBonuses(WeaponUpgradeId id)

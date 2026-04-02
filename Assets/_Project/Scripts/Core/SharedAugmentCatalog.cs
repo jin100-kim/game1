@@ -11,6 +11,11 @@ namespace EJR.Game.Core
         LongReach = 3,
         Fleetfoot = 4,
         VitalCore = 5,
+        Ambidextrous = 6,
+        GlassCannon = 7,
+        CautiousAttack = 8,
+        Vampirism = 9,
+        BerserkerHeart = 10,
     }
 
     public sealed class RunAugmentDefinition
@@ -19,18 +24,42 @@ namespace EJR.Game.Core
             RunAugmentId id,
             string displayName,
             string description,
-            MetaBonusValues bonuses)
+            MetaBonusValues bonuses,
+            int extraWeaponSlots = 0,
+            float maxHealthScale = 1f,
+            bool suppressPassiveRegen = false,
+            int lifestealHealPerHit = 0,
+            float lifestealInternalCooldown = 0f,
+            float lowHealthDamagePercentMax = 0f,
+            float lowHealthMoveSpeedPercentMax = 0f,
+            float lowHealthMaxThreshold = 0f)
         {
             Id = id;
             DisplayName = string.IsNullOrWhiteSpace(displayName) ? id.ToString() : displayName;
             Description = description ?? string.Empty;
             Bonuses = bonuses;
+            ExtraWeaponSlots = Mathf.Max(0, extraWeaponSlots);
+            MaxHealthScale = Mathf.Max(0.05f, maxHealthScale);
+            SuppressPassiveRegen = suppressPassiveRegen;
+            LifestealHealPerHit = Mathf.Max(0, lifestealHealPerHit);
+            LifestealInternalCooldown = Mathf.Max(0f, lifestealInternalCooldown);
+            LowHealthDamagePercentMax = Mathf.Max(0f, lowHealthDamagePercentMax);
+            LowHealthMoveSpeedPercentMax = Mathf.Max(0f, lowHealthMoveSpeedPercentMax);
+            LowHealthMaxThreshold = Mathf.Clamp(lowHealthMaxThreshold, 0f, 1f);
         }
 
         public RunAugmentId Id { get; }
         public string DisplayName { get; }
         public string Description { get; }
         public MetaBonusValues Bonuses { get; }
+        public int ExtraWeaponSlots { get; }
+        public float MaxHealthScale { get; }
+        public bool SuppressPassiveRegen { get; }
+        public int LifestealHealPerHit { get; }
+        public float LifestealInternalCooldown { get; }
+        public float LowHealthDamagePercentMax { get; }
+        public float LowHealthMoveSpeedPercentMax { get; }
+        public float LowHealthMaxThreshold { get; }
     }
 
     public static class SharedAugmentCatalog
@@ -62,6 +91,43 @@ namespace EJR.Game.Core
                 "Vital Core",
                 "최대 체력 +25",
                 new MetaBonusValues { maxHealthFlat = 25f }),
+            new(
+                RunAugmentId.Ambidextrous,
+                "양손잡이",
+                "무기 슬롯 +1",
+                default,
+                extraWeaponSlots: 1),
+            new(
+                RunAugmentId.GlassCannon,
+                "유리대포",
+                "공격력 +60%, 최대 체력 20%",
+                new MetaBonusValues { attackPowerPercent = 60f },
+                maxHealthScale: 0.2f),
+            new(
+                RunAugmentId.CautiousAttack,
+                "신중한 공격",
+                "공격력 +40%, 공격 속도 -20%",
+                new MetaBonusValues
+                {
+                    attackPowerPercent = 40f,
+                    attackSpeedPercent = -20f,
+                }),
+            new(
+                RunAugmentId.Vampirism,
+                "흡혈",
+                "체력 재생 불가, 직접 타격 시 체력 1 회복",
+                default,
+                suppressPassiveRegen: true,
+                lifestealHealPerHit: 1,
+                lifestealInternalCooldown: 0.15f),
+            new(
+                RunAugmentId.BerserkerHeart,
+                "광폭화",
+                "체력이 낮을수록 공격력/이동 속도 증가",
+                default,
+                lowHealthDamagePercentMax: 30f,
+                lowHealthMoveSpeedPercentMax: 30f,
+                lowHealthMaxThreshold: 0.3f),
         };
 
         private static readonly Dictionary<RunAugmentId, RunAugmentDefinition> s_lookup = BuildLookup();

@@ -705,7 +705,8 @@ namespace EJR.Game.Multiplayer
 
             if (_playerHealth != null)
             {
-                _playerHealth.SetMaxHealth(GetCurrentMaxHealth(), healDelta: true);
+                var preserveCurrentRatio = _buildRuntime != null && !Mathf.Approximately(_buildRuntime.GlobalMaxHealthScale, 1f);
+                _playerHealth.SetMaxHealth(GetCurrentMaxHealth(), healDelta: !preserveCurrentRatio, preserveCurrentRatio: preserveCurrentRatio);
             }
 
             _moveSpeedMultiplier.Value = _playerStats != null ? _playerStats.MoveSpeedMultiplier : 1f;
@@ -761,6 +762,7 @@ namespace EJR.Game.Multiplayer
                     break;
             }
 
+            dynamicBonuses += _buildRuntime.GetLowHealthDynamicBonuses(GetCurrentHealthRatio());
             _buildRuntime.ApplyCharacterDynamicBonuses(dynamicBonuses);
             _buildRuntime.SetChainAttackModifiers(ignoreChainDecay, bonusChains);
             ApplyBuildToRuntimeSystems();
@@ -770,7 +772,8 @@ namespace EJR.Game.Multiplayer
         {
             var baseMaxHealth = Mathf.Max(1f, _playerConfig != null ? _playerConfig.maxHealth : 100f);
             var bonus = _playerStats != null ? Mathf.Max(0f, _playerStats.MaxHealthBonus) : 0f;
-            return baseMaxHealth + bonus;
+            var scale = _playerStats != null ? Mathf.Max(0.05f, _playerStats.MaxHealthScale) : 1f;
+            return Mathf.Max(1f, (baseMaxHealth + bonus) * scale);
         }
 
         private void UpdateBuildSummaries()
@@ -788,7 +791,7 @@ namespace EJR.Game.Multiplayer
 
         private string BuildWeaponSummary()
         {
-            var builder = new StringBuilder("臾닿린");
+            var builder = new StringBuilder("무기");
             var playerLevel = _levelUp != null ? _levelUp.Level : 1;
             var unlockedSlots = _buildRuntime != null ? _buildRuntime.GetUnlockedWeaponSlots(playerLevel) : 1;
 
@@ -797,10 +800,7 @@ namespace EJR.Game.Multiplayer
                 var slotNumber = slotIndex + 1;
                 if (slotIndex >= unlockedSlots)
                 {
-                    var requiredLevel = slotIndex == 1
-                        ? PlayerBuildRuntime.SecondWeaponUnlockLevel
-                        : PlayerBuildRuntime.ThirdWeaponUnlockLevel;
-                    builder.Append('\n').Append(slotNumber).Append(") ?좉? (?덈꺼 ").Append(requiredLevel).Append(')');
+                    builder.Append('\n').Append(slotNumber).Append(") ").Append(GetLockedWeaponSlotText(slotIndex));
                     continue;
                 }
 
@@ -814,21 +814,21 @@ namespace EJR.Game.Multiplayer
                     var milestoneCount = _buildRuntime.GetWeaponMilestoneCount(weaponId);
                     builder.Append('\n').Append(slotNumber).Append(") ")
                         .Append(MultiplayerCatalog.GetWeaponDisplayName(weaponId))
-                        .Append(" ?덈꺼 ").Append(level)
-                        .Append(" [?쇳빐??").Append(damageBonus.ToString("0.#"))
-                        .Append(" 怨듭냽+").Append(attackSpeedBonus.ToString("0.#"))
-                        .Append(" 踰붿쐞+").Append(rangeBonus.ToString("0.#"));
+                        .Append(" 레벨 ").Append(level)
+                        .Append(" [피해+").Append(damageBonus.ToString("0.#"))
+                        .Append(" 공속").Append(FormatSignedPercent(attackSpeedBonus))
+                        .Append(" 범위+").Append(rangeBonus.ToString("0.#"));
 
                     if (milestoneCount > 0)
                     {
-                        builder.Append(" ?뱀닔+").Append(milestoneCount);
+                        builder.Append(" 특수+").Append(milestoneCount);
                     }
 
                     builder.Append(']');
                 }
                 else
                 {
-                    builder.Append('\n').Append(slotNumber).Append(") 鍮꾩뼱 ?덉쓬");
+                    builder.Append('\n').Append(slotNumber).Append(") 비어 있음");
                 }
             }
 
@@ -844,13 +844,59 @@ namespace EJR.Game.Multiplayer
 
             var builder = new StringBuilder("전체 능력치");
             builder.Append('\n').Append("피해량 +").Append(_buildRuntime.GlobalAttackPowerPercentTotal.ToString("0.#")).Append('%');
-            builder.Append('\n').Append("공격 속도 +").Append(_buildRuntime.GlobalAttackSpeedPercentTotal.ToString("0.#")).Append('%');
+            builder.Append('\n').Append("공격 속도 ").Append(FormatSignedPercent(_buildRuntime.GlobalAttackSpeedPercentTotal));
             builder.Append('\n').Append("최대 체력 +").Append(_buildRuntime.GlobalMaxHealthFlatTotal.ToString("0"));
-            builder.Append('\n').Append("체력 재생 +").Append(_buildRuntime.GlobalHealthRegenPerSecondTotal.ToString("0.##")).Append("/초");
-            builder.Append('\n').Append("이동 속도 +").Append(_buildRuntime.GlobalMoveSpeedPercentTotal.ToString("0.#")).Append('%');
+            if (_buildRuntime.SuppressesPassiveRegen)
+            {
+                builder.Append('\n').Append("체력 재생 0/초 (흡혈)");
+            }
+            else
+            {
+                var regenPerSecond = _playerStats != null ? _playerStats.HealthRegenPerSecond : _buildRuntime.GlobalHealthRegenPerSecondTotal;
+                builder.Append('\n').Append("체력 재생 +").Append(regenPerSecond.ToString("0.##")).Append("/초");
+            }
+
+            builder.Append('\n').Append("이동 속도 ").Append(FormatSignedPercent(_buildRuntime.GlobalMoveSpeedPercentTotal));
             builder.Append('\n').Append("공격 범위 +").Append(_buildRuntime.GlobalAttackRangePercentTotal.ToString("0.#")).Append('%');
             builder.Append('\n').Append("행운 ").Append(_buildRuntime.GlobalLuckTotal.ToString("0"));
+            if (!Mathf.Approximately(_buildRuntime.GlobalMaxHealthScale, 1f))
+            {
+                builder.Append('\n').Append("최대 체력 배율 x").Append(_buildRuntime.GlobalMaxHealthScale.ToString("0.##"));
+            }
+
+            if (_buildRuntime.LifestealHealPerHit > 0)
+            {
+                builder.Append('\n').Append("흡혈 ").Append(_buildRuntime.LifestealHealPerHit).Append("/타격");
+            }
+
             return builder.ToString();
+        }
+
+        private float GetCurrentHealthRatio()
+        {
+            if (_playerHealth == null || _playerHealth.MaxHealth <= 0.0001f)
+            {
+                return 1f;
+            }
+
+            return Mathf.Clamp01(_playerHealth.CurrentHealth / _playerHealth.MaxHealth);
+        }
+
+        private static string GetLockedWeaponSlotText(int slotIndex)
+        {
+            return slotIndex switch
+            {
+                1 => $"잠김 (레벨 {PlayerBuildRuntime.SecondWeaponUnlockLevel})",
+                2 => $"잠김 (레벨 {PlayerBuildRuntime.ThirdWeaponUnlockLevel})",
+                3 => "잠김 (양손잡이 필요)",
+                _ => "잠김",
+            };
+        }
+
+        private static string FormatSignedPercent(float value)
+        {
+            var prefix = value >= 0f ? "+" : string.Empty;
+            return $"{prefix}{value:0.#}%";
         }
 
         private void SyncHealthState()
@@ -866,9 +912,14 @@ namespace EJR.Game.Multiplayer
             _maxHealth.Value = maxHealth;
             ApplyHealthPresentation(currentHealth, maxHealth, false);
 
-            if (!Mathf.Approximately(_lastObservedPlayerMaxHealth, maxHealth))
+            var maxHealthChanged = !Mathf.Approximately(_lastObservedPlayerMaxHealth, maxHealth);
+            if (maxHealthChanged)
             {
                 _lastObservedPlayerMaxHealth = maxHealth;
+            }
+
+            if (maxHealthChanged || (_buildRuntime != null && _buildRuntime.HasLowHealthBonuses))
+            {
                 RefreshCharacterPassiveBonuses();
             }
         }

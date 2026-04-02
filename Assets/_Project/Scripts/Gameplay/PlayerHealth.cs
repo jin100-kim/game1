@@ -53,7 +53,7 @@ namespace EJR.Game.Gameplay
             _invulnerableUntil = Mathf.Max(_invulnerableUntil, Time.time + duration);
         }
 
-        public void SetMaxHealth(float newMaxHealth, bool healDelta)
+        public void SetMaxHealth(float newMaxHealth, bool healDelta, bool preserveCurrentRatio = false)
         {
             var clampedMax = Mathf.Max(1f, newMaxHealth);
             if (Mathf.Abs(clampedMax - MaxHealth) <= 0.0001f)
@@ -62,9 +62,14 @@ namespace EJR.Game.Gameplay
             }
 
             var previousMax = MaxHealth;
+            var previousRatio = previousMax > 0.0001f ? CurrentHealth / previousMax : 1f;
             MaxHealth = clampedMax;
 
-            if (healDelta)
+            if (preserveCurrentRatio)
+            {
+                CurrentHealth = Mathf.Clamp(MaxHealth * Mathf.Clamp01(previousRatio), 0f, MaxHealth);
+            }
+            else if (healDelta)
             {
                 CurrentHealth = Mathf.Clamp(CurrentHealth + (MaxHealth - previousMax), 0f, MaxHealth);
             }

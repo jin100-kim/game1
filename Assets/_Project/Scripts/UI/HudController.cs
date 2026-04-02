@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using EJR.Game.Audio;
 using EJR.Game.Core;
 using UnityEngine;
@@ -25,6 +26,9 @@ namespace EJR.Game.UI
         private const float BossBarRootWidth = 430f;
         private const float BossBarRootHeight = 18f;
         private const float BossBarPadding = 3f;
+        private const float HudReferenceWidth = 1920f;
+        private const float HudReferenceHeight = 1080f;
+        private const float BossDirectionViewportMargin = 0.08f;
         private const float DefaultWaveBannerDuration = 1.8f;
 
         private readonly Font _font;
@@ -47,6 +51,17 @@ namespace EJR.Game.UI
         private RectTransform _bossBarFillRect;
         private Text _bossBarValueText;
         private float _bossBarFillMaxWidth;
+        private GameObject _bossDirectionIndicatorPanel;
+        private RectTransform _bossDirectionIndicatorRect;
+        private Text _bossDirectionIndicatorText;
+        private GameObject _waveTargetDirectionIndicatorPanel;
+        private RectTransform _waveTargetDirectionIndicatorRect;
+        private Text _waveTargetDirectionIndicatorText;
+        private GameObject _rewardDirectionIndicatorPanel;
+        private RectTransform _rewardDirectionIndicatorRect;
+        private Text _rewardDirectionIndicatorText;
+        private readonly List<GameObject> _rewardDirectionIndicatorPanels = new();
+        private readonly List<RectTransform> _rewardDirectionIndicatorRects = new();
         private GameObject _waveStatusPanel;
         private Text _waveStatusText;
         private GameObject _waveBannerPanel;
@@ -137,6 +152,8 @@ namespace EJR.Game.UI
             {
                 HideLevelUpOptions();
                 HideBossBar();
+                HideWaveTargetDirectionIndicator();
+                HideRewardDirectionIndicator();
                 HideWaveStatus();
                 HideWaveBanner();
                 HidePauseMenu();
@@ -331,9 +348,180 @@ namespace EJR.Game.UI
                 _bossBarPanel.SetActive(false);
             }
 
+            HideBossDirectionIndicator();
+
             _lastBossCurrentHp = int.MinValue;
             _lastBossMaxHp = int.MinValue;
             _lastBossLabel = string.Empty;
+        }
+
+        public void UpdateBossDirectionIndicator(Camera camera, Vector3 worldPosition)
+        {
+            UpdateDirectionIndicator(_bossDirectionIndicatorPanel, _bossDirectionIndicatorRect, camera, worldPosition);
+        }
+
+        public void UpdateWaveTargetDirectionIndicator(Camera camera, Vector3 worldPosition)
+        {
+            UpdateDirectionIndicator(_waveTargetDirectionIndicatorPanel, _waveTargetDirectionIndicatorRect, camera, worldPosition);
+        }
+
+        public void UpdateRewardDirectionIndicator(Camera camera, Vector3 worldPosition)
+        {
+            UpdateDirectionIndicator(_rewardDirectionIndicatorPanel, _rewardDirectionIndicatorRect, camera, worldPosition);
+        }
+
+        public void UpdateRewardDirectionIndicators(Camera camera, IReadOnlyList<Vector3> worldPositions)
+        {
+            if (worldPositions == null || worldPositions.Count <= 0)
+            {
+                HideRewardDirectionIndicator();
+                return;
+            }
+
+            var visibleCount = 0;
+            for (var i = 0; i < worldPositions.Count; i++)
+            {
+                if (!TryGetDirectionIndicatorState(camera, worldPositions[i], out var anchoredPosition, out var angleDegrees))
+                {
+                    continue;
+                }
+
+                EnsureRewardDirectionIndicatorCapacity(visibleCount + 1);
+                var panel = _rewardDirectionIndicatorPanels[visibleCount];
+                var rect = _rewardDirectionIndicatorRects[visibleCount];
+                rect.anchoredPosition = anchoredPosition;
+                rect.localRotation = Quaternion.Euler(0f, 0f, angleDegrees);
+                if (!panel.activeSelf)
+                {
+                    panel.SetActive(true);
+                }
+
+                visibleCount++;
+            }
+
+            for (var i = visibleCount; i < _rewardDirectionIndicatorPanels.Count; i++)
+            {
+                HideDirectionIndicator(_rewardDirectionIndicatorPanels[i]);
+            }
+        }
+
+        public void HideBossDirectionIndicator()
+        {
+            HideDirectionIndicator(_bossDirectionIndicatorPanel);
+        }
+
+        public void HideWaveTargetDirectionIndicator()
+        {
+            HideDirectionIndicator(_waveTargetDirectionIndicatorPanel);
+        }
+
+        public void HideRewardDirectionIndicator()
+        {
+            for (var i = 0; i < _rewardDirectionIndicatorPanels.Count; i++)
+            {
+                HideDirectionIndicator(_rewardDirectionIndicatorPanels[i]);
+            }
+        }
+
+        private void UpdateDirectionIndicator(GameObject panel, RectTransform indicatorRect, Camera camera, Vector3 worldPosition)
+        {
+            if (panel == null || indicatorRect == null)
+            {
+                return;
+            }
+
+            if (!TryGetDirectionIndicatorState(camera, worldPosition, out var anchoredPosition, out var angleDegrees))
+            {
+                HideDirectionIndicator(panel);
+                return;
+            }
+            indicatorRect.anchoredPosition = anchoredPosition;
+            indicatorRect.localRotation = Quaternion.Euler(0f, 0f, angleDegrees);
+
+            if (!panel.activeSelf)
+            {
+                panel.SetActive(true);
+            }
+        }
+
+        private bool TryGetDirectionIndicatorState(Camera camera, Vector3 worldPosition, out Vector2 anchoredPosition, out float angleDegrees)
+        {
+            anchoredPosition = Vector2.zero;
+            angleDegrees = 0f;
+
+            if (camera == null)
+            {
+                return false;
+            }
+
+            var viewport = camera.WorldToViewportPoint(worldPosition);
+            var direction = new Vector2(viewport.x - 0.5f, viewport.y - 0.5f);
+            if (viewport.z < 0f)
+            {
+                direction = -direction;
+            }
+
+            if (viewport.z > 0f &&
+                viewport.x >= 0f &&
+                viewport.x <= 1f &&
+                viewport.y >= 0f &&
+                viewport.y <= 1f)
+            {
+                return false;
+            }
+
+            if (direction.sqrMagnitude < 0.0001f)
+            {
+                return false;
+            }
+
+            var halfWidth = 0.5f - BossDirectionViewportMargin;
+            var halfHeight = 0.5f - BossDirectionViewportMargin;
+            var scaleX = Mathf.Abs(direction.x) > 0.0001f ? halfWidth / Mathf.Abs(direction.x) : float.PositiveInfinity;
+            var scaleY = Mathf.Abs(direction.y) > 0.0001f ? halfHeight / Mathf.Abs(direction.y) : float.PositiveInfinity;
+            var edgePoint = new Vector2(0.5f, 0.5f) + (direction * Mathf.Min(scaleX, scaleY));
+
+            anchoredPosition = new Vector2(
+                (edgePoint.x - 0.5f) * HudReferenceWidth,
+                (edgePoint.y - 0.5f) * HudReferenceHeight);
+            angleDegrees = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 90f;
+            return true;
+        }
+
+        private static void HideDirectionIndicator(GameObject panel)
+        {
+            if (panel != null && panel.activeSelf)
+            {
+                panel.SetActive(false);
+            }
+        }
+
+        private void EnsureRewardDirectionIndicatorCapacity(int requiredCount)
+        {
+            while (_rewardDirectionIndicatorPanels.Count < requiredCount)
+            {
+                var nextIndex = _rewardDirectionIndicatorPanels.Count;
+                var indicatorPanel = CreatePanel(
+                    _canvas.transform,
+                    $"RewardDirectionIndicatorV2_{nextIndex}",
+                    new Vector2(0.5f, 0.5f),
+                    new Vector2(0.5f, 0.5f),
+                    new Vector2(0.5f, 0.5f),
+                    Vector2.zero,
+                    new Vector2(66f, 66f),
+                    new Color(0.03f, 0.14f, 0.07f, 0.78f));
+                var indicatorRect = indicatorPanel.GetComponent<RectTransform>();
+                indicatorPanel.SetActive(false);
+
+                var indicatorText = CreateText(indicatorPanel.transform, $"RewardDirectionArrowV2_{nextIndex}", Vector2.zero, "^");
+                indicatorText.fontSize = 34;
+                indicatorText.fontStyle = FontStyle.Bold;
+                indicatorText.color = new Color(0.40f, 1f, 0.48f, 1f);
+                indicatorText.rectTransform.sizeDelta = new Vector2(38f, 38f);
+
+                _rewardDirectionIndicatorPanels.Add(indicatorPanel);
+                _rewardDirectionIndicatorRects.Add(indicatorRect);
+            }
         }
 
         public void SetWaveStatus(int waveIndex, int remainingCount)
@@ -1149,6 +1337,64 @@ namespace EJR.Game.UI
             _bossBarValueText.alignment = TextAnchor.MiddleRight;
             _bossBarValueText.fontSize = 16;
             _bossBarValueText.rectTransform.sizeDelta = new Vector2(128f, 24f);
+
+            _bossDirectionIndicatorPanel = CreatePanel(
+                _canvas.transform,
+                "BossDirectionIndicatorV2",
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                Vector2.zero,
+                new Vector2(66f, 66f),
+                new Color(0.12f, 0.02f, 0.04f, 0.78f));
+            _bossDirectionIndicatorRect = _bossDirectionIndicatorPanel.GetComponent<RectTransform>();
+            _bossDirectionIndicatorPanel.SetActive(false);
+
+            _bossDirectionIndicatorText = CreateText(_bossDirectionIndicatorPanel.transform, "BossDirectionArrowV2", Vector2.zero, "^");
+            _bossDirectionIndicatorText.fontSize = 34;
+            _bossDirectionIndicatorText.fontStyle = FontStyle.Bold;
+            _bossDirectionIndicatorText.color = new Color(1f, 0.26f, 0.30f, 1f);
+            _bossDirectionIndicatorText.rectTransform.sizeDelta = new Vector2(38f, 38f);
+
+            _waveTargetDirectionIndicatorPanel = CreatePanel(
+                _canvas.transform,
+                "WaveTargetDirectionIndicatorV2",
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                Vector2.zero,
+                new Vector2(66f, 66f),
+                new Color(0.14f, 0.04f, 0.04f, 0.74f));
+            _waveTargetDirectionIndicatorRect = _waveTargetDirectionIndicatorPanel.GetComponent<RectTransform>();
+            _waveTargetDirectionIndicatorPanel.SetActive(false);
+
+            _waveTargetDirectionIndicatorText = CreateText(_waveTargetDirectionIndicatorPanel.transform, "WaveTargetDirectionArrowV2", Vector2.zero, "^");
+            _waveTargetDirectionIndicatorText.fontSize = 34;
+            _waveTargetDirectionIndicatorText.fontStyle = FontStyle.Bold;
+            _waveTargetDirectionIndicatorText.color = new Color(1f, 0.86f, 0.86f, 1f);
+            _waveTargetDirectionIndicatorText.rectTransform.sizeDelta = new Vector2(38f, 38f);
+
+            _rewardDirectionIndicatorPanel = CreatePanel(
+                _canvas.transform,
+                "RewardDirectionIndicatorV2",
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                Vector2.zero,
+                new Vector2(66f, 66f),
+                new Color(0.03f, 0.14f, 0.07f, 0.78f));
+            _rewardDirectionIndicatorRect = _rewardDirectionIndicatorPanel.GetComponent<RectTransform>();
+            _rewardDirectionIndicatorPanel.SetActive(false);
+
+            _rewardDirectionIndicatorText = CreateText(_rewardDirectionIndicatorPanel.transform, "RewardDirectionArrowV2", Vector2.zero, "^");
+            _rewardDirectionIndicatorText.fontSize = 34;
+            _rewardDirectionIndicatorText.fontStyle = FontStyle.Bold;
+            _rewardDirectionIndicatorText.color = new Color(0.40f, 1f, 0.48f, 1f);
+            _rewardDirectionIndicatorText.rectTransform.sizeDelta = new Vector2(38f, 38f);
+            _rewardDirectionIndicatorPanels.Clear();
+            _rewardDirectionIndicatorRects.Clear();
+            _rewardDirectionIndicatorPanels.Add(_rewardDirectionIndicatorPanel);
+            _rewardDirectionIndicatorRects.Add(_rewardDirectionIndicatorRect);
         }
 
         private void BuildLevelUpPanelReference()

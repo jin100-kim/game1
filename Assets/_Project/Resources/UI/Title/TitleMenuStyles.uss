@@ -10,11 +10,12 @@
 }
 
 .menu-shell {
-    width: 360px;
+    width: 376px;
+    min-height: 612px;
     padding-left: 28px;
     padding-right: 28px;
-    padding-top: 30px;
-    padding-bottom: 28px;
+    padding-top: 34px;
+    padding-bottom: 34px;
     border-top-left-radius: 18px;
     border-top-right-radius: 18px;
     border-bottom-left-radius: 18px;

@@ -201,6 +201,7 @@ namespace EJR.Game.Gameplay
         private Transform _projectilePoolRoot;
         private LineRenderer _persistentAuraLine;
         private bool _ownerUsesExternalAuraPresentation;
+        private float _nextLifestealAt = -999f;
         private const int CollisionGizmoSegments = 24;
         private const float BfSwordHitSoundCooldown = 0.12f;
         private const float BfSwordAfterimageDamageMultiplier = 0.5f;
@@ -247,6 +248,7 @@ namespace EJR.Game.Gameplay
             _projectileCullBounds = projectileCullBounds.GetValueOrDefault();
             _ownerUsesExternalAuraPresentation = false;
             _batOverflowMaxHealthProgress = 0f;
+            _nextLifestealAt = -999f;
             _currentTarget = null;
             _lastAimDirection = Vector2.right;
             _targetScanCooldown = 0f;
@@ -269,6 +271,7 @@ namespace EJR.Game.Gameplay
             ClearRifleTurrets();
             SetPersistentAuraVisible(false);
             _batOverflowMaxHealthProgress = 0f;
+            _nextLifestealAt = -999f;
         }
 
         public void ConfigureLoadout(PlayerBuildRuntime build, PlayerStatsRuntime stats)
@@ -849,7 +852,7 @@ namespace EJR.Game.Gameplay
                 }
 
                 weapon.BfSwordInsideEnemies.Add(enemy);
-                enemy.ReceiveWeaponDamage(damage, WeaponUpgradeId.BfSword);
+                DealDirectWeaponDamage(enemy, damage, WeaponUpgradeId.BfSword);
                 enemy.ApplyStun(Mathf.Max(0.02f, _config.bfSwordStunDuration));
                 if (currentTime >= weapon.NextBfSwordSoundAt)
                 {
@@ -951,7 +954,7 @@ namespace EJR.Game.Gameplay
                     }
 
                     weapon.BfSwordAfterimageHitCooldownUntil[enemy] = currentTime + BfSwordAfterimageHitCooldown;
-                    enemy.ReceiveWeaponDamage(mainDamage * BfSwordAfterimageDamageMultiplier, WeaponUpgradeId.BfSword);
+                    DealDirectWeaponDamage(enemy, mainDamage * BfSwordAfterimageDamageMultiplier, WeaponUpgradeId.BfSword);
                     enemy.ApplyMinorStun(BfSwordAfterimageMinorStunDuration);
                 }
             }
@@ -1190,7 +1193,7 @@ namespace EJR.Game.Gameplay
                 var centerDistance = toEnemy.magnitude;
                 if (centerDistance <= 0.0001f)
                 {
-                    enemy.ReceiveWeaponDamage(damage, weapon.WeaponId);
+                    DealDirectWeaponDamage(enemy, damage, weapon.WeaponId);
                     continue;
                 }
 
@@ -1203,7 +1206,7 @@ namespace EJR.Game.Gameplay
                 var angle = Vector2.Angle(slashDirection, toEnemy / centerDistance);
                 if (angle <= coneHalfAngle)
                 {
-                    enemy.ReceiveWeaponDamage(damage, weapon.WeaponId);
+                    DealDirectWeaponDamage(enemy, damage, weapon.WeaponId);
                 }
             }
         }
@@ -1331,7 +1334,7 @@ namespace EJR.Game.Gameplay
                 var currentPoint = (Vector2)currentTarget.transform.position;
                 SpawnChainBeamFx(previousPoint, currentPoint);
                 ChainFxRequested?.Invoke(new[] { (Vector3)previousPoint, (Vector3)currentPoint });
-                currentTarget.ReceiveWeaponDamage(currentDamage, weapon.WeaponId);
+                DealDirectWeaponDamage(currentTarget, currentDamage, weapon.WeaponId);
                 if (!ContainsEnemy(hitHistory, currentTarget))
                 {
                     hitHistory.Add(currentTarget);
@@ -1406,7 +1409,7 @@ namespace EJR.Game.Gameplay
                 }
 
                 firstTarget ??= target;
-                target.ReceiveWeaponDamage(damage, weapon.WeaponId);
+                DealDirectWeaponDamage(target, damage, weapon.WeaponId);
                 var targetCenter = ResolveTargetCenter(target);
                 SpawnSatelliteBeamSpriteFx(targetCenter);
                 SatelliteBeamFxRequested?.Invoke(targetCenter);
@@ -1485,7 +1488,7 @@ namespace EJR.Game.Gameplay
                     }
 
                     weapon.SatelliteHitCooldownUntil[enemy] = Time.time + hitCooldown;
-                    enemy.ReceiveWeaponDamage(damage, weapon.WeaponId);
+                    DealDirectWeaponDamage(enemy, damage, weapon.WeaponId);
                     SpawnRingFx((Vector2)enemy.transform.position, hitRadius * 0.9f, auraFxColor, auraFxWidth, 0.06f, "SatelliteHitFx");
                     SatelliteHitFxRequested?.Invoke(enemy.transform.position, hitRadius * 0.9f);
                 }
@@ -1536,7 +1539,7 @@ namespace EJR.Game.Gameplay
                     continue;
                 }
 
-                enemy.ReceiveWeaponDamage(damage, weapon.WeaponId);
+                DealDirectWeaponDamage(enemy, damage, weapon.WeaponId);
             }
         }
 
@@ -1676,7 +1679,7 @@ namespace EJR.Game.Gameplay
                 bat.Root.position = new Vector3(latchTargetPosition.x, latchTargetPosition.y, 0f);
                 if (Time.time >= bat.HitCooldown)
                 {
-                    bat.LatchedTarget.ReceiveWeaponDamage(damage, weapon.WeaponId);
+                    DealDirectWeaponDamage(bat.LatchedTarget, damage, weapon.WeaponId);
                     bat.PendingHealAmount += Mathf.Max(_config.batMinimumHealPerHit, damage * Mathf.Clamp01(_config.batHealPerDamageMultiplier));
                     bat.HitsLanded++;
                     bat.HitCooldown = Time.time + hitInterval;
@@ -1925,7 +1928,7 @@ namespace EJR.Game.Gameplay
                 }
 
                 weapon.MaceHitEnemies.Add(enemy);
-                enemy.ReceiveWeaponDamage(damage, weapon.WeaponId);
+                DealDirectWeaponDamage(enemy, damage, weapon.WeaponId);
                 enemy.ApplyMinorStun(MaceHandleMinorStunDuration);
             }
 
@@ -1947,7 +1950,7 @@ namespace EJR.Game.Gameplay
                 if (!weapon.MaceHitEnemies.Contains(enemy))
                 {
                     weapon.MaceHitEnemies.Add(enemy);
-                    enemy.ReceiveWeaponDamage(damage, weapon.WeaponId);
+                    DealDirectWeaponDamage(enemy, damage, weapon.WeaponId);
                 }
 
                 if (weapon.MaceStunnedEnemies.Contains(enemy))
@@ -2678,6 +2681,7 @@ namespace EJR.Game.Gameplay
                 Mathf.Clamp(minimumDamageMultiplier, 0.05f, 1f),
                 weaponId,
                 ReturnProjectileToPool,
+                TryApplyDirectHitLifesteal,
                 _useProjectileBoundsCulling,
                 _projectileCullBounds);
 
@@ -3121,6 +3125,40 @@ namespace EJR.Game.Gameplay
             projectileObject.SetActive(false);
             projectileObject.transform.SetParent(_projectilePoolRoot, false);
             _projectilePool.Enqueue(projectile);
+        }
+
+        private void DealDirectWeaponDamage(EnemyController enemy, float damage, WeaponUpgradeId weaponId)
+        {
+            if (enemy == null)
+            {
+                return;
+            }
+
+            enemy.ReceiveWeaponDamage(damage, weaponId);
+            TryApplyDirectHitLifesteal();
+        }
+
+        private void TryApplyDirectHitLifesteal()
+        {
+            if (_build == null || _playerHealth == null)
+            {
+                return;
+            }
+
+            var healPerHit = _build.LifestealHealPerHit;
+            if (healPerHit <= 0)
+            {
+                return;
+            }
+
+            var now = Time.time;
+            if (now + 0.0001f < _nextLifestealAt)
+            {
+                return;
+            }
+
+            _nextLifestealAt = now + Mathf.Max(0f, _build.LifestealInternalCooldown);
+            _playerHealth.Heal(healPerHit);
         }
 
         private void CleanupLoadoutRuntimeState()

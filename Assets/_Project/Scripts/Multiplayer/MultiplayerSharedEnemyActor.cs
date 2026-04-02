@@ -10,7 +10,15 @@ namespace EJR.Game.Multiplayer
     [RequireComponent(typeof(NetworkObject))]
     public sealed class MultiplayerSharedEnemyActor : NetworkBehaviour
     {
+        public enum HudTargetKind
+        {
+            None = 0,
+            Boss = 1,
+            WaveTarget = 2,
+        }
+
         private const string VisualObjectName = "Visual";
+        private static readonly System.Collections.Generic.List<MultiplayerSharedEnemyActor> ActiveActors = new();
 
         private readonly NetworkVariable<int> _visualKind =
             new((int)RuntimeSpriteFactory.EnemyVisualKind.Slime, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
@@ -21,13 +29,32 @@ namespace EJR.Game.Multiplayer
         private readonly NetworkVariable<float> _maxHealth =
             new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
+        private readonly NetworkVariable<int> _hudTargetKind =
+            new((int)HudTargetKind.None, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<int> _hudSpawnSequence =
+            new(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
         private EnemyController _enemyController;
         private EnemyConfig _enemyConfig;
         private Transform _visualRoot;
         private SpriteRenderer _spriteRenderer;
         private EnemySpriteAnimator _spriteAnimator;
         private WorldHealthBar _healthBar;
+        private SpriteRenderer _waveTargetGlowRenderer;
         private Vector3 _lastPosition;
+
+        public static System.Collections.Generic.IReadOnlyList<MultiplayerSharedEnemyActor> SpawnedActors => ActiveActors;
+        public float CurrentHealthValue => _currentHealth.Value;
+        public float MaxHealthValue => _maxHealth.Value;
+        public RuntimeSpriteFactory.EnemyVisualKind VisualKindValue => (RuntimeSpriteFactory.EnemyVisualKind)_visualKind.Value;
+        public HudTargetKind CurrentHudTargetKind => (HudTargetKind)_hudTargetKind.Value;
+        public int HudSpawnSequence => _hudSpawnSequence.Value;
+        public bool IsHudBossTarget => CurrentHudTargetKind == HudTargetKind.Boss;
+        public bool IsHudWaveTarget => CurrentHudTargetKind == HudTargetKind.WaveTarget;
+        public string HudLabel => IsHudWaveTarget
+            ? (VisualKindValue == RuntimeSpriteFactory.EnemyVisualKind.Mushroom ? "거대 버섯" : "거대 슬라임")
+            : "보스";
 
         public static int CountSpawnedEnemies()
         {
@@ -56,6 +83,12 @@ namespace EJR.Game.Multiplayer
             _visualKind.OnValueChanged += HandleVisualKindChanged;
             _currentHealth.OnValueChanged += HandleCurrentHealthChanged;
             _maxHealth.OnValueChanged += HandleMaxHealthChanged;
+            _hudTargetKind.OnValueChanged += HandleHudTargetKindChanged;
+
+            if (!ActiveActors.Contains(this))
+            {
+                ActiveActors.Add(this);
+            }
 
             ApplyVisualKind((RuntimeSpriteFactory.EnemyVisualKind)_visualKind.Value);
             RefreshHealthBar(_currentHealth.Value, _maxHealth.Value, false);
@@ -67,6 +100,8 @@ namespace EJR.Game.Multiplayer
             _visualKind.OnValueChanged -= HandleVisualKindChanged;
             _currentHealth.OnValueChanged -= HandleCurrentHealthChanged;
             _maxHealth.OnValueChanged -= HandleMaxHealthChanged;
+            _hudTargetKind.OnValueChanged -= HandleHudTargetKindChanged;
+            ActiveActors.Remove(this);
 
             if (IsServer && _enemyController != null)
             {
@@ -94,7 +129,9 @@ namespace EJR.Game.Multiplayer
             RuntimeSpriteFactory.EnemyVisualKind visualKind,
             Vector3 spawnPosition,
             float elapsedSeconds,
-            bool isBoss)
+            bool isBoss,
+            HudTargetKind hudTargetKind = HudTargetKind.None,
+            int hudSpawnSequence = 0)
         {
             if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer || coopController == null)
             {
@@ -115,10 +152,13 @@ namespace EJR.Game.Multiplayer
             var runtimeMinuteTier = Mathf.Max(0, Mathf.FloorToInt(elapsedSeconds / 60f));
             var runtimeMoveSpeedMultiplier = 1f + (runtimeMinuteTier * 0.05f);
             var runtimeHealthMultiplier = 1f + (runtimeMinuteTier * 0.10f);
+            var runtimeContactDamageMultiplier = 1f + (Mathf.Min(runtimeMinuteTier, 10) * 0.10f);
             var initialTarget = coopController.ResolveClosestPlayerTransform(spawnPosition);
             var initialPlayerHealth = coopController.ResolveClosestPlayerHealth(spawnPosition);
 
             _visualKind.Value = (int)visualKind;
+            _hudTargetKind.Value = (int)hudTargetKind;
+            _hudSpawnSequence.Value = Mathf.Max(0, hudSpawnSequence);
             ApplyVisualKind(visualKind);
 
             _enemyController.Initialize(
@@ -133,6 +173,7 @@ namespace EJR.Game.Multiplayer
                 collisionRadius,
                 runtimeHealthMultiplier,
                 runtimeMoveSpeedMultiplier,
+                runtimeContactDamageMultiplier,
                 isBoss,
                 true,
                 coopController.ArenaBounds);
@@ -146,6 +187,11 @@ namespace EJR.Game.Multiplayer
         private void HandleVisualKindChanged(int previousValue, int newValue)
         {
             ApplyVisualKind((RuntimeSpriteFactory.EnemyVisualKind)newValue);
+        }
+
+        private void HandleHudTargetKindChanged(int previousValue, int newValue)
+        {
+            ApplyVisualKind((RuntimeSpriteFactory.EnemyVisualKind)_visualKind.Value);
         }
 
         private void HandleCurrentHealthChanged(float previousValue, float newValue)
@@ -243,6 +289,7 @@ namespace EJR.Game.Multiplayer
             _spriteRenderer.sortingOrder = 15;
             ApplyVisualScale(_visualRoot, baseSprite, visualWorldSize);
             _spriteAnimator.Initialize(_spriteRenderer, enemyFrames, animationProfile);
+            RefreshWaveTargetGlow(visualWorldSize);
 
             var healthBarYOffset = _enemyConfig.visualYOffset + Mathf.Max(0.28f, visualWorldSize * 0.36f);
             _healthBar.Initialize(
@@ -252,6 +299,45 @@ namespace EJR.Game.Multiplayer
                 new Color(1f, 0.3f, 0.35f, 0.95f),
                 new Color(0f, 0f, 0f, 0.55f),
                 24);
+        }
+
+        private void RefreshWaveTargetGlow(float visualWorldSize)
+        {
+            if (_visualRoot == null)
+            {
+                return;
+            }
+
+            if (_waveTargetGlowRenderer == null)
+            {
+                var glowTransform = _visualRoot.Find("WaveTargetGlow");
+                if (glowTransform == null)
+                {
+                    glowTransform = new GameObject("WaveTargetGlow").transform;
+                    glowTransform.SetParent(_visualRoot, false);
+                }
+
+                _waveTargetGlowRenderer = glowTransform.GetComponent<SpriteRenderer>();
+                if (_waveTargetGlowRenderer == null)
+                {
+                    _waveTargetGlowRenderer = glowTransform.gameObject.AddComponent<SpriteRenderer>();
+                }
+            }
+
+            var glowObject = _waveTargetGlowRenderer.gameObject;
+            if (!IsHudWaveTarget)
+            {
+                glowObject.SetActive(false);
+                return;
+            }
+
+            glowObject.SetActive(true);
+            _waveTargetGlowRenderer.sprite = RuntimeSpriteFactory.GetSquareSprite();
+            _waveTargetGlowRenderer.color = new Color(1f, 1f, 1f, 0.18f);
+            _waveTargetGlowRenderer.sortingOrder = 13;
+            glowObject.transform.localPosition = new Vector3(0f, -0.02f, 0.02f);
+            var glowScale = Mathf.Max(0.6f, visualWorldSize * 1.9f);
+            glowObject.transform.localScale = new Vector3(glowScale, glowScale, 1f);
         }
 
         private void RefreshHealthBar(float currentHealth, float maxHealth, bool playHurt)

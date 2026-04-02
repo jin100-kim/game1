@@ -11,6 +11,7 @@ namespace EJR.Game.Core
         public float MoveSpeedMultiplier { get; private set; } = 1f;
         public float AttackRangeMultiplier { get; private set; } = 1f;
         public float MaxHealthBonus { get; private set; }
+        public float MaxHealthScale { get; private set; } = 1f;
         public float HealthRegenPerSecond { get; private set; }
         public float Luck { get; private set; }
         public float ExperienceGainMultiplier { get; private set; } = 1f;
@@ -23,6 +24,7 @@ namespace EJR.Game.Core
             MoveSpeedMultiplier = 1f;
             AttackRangeMultiplier = 1f;
             MaxHealthBonus = 0f;
+            MaxHealthScale = 1f;
             HealthRegenPerSecond = 0f;
             Luck = 0f;
             ExperienceGainMultiplier = 1f;
@@ -34,12 +36,13 @@ namespace EJR.Game.Core
             }
 
             DamageMultiplier = 1f + (Mathf.Max(0f, build.GlobalAttackPowerPercentTotal) / 100f);
-            var globalAttackSpeedBonus = Mathf.Max(0f, build.GlobalAttackSpeedPercentTotal) / 100f;
-            AttackIntervalMultiplier = 1f / (1f + globalAttackSpeedBonus);
+            var attackSpeedScale = Mathf.Max(0.25f, 1f + (build.GlobalAttackSpeedPercentTotal / 100f));
+            AttackIntervalMultiplier = 1f / attackSpeedScale;
             MoveSpeedMultiplier = 1f + (Mathf.Max(0f, build.GlobalMoveSpeedPercentTotal) / 100f);
             AttackRangeMultiplier = 1f + (Mathf.Max(0f, build.GlobalAttackRangePercentTotal) / 100f);
             MaxHealthBonus = Mathf.Max(0f, build.GlobalMaxHealthFlatTotal);
-            HealthRegenPerSecond = Mathf.Max(0f, build.GlobalHealthRegenPerSecondTotal);
+            MaxHealthScale = Mathf.Max(0.05f, build.GlobalMaxHealthScale);
+            HealthRegenPerSecond = build.SuppressesPassiveRegen ? 0f : Mathf.Max(0f, build.GlobalHealthRegenPerSecondTotal);
             Luck = Mathf.Max(0f, build.GlobalLuckTotal);
             ExperienceGainMultiplier = 1f + (Mathf.Max(0f, build.GlobalExperienceGainPercentTotal) / 100f);
             CreditGainPercent = Mathf.Max(0f, build.GlobalCreditGainPercentTotal);
