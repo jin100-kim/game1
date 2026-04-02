@@ -746,7 +746,7 @@ namespace EJR.Game.Core
             {
                 var entry = s_profile.upgradeLevels[i];
                 var upgradeId = (MetaUpgradeId)entry.id;
-                if (!Config.TryGetUpgradeDefinition(upgradeId, out var definition) || !seen.Add(entry.id))
+                if (s_config == null || !s_config.TryGetUpgradeDefinition(upgradeId, out var definition) || !seen.Add(entry.id))
                 {
                     s_profile.upgradeLevels.RemoveAt(i);
                     continue;

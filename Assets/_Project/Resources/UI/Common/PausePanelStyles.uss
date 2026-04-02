@@ -86,11 +86,11 @@
     -unity-font-style: bold;
 }
 
-.pause-button-row > .pause-button:first-child {
+.pause-button-left {
     margin-right: 8px;
 }
 
-.pause-button-row > .pause-button:last-child {
+.pause-button-right {
     margin-left: 8px;
 }
 

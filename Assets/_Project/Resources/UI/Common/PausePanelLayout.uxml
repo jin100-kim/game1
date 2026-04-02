@@ -4,11 +4,11 @@
             <ui:VisualElement class="pause-shell">
                 <ui:VisualElement name="pause-main-view" class="pause-main-view">
                     <ui:Label class="pause-title" text="일시 정지" />
-                    <ui:Label class="pause-subtitle" text="전투를 계속하거나 설정을 바꾼 뒤 타이틀로 돌아갈 수 있습니다." />
+                    <ui:Label class="pause-subtitle" text="전투를 계속하거나 설정을 바꾸고 타이틀로 돌아갈 수 있습니다." />
 
                     <ui:VisualElement class="pause-button-row">
-                        <ui:Button name="pause-resume-button" class="pause-button" text="계속하기" />
-                        <ui:Button name="pause-settings-button" class="pause-button" text="설정" />
+                        <ui:Button name="pause-resume-button" class="pause-button pause-button-left" text="계속하기" />
+                        <ui:Button name="pause-settings-button" class="pause-button pause-button-right" text="설정" />
                     </ui:VisualElement>
 
                     <ui:Button name="pause-quit-button" class="pause-button pause-button-danger" text="타이틀로" />

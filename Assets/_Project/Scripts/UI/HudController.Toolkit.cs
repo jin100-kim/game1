@@ -16,6 +16,7 @@ namespace EJR.Game.UI
         private const string SettingsToolkitLayoutResourcePath = "UI/Common/SettingsPanelLayout";
         private const string SettingsToolkitStylesResourcePath = "UI/Common/SettingsPanelStyles";
         private const string SettingsToolkitThemeResourcePath = "UI/Common/UnityDefaultRuntimeTheme";
+        private const string SettingsToolkitPanelSettingsResourcePath = "UI/Common/RuntimeMenuPanelSettings";
 
         private UIDocument _pauseSettingsDocument;
         private PanelSettings _pauseSettingsPanelSettings;
@@ -49,7 +50,8 @@ namespace EJR.Game.UI
 
             var pauseLayout = Resources.Load<VisualTreeAsset>(PauseToolkitLayoutResourcePath);
             var settingsLayout = Resources.Load<VisualTreeAsset>(SettingsToolkitLayoutResourcePath);
-            if (pauseLayout == null && settingsLayout == null)
+            var panelTemplate = Resources.Load<PanelSettings>(SettingsToolkitPanelSettingsResourcePath);
+            if ((pauseLayout == null && settingsLayout == null) || panelTemplate == null)
             {
                 return;
             }
@@ -61,7 +63,7 @@ namespace EJR.Game.UI
             documentObject.transform.SetParent(_canvas.transform, false);
 
             _pauseSettingsDocument = documentObject.AddComponent<UIDocument>();
-            _pauseSettingsPanelSettings = ScriptableObject.CreateInstance<PanelSettings>();
+            _pauseSettingsPanelSettings = Object.Instantiate(panelTemplate);
             _pauseSettingsPanelSettings.name = "RuntimePauseSettingsPanelSettings";
             _pauseSettingsPanelSettings.scaleMode = PanelScaleMode.ScaleWithScreenSize;
             _pauseSettingsPanelSettings.referenceResolution = new Vector2Int(1920, 1080);

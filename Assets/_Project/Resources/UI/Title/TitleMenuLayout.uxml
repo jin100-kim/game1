@@ -2,20 +2,7 @@
     <ui:VisualElement name="title-root" class="title-root">
         <ui:VisualElement name="main-screen" class="title-screen">
             <ui:VisualElement class="title-main-shell">
-                <ui:VisualElement class="title-overview-column">
-                    <ui:Label class="title-kicker" text="전자오락 원정대" />
-                    <ui:Label class="title-subtitle" text="모드를 고르고 바로 출격하세요." />
-
-                    <ui:VisualElement class="title-card">
-                        <ui:Label class="title-section-title" text="진행 현황" />
-                        <ui:Label name="profile-summary" class="title-body-text" text="" />
-                    </ui:VisualElement>
-
-                    <ui:VisualElement class="title-card">
-                        <ui:Label class="title-section-title" text="최근 결과" />
-                        <ui:Label name="recent-run-summary" class="title-body-text" text="" />
-                    </ui:VisualElement>
-                </ui:VisualElement>
+                <ui:Label class="title-kicker title-main-title" text="전자오락 원정대" />
 
                 <ui:VisualElement class="title-action-column">
                     <ui:Button name="single-play-button" class="title-action-button title-action-button-primary" text="싱글 플레이" />

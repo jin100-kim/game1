@@ -132,6 +132,8 @@ namespace EJR.Game.UI
         {
             EnsureEventSystem();
             BuildCanvas();
+            BuildGameplayToolkitReference();
+            BuildPauseSettingsToolkitReference();
             BuildTopBarReference();
             BuildBuildPanelReference();
             BuildBossBarReference();
@@ -414,6 +416,7 @@ namespace EJR.Game.UI
             if (HasGameplayToolkit)
             {
                 UpdateGameplayToolkitBossDirectionIndicator(camera, worldPosition);
+                return;
             }
 
             UpdateDirectionIndicator(_bossDirectionIndicatorPanel, _bossDirectionIndicatorRect, camera, worldPosition);
@@ -424,6 +427,7 @@ namespace EJR.Game.UI
             if (HasGameplayToolkit)
             {
                 UpdateGameplayToolkitWaveDirectionIndicator(camera, worldPosition);
+                return;
             }
 
             UpdateDirectionIndicator(_waveTargetDirectionIndicatorPanel, _waveTargetDirectionIndicatorRect, camera, worldPosition);
@@ -439,6 +443,7 @@ namespace EJR.Game.UI
             if (HasGameplayToolkit)
             {
                 UpdateGameplayToolkitRewardDirectionIndicators(camera, worldPositions);
+                return;
             }
 
             if (worldPositions == null || worldPositions.Count <= 0)
@@ -1338,6 +1343,12 @@ namespace EJR.Game.UI
                 return;
             }
 
+            if (HasGameplayToolkit)
+            {
+                ToggleGameplayToolkitDebugPanel();
+                return;
+            }
+
             var nextToolkitVisible = HasGameplayToolkit &&
                                      (_gameplayToolkitDebugPanel == null || _gameplayToolkitDebugPanel.resolvedStyle.display == UnityEngine.UIElements.DisplayStyle.None);
             var nextVisible = _debugToolsPanel != null && !_debugToolsPanel.activeSelf;
@@ -1365,6 +1376,11 @@ namespace EJR.Game.UI
 
         private void BuildTopBarReference()
         {
+            if (HasGameplayToolkit)
+            {
+                return;
+            }
+
             var healthCard = CreatePanel(_canvas.transform, "HealthCardV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -24f), new Vector2(250f, 72f), new Color(0.04f, 0.07f, 0.11f, 0.9f));
             var xpCard = CreatePanel(_canvas.transform, "XpCardV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(290f, -24f), new Vector2(334f, 72f), new Color(0.04f, 0.07f, 0.11f, 0.9f));
             var timeCard = CreatePanel(_canvas.transform, "TimeCardV2", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -24f), new Vector2(218f, 72f), new Color(0.04f, 0.07f, 0.11f, 0.9f));
@@ -1410,6 +1426,11 @@ namespace EJR.Game.UI
 
         private void BuildBuildPanelReference()
         {
+            if (HasGameplayToolkit)
+            {
+                return;
+            }
+
             _buildToggleButton = CreateButton(_canvas.transform, "BuildToggleButtonV2", new Vector2(-1f, -1f), new Vector2(132f, 46f));
             var toggleRect = _buildToggleButton.GetComponent<RectTransform>();
             toggleRect.anchorMin = new Vector2(0f, 1f);
@@ -1453,6 +1474,11 @@ namespace EJR.Game.UI
 
         private void BuildBossBarReference()
         {
+            if (HasGameplayToolkit)
+            {
+                return;
+            }
+
             _bossBarPanel = CreatePanel(_canvas.transform, "BossBarPanelV2", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -110f), new Vector2(840f, 68f), new Color(0.05f, 0.08f, 0.12f, 0.9f));
             _bossBarPanel.SetActive(false);
 
@@ -1555,6 +1581,11 @@ namespace EJR.Game.UI
 
         private void BuildLevelUpPanelReference()
         {
+            if (HasGameplayToolkit)
+            {
+                return;
+            }
+
             _levelUpPanel = CreatePanel(_canvas.transform, "LevelUpPanelV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(LevelPanelWidth, LevelPanelMinHeight), new Color(0.03f, 0.05f, 0.09f, 0.96f));
             _levelUpPanel.SetActive(false);
 
@@ -1583,6 +1614,11 @@ namespace EJR.Game.UI
 
         private void BuildResultPanelReference()
         {
+            if (HasGameplayToolkit)
+            {
+                return;
+            }
+
             _resultPanel = CreatePanel(_canvas.transform, "ResultPanelV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(900f, 680f), new Color(0.03f, 0.05f, 0.09f, 0.96f));
             _resultPanel.SetActive(false);
 
@@ -1602,6 +1638,11 @@ namespace EJR.Game.UI
 
         private void BuildPausePanelReference()
         {
+            if (HasPauseMainToolkit)
+            {
+                return;
+            }
+
             _pausePanel = CreatePanel(_canvas.transform, "PausePanelV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(700f, 560f), new Color(0.03f, 0.05f, 0.09f, 0.96f));
             _pausePanel.SetActive(false);
 
@@ -1680,6 +1721,11 @@ namespace EJR.Game.UI
 
         private void BuildDebugPanelsReference()
         {
+            if (HasGameplayToolkit)
+            {
+                return;
+            }
+
             _debugAccessButton = CreateButton(_canvas.transform, "DebugAccessButtonV2", Vector2.zero, new Vector2(72f, 38f));
             var accessRect = _debugAccessButton.GetComponent<RectTransform>();
             accessRect.anchorMin = new Vector2(0f, 0f);

@@ -10,6 +10,10 @@ namespace EJR.Game.Gameplay
     {
         private const int BossProjectileVolleySkeletonCount = 5;
         private const float WaveRewardPickupRadius = 0.8f;
+        private const float WaveTargetVisualScaleMultiplier = 2f;
+        private const float WaveTargetCollisionRadiusMultiplier = 1.7f;
+        private const float WaveTargetHighlightScaleMultiplier = 1.18f;
+        private static readonly Color WaveTargetOverlayColor = new(1f, 1f, 1f, 0.92f);
 
         private EnemyConfig _config;
         private Transform _target;
@@ -275,7 +279,8 @@ namespace EJR.Game.Gameplay
             var renderer = visualObject.AddComponent<SpriteRenderer>();
             renderer.sprite = baseSprite;
             renderer.color = Color.white;
-            var scaleMultiplier = visualStatProfile != null ? Mathf.Max(0.1f, visualStatProfile.visualScaleMultiplier) : 1f;
+            var scaleSourceProfile = statProfile ?? visualStatProfile;
+            var scaleMultiplier = scaleSourceProfile != null ? Mathf.Max(0.1f, scaleSourceProfile.visualScaleMultiplier) : 1f;
             var visualWorldSize = Mathf.Max(0.1f, _config.visualScale * scaleMultiplier);
             ApplyVisualScale(visualObject.transform, renderer.sprite, visualWorldSize);
             if (enemyFrames.Length > 1)
@@ -453,8 +458,8 @@ namespace EJR.Game.Gameplay
                 moveSpeedMultiplier = Mathf.Max(0.1f, baseProfile != null ? baseProfile.moveSpeedMultiplier : 1f) * 0.92f,
                 contactDamageMultiplier = Mathf.Max(0.1f, baseProfile != null ? baseProfile.contactDamageMultiplier : 1f) * 1.25f,
                 experienceMultiplier = Mathf.Max(0.1f, baseProfile != null ? baseProfile.experienceMultiplier : 1f) * 3f,
-                visualScaleMultiplier = Mathf.Max(0.1f, baseProfile != null ? baseProfile.visualScaleMultiplier : 1f) * 1.55f,
-                collisionRadiusMultiplier = Mathf.Max(0.1f, baseProfile != null ? baseProfile.collisionRadiusMultiplier : 1f) * 1.35f,
+                visualScaleMultiplier = Mathf.Max(0.1f, baseProfile != null ? baseProfile.visualScaleMultiplier : 1f) * WaveTargetVisualScaleMultiplier,
+                collisionRadiusMultiplier = Mathf.Max(0.1f, baseProfile != null ? baseProfile.collisionRadiusMultiplier : 1f) * WaveTargetCollisionRadiusMultiplier,
             };
 
             var candidateRadius = CalculateCollisionRadius(targetProfile);
@@ -538,15 +543,45 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            var glowObject = new GameObject("WaveTargetGlow");
-            glowObject.transform.SetParent(visualRoot, false);
-            glowObject.transform.localPosition = new Vector3(0f, -0.02f, 0.02f);
-            var glowRenderer = glowObject.AddComponent<SpriteRenderer>();
-            glowRenderer.sprite = RuntimeSpriteFactory.GetSquareSprite();
-            glowRenderer.color = new Color(1f, 1f, 1f, 0.18f);
-            glowRenderer.sortingOrder = 13;
-            var glowScale = Mathf.Max(0.6f, enemy.CollisionRadius * 3f);
-            glowObject.transform.localScale = new Vector3(glowScale, glowScale, 1f);
+            var legacyGlow = visualRoot.Find("WaveTargetGlow");
+            if (legacyGlow != null)
+            {
+                legacyGlow.gameObject.SetActive(false);
+            }
+
+            var baseRenderer = visualRoot.GetComponent<SpriteRenderer>();
+            if (baseRenderer == null)
+            {
+                return;
+            }
+
+            var tintTransform = visualRoot.Find("WaveTargetTint");
+            if (tintTransform == null)
+            {
+                tintTransform = new GameObject("WaveTargetTint").transform;
+                tintTransform.SetParent(visualRoot, false);
+            }
+
+            tintTransform.localPosition = Vector3.zero;
+            tintTransform.localScale = new Vector3(WaveTargetHighlightScaleMultiplier, WaveTargetHighlightScaleMultiplier, 1f);
+
+            var tintRenderer = tintTransform.GetComponent<SpriteRenderer>();
+            if (tintRenderer == null)
+            {
+                tintRenderer = tintTransform.gameObject.AddComponent<SpriteRenderer>();
+            }
+
+            tintRenderer.sprite = baseRenderer.sprite;
+            tintRenderer.color = WaveTargetOverlayColor;
+            tintRenderer.sortingOrder = Mathf.Max(0, baseRenderer.sortingOrder - 1);
+
+            var mirror = tintTransform.GetComponent<SpriteRendererMirror>();
+            if (mirror == null)
+            {
+                mirror = tintTransform.gameObject.AddComponent<SpriteRendererMirror>();
+            }
+
+            mirror.Initialize(baseRenderer, tintRenderer);
         }
 
         private WaveRewardChest GetLatestRewardChest()
@@ -995,6 +1030,38 @@ namespace EJR.Game.Gameplay
 
             var hardCap = Mathf.Max(1, _config.hardAliveCap);
             return GetAliveEnemyCount() >= hardCap;
+        }
+    }
+
+    [DisallowMultipleComponent]
+    internal sealed class SpriteRendererMirror : MonoBehaviour
+    {
+        private SpriteRenderer _sourceRenderer;
+        private SpriteRenderer _targetRenderer;
+
+        public void Initialize(SpriteRenderer sourceRenderer, SpriteRenderer targetRenderer)
+        {
+            _sourceRenderer = sourceRenderer;
+            _targetRenderer = targetRenderer;
+            Sync();
+        }
+
+        private void LateUpdate()
+        {
+            Sync();
+        }
+
+        private void Sync()
+        {
+            if (_sourceRenderer == null || _targetRenderer == null)
+            {
+                return;
+            }
+
+            _targetRenderer.sprite = _sourceRenderer.sprite;
+            _targetRenderer.flipX = _sourceRenderer.flipX;
+            _targetRenderer.flipY = _sourceRenderer.flipY;
+            _targetRenderer.drawMode = _sourceRenderer.drawMode;
         }
     }
 }

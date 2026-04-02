@@ -18,6 +18,9 @@ namespace EJR.Game.Multiplayer
         }
 
         private const string VisualObjectName = "Visual";
+        private const float WaveTargetHighlightScaleMultiplier = 1.18f;
+        private static readonly Color WaveTargetOverlayColor = new(1f, 1f, 1f, 0.92f);
+        private const float WaveTargetVisualScaleMultiplier = 2f;
         private static readonly System.Collections.Generic.List<MultiplayerSharedEnemyActor> ActiveActors = new();
 
         private readonly NetworkVariable<int> _visualKind =
@@ -281,6 +284,10 @@ namespace EJR.Game.Multiplayer
             var enemyFrames = RuntimeSpriteFactory.GetEnemyAnimationFrames(visualKind);
             var baseSprite = enemyFrames.Length > 0 ? enemyFrames[0] : RuntimeSpriteFactory.GetSquareSprite();
             var scaleMultiplier = statProfile != null ? Mathf.Max(0.1f, statProfile.visualScaleMultiplier) : 1f;
+            if (IsHudWaveTarget)
+            {
+                scaleMultiplier *= WaveTargetVisualScaleMultiplier;
+            }
             var visualWorldSize = Mathf.Max(0.1f, _enemyConfig.visualScale * scaleMultiplier);
 
             _visualRoot.localPosition = new Vector3(0f, _enemyConfig.visualYOffset, 0f);
@@ -332,12 +339,19 @@ namespace EJR.Game.Multiplayer
             }
 
             glowObject.SetActive(true);
-            _waveTargetGlowRenderer.sprite = RuntimeSpriteFactory.GetSquareSprite();
-            _waveTargetGlowRenderer.color = new Color(1f, 1f, 1f, 0.18f);
-            _waveTargetGlowRenderer.sortingOrder = 13;
-            glowObject.transform.localPosition = new Vector3(0f, -0.02f, 0.02f);
-            var glowScale = Mathf.Max(0.6f, visualWorldSize * 1.9f);
-            glowObject.transform.localScale = new Vector3(glowScale, glowScale, 1f);
+            _waveTargetGlowRenderer.sprite = _spriteRenderer != null ? _spriteRenderer.sprite : RuntimeSpriteFactory.GetSquareSprite();
+            _waveTargetGlowRenderer.color = WaveTargetOverlayColor;
+            _waveTargetGlowRenderer.sortingOrder = Mathf.Max(0, (_spriteRenderer != null ? _spriteRenderer.sortingOrder : 15) - 1);
+            glowObject.transform.localPosition = Vector3.zero;
+            glowObject.transform.localScale = new Vector3(WaveTargetHighlightScaleMultiplier, WaveTargetHighlightScaleMultiplier, 1f);
+
+            var mirror = glowObject.GetComponent<SpriteRendererMirror>();
+            if (mirror == null)
+            {
+                mirror = glowObject.AddComponent<SpriteRendererMirror>();
+            }
+
+            mirror.Initialize(_spriteRenderer, _waveTargetGlowRenderer);
         }
 
         private void RefreshHealthBar(float currentHealth, float maxHealth, bool playHurt)

@@ -13,8 +13,6 @@ namespace EJR.Game.UI
     {
         private const string GameplayToolkitLayoutResourcePath = "UI/Common/GameplayHudLayout";
         private const string GameplayToolkitStylesResourcePath = "UI/Common/GameplayHudStyles";
-        private const string GameplayToolkitThemeResourcePath = "UI/Common/UnityDefaultRuntimeTheme";
-
         private UIDocument _gameplayToolkitDocument;
         private PanelSettings _gameplayToolkitPanelSettings;
         private UIToolkitVisualElement _gameplayToolkitScreen;
@@ -71,7 +69,8 @@ namespace EJR.Game.UI
             }
 
             var layout = Resources.Load<VisualTreeAsset>(GameplayToolkitLayoutResourcePath);
-            if (layout == null)
+            var panelTemplate = Resources.Load<PanelSettings>(SettingsToolkitPanelSettingsResourcePath);
+            if (layout == null || panelTemplate == null)
             {
                 return;
             }
@@ -82,14 +81,14 @@ namespace EJR.Game.UI
             documentObject.transform.SetParent(_canvas.transform, false);
 
             _gameplayToolkitDocument = documentObject.AddComponent<UIDocument>();
-            _gameplayToolkitPanelSettings = ScriptableObject.CreateInstance<PanelSettings>();
+            _gameplayToolkitPanelSettings = UnityEngine.Object.Instantiate(panelTemplate);
             _gameplayToolkitPanelSettings.name = "RuntimeGameplayHudPanelSettings";
             _gameplayToolkitPanelSettings.scaleMode = PanelScaleMode.ScaleWithScreenSize;
             _gameplayToolkitPanelSettings.referenceResolution = new Vector2Int(1920, 1080);
             _gameplayToolkitPanelSettings.screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight;
             _gameplayToolkitPanelSettings.match = 0.5f;
             _gameplayToolkitPanelSettings.sortingOrder = 140;
-            _gameplayToolkitPanelSettings.themeStyleSheet = Resources.Load<ThemeStyleSheet>(GameplayToolkitThemeResourcePath);
+            _gameplayToolkitPanelSettings.themeStyleSheet = Resources.Load<ThemeStyleSheet>(SettingsToolkitThemeResourcePath);
             _gameplayToolkitDocument.panelSettings = _gameplayToolkitPanelSettings;
 
             var root = _gameplayToolkitDocument.rootVisualElement;
@@ -152,7 +151,7 @@ namespace EJR.Game.UI
                 _gameplayToolkitDebugAccessButton.clicked += ToggleDebugEntry;
             }
 
-            UpdateGameplayToolkitVisibility(false);
+            UpdateGameplayToolkitVisibility(true);
             SetGameplayToolkitBuildDrawerOpen(false);
             HideGameplayToolkitWaveStatus();
             HideGameplayToolkitWaveBanner();

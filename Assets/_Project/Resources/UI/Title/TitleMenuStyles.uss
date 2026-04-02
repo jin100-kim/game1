@@ -23,7 +23,7 @@
 
 .title-main-shell {
     flex-grow: 1;
-    flex-direction: row;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
     padding-left: 96px;
@@ -32,14 +32,9 @@
     padding-bottom: 112px;
 }
 
-.title-overview-column {
-    width: 540px;
-    margin-right: 48px;
-}
-
 .title-action-column {
     width: 368px;
-    min-height: 560px;
+    min-height: 452px;
     padding-left: 26px;
     padding-right: 26px;
     padding-top: 26px;
@@ -66,11 +61,9 @@
     margin-bottom: 10px;
 }
 
-.title-subtitle {
-    color: rgb(188, 203, 222);
-    font-size: 18px;
-    margin-bottom: 26px;
-    white-space: normal;
+.title-main-title {
+    margin-bottom: 28px;
+    -unity-text-align: middle-center;
 }
 
 .title-panel-shell {
