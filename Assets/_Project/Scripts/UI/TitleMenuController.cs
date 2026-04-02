@@ -2386,6 +2386,7 @@ namespace EJR.Game.UI
                 }
 
                 buttons.Add(button);
+                displayIndex++;
             }
 
             _metaCharacterButtons = buttons.ToArray();
