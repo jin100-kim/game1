@@ -11,7 +11,7 @@ using UnityEngine.InputSystem.UI;
 
 namespace EJR.Game.UI
 {
-    public sealed class HudController
+    public sealed partial class HudController
     {
         private const string FullscreenPreferenceKey = "settings.fullscreen";
         private const float LevelPanelWidth = 860f;
@@ -77,6 +77,7 @@ namespace EJR.Game.UI
         private Text _resultText;
         private Button _restartButton;
         private GameObject _pausePanel;
+        private GameObject _pauseMainContentRoot;
         private Button _pauseSettingsButton;
         private Button _pauseResumeButton;
         private Button _pauseQuitButton;
@@ -131,13 +132,22 @@ namespace EJR.Game.UI
         {
             EnsureEventSystem();
             BuildCanvas();
-            BuildTopBarReference();
-            BuildBuildPanelReference();
-            BuildBossBarReference();
-            BuildLevelUpPanelReference();
-            BuildResultPanelReference();
-            BuildPausePanelReference();
-            BuildDebugPanelsReference();
+            if (SupportsGameplayToolkitHud())
+            {
+                BuildGameplayToolkitReference();
+                BuildPauseSettingsToolkitReference();
+            }
+            else
+            {
+                BuildTopBarReference();
+                BuildBuildPanelReference();
+                BuildBossBarReference();
+                BuildLevelUpPanelReference();
+                BuildResultPanelReference();
+                BuildPausePanelReference();
+                BuildPauseSettingsToolkitReference();
+                BuildDebugPanelsReference();
+            }
         }
 
         public void SetCanvasVisible(bool visible)
@@ -148,6 +158,7 @@ namespace EJR.Game.UI
             }
 
             _canvas.gameObject.SetActive(visible);
+            UpdateGameplayToolkitVisibility(visible);
             if (!visible)
             {
                 HideLevelUpOptions();
@@ -164,14 +175,20 @@ namespace EJR.Game.UI
 
         public void SetTopBar(float currentHealth, float maxHealth, int level, int currentXp, int requiredXp, float remainingSeconds)
         {
-            if (_healthText == null)
-            {
-                return;
-            }
-
             var currentHpInt = Mathf.CeilToInt(currentHealth);
             var maxHpInt = Mathf.CeilToInt(maxHealth);
             var remainingSecondsInt = Mathf.Max(0, Mathf.CeilToInt(remainingSeconds));
+
+            if (HasGameplayToolkit)
+            {
+                SetGameplayToolkitTopBar(currentHpInt, maxHpInt, level, currentXp, requiredXp, remainingSecondsInt);
+            }
+
+            if (_healthText == null)
+            {
+                RefreshTransientPanels();
+                return;
+            }
 
             if (currentHpInt != _lastCurrentHp || maxHpInt != _lastMaxHp)
             {
@@ -207,13 +224,18 @@ namespace EJR.Game.UI
 
         public void SetBuildInfo(string weaponsSummary, string statsSummary)
         {
+            weaponsSummary ??= "무기";
+            statsSummary ??= "능력치";
+
+            if (HasGameplayToolkit)
+            {
+                SetGameplayToolkitBuildInfo(weaponsSummary, statsSummary);
+            }
+
             if (_weaponBuildText == null || _statBuildText == null)
             {
                 return;
             }
-
-            weaponsSummary ??= "무기";
-            statsSummary ??= "능력치";
 
             if (!string.Equals(_lastWeaponBuildSummary, weaponsSummary, StringComparison.Ordinal))
             {
@@ -236,6 +258,11 @@ namespace EJR.Game.UI
         public void SetBuildDrawerOpen(bool open)
         {
             _isBuildDrawerOpen = open;
+            if (HasGameplayToolkit)
+            {
+                SetGameplayToolkitBuildDrawerOpen(open);
+            }
+
             if (_buildPanel != null)
             {
                 _buildPanel.SetActive(open);
@@ -249,9 +276,19 @@ namespace EJR.Game.UI
 
         public void SetModeHint(string modeHint)
         {
+            if (HasGameplayToolkit)
+            {
+                SetGameplayToolkitModeHint(modeHint);
+            }
+
             if (_modeHintCard != null)
             {
-                _modeHintCard.SetActive(false);
+                var visible = !string.IsNullOrWhiteSpace(modeHint);
+                _modeHintCard.SetActive(visible);
+                if (visible && _modeHintText != null)
+                {
+                    _modeHintText.text = modeHint;
+                }
             }
         }
 
@@ -268,11 +305,17 @@ namespace EJR.Game.UI
             _debugSkipBossAction = onSkipBoss;
             _debugAutoPlayAction = onToggleAutoPlay;
             RefreshDebugToolButtons();
+            ConfigureGameplayToolkitDebugButtons();
         }
 
         public void SetDebugAccessVisible(bool visible)
         {
             _debugAccessVisible = visible;
+            if (HasGameplayToolkit)
+            {
+                SetGameplayToolkitDebugAccessVisible(visible);
+            }
+
             if (_debugAccessButton != null)
             {
                 _debugAccessButton.gameObject.SetActive(visible);
@@ -287,6 +330,11 @@ namespace EJR.Game.UI
         public void SetDebugAutoPlayState(bool enabled)
         {
             _debugAutoPlayEnabled = enabled;
+            if (HasGameplayToolkit)
+            {
+                SetGameplayToolkitDebugAutoPlayState(enabled);
+            }
+
             if (_debugAutoPlayLabel != null)
             {
                 _debugAutoPlayLabel.text = enabled ? "자동 전투: 켜짐" : "자동 전투: 꺼짐";
@@ -295,6 +343,11 @@ namespace EJR.Game.UI
 
         public void HideDebugPanels()
         {
+            if (HasGameplayToolkit)
+            {
+                HideGameplayToolkitDebugPanels();
+            }
+
             if (_debugToolsPanel != null)
             {
                 _debugToolsPanel.SetActive(false);
@@ -303,6 +356,11 @@ namespace EJR.Game.UI
 
         public void SetBossBar(float currentHealth, float maxHealth, string bossLabel = "보스")
         {
+            if (HasGameplayToolkit)
+            {
+                SetGameplayToolkitBossBar(currentHealth, maxHealth, bossLabel);
+            }
+
             if (_bossBarPanel == null || _bossBarFill == null || _bossBarValueText == null || _bossNameText == null)
             {
                 return;
@@ -343,6 +401,11 @@ namespace EJR.Game.UI
 
         public void HideBossBar()
         {
+            if (HasGameplayToolkit)
+            {
+                HideGameplayToolkitBossBar();
+            }
+
             if (_bossBarPanel != null && _bossBarPanel.activeSelf)
             {
                 _bossBarPanel.SetActive(false);
@@ -357,11 +420,21 @@ namespace EJR.Game.UI
 
         public void UpdateBossDirectionIndicator(Camera camera, Vector3 worldPosition)
         {
+            if (HasGameplayToolkit)
+            {
+                UpdateGameplayToolkitBossDirectionIndicator(camera, worldPosition);
+            }
+
             UpdateDirectionIndicator(_bossDirectionIndicatorPanel, _bossDirectionIndicatorRect, camera, worldPosition);
         }
 
         public void UpdateWaveTargetDirectionIndicator(Camera camera, Vector3 worldPosition)
         {
+            if (HasGameplayToolkit)
+            {
+                UpdateGameplayToolkitWaveDirectionIndicator(camera, worldPosition);
+            }
+
             UpdateDirectionIndicator(_waveTargetDirectionIndicatorPanel, _waveTargetDirectionIndicatorRect, camera, worldPosition);
         }
 
@@ -372,6 +445,11 @@ namespace EJR.Game.UI
 
         public void UpdateRewardDirectionIndicators(Camera camera, IReadOnlyList<Vector3> worldPositions)
         {
+            if (HasGameplayToolkit)
+            {
+                UpdateGameplayToolkitRewardDirectionIndicators(camera, worldPositions);
+            }
+
             if (worldPositions == null || worldPositions.Count <= 0)
             {
                 HideRewardDirectionIndicator();
@@ -407,16 +485,31 @@ namespace EJR.Game.UI
 
         public void HideBossDirectionIndicator()
         {
+            if (HasGameplayToolkit)
+            {
+                HideGameplayToolkitBossDirectionIndicator();
+            }
+
             HideDirectionIndicator(_bossDirectionIndicatorPanel);
         }
 
         public void HideWaveTargetDirectionIndicator()
         {
+            if (HasGameplayToolkit)
+            {
+                HideGameplayToolkitWaveDirectionIndicator();
+            }
+
             HideDirectionIndicator(_waveTargetDirectionIndicatorPanel);
         }
 
         public void HideRewardDirectionIndicator()
         {
+            if (HasGameplayToolkit)
+            {
+                HideGameplayToolkitRewardDirectionIndicators();
+            }
+
             for (var i = 0; i < _rewardDirectionIndicatorPanels.Count; i++)
             {
                 HideDirectionIndicator(_rewardDirectionIndicatorPanels[i]);
@@ -526,6 +619,11 @@ namespace EJR.Game.UI
 
         public void SetWaveStatus(int waveIndex, int remainingCount)
         {
+            if (HasGameplayToolkit)
+            {
+                SetGameplayToolkitWaveStatus(waveIndex, remainingCount);
+            }
+
             if (_waveStatusPanel == null || _waveStatusText == null)
             {
                 return;
@@ -552,6 +650,11 @@ namespace EJR.Game.UI
 
         public void HideWaveStatus()
         {
+            if (HasGameplayToolkit)
+            {
+                HideGameplayToolkitWaveStatus();
+            }
+
             if (_waveStatusPanel != null && _waveStatusPanel.activeSelf)
             {
                 _waveStatusPanel.SetActive(false);
@@ -562,8 +665,14 @@ namespace EJR.Game.UI
 
         public void ShowWaveBanner(string message, float duration = DefaultWaveBannerDuration)
         {
+            if (HasGameplayToolkit)
+            {
+                ShowGameplayToolkitWaveBanner(message);
+            }
+
             if (_waveBannerPanel == null || _waveBannerText == null || string.IsNullOrWhiteSpace(message))
             {
+                _waveBannerHideAt = Time.unscaledTime + Mathf.Max(0.2f, duration);
                 return;
             }
 
@@ -574,6 +683,11 @@ namespace EJR.Game.UI
 
         public void HideWaveBanner()
         {
+            if (HasGameplayToolkit)
+            {
+                HideGameplayToolkitWaveBanner();
+            }
+
             if (_waveBannerPanel != null && _waveBannerPanel.activeSelf)
             {
                 _waveBannerPanel.SetActive(false);
@@ -584,6 +698,11 @@ namespace EJR.Game.UI
 
         public void ShowLevelUpOptions(LevelUpOption[] options, Action<int> onSelected, string title = "레벨 업 - 하나 선택")
         {
+            if (HasGameplayToolkit)
+            {
+                ShowGameplayToolkitLevelUpOptions(options, onSelected, title);
+            }
+
             if (_levelUpPanel == null || options == null || options.Length == 0)
             {
                 return;
@@ -624,6 +743,11 @@ namespace EJR.Game.UI
 
         public void HideLevelUpOptions()
         {
+            if (HasGameplayToolkit)
+            {
+                HideGameplayToolkitLevelUpOptions();
+            }
+
             if (_levelUpPanel != null)
             {
                 _levelUpPanel.SetActive(false);
@@ -632,6 +756,11 @@ namespace EJR.Game.UI
 
         public void ShowResult(bool cleared, Action onAction, string actionLabel = "재시작")
         {
+            if (HasGameplayToolkit)
+            {
+                ShowGameplayToolkitResult(cleared ? "클리어" : "게임 오버", onAction, string.IsNullOrEmpty(actionLabel) ? "재시작" : actionLabel);
+            }
+
             if (_resultPanel == null)
             {
                 return;
@@ -646,6 +775,11 @@ namespace EJR.Game.UI
 
         public void ShowResult(RunRewardSummary summary, Action onAction, string actionLabel)
         {
+            if (HasGameplayToolkit && summary != null)
+            {
+                ShowGameplayToolkitResult(summary.BuildDisplayText(), onAction, string.IsNullOrEmpty(actionLabel) ? "타이틀로" : actionLabel);
+            }
+
             if (_resultPanel == null || summary == null)
             {
                 return;
@@ -662,16 +796,31 @@ namespace EJR.Game.UI
 
         public void HideResult()
         {
+            if (HasGameplayToolkit)
+            {
+                HideGameplayToolkitResult();
+            }
+
             if (_resultPanel != null)
             {
                 _resultPanel.SetActive(false);
             }
         }
 
-        public bool IsPauseMenuVisible => _pausePanel != null && _pausePanel.activeSelf;
+        public bool IsPauseMenuVisible => (HasPauseMainToolkit && IsPauseMainToolkitVisible) || (_pausePanel != null && _pausePanel.activeSelf);
 
         public void ShowPauseMenu(Action onResume, Action onQuit)
         {
+            if (HasPauseMainToolkit)
+            {
+                ConfigurePauseToolkitActions(onResume, onQuit);
+                _pausePanel?.SetActive(false);
+                UpdatePauseSettingsToolkitVisibility(false);
+                UpdatePauseMainToolkitVisibility(true);
+                SyncPauseSettingsControls();
+                return;
+            }
+
             if (_pausePanel == null)
             {
                 return;
@@ -703,6 +852,14 @@ namespace EJR.Game.UI
 
         public void HidePauseMenu()
         {
+            if (HasPauseMainToolkit)
+            {
+                UpdatePauseSettingsToolkitVisibility(false);
+                UpdatePauseMainToolkitVisibility(false);
+                _pausePanel?.SetActive(false);
+                return;
+            }
+
             if (_pausePanel != null)
             {
                 ClosePauseSettings(playCue: false);
@@ -1190,8 +1347,15 @@ namespace EJR.Game.UI
                 return;
             }
 
+            var nextToolkitVisible = HasGameplayToolkit &&
+                                     (_gameplayToolkitDebugPanel == null || _gameplayToolkitDebugPanel.resolvedStyle.display == UnityEngine.UIElements.DisplayStyle.None);
             var nextVisible = _debugToolsPanel != null && !_debugToolsPanel.activeSelf;
             HideDebugPanels();
+            if (HasGameplayToolkit && nextToolkitVisible)
+            {
+                ToggleGameplayToolkitDebugPanel();
+            }
+
             if (_debugToolsPanel != null)
             {
                 _debugToolsPanel.SetActive(nextVisible);
@@ -1205,6 +1369,7 @@ namespace EJR.Game.UI
             ConfigureDebugButton(_debugRerollButton, _debugRerollLabel, "선택지 다시 굴리기", _debugRerollAction);
             ConfigureDebugButton(_debugSkipBossButton, _debugSkipBossLabel, "보스로 건너뛰기", _debugSkipBossAction);
             ConfigureDebugButton(_debugAutoPlayButton, _debugAutoPlayLabel, _debugAutoPlayEnabled ? "자동 전투: 켜짐" : "자동 전투: 꺼짐", _debugAutoPlayAction);
+            ConfigureGameplayToolkitDebugButtons();
         }
 
         private void BuildTopBarReference()
@@ -1449,25 +1614,34 @@ namespace EJR.Game.UI
             _pausePanel = CreatePanel(_canvas.transform, "PausePanelV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(700f, 560f), new Color(0.03f, 0.05f, 0.09f, 0.96f));
             _pausePanel.SetActive(false);
 
-            var title = CreateText(_pausePanel.transform, "PauseTitleV2", new Vector2(0f, 206f), "\uC77C\uC2DC \uC815\uC9C0");
+            _pauseMainContentRoot = new GameObject("PauseMainContentRootV2");
+            _pauseMainContentRoot.transform.SetParent(_pausePanel.transform, false);
+            var mainContentRect = _pauseMainContentRoot.AddComponent<RectTransform>();
+            mainContentRect.anchorMin = Vector2.zero;
+            mainContentRect.anchorMax = Vector2.one;
+            mainContentRect.pivot = new Vector2(0.5f, 0.5f);
+            mainContentRect.offsetMin = Vector2.zero;
+            mainContentRect.offsetMax = Vector2.zero;
+
+            var title = CreateText(_pauseMainContentRoot.transform, "PauseTitleV2", new Vector2(0f, 206f), "\uC77C\uC2DC \uC815\uC9C0");
             title.fontSize = 30;
             title.fontStyle = FontStyle.Bold;
             title.color = new Color(0.95f, 0.74f, 0.18f, 1f);
 
-            var subhead = CreateText(_pausePanel.transform, "PauseSubheadV2", new Vector2(0f, 168f), "\uD50C\uB808\uC774 \uACC4\uC18D, \uC124\uC815, \uD0C0\uC774\uD2C0 \uC774\uB3D9\uC744 \uC5EC\uAE30\uC11C \uACE0\uB985\uB2C8\uB2E4.");
+            var subhead = CreateText(_pauseMainContentRoot.transform, "PauseSubheadV2", new Vector2(0f, 168f), "\uD50C\uB808\uC774 \uACC4\uC18D, \uC124\uC815, \uD0C0\uC774\uD2C0 \uC774\uB3D9\uC744 \uC5EC\uAE30\uC11C \uACE0\uB985\uB2C8\uB2E4.");
             subhead.fontSize = 15;
             subhead.color = new Color(0.78f, 0.84f, 0.92f, 1f);
             subhead.rectTransform.sizeDelta = new Vector2(520f, 38f);
 
-            _pauseResumeButton = CreateButton(_pausePanel.transform, "ResumeButtonV2", new Vector2(-150f, 74f), new Vector2(248f, 56f));
+            _pauseResumeButton = CreateButton(_pauseMainContentRoot.transform, "ResumeButtonV2", new Vector2(-150f, 74f), new Vector2(248f, 56f));
             _pauseResumeButton.GetComponentInChildren<Text>().text = "\uACC4\uC18D\uD558\uAE30";
 
-            _pauseSettingsButton = CreateButton(_pausePanel.transform, "PauseSettingsButtonV2", new Vector2(150f, 74f), new Vector2(248f, 56f));
+            _pauseSettingsButton = CreateButton(_pauseMainContentRoot.transform, "PauseSettingsButtonV2", new Vector2(150f, 74f), new Vector2(248f, 56f));
             _pauseSettingsButton.GetComponentInChildren<Text>().text = "\uC124\uC815";
             _pauseSettingsButton.onClick.RemoveAllListeners();
             _pauseSettingsButton.onClick.AddListener(OpenPauseSettings);
 
-            _pauseQuitButton = CreateButton(_pausePanel.transform, "QuitButtonV2", new Vector2(0f, 2f), new Vector2(292f, 56f));
+            _pauseQuitButton = CreateButton(_pauseMainContentRoot.transform, "QuitButtonV2", new Vector2(0f, 2f), new Vector2(292f, 56f));
             _pauseQuitButton.GetComponentInChildren<Text>().text = "\uD0C0\uC774\uD2C0\uB85C";
             if (_pauseQuitButton.targetGraphic is Image quitImage)
             {
@@ -1480,34 +1654,34 @@ namespace EJR.Game.UI
                 _pauseQuitButton.colors = quitColors;
             }
 
-            _pauseSettingsPanel = CreatePanel(_pausePanel.transform, "PauseSettingsPanelV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -72f), new Vector2(560f, 306f), new Color(0.05f, 0.08f, 0.12f, 0.92f));
+            _pauseSettingsPanel = CreatePanel(_pausePanel.transform, "PauseSettingsPanelV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 0f), new Vector2(580f, 340f), new Color(0.05f, 0.08f, 0.12f, 0.96f));
             _pauseSettingsPanel.SetActive(false);
 
-            var settingsTitle = CreateText(_pauseSettingsPanel.transform, "PauseSettingsTitleV2", new Vector2(0f, 126f), "\uC124\uC815");
+            var settingsTitle = CreateText(_pauseSettingsPanel.transform, "PauseSettingsTitleV2", new Vector2(0f, 140f), "\uC124\uC815");
             settingsTitle.fontSize = 22;
             settingsTitle.fontStyle = FontStyle.Bold;
             settingsTitle.color = new Color(0.95f, 0.74f, 0.18f, 1f);
 
-            var displayCard = CreatePanel(_pauseSettingsPanel.transform, "PauseDisplayCardV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 54f), new Vector2(460f, 82f), new Color(0.07f, 0.10f, 0.14f, 0.94f));
+            var displayCard = CreatePanel(_pauseSettingsPanel.transform, "PauseDisplayCardV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 76f), new Vector2(500f, 92f), new Color(0.07f, 0.10f, 0.14f, 0.94f));
             var displayLabel = CreateText(displayCard.transform, "PauseDisplayLabelV2", new Vector2(0f, 20f), "\uD654\uBA74");
             displayLabel.fontSize = 16;
             displayLabel.fontStyle = FontStyle.Bold;
             displayLabel.color = new Color(0.95f, 0.74f, 0.18f, 1f);
             displayLabel.rectTransform.sizeDelta = new Vector2(160f, 24f);
-            _pauseFullscreenToggle = CreateToggle(displayCard.transform, "PauseFullscreenToggleV2", new Vector2(0f, -12f), new Vector2(248f, 32f), "\uC804\uCCB4 \uD654\uBA74", OnPauseFullscreenToggleChanged);
+            _pauseFullscreenToggle = CreateToggle(displayCard.transform, "PauseFullscreenToggleV2", new Vector2(0f, -8f), new Vector2(248f, 32f), "\uC804\uCCB4 \uD654\uBA74", OnPauseFullscreenToggleChanged);
 
-            var audioCard = CreatePanel(_pauseSettingsPanel.transform, "PauseAudioCardV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -46f), new Vector2(480f, 146f), new Color(0.07f, 0.10f, 0.14f, 0.94f));
-            var audioLabel = CreateText(audioCard.transform, "PauseAudioLabelV2", new Vector2(0f, 50f), "\uC624\uB514\uC624");
+            var audioCard = CreatePanel(_pauseSettingsPanel.transform, "PauseAudioCardV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -34f), new Vector2(500f, 156f), new Color(0.07f, 0.10f, 0.14f, 0.94f));
+            var audioLabel = CreateText(audioCard.transform, "PauseAudioLabelV2", new Vector2(0f, 52f), "\uC624\uB514\uC624");
             audioLabel.fontSize = 16;
             audioLabel.fontStyle = FontStyle.Bold;
             audioLabel.color = new Color(0.95f, 0.74f, 0.18f, 1f);
             audioLabel.rectTransform.sizeDelta = new Vector2(160f, 24f);
 
-            CreateSliderControl(audioCard.transform, "PauseMasterVolumeV2", new Vector2(0f, 12f), "\uB9C8\uC2A4\uD130", OnPauseMasterVolumeChanged, out _pauseMasterVolumeSlider, out _pauseMasterVolumeValueText);
-            CreateSliderControl(audioCard.transform, "PauseBgmVolumeV2", new Vector2(0f, -24f), "\uBC30\uACBD\uC74C", OnPauseBgmVolumeChanged, out _pauseBgmVolumeSlider, out _pauseBgmVolumeValueText);
-            CreateSliderControl(audioCard.transform, "PauseSfxVolumeV2", new Vector2(0f, -60f), "\uD6A8\uACFC\uC74C", OnPauseSfxVolumeChanged, out _pauseSfxVolumeSlider, out _pauseSfxVolumeValueText);
+            CreateSliderControl(audioCard.transform, "PauseMasterVolumeV2", new Vector2(0f, 18f), "\uB9C8\uC2A4\uD130", OnPauseMasterVolumeChanged, out _pauseMasterVolumeSlider, out _pauseMasterVolumeValueText);
+            CreateSliderControl(audioCard.transform, "PauseBgmVolumeV2", new Vector2(0f, -18f), "\uBC30\uACBD\uC74C", OnPauseBgmVolumeChanged, out _pauseBgmVolumeSlider, out _pauseBgmVolumeValueText);
+            CreateSliderControl(audioCard.transform, "PauseSfxVolumeV2", new Vector2(0f, -54f), "\uD6A8\uACFC\uC74C", OnPauseSfxVolumeChanged, out _pauseSfxVolumeSlider, out _pauseSfxVolumeValueText);
 
-            var settingsBackButton = CreateButton(_pauseSettingsPanel.transform, "PauseSettingsBackButtonV2", new Vector2(0f, -126f), new Vector2(228f, 44f));
+            var settingsBackButton = CreateButton(_pauseSettingsPanel.transform, "PauseSettingsBackButtonV2", new Vector2(0f, -138f), new Vector2(228f, 44f));
             settingsBackButton.GetComponentInChildren<Text>().text = "\uB3CC\uC544\uAC00\uAE30";
             settingsBackButton.onClick.RemoveAllListeners();
             settingsBackButton.onClick.AddListener(() => ClosePauseSettings());
@@ -1569,6 +1743,11 @@ namespace EJR.Game.UI
 
         private void RefreshTransientPanels()
         {
+            if (HasGameplayToolkit)
+            {
+                RefreshGameplayToolkitTransientPanels();
+            }
+
             if (_waveBannerPanel == null || !_waveBannerPanel.activeSelf || _waveBannerHideAt < 0f)
             {
                 return;
@@ -1717,22 +1896,38 @@ namespace EJR.Game.UI
 
         private void OpenPauseSettings()
         {
+            if (HasPauseSettingsToolkit)
+            {
+                AudioService.Instance.PlayUi(AudioCueId.UiConfirm);
+                UpdatePauseMainToolkitVisibility(false);
+                _pauseMainContentRoot?.SetActive(false);
+                _pauseSettingsPanel?.SetActive(false);
+                SyncPauseSettingsControls();
+                UpdatePauseSettingsToolkitVisibility(true);
+                return;
+            }
+
             if (_pauseSettingsPanel == null)
             {
                 return;
             }
 
             AudioService.Instance.PlayUi(AudioCueId.UiConfirm);
+            _pauseMainContentRoot?.SetActive(false);
             _pauseSettingsPanel.SetActive(true);
-            _pauseResumeButton?.gameObject.SetActive(false);
-            _pauseSettingsButton?.gameObject.SetActive(false);
-            _pauseQuitButton?.gameObject.SetActive(false);
             SyncPauseSettingsControls();
+
+            var eventSystem = EventSystem.current;
+            if (eventSystem != null && _pauseFullscreenToggle != null)
+            {
+                eventSystem.SetSelectedGameObject(null);
+                eventSystem.SetSelectedGameObject(_pauseFullscreenToggle.gameObject);
+            }
         }
 
         private void ClosePauseSettings(bool playCue = true)
         {
-            if (_pauseSettingsPanel == null)
+            if (!HasPauseSettingsToolkit && _pauseSettingsPanel == null)
             {
                 return;
             }
@@ -1742,10 +1937,21 @@ namespace EJR.Game.UI
                 AudioService.Instance.PlayUi(AudioCueId.UiBack);
             }
 
-            _pauseSettingsPanel.SetActive(false);
-            _pauseResumeButton?.gameObject.SetActive(true);
-            _pauseSettingsButton?.gameObject.SetActive(true);
-            _pauseQuitButton?.gameObject.SetActive(true);
+            UpdatePauseSettingsToolkitVisibility(false);
+            if (HasPauseMainToolkit)
+            {
+                UpdatePauseMainToolkitVisibility(true);
+            }
+
+            _pauseSettingsPanel?.SetActive(false);
+            _pauseMainContentRoot?.SetActive(true);
+
+            var eventSystem = EventSystem.current;
+            if (eventSystem != null && _pauseSettingsButton != null && _pauseSettingsButton.gameObject.activeInHierarchy)
+            {
+                eventSystem.SetSelectedGameObject(null);
+                eventSystem.SetSelectedGameObject(_pauseSettingsButton.gameObject);
+            }
         }
 
         private void SyncPauseSettingsControls()
@@ -1761,6 +1967,7 @@ namespace EJR.Game.UI
             UpdateSliderValueLabel(_pauseMasterVolumeValueText, audio.MasterVolume);
             UpdateSliderValueLabel(_pauseBgmVolumeValueText, audio.BgmVolume);
             UpdateSliderValueLabel(_pauseSfxVolumeValueText, audio.SfxVolume);
+            SyncPauseSettingsToolkitControls();
         }
 
         private void OnPauseFullscreenToggleChanged(bool useFullscreen)
@@ -1771,6 +1978,7 @@ namespace EJR.Game.UI
             }
 
             ApplyDisplayMode(useFullscreen);
+            SyncPauseSettingsControls();
             AudioService.Instance.PlayUi(AudioCueId.UiAdjust);
         }
 
@@ -1783,6 +1991,7 @@ namespace EJR.Game.UI
             }
 
             AudioService.Instance.SetMasterVolume(value);
+            SyncPauseSettingsControls();
             AudioService.Instance.PlayUi(AudioCueId.UiAdjust);
         }
 
@@ -1795,6 +2004,7 @@ namespace EJR.Game.UI
             }
 
             AudioService.Instance.SetBgmVolume(value);
+            SyncPauseSettingsControls();
             AudioService.Instance.PlayUi(AudioCueId.UiAdjust);
         }
 
@@ -1807,6 +2017,7 @@ namespace EJR.Game.UI
             }
 
             AudioService.Instance.SetSfxVolume(value);
+            SyncPauseSettingsControls();
             AudioService.Instance.PlayUi(AudioCueId.UiAdjust);
         }
 
@@ -1853,13 +2064,13 @@ namespace EJR.Game.UI
             rootRect.anchorMax = new Vector2(0.5f, 0.5f);
             rootRect.pivot = new Vector2(0.5f, 0.5f);
             rootRect.anchoredPosition = anchoredPosition;
-            rootRect.sizeDelta = new Vector2(340f, 26f);
+            rootRect.sizeDelta = new Vector2(400f, 26f);
 
-            var labelText = CreateText(root.transform, "Label", new Vector2(-126f, 0f), label);
+            var labelText = CreateText(root.transform, "Label", new Vector2(-142f, 0f), label);
             labelText.fontSize = 15;
             labelText.fontStyle = FontStyle.Bold;
             labelText.alignment = TextAnchor.MiddleLeft;
-            labelText.rectTransform.sizeDelta = new Vector2(84f, 24f);
+            labelText.rectTransform.sizeDelta = new Vector2(92f, 24f);
 
             var sliderObject = new GameObject("Slider");
             sliderObject.transform.SetParent(root.transform, false);
@@ -1867,8 +2078,8 @@ namespace EJR.Game.UI
             sliderRect.anchorMin = new Vector2(0f, 0.5f);
             sliderRect.anchorMax = new Vector2(0f, 0.5f);
             sliderRect.pivot = new Vector2(0f, 0.5f);
-            sliderRect.anchoredPosition = new Vector2(42f, 0f);
-            sliderRect.sizeDelta = new Vector2(224f, 18f);
+            sliderRect.anchoredPosition = new Vector2(70f, 0f);
+            sliderRect.sizeDelta = new Vector2(220f, 18f);
 
             var background = new GameObject("Background");
             background.transform.SetParent(sliderObject.transform, false);
@@ -1909,7 +2120,7 @@ namespace EJR.Game.UI
             var handle = new GameObject("Handle");
             handle.transform.SetParent(handleArea.transform, false);
             var handleRect = handle.AddComponent<RectTransform>();
-            handleRect.sizeDelta = new Vector2(16f, 18f);
+            handleRect.sizeDelta = new Vector2(14f, 18f);
             var handleImage = handle.AddComponent<Image>();
             handleImage.color = new Color(0.98f, 0.98f, 1f, 1f);
 
@@ -1923,7 +2134,7 @@ namespace EJR.Game.UI
             slider.handleRect = handleRect;
             slider.onValueChanged.AddListener(onValueChanged);
 
-            valueText = CreateText(root.transform, "Value", new Vector2(148f, 0f), "0%");
+            valueText = CreateText(root.transform, "Value", new Vector2(166f, 0f), "0%");
             valueText.fontSize = 14;
             valueText.fontStyle = FontStyle.Bold;
             valueText.alignment = TextAnchor.MiddleRight;
@@ -1970,11 +2181,11 @@ namespace EJR.Game.UI
             var checkmarkImage = checkmarkObject.AddComponent<Image>();
             checkmarkImage.color = new Color(0.95f, 0.74f, 0.18f, 1f);
 
-            var labelText = CreateText(toggleObject.transform, "Label", new Vector2(64f, 0f), label);
+            var labelText = CreateText(toggleObject.transform, "Label", new Vector2(80f, 0f), label);
             labelText.fontSize = 17;
             labelText.fontStyle = FontStyle.Bold;
             labelText.alignment = TextAnchor.MiddleLeft;
-            labelText.rectTransform.sizeDelta = new Vector2(180f, 26f);
+            labelText.rectTransform.sizeDelta = new Vector2(220f, 26f);
 
             toggle.targetGraphic = backgroundImage;
             toggle.graphic = checkmarkImage;

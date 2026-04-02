@@ -640,39 +640,33 @@ namespace EJR.Game.UI
 
         private void BuildOptionsPanelReference(Transform parent)
         {
-            _optionsPanel = CreatePanel(parent, "OptionsPanelV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -18f), new Vector2(840f, 620f), new Color(0.02f, 0.03f, 0.06f, 0.9f));
+            if (SupportsToolkitOptionsPanel())
+            {
+                _optionsPanel = new GameObject("OptionsPanelStateV2", typeof(RectTransform));
+                _optionsPanel.transform.SetParent(parent, false);
+                _optionsPanel.SetActive(false);
+                return;
+            }
+
+            _optionsPanel = CreatePanel(parent, "OptionsPanelV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -18f), new Vector2(760f, 520f), new Color(0.02f, 0.03f, 0.06f, 0.9f));
             _optionsPanel.SetActive(false);
 
-            var title = CreateText(_optionsPanel.transform, "OptionsTitleV2", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -34f), new Vector2(320f, 30f), "\uC124\uC815", 24, FontStyle.Bold);
+            var title = CreateText(_optionsPanel.transform, "OptionsTitleV2", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -38f), new Vector2(320f, 32f), "\uC124\uC815", 26, FontStyle.Bold);
             title.color = new Color(0.96f, 0.74f, 0.18f, 1f);
 
-            var desc = CreateText(_optionsPanel.transform, "OptionsDescriptionV2", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -84f), new Vector2(540f, 42f), "\uD654\uBA74 \uBAA8\uB4DC\uC640 \uC624\uB514\uC624 \uBCF8\uB7C9\uC744 \uBC14\uB85C \uC870\uC815\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.", 15, FontStyle.Normal);
-            desc.color = new Color(0.78f, 0.84f, 0.92f, 1f);
-
-            var displayCard = CreatePanel(_optionsPanel.transform, "DisplayCardV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-184f, 34f), new Vector2(304f, 184f), new Color(0.05f, 0.08f, 0.12f, 0.9f));
+            var displayCard = CreatePanel(_optionsPanel.transform, "DisplayCardV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 82f), new Vector2(560f, 112f), new Color(0.05f, 0.08f, 0.12f, 0.9f));
             var displayHeader = CreateText(displayCard.transform, "DisplayHeaderV2", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -24f), new Vector2(220f, 24f), "\uD654\uBA74", 16, FontStyle.Bold);
             displayHeader.color = new Color(0.96f, 0.74f, 0.18f, 1f);
-            _fullscreenToggle = CreateToggle(displayCard.transform, "FullscreenToggleV2", new Vector2(0f, 12f), new Vector2(228f, 36f), "\uC804\uCCB4 \uD654\uBA74", OnFullscreenToggleChanged);
-            var displayHint = CreateText(displayCard.transform, "DisplayHintV2", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 26f), new Vector2(224f, 42f), "\uBCC0\uACBD \uC0AC\uD56D\uC740 \uBC14\uB85C \uC801\uC6A9\uB429\uB2C8\uB2E4.", 13, FontStyle.Normal);
-            displayHint.color = new Color(0.72f, 0.79f, 0.89f, 1f);
+            _fullscreenToggle = CreateToggle(displayCard.transform, "FullscreenToggleV2", new Vector2(0f, 2f), new Vector2(248f, 36f), "\uC804\uCCB4 \uD654\uBA74", OnFullscreenToggleChanged);
 
-            var audioCard = CreatePanel(_optionsPanel.transform, "AudioCardV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(154f, -8f), new Vector2(436f, 264f), new Color(0.05f, 0.08f, 0.12f, 0.9f));
+            var audioCard = CreatePanel(_optionsPanel.transform, "AudioCardV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -48f), new Vector2(560f, 204f), new Color(0.05f, 0.08f, 0.12f, 0.9f));
             var audioHeader = CreateText(audioCard.transform, "AudioHeaderV2", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -24f), new Vector2(240f, 24f), "\uC624\uB514\uC624", 16, FontStyle.Bold);
             audioHeader.color = new Color(0.96f, 0.74f, 0.18f, 1f);
-            CreateSliderControl(audioCard.transform, "MasterVolumeV2", new Vector2(0f, 54f), "\uB9C8\uC2A4\uD130", OnMasterVolumeChanged, out _masterVolumeSlider, out _masterVolumeValueText);
-            CreateSliderControl(audioCard.transform, "BgmVolumeV2", new Vector2(0f, 10f), "\uBC30\uACBD\uC74C", OnBgmVolumeChanged, out _bgmVolumeSlider, out _bgmVolumeValueText);
-            CreateSliderControl(audioCard.transform, "SfxVolumeV2", new Vector2(0f, -34f), "\uD6A8\uACFC\uC74C", OnSfxVolumeChanged, out _sfxVolumeSlider, out _sfxVolumeValueText);
+            CreateSliderControl(audioCard.transform, "MasterVolumeV2", new Vector2(0f, 44f), "\uB9C8\uC2A4\uD130", OnMasterVolumeChanged, out _masterVolumeSlider, out _masterVolumeValueText);
+            CreateSliderControl(audioCard.transform, "BgmVolumeV2", new Vector2(0f, 0f), "\uBC30\uACBD\uC74C", OnBgmVolumeChanged, out _bgmVolumeSlider, out _bgmVolumeValueText);
+            CreateSliderControl(audioCard.transform, "SfxVolumeV2", new Vector2(0f, -44f), "\uD6A8\uACFC\uC74C", OnSfxVolumeChanged, out _sfxVolumeSlider, out _sfxVolumeValueText);
 
-            var tipsCard = CreatePanel(_optionsPanel.transform, "TipsCardV2", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-184f, -162f), new Vector2(304f, 150f), new Color(0.06f, 0.09f, 0.13f, 0.88f));
-            var tipsHeader = CreateText(tipsCard.transform, "TipsHeaderV2", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -22f), new Vector2(220f, 24f), "\uAE30\uBCF8 \uC548\uB0B4", 16, FontStyle.Bold);
-            tipsHeader.color = new Color(0.96f, 0.74f, 0.18f, 1f);
-            var tipsBody = CreateText(tipsCard.transform, "TipsBodyV2", Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero, "\uB9C8\uC2A4\uD130\uB294 \uC804\uCCB4 \uBCFC\uB968\uC744,\n\uBC30\uACBD\uC74C\uACFC \uD6A8\uACFC\uC74C\uC740 \uAC01\uAC01 \uBD84\uB9AC\uD574 \uC870\uC815\uD569\uB2C8\uB2E4.", 15, FontStyle.Normal);
-            tipsBody.alignment = TextAnchor.MiddleLeft;
-            tipsBody.rectTransform.offsetMin = new Vector2(20f, 16f);
-            tipsBody.rectTransform.offsetMax = new Vector2(-20f, -18f);
-            tipsBody.color = new Color(0.78f, 0.84f, 0.92f, 1f);
-
-            _optionsBackButton = CreateButton(_optionsPanel.transform, "OptionsBackButtonV2", new Vector2(0f, -250f), "\uB4A4\uB85C", ShowMainMenu, new Vector2(248f, 46f));
+            _optionsBackButton = CreateButton(_optionsPanel.transform, "OptionsBackButtonV2", new Vector2(0f, -210f), "\uB4A4\uB85C", ShowMainMenu, new Vector2(248f, 46f));
         }
 
         #if false
@@ -1012,7 +1006,7 @@ namespace EJR.Game.UI
         {
             SyncFullscreenToggle();
             SyncAudioSettingsControls();
-            ShowPanel(_optionsPanel, _fullscreenToggle);
+            ShowPanel(_optionsPanel, HasToolkitOptionsScreen ? null : _fullscreenToggle);
             SetStatus("화면 설정을 여기서 변경합니다.");
         }
 
@@ -1598,7 +1592,15 @@ namespace EJR.Game.UI
             if (_runSetupPanel != null) _runSetupPanel.SetActive(activePanel == _runSetupPanel);
             if (_achievementPanel != null) _achievementPanel.SetActive(activePanel == _achievementPanel);
             if (_metaPanel != null) _metaPanel.SetActive(activePanel == _metaPanel);
-            SetTitleChromeVisible(activePanel == _mainMenuPanel && (_summaryModal == null || !_summaryModal.activeSelf));
+            var showToolkitMainMenu = activePanel == _mainMenuPanel && (_summaryModal == null || !_summaryModal.activeSelf);
+            SetTitleChromeVisible(showToolkitMainMenu);
+            UpdateToolkitMainMenuVisibility(showToolkitMainMenu);
+            UpdateToolkitOptionsVisibility(activePanel == _optionsPanel);
+
+            if (HasToolkitMainMenu && activePanel == _mainMenuPanel && _mainMenuPanel != null)
+            {
+                _mainMenuPanel.SetActive(false);
+            }
 
             var eventSystem = EventSystem.current;
             if (eventSystem != null && preferredSelection != null)
@@ -2814,14 +2816,10 @@ namespace EJR.Game.UI
 
         private void SyncFullscreenToggle()
         {
-            if (_fullscreenToggle == null)
-            {
-                return;
-            }
-
             _suppressDisplayToggleCallback = true;
-            _fullscreenToggle.SetIsOnWithoutNotify(PlayerPrefs.GetInt(FullscreenPreferenceKey, 0) != 0);
+            _fullscreenToggle?.SetIsOnWithoutNotify(PlayerPrefs.GetInt(FullscreenPreferenceKey, 0) != 0);
             _suppressDisplayToggleCallback = false;
+            SyncToolkitOptionsControls();
         }
 
         private void OnFullscreenToggleChanged(bool useFullscreen)
@@ -2848,6 +2846,7 @@ namespace EJR.Game.UI
             UpdateSliderValueLabel(_masterVolumeValueText, audio.MasterVolume);
             UpdateSliderValueLabel(_bgmVolumeValueText, audio.BgmVolume);
             UpdateSliderValueLabel(_sfxVolumeValueText, audio.SfxVolume);
+            SyncToolkitOptionsControls();
         }
 
         private void OnMasterVolumeChanged(float value)
@@ -2859,6 +2858,7 @@ namespace EJR.Game.UI
             }
 
             AudioService.Instance.SetMasterVolume(value);
+            SyncAudioSettingsControls();
             AudioService.Instance.PlayUi(AudioCueId.UiAdjust);
         }
 
@@ -2871,6 +2871,7 @@ namespace EJR.Game.UI
             }
 
             AudioService.Instance.SetBgmVolume(value);
+            SyncAudioSettingsControls();
             AudioService.Instance.PlayUi(AudioCueId.UiAdjust);
         }
 
@@ -2883,6 +2884,7 @@ namespace EJR.Game.UI
             }
 
             AudioService.Instance.SetSfxVolume(value);
+            SyncAudioSettingsControls();
             AudioService.Instance.PlayUi(AudioCueId.UiAdjust);
         }
 
@@ -3198,9 +3200,9 @@ namespace EJR.Game.UI
             rootRect.anchorMax = new Vector2(0.5f, 0.5f);
             rootRect.pivot = new Vector2(0.5f, 0.5f);
             rootRect.anchoredPosition = anchoredPosition;
-            rootRect.sizeDelta = new Vector2(360f, 28f);
+            rootRect.sizeDelta = new Vector2(420f, 28f);
 
-            var labelText = CreateText(root.transform, "Label", new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0f), new Vector2(88f, 24f), label, 16, FontStyle.Bold);
+            var labelText = CreateText(root.transform, "Label", new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0f), new Vector2(96f, 24f), label, 16, FontStyle.Bold);
             labelText.alignment = TextAnchor.MiddleLeft;
             labelText.color = new Color(0.97f, 0.98f, 1f, 1f);
 
@@ -3210,8 +3212,8 @@ namespace EJR.Game.UI
             sliderRect.anchorMin = new Vector2(0f, 0.5f);
             sliderRect.anchorMax = new Vector2(0f, 0.5f);
             sliderRect.pivot = new Vector2(0f, 0.5f);
-            sliderRect.anchoredPosition = new Vector2(96f, 0f);
-            sliderRect.sizeDelta = new Vector2(OptionsSliderWidth, 18f);
+            sliderRect.anchoredPosition = new Vector2(112f, 0f);
+            sliderRect.sizeDelta = new Vector2(228f, 18f);
 
             var background = new GameObject("Background");
             background.transform.SetParent(sliderObject.transform, false);
@@ -3252,7 +3254,7 @@ namespace EJR.Game.UI
             var handle = new GameObject("Handle");
             handle.transform.SetParent(handleArea.transform, false);
             var handleRect = handle.AddComponent<RectTransform>();
-            handleRect.sizeDelta = new Vector2(18f, 18f);
+            handleRect.sizeDelta = new Vector2(14f, 18f);
             var handleImage = handle.AddComponent<Image>();
             handleImage.color = new Color(0.98f, 0.98f, 1f, 1f);
 
@@ -3269,6 +3271,7 @@ namespace EJR.Game.UI
             valueText = CreateText(root.transform, "Value", new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(0f, 0f), new Vector2(56f, 24f), "0%", 15, FontStyle.Bold);
             valueText.alignment = TextAnchor.MiddleRight;
             valueText.color = new Color(0.78f, 0.84f, 0.92f, 1f);
+            valueText.rectTransform.anchoredPosition = new Vector2(-2f, 0f);
         }
 
         private Button CreateButton(Transform parent, string name, Vector2 anchoredPosition, string label, UnityEngine.Events.UnityAction onClick, Vector2? sizeOverride = null)
@@ -3460,6 +3463,7 @@ namespace EJR.Game.UI
             labelRect.anchorMin = new Vector2(0f, 0f);
             labelRect.anchorMax = new Vector2(1f, 1f);
             labelRect.offsetMin = new Vector2(42f, 0f);
+            labelRect.offsetMax = new Vector2(-8f, 0f);
             var labelText = labelObject.AddComponent<Text>();
             labelText.font = _font;
             labelText.text = label;

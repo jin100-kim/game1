@@ -1,0 +1,99 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <ui:VisualElement name="gameplay-hud-screen" class="gameplay-hud-screen">
+        <ui:VisualElement class="gameplay-hud-root">
+            <ui:VisualElement class="hud-card gameplay-health-card">
+                <ui:Label name="health-text" class="hud-card-text hud-health-text" text="체력" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="hud-card gameplay-xp-card">
+                <ui:Label name="xp-text" class="hud-card-text" text="경험치" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="hud-card gameplay-time-card">
+                <ui:Label name="time-text" class="hud-card-text" text="시간" />
+            </ui:VisualElement>
+
+            <ui:VisualElement name="mode-hint-card" class="hud-card gameplay-mode-card">
+                <ui:Label name="mode-hint-text" class="hud-mode-text" text="" />
+            </ui:VisualElement>
+
+            <ui:VisualElement name="wave-status-card" class="hud-card gameplay-wave-status-card">
+                <ui:Label name="wave-status-text" class="hud-center-text" text="" />
+            </ui:VisualElement>
+
+            <ui:VisualElement name="wave-banner-card" class="hud-card gameplay-wave-banner-card">
+                <ui:Label name="wave-banner-text" class="hud-banner-text" text="" />
+            </ui:VisualElement>
+
+            <ui:Button name="build-toggle-button" class="hud-button gameplay-build-toggle" text="빌드" />
+
+            <ui:VisualElement name="build-panel" class="gameplay-build-panel">
+                <ui:Label class="gameplay-panel-title" text="빌드" />
+
+                <ui:VisualElement class="gameplay-build-card">
+                    <ui:Label class="gameplay-build-card-title" text="무기" />
+                    <ui:Label name="weapon-build-text" class="gameplay-build-body" text="무기" />
+                </ui:VisualElement>
+
+                <ui:VisualElement class="gameplay-build-card gameplay-build-card-bottom">
+                    <ui:Label class="gameplay-build-card-title" text="전투 수치" />
+                    <ui:Label name="stat-build-text" class="gameplay-build-body" text="전투 수치" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <ui:VisualElement name="boss-bar-panel" class="gameplay-boss-panel">
+                <ui:Label name="boss-name-text" class="gameplay-boss-name" text="보스" />
+
+                <ui:VisualElement class="gameplay-boss-track">
+                    <ui:VisualElement name="boss-bar-fill" class="gameplay-boss-fill" />
+                </ui:VisualElement>
+
+                <ui:Label name="boss-bar-value-text" class="gameplay-boss-value" text="0/0" />
+            </ui:VisualElement>
+
+            <ui:VisualElement name="direction-layer" class="gameplay-direction-layer" />
+
+            <ui:VisualElement name="level-up-panel" class="modal-screen gameplay-levelup-screen">
+                <ui:VisualElement class="modal-shell gameplay-levelup-shell">
+                    <ui:Label name="level-up-title" class="modal-title" text="레벨 업" />
+
+                    <ui:Button name="level-option-button-0" class="modal-option-button" text="" />
+                    <ui:Button name="level-option-button-1" class="modal-option-button" text="" />
+                    <ui:Button name="level-option-button-2" class="modal-option-button" text="" />
+                    <ui:Button name="level-option-button-3" class="modal-option-button" text="" />
+                    <ui:Button name="level-option-button-4" class="modal-option-button" text="" />
+                    <ui:Button name="level-option-button-5" class="modal-option-button" text="" />
+                    <ui:Button name="level-option-button-6" class="modal-option-button" text="" />
+                    <ui:Button name="level-option-button-7" class="modal-option-button" text="" />
+                    <ui:Button name="level-option-button-8" class="modal-option-button" text="" />
+                    <ui:Button name="level-option-button-9" class="modal-option-button" text="" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <ui:VisualElement name="result-panel" class="modal-screen gameplay-result-screen">
+                <ui:VisualElement class="modal-shell gameplay-result-shell">
+                    <ui:Label class="modal-title" text="런 결과" />
+
+                    <ui:VisualElement class="gameplay-result-card">
+                        <ui:ScrollView mode="Vertical" name="result-scroll" class="gameplay-result-scroll">
+                            <ui:Label name="result-text" class="gameplay-result-text" text="런 결과" />
+                        </ui:ScrollView>
+                    </ui:VisualElement>
+
+                    <ui:Button name="result-action-button" class="modal-action-button" text="타이틀로" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <ui:Button name="debug-access-button" class="gameplay-debug-access" text="DEV" />
+
+            <ui:VisualElement name="debug-tools-panel" class="gameplay-debug-panel">
+                <ui:Label class="gameplay-panel-title gameplay-debug-title" text="디버그 도구" />
+                <ui:Button name="debug-grant-level-button" class="gameplay-debug-button" text="레벨 지급" />
+                <ui:Button name="debug-advance-time-button" class="gameplay-debug-button" text="시간 진행" />
+                <ui:Button name="debug-reroll-button" class="gameplay-debug-button" text="선택지 다시 굴리기" />
+                <ui:Button name="debug-skip-boss-button" class="gameplay-debug-button" text="보스로 건너뛰기" />
+                <ui:Button name="debug-autoplay-button" class="gameplay-debug-button" text="자동 전투: 꺼짐" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

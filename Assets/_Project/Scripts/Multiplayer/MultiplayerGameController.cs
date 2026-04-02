@@ -15,7 +15,7 @@ using UnityEngine.InputSystem;
 namespace EJR.Game.Multiplayer
 {
     [DisallowMultipleComponent]
-    public sealed class MultiplayerGameController : MonoBehaviour
+    public sealed partial class MultiplayerGameController : MonoBehaviour
     {
         [SerializeField] private Rect arenaBounds = new Rect(-12f, -7f, 24f, 14f);
         [SerializeField] private bool enableDebugAutoPlay = true;
@@ -271,6 +271,12 @@ namespace EJR.Game.Multiplayer
 
         private void EnsureOverlay()
         {
+            if (SupportsToolkitOverlay())
+            {
+                BuildToolkitOverlay();
+                return;
+            }
+
             if (_canvas != null)
             {
                 return;
@@ -405,12 +411,8 @@ namespace EJR.Game.Multiplayer
             MultiplayerPlayerCombatant localPlayer,
             MultiplayerPlayerCombatant[] allPlayers)
         {
-            if (_statusText == null)
-            {
-                return;
-            }
-
             var showStatus = coop == null || coop.Phase == MultiplayerRunPhase.Lobby;
+            SetToolkitStatusVisible(showStatus);
             if (_statusPanel != null)
             {
                 _statusPanel.SetActive(showStatus);
@@ -443,7 +445,7 @@ namespace EJR.Game.Multiplayer
                 }
             }
 
-            _statusText.text =
+            var statusText =
                 $"세션 {mode}\n" +
                 $"코드 {sessionCode}\n" +
                 $"단계 {phase}\n" +
@@ -453,6 +455,16 @@ namespace EJR.Game.Multiplayer
                 $"{(_autoPlayEnabled ? "자동 전투\n" : string.Empty)}" +
                 $"{session.CurrentStatus}\n" +
                 "ESC : 나가기";
+
+            if (_statusText != null)
+            {
+                _statusText.text = statusText;
+            }
+
+            if (_toolkitStatusText != null)
+            {
+                _toolkitStatusText.text = statusText;
+            }
         }
 
         private void RefreshLobbyUi(
@@ -728,72 +740,106 @@ namespace EJR.Game.Multiplayer
             MultiplayerPlayerCombatant localPlayer,
             MultiplayerPlayerCombatant[] allPlayers)
         {
-            if (_lobbyPanel == null)
+            if (_lobbyPanel == null && !HasToolkitOverlay)
             {
                 return false;
+            }
+
+            var showLobby = coop == null || coop.Phase == MultiplayerRunPhase.Lobby;
+            SetToolkitLobbyVisible(showLobby);
+            if (!showLobby)
+            {
+                _lobbyPanel?.SetActive(false);
+                SetToolkitCharacterSelectVisible(false);
+                return true;
             }
 
             var sessionCode = MultiplayerSessionController.EnsureInstance().SessionCode;
             var selectionSummary = coop != null
                 ? $"맵 {coop.SelectedMapDefinition.DisplayName} | 난이도 {coop.SelectedDifficultyDefinition.DisplayName}"
                 : "맵 - | 난이도 -";
-            _lobbyHeaderText.text = string.IsNullOrWhiteSpace(sessionCode)
+            var headerText = string.IsNullOrWhiteSpace(sessionCode)
                 ? "멀티플레이 대기실"
                 : $"멀티플레이 대기실  |  코드 {sessionCode}";
 
-            _lobbyHeaderText.text = string.IsNullOrWhiteSpace(sessionCode)
+            headerText = string.IsNullOrWhiteSpace(sessionCode)
                 ? $"멀티플레이 대기실\n{selectionSummary}"
                 : $"멀티플레이 대기실  |  코드 {sessionCode}\n{selectionSummary}";
 
             var playerList = BuildLobbyPlayerList(allPlayers);
-            _playerListText.text = playerList.Length > 0 ? playerList.ToString() : "플레이어를 기다리는 중...";
+            var playerListText = playerList.Length > 0 ? playerList.ToString() : "플레이어를 기다리는 중...";
 
             var canInteract = localPlayer != null && coop != null && coop.Phase == MultiplayerRunPhase.Lobby;
-            _characterButton.interactable = canInteract;
-            _starterButton.interactable = false;
-            _readyButton.interactable = canInteract;
             var isHost = manager != null && manager.IsHost;
-            _starterButton.interactable = canInteract && isHost;
-            if (_difficultyButton != null)
-            {
-                _difficultyButton.interactable = canInteract && isHost;
-            }
-
-            _characterButtonText.text = localPlayer != null
+            var characterButtonText = localPlayer != null
                 ? $"내 캐릭터\n{MultiplayerCatalog.GetCharacter(localPlayer.SelectedCharacterId).DisplayName}"
                 : "내 캐릭터\n-";
-            _starterButtonText.text = localPlayer != null
-                ? $"시작 무기\n{MultiplayerCatalog.GetStarterWeaponDisplayName(localPlayer.SelectedStarterWeaponIndex)}"
-                : "시작 무기\n-";
-            _readyButtonText.text = localPlayer != null && localPlayer.IsReady ? "준비 취소" : "준비";
-
-            _startButton.gameObject.SetActive(isHost);
-            _startButton.interactable = isHost && coop != null && string.IsNullOrWhiteSpace(coop.GetStartBlockReason());
-            _startButtonText.text = "시작";
-            _startHintText.text = isHost
+            var readyButtonText = localPlayer != null && localPlayer.IsReady ? "준비 취소" : "준비";
+            var startHintText = isHost
                 ? (coop != null && !string.IsNullOrWhiteSpace(coop.GetStartBlockReason())
                     ? coop.GetStartBlockReason()
                     : "모든 플레이어가 준비되면 시작할 수 있습니다.")
                 : "호스트가 준비를 확인한 뒤 시작합니다.";
 
-            _startButtonText.text = "시작";
-            _startHintText.text = isHost
+            startHintText = isHost
                 ? (coop != null && !string.IsNullOrWhiteSpace(coop.GetStartBlockReason())
                     ? $"{selectionSummary}\n{coop.GetStartBlockReason()}"
                     : $"{selectionSummary}\n모든 플레이어가 준비되면 시작할 수 있습니다.")
                 : $"{selectionSummary}\n호스트가 준비를 확인한 뒤 시작합니다.";
 
-            _starterButtonText.text = coop != null
+            var mapButtonText = coop != null
                 ? $"맵\n{coop.SelectedMapDefinition.DisplayName}"
                 : "맵\n-";
-            if (_difficultyButtonText != null)
+            var difficultyButtonText = coop != null
+                ? $"난이도\n{coop.SelectedDifficultyDefinition.DisplayName}"
+                : "난이도\n-";
+
+            if (_lobbyPanel != null)
             {
-                _difficultyButtonText.text = coop != null
-                    ? $"난이도\n{coop.SelectedDifficultyDefinition.DisplayName}"
-                    : "난이도\n-";
+                _lobbyPanel.SetActive(true);
+                _lobbyHeaderText.text = headerText;
+                _playerListText.text = playerListText;
+                _characterButton.interactable = canInteract;
+                _starterButton.interactable = canInteract && isHost;
+                _readyButton.interactable = canInteract;
+                if (_difficultyButton != null)
+                {
+                    _difficultyButton.interactable = canInteract && isHost;
+                }
+
+                _characterButtonText.text = characterButtonText;
+                _starterButtonText.text = mapButtonText;
+                _readyButtonText.text = readyButtonText;
+                _startButton.gameObject.SetActive(isHost);
+                _startButton.interactable = isHost && coop != null && string.IsNullOrWhiteSpace(coop.GetStartBlockReason());
+                _startButtonText.text = "시작";
+                _startHintText.text = startHintText;
+                if (_difficultyButtonText != null)
+                {
+                    _difficultyButtonText.text = difficultyButtonText;
+                }
+            }
+
+            if (HasToolkitOverlay)
+            {
+                _toolkitLobbyHeaderText.text = headerText;
+                _toolkitPlayerListText.text = playerListText;
+                _toolkitCharacterButton.text = characterButtonText;
+                _toolkitMapButton.text = mapButtonText;
+                _toolkitDifficultyButton.text = difficultyButtonText;
+                _toolkitReadyButton.text = readyButtonText;
+                _toolkitStartButton.text = "시작";
+                _toolkitStartButton.style.display = isHost ? UnityEngine.UIElements.DisplayStyle.Flex : UnityEngine.UIElements.DisplayStyle.None;
+                _toolkitCharacterButton.SetEnabled(canInteract);
+                _toolkitMapButton.SetEnabled(canInteract && isHost);
+                _toolkitDifficultyButton.SetEnabled(canInteract && isHost);
+                _toolkitReadyButton.SetEnabled(canInteract);
+                _toolkitStartButton.SetEnabled(isHost && coop != null && string.IsNullOrWhiteSpace(coop.GetStartBlockReason()));
+                _toolkitStartHintText.text = startHintText;
             }
 
             var showSelector = canInteract && _inspectedLobbyCharacterId >= 0;
+            SetToolkitCharacterSelectVisible(showSelector);
             if (_characterSelectPanel != null)
             {
                 _characterSelectPanel.SetActive(showSelector);
@@ -832,7 +878,8 @@ namespace EJR.Game.Multiplayer
 
         private void RefreshLobbyCharacterSelection(MultiplayerPlayerCombatant localPlayer)
         {
-            if (_characterSelectPanel == null || _characterSelectDetailText == null || _characterSelectActionButton == null || _characterSelectActionText == null)
+            if ((_characterSelectPanel == null || _characterSelectDetailText == null || _characterSelectActionButton == null || _characterSelectActionText == null) &&
+                !HasToolkitOverlay)
             {
                 return;
             }
@@ -844,27 +891,55 @@ namespace EJR.Game.Multiplayer
             var unlocked = MetaProgressionService.IsCharacterUnlocked(inspectedId);
             var selected = localPlayer != null && inspectedId == localPlayer.SelectedCharacterId;
 
-            _characterSelectTitleText.text = "캐릭터 선택";
-            _characterSelectDetailText.text =
+            var detailText =
                 $"{inspectedCharacter.DisplayName}\n\n" +
                 $"시작 무기\n{SharedGameCatalog.GetWeaponDisplayName(inspectedCharacter.StarterWeaponId)}\n\n" +
                 $"기본 보너스\n{BuildMetaBonusSummary(inspectedCharacter.BaseBonuses)}\n\n" +
                 $"고유 패시브\n{inspectedCharacter.PassiveDescription}";
 
+            if (_characterSelectTitleText != null)
+            {
+                _characterSelectTitleText.text = "캐릭터 선택";
+            }
+
+            if (_characterSelectDetailText != null)
+            {
+                _characterSelectDetailText.text = detailText;
+            }
+
+            if (_toolkitCharacterSelectTitleText != null)
+            {
+                _toolkitCharacterSelectTitleText.text = "캐릭터 선택";
+            }
+
+            if (_toolkitCharacterSelectDetailText != null)
+            {
+                _toolkitCharacterSelectDetailText.text = detailText;
+            }
+
+            var actionText = "이 캐릭터 선택";
+            var canSelect = true;
             if (!unlocked)
             {
-                _characterSelectActionButton.interactable = false;
-                _characterSelectActionText.text = $"해금 필요 ({inspectedCharacter.UnlockCost} 코인)";
+                canSelect = false;
+                actionText = $"해금 필요 ({inspectedCharacter.UnlockCost} 코인)";
             }
             else if (selected)
             {
-                _characterSelectActionButton.interactable = false;
-                _characterSelectActionText.text = "현재 선택됨";
+                canSelect = false;
+                actionText = "현재 선택됨";
             }
-            else
+
+            if (_characterSelectActionButton != null)
             {
-                _characterSelectActionButton.interactable = true;
-                _characterSelectActionText.text = "이 캐릭터 선택";
+                _characterSelectActionButton.interactable = canSelect;
+                _characterSelectActionText.text = actionText;
+            }
+
+            if (_toolkitCharacterSelectActionButton != null)
+            {
+                _toolkitCharacterSelectActionButton.SetEnabled(canSelect);
+                _toolkitCharacterSelectActionButton.text = actionText;
             }
 
             for (var i = 0; i < _characterSelectButtons.Length; i++)
@@ -878,15 +953,24 @@ namespace EJR.Game.Multiplayer
 
                 var definition = SharedGameCatalog.CharacterDefinitions[i];
                 var available = MetaProgressionService.IsCharacterUnlocked(definition.Id);
-                label.text = available
+                var optionText = available
                     ? $"{definition.DisplayName} | {SharedGameCatalog.GetWeaponDisplayName(definition.StarterWeaponId)}"
                     : $"{definition.DisplayName} | 잠김";
+                label.text = optionText;
 
                 if (button.targetGraphic is Image image)
                 {
                     image.color = definition.Id == inspectedId
                         ? new Color(0.24f, 0.32f, 0.44f, 1f)
                         : new Color(0.14f, 0.18f, 0.28f, 0.95f);
+                }
+
+                if (_toolkitCharacterSelectButtons[i] != null)
+                {
+                    _toolkitCharacterSelectButtons[i].text = optionText;
+                    _toolkitCharacterSelectButtons[i].style.backgroundColor = definition.Id == inspectedId
+                        ? new UnityEngine.UIElements.StyleColor(new Color(0.24f, 0.32f, 0.44f, 1f))
+                        : new UnityEngine.UIElements.StyleColor(new Color(0.14f, 0.18f, 0.28f, 0.95f));
                 }
             }
         }
@@ -939,13 +1023,9 @@ namespace EJR.Game.Multiplayer
 
         private void RefreshResultUi(MultiplayerCoopController coop)
         {
-            if (_resultPanel == null)
-            {
-                return;
-            }
-
             var showResult = coop != null && coop.Phase == MultiplayerRunPhase.Result;
-            _resultPanel.SetActive(showResult);
+            SetToolkitResultVisible(showResult);
+            _resultPanel?.SetActive(showResult);
             if (!showResult)
             {
                 return;
@@ -953,11 +1033,29 @@ namespace EJR.Game.Multiplayer
 
             if (MetaProgressionService.TryPeekPendingRunSummary(out var summary) && summary != null)
             {
-                _resultText.text = $"{summary.BuildDisplayText()}\n\n타이틀로 돌아가는 중...";
+                var resultText = $"{summary.BuildDisplayText()}\n\n타이틀로 돌아가는 중...";
+                if (_resultText != null)
+                {
+                    _resultText.text = resultText;
+                }
+
+                if (_toolkitResultText != null)
+                {
+                    _toolkitResultText.text = resultText;
+                }
                 return;
             }
 
-            _resultText.text = coop.ResultCleared ? "클리어\n타이틀로 돌아가는 중..." : "팀 전멸\n타이틀로 돌아가는 중...";
+            var fallbackResultText = coop.ResultCleared ? "클리어\n타이틀로 돌아가는 중..." : "팀 전멸\n타이틀로 돌아가는 중...";
+            if (_resultText != null)
+            {
+                _resultText.text = fallbackResultText;
+            }
+
+            if (_toolkitResultText != null)
+            {
+                _toolkitResultText.text = fallbackResultText;
+            }
         }
 
         private void HandleCharacterClicked()

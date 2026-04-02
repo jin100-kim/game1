@@ -1,0 +1,201 @@
+.mp-screen {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.mp-status-card {
+    position: absolute;
+    left: 18px;
+    top: 18px;
+    width: 460px;
+    min-height: 112px;
+    padding-left: 14px;
+    padding-right: 14px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    border-top-left-radius: 14px;
+    border-top-right-radius: 14px;
+    border-bottom-left-radius: 14px;
+    border-bottom-right-radius: 14px;
+    background-color: rgba(0, 0, 0, 0.44);
+}
+
+.mp-status-text {
+    color: rgb(238, 242, 249);
+    font-size: 18px;
+    white-space: normal;
+}
+
+.mp-lobby-panel {
+    position: absolute;
+    left: 18px;
+    top: 146px;
+    width: 820px;
+    min-height: 620px;
+    padding-left: 16px;
+    padding-right: 16px;
+    padding-top: 16px;
+    padding-bottom: 16px;
+    border-top-left-radius: 18px;
+    border-top-right-radius: 18px;
+    border-bottom-left-radius: 18px;
+    border-bottom-right-radius: 18px;
+    background-color: rgba(0, 0, 0, 0.44);
+}
+
+.mp-panel-title {
+    color: rgb(242, 246, 252);
+    font-size: 22px;
+    -unity-font-style: bold;
+    margin-bottom: 14px;
+}
+
+.mp-lobby-header {
+    white-space: normal;
+}
+
+.mp-player-list {
+    width: 330px;
+    min-height: 436px;
+    color: rgb(238, 242, 249);
+    font-size: 18px;
+    white-space: normal;
+}
+
+.mp-lobby-actions {
+    position: absolute;
+    right: 16px;
+    top: 74px;
+    width: 392px;
+}
+
+.mp-action-button {
+    height: 72px;
+    margin-bottom: 16px;
+    border-top-left-radius: 14px;
+    border-top-right-radius: 14px;
+    border-bottom-left-radius: 14px;
+    border-bottom-right-radius: 14px;
+    background-color: rgba(20, 28, 38, 0.96);
+    color: rgb(238, 242, 249);
+    font-size: 18px;
+    -unity-font-style: bold;
+    white-space: normal;
+}
+
+.mp-action-button-tall {
+    height: 92px;
+}
+
+.mp-action-row {
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+.mp-action-half {
+    width: 188px;
+}
+
+.mp-start-hint {
+    margin-top: 8px;
+    color: rgb(194, 207, 224);
+    font-size: 16px;
+    white-space: normal;
+}
+
+.mp-character-select-panel {
+    position: absolute;
+    left: 20px;
+    top: 74px;
+    width: 780px;
+    min-height: 510px;
+    padding-left: 18px;
+    padding-right: 18px;
+    padding-top: 16px;
+    padding-bottom: 16px;
+    display: none;
+    border-top-left-radius: 18px;
+    border-top-right-radius: 18px;
+    border-bottom-left-radius: 18px;
+    border-bottom-right-radius: 18px;
+    background-color: rgba(14, 20, 28, 0.97);
+}
+
+.mp-character-select-title {
+    color: rgb(242, 196, 53);
+    font-size: 22px;
+    -unity-font-style: bold;
+    margin-bottom: 16px;
+}
+
+.mp-character-columns {
+    flex-direction: row;
+}
+
+.mp-character-list-column {
+    width: 286px;
+}
+
+.mp-character-option-button {
+    height: 56px;
+    margin-bottom: 12px;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+    background-color: rgba(36, 46, 63, 1);
+    color: rgb(238, 242, 249);
+    font-size: 15px;
+    -unity-font-style: bold;
+    white-space: normal;
+}
+
+.mp-character-detail-column {
+    flex-grow: 1;
+    margin-left: 30px;
+    justify-content: space-between;
+}
+
+.mp-character-detail {
+    min-height: 272px;
+    color: rgb(238, 242, 249);
+    font-size: 17px;
+    white-space: normal;
+}
+
+.mp-character-detail-actions {
+    flex-direction: row;
+    justify-content: space-between;
+    margin-top: 16px;
+}
+
+.mp-result-panel {
+    position: absolute;
+    left: 600px;
+    top: 280px;
+    width: 720px;
+    min-height: 520px;
+    padding-left: 28px;
+    padding-right: 28px;
+    padding-top: 24px;
+    padding-bottom: 24px;
+    display: none;
+    border-top-left-radius: 18px;
+    border-top-right-radius: 18px;
+    border-bottom-left-radius: 18px;
+    border-bottom-right-radius: 18px;
+    background-color: rgba(0, 0, 0, 0.78);
+}
+
+.mp-result-scroll {
+    height: 430px;
+}
+
+.mp-result-text {
+    color: rgb(238, 242, 249);
+    font-size: 20px;
+    white-space: normal;
+}

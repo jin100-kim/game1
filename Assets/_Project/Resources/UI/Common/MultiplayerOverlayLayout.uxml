@@ -1,0 +1,55 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <ui:VisualElement name="multiplayer-screen" class="mp-screen">
+        <ui:VisualElement name="multiplayer-status-card" class="mp-status-card">
+            <ui:Label name="multiplayer-status-text" class="mp-status-text" text="" />
+        </ui:VisualElement>
+
+        <ui:VisualElement name="multiplayer-lobby-panel" class="mp-lobby-panel">
+            <ui:Label name="multiplayer-lobby-header" class="mp-panel-title mp-lobby-header" text="멀티플레이 대기실" />
+            <ui:Label name="multiplayer-player-list" class="mp-player-list" text="" />
+
+            <ui:VisualElement class="mp-lobby-actions">
+                <ui:Button name="multiplayer-character-button" class="mp-action-button mp-action-button-tall" text="내 캐릭터&#10;-" />
+                <ui:Button name="multiplayer-map-button" class="mp-action-button" text="맵&#10;-" />
+                <ui:Button name="multiplayer-difficulty-button" class="mp-action-button" text="난이도&#10;-" />
+
+                <ui:VisualElement class="mp-action-row">
+                    <ui:Button name="multiplayer-ready-button" class="mp-action-button mp-action-half" text="준비" />
+                    <ui:Button name="multiplayer-start-button" class="mp-action-button mp-action-half" text="시작" />
+                </ui:VisualElement>
+
+                <ui:Label name="multiplayer-start-hint" class="mp-start-hint" text="" />
+            </ui:VisualElement>
+
+            <ui:VisualElement name="multiplayer-character-select-panel" class="mp-character-select-panel">
+                <ui:Label name="multiplayer-character-select-title" class="mp-character-select-title" text="캐릭터 선택" />
+
+                <ui:VisualElement class="mp-character-columns">
+                    <ui:VisualElement class="mp-character-list-column">
+                        <ui:Button name="multiplayer-character-option-0" class="mp-character-option-button" text="" />
+                        <ui:Button name="multiplayer-character-option-1" class="mp-character-option-button" text="" />
+                        <ui:Button name="multiplayer-character-option-2" class="mp-character-option-button" text="" />
+                        <ui:Button name="multiplayer-character-option-3" class="mp-character-option-button" text="" />
+                        <ui:Button name="multiplayer-character-option-4" class="mp-character-option-button" text="" />
+                        <ui:Button name="multiplayer-character-option-5" class="mp-character-option-button" text="" />
+                    </ui:VisualElement>
+
+                    <ui:VisualElement class="mp-character-detail-column">
+                        <ui:Label name="multiplayer-character-detail" class="mp-character-detail" text="" />
+                        <ui:VisualElement class="mp-character-detail-actions">
+                            <ui:Button name="multiplayer-character-select-action" class="mp-action-button mp-action-half" text="이 캐릭터 선택" />
+                            <ui:Button name="multiplayer-character-select-close" class="mp-action-button mp-action-half" text="닫기" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:VisualElement name="multiplayer-result-panel" class="mp-result-panel">
+            <ui:Label class="mp-panel-title" text="런 결과" />
+            <ui:ScrollView name="multiplayer-result-scroll" class="mp-result-scroll">
+                <ui:Label name="multiplayer-result-text" class="mp-result-text" text="" />
+            </ui:ScrollView>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

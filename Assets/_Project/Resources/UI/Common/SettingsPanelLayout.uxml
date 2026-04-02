@@ -1,0 +1,38 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <ui:VisualElement name="settings-screen" class="settings-screen">
+        <ui:VisualElement class="settings-overlay">
+            <ui:VisualElement name="settings-shell" class="settings-shell">
+                <ui:Label name="settings-title" class="settings-title" text="설정" />
+
+                <ui:VisualElement class="settings-card">
+                    <ui:Label class="settings-section-title" text="화면" />
+                    <ui:Toggle name="fullscreen-toggle" class="settings-toggle" label="전체 화면" />
+                </ui:VisualElement>
+
+                <ui:VisualElement class="settings-card">
+                    <ui:Label class="settings-section-title" text="오디오" />
+
+                    <ui:VisualElement class="settings-row">
+                        <ui:Label class="settings-row-label" text="마스터" />
+                        <ui:Slider name="master-volume-slider" class="settings-slider" low-value="0" high-value="1" />
+                        <ui:Label name="master-volume-value" class="settings-value" text="0%" />
+                    </ui:VisualElement>
+
+                    <ui:VisualElement class="settings-row">
+                        <ui:Label class="settings-row-label" text="배경음" />
+                        <ui:Slider name="bgm-volume-slider" class="settings-slider" low-value="0" high-value="1" />
+                        <ui:Label name="bgm-volume-value" class="settings-value" text="0%" />
+                    </ui:VisualElement>
+
+                    <ui:VisualElement class="settings-row">
+                        <ui:Label class="settings-row-label" text="효과음" />
+                        <ui:Slider name="sfx-volume-slider" class="settings-slider" low-value="0" high-value="1" />
+                        <ui:Label name="sfx-volume-value" class="settings-value" text="0%" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+
+                <ui:Button name="settings-back-button" class="settings-back-button" text="뒤로" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>
