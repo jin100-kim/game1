@@ -132,22 +132,13 @@ namespace EJR.Game.UI
         {
             EnsureEventSystem();
             BuildCanvas();
-            if (SupportsGameplayToolkitHud())
-            {
-                BuildGameplayToolkitReference();
-                BuildPauseSettingsToolkitReference();
-            }
-            else
-            {
-                BuildTopBarReference();
-                BuildBuildPanelReference();
-                BuildBossBarReference();
-                BuildLevelUpPanelReference();
-                BuildResultPanelReference();
-                BuildPausePanelReference();
-                BuildPauseSettingsToolkitReference();
-                BuildDebugPanelsReference();
-            }
+            BuildTopBarReference();
+            BuildBuildPanelReference();
+            BuildBossBarReference();
+            BuildLevelUpPanelReference();
+            BuildResultPanelReference();
+            BuildPausePanelReference();
+            BuildDebugPanelsReference();
         }
 
         public void SetCanvasVisible(bool visible)

@@ -279,6 +279,13 @@ namespace EJR.Game.UI
             _subtitleText.alignment = TextAnchor.UpperLeft;
             _subtitleText.color = new Color(0.72f, 0.79f, 0.89f, 1f);
 
+            if (SupportsToolkitTitleUi())
+            {
+                BuildToolkitStateReferences(root.transform);
+                BuildToolkitMainMenu();
+                return;
+            }
+
             BuildMainMenuPanelReference(root.transform);
             BuildMultiplayerPanelReference(root.transform);
             BuildOptionsPanelReference(root.transform);
@@ -289,6 +296,26 @@ namespace EJR.Game.UI
             BuildConfirmModalReference(root.transform);
             BuildToolkitMainMenu();
 
+        }
+
+        private void BuildToolkitStateReferences(Transform parent)
+        {
+            _mainMenuPanel = CreateToolkitStatePanel(parent, "MainMenuPanelState");
+            _multiplayerPanel = CreateToolkitStatePanel(parent, "MultiplayerPanelState");
+            _optionsPanel = CreateToolkitStatePanel(parent, "OptionsPanelState");
+            _runSetupPanel = CreateToolkitStatePanel(parent, "RunSetupPanelState");
+            _achievementPanel = CreateToolkitStatePanel(parent, "AchievementPanelState");
+            _metaPanel = CreateToolkitStatePanel(parent, "MetaPanelState");
+            _summaryModal = CreateToolkitStatePanel(parent, "SummaryModalState");
+            _confirmModal = CreateToolkitStatePanel(parent, "ConfirmModalState");
+        }
+
+        private static GameObject CreateToolkitStatePanel(Transform parent, string name)
+        {
+            var state = new GameObject(name, typeof(RectTransform));
+            state.transform.SetParent(parent, false);
+            state.SetActive(false);
+            return state;
         }
 
         private void BuildMainMenuPanel(Transform parent)
@@ -1038,7 +1065,7 @@ namespace EJR.Game.UI
 
         private async void OnJoinClicked()
         {
-            var joinCode = _joinCodeInput != null ? _joinCodeInput.text : string.Empty;
+            var joinCode = _joinCodeInput != null ? _joinCodeInput.text : GetToolkitJoinCode();
             if (string.IsNullOrWhiteSpace(joinCode))
             {
                 SetStatus("참가 코드를 입력하세요.");
@@ -1129,7 +1156,28 @@ namespace EJR.Game.UI
 
         private void OpenSummaryModal(RunRewardSummary summary)
         {
-            if (_summaryModal == null || _summaryModalText == null || summary == null)
+            if (summary == null)
+            {
+                return;
+            }
+
+            if (HasToolkitMainMenu)
+            {
+                if (_summaryModal != null)
+                {
+                    _summaryModal.SetActive(true);
+                }
+
+                if (_toolkitSummaryModalTextLabel != null)
+                {
+                    _toolkitSummaryModalTextLabel.text = summary.BuildDisplayText();
+                }
+
+                RefreshToolkitModalLayerVisibility();
+                return;
+            }
+
+            if (_summaryModal == null || _summaryModalText == null)
             {
                 return;
             }
@@ -1147,6 +1195,17 @@ namespace EJR.Game.UI
 
         private void CloseSummaryModal()
         {
+            if (HasToolkitMainMenu)
+            {
+                if (_summaryModal != null)
+                {
+                    _summaryModal.SetActive(false);
+                }
+
+                RefreshToolkitModalLayerVisibility();
+                return;
+            }
+
             if (_summaryModal != null)
             {
                 _summaryModal.SetActive(false);
@@ -1544,6 +1603,23 @@ namespace EJR.Game.UI
 
         private void OpenConfirmModal(string message, Action confirmAction)
         {
+            if (HasToolkitMainMenu)
+            {
+                _pendingConfirmAction = confirmAction;
+                if (_confirmModal != null)
+                {
+                    _confirmModal.SetActive(true);
+                }
+
+                if (_toolkitConfirmModalTextLabel != null)
+                {
+                    _toolkitConfirmModalTextLabel.text = message ?? string.Empty;
+                }
+
+                RefreshToolkitModalLayerVisibility();
+                return;
+            }
+
             if (_confirmModal == null || _confirmModalText == null)
             {
                 confirmAction?.Invoke();
@@ -1564,6 +1640,17 @@ namespace EJR.Game.UI
         private void CloseConfirmModal()
         {
             _pendingConfirmAction = null;
+            if (HasToolkitMainMenu)
+            {
+                if (_confirmModal != null)
+                {
+                    _confirmModal.SetActive(false);
+                }
+
+                RefreshToolkitModalLayerVisibility();
+                return;
+            }
+
             if (_confirmModal != null)
             {
                 _confirmModal.SetActive(false);
@@ -1592,15 +1679,13 @@ namespace EJR.Game.UI
             if (_runSetupPanel != null) _runSetupPanel.SetActive(activePanel == _runSetupPanel);
             if (_achievementPanel != null) _achievementPanel.SetActive(activePanel == _achievementPanel);
             if (_metaPanel != null) _metaPanel.SetActive(activePanel == _metaPanel);
-            var showToolkitMainMenu = activePanel == _mainMenuPanel && (_summaryModal == null || !_summaryModal.activeSelf);
-            SetTitleChromeVisible(showToolkitMainMenu);
-            UpdateToolkitMainMenuVisibility(showToolkitMainMenu);
-            UpdateToolkitOptionsVisibility(activePanel == _optionsPanel);
-
-            if (HasToolkitMainMenu && activePanel == _mainMenuPanel && _mainMenuPanel != null)
+            if (HasToolkitMainMenu)
             {
-                _mainMenuPanel.SetActive(false);
+                UpdateToolkitScreenVisibility(activePanel);
             }
+
+            var showToolkitMainMenu = activePanel == _mainMenuPanel;
+            SetTitleChromeVisible(showToolkitMainMenu);
 
             var eventSystem = EventSystem.current;
             if (eventSystem != null && preferredSelection != null)
@@ -1836,6 +1921,11 @@ namespace EJR.Game.UI
 
         private void RefreshRunSetupPanelV2()
         {
+            if (HasToolkitMainMenu)
+            {
+                RefreshToolkitRunSetupPanel();
+            }
+
             if (_runSetupCharacterText == null || _runSetupCharacterOptionsRoot == null || _runSetupMapStepRoot == null || _runSetupCharacterStepRoot == null)
             {
                 return;
@@ -2112,6 +2202,11 @@ namespace EJR.Game.UI
 
         private void RefreshAchievementPanel()
         {
+            if (HasToolkitMainMenu)
+            {
+                RefreshToolkitAchievementPanel();
+            }
+
             if (_achievementSummaryText == null || _achievementContentRect == null)
             {
                 return;
@@ -2247,6 +2342,11 @@ namespace EJR.Game.UI
 
         private void RefreshMetaPanel()
         {
+            if (HasToolkitMainMenu)
+            {
+                RefreshToolkitMetaPanel();
+            }
+
             if (_metaHeaderText == null || _metaContentRoot == null)
             {
                 return;

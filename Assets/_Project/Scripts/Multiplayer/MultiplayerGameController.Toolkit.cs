@@ -12,6 +12,7 @@ namespace EJR.Game.Multiplayer
         private const string ToolkitOverlayLayoutResourcePath = "UI/Common/MultiplayerOverlayLayout";
         private const string ToolkitOverlayStylesResourcePath = "UI/Common/MultiplayerOverlayStyles";
         private const string ToolkitOverlayThemeResourcePath = "UI/Common/UnityDefaultRuntimeTheme";
+        private const string ToolkitOverlayPanelSettingsResourcePath = "UI/Common/RuntimeMenuPanelSettings";
 
         private UIDocument _toolkitDocument;
         private PanelSettings _toolkitPanelSettings;
@@ -51,7 +52,8 @@ namespace EJR.Game.Multiplayer
             }
 
             var layout = Resources.Load<VisualTreeAsset>(ToolkitOverlayLayoutResourcePath);
-            if (layout == null)
+            var panelTemplate = Resources.Load<PanelSettings>(ToolkitOverlayPanelSettingsResourcePath);
+            if (layout == null || panelTemplate == null)
             {
                 return;
             }
@@ -61,7 +63,7 @@ namespace EJR.Game.Multiplayer
             documentObject.transform.SetParent(transform, false);
 
             _toolkitDocument = documentObject.AddComponent<UIDocument>();
-            _toolkitPanelSettings = ScriptableObject.CreateInstance<PanelSettings>();
+            _toolkitPanelSettings = UnityEngine.Object.Instantiate(panelTemplate);
             _toolkitPanelSettings.name = "RuntimeMultiplayerOverlayPanelSettings";
             _toolkitPanelSettings.scaleMode = PanelScaleMode.ScaleWithScreenSize;
             _toolkitPanelSettings.referenceResolution = new Vector2Int(1920, 1080);

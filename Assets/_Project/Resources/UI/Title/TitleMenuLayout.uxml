@@ -1,13 +1,154 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements">
-    <ui:VisualElement name="screen" class="screen">
-        <ui:VisualElement class="menu-shell">
-            <ui:Label class="menu-title" text="전자오락 원정대" />
-            <ui:Button name="single-play-button" class="menu-button primary" text="싱글 플레이" />
-            <ui:Button name="multi-play-button" class="menu-button" text="멀티플레이" />
-            <ui:Button name="achievement-button" class="menu-button" text="도전과제" />
-            <ui:Button name="meta-button" class="menu-button" text="코인 상점" />
-            <ui:Button name="options-button" class="menu-button" text="설정" />
-            <ui:Button name="quit-button" class="menu-button subtle" text="종료" />
+    <ui:VisualElement name="title-root" class="title-root">
+        <ui:VisualElement name="main-screen" class="title-screen">
+            <ui:VisualElement class="title-main-shell">
+                <ui:VisualElement class="title-overview-column">
+                    <ui:Label class="title-kicker" text="전자오락 원정대" />
+                    <ui:Label class="title-subtitle" text="모드를 고르고 바로 출격하세요." />
+
+                    <ui:VisualElement class="title-card">
+                        <ui:Label class="title-section-title" text="진행 현황" />
+                        <ui:Label name="profile-summary" class="title-body-text" text="" />
+                    </ui:VisualElement>
+
+                    <ui:VisualElement class="title-card">
+                        <ui:Label class="title-section-title" text="최근 결과" />
+                        <ui:Label name="recent-run-summary" class="title-body-text" text="" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+
+                <ui:VisualElement class="title-action-column">
+                    <ui:Button name="single-play-button" class="title-action-button title-action-button-primary" text="싱글 플레이" />
+                    <ui:Button name="multi-play-button" class="title-action-button" text="멀티플레이" />
+                    <ui:Button name="achievement-button" class="title-action-button" text="도전과제" />
+                    <ui:Button name="meta-button" class="title-action-button" text="코인 상점" />
+                    <ui:Button name="options-button" class="title-action-button" text="설정" />
+                    <ui:Button name="quit-button" class="title-action-button title-action-button-subtle" text="종료" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:VisualElement name="multiplayer-entry-screen" class="title-screen title-overlay-screen">
+            <ui:VisualElement class="title-panel-shell title-medium-shell">
+                <ui:Label class="title-panel-title" text="멀티플레이" />
+                <ui:Label class="title-panel-subtitle" text="방을 만들거나 코드를 입력해 참가할 수 있습니다." />
+
+                <ui:VisualElement class="title-two-column-row">
+                    <ui:VisualElement class="title-card title-column-card">
+                        <ui:Label class="title-section-title" text="방 만들기" />
+                        <ui:Label class="title-body-text" text="호스트가 되어 로비를 열고, 생성된 코드를 다른 플레이어에게 공유합니다." />
+                        <ui:Button name="multiplayer-host-button" class="title-action-button" text="호스트 시작" />
+                    </ui:VisualElement>
+
+                    <ui:VisualElement class="title-card title-column-card">
+                        <ui:Label class="title-section-title" text="코드 참가" />
+                        <ui:Label class="title-body-text" text="공유받은 방 코드를 입력하고 로비에 참가합니다." />
+                        <ui:TextField name="multiplayer-join-code-field" class="title-text-field" label="방 코드" />
+                        <ui:Button name="multiplayer-join-button" class="title-action-button" text="참가" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+
+                <ui:Button name="multiplayer-back-button" class="title-footer-button" text="뒤로" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:VisualElement name="run-setup-screen" class="title-screen title-overlay-screen">
+            <ui:VisualElement class="title-panel-shell title-wide-shell">
+                <ui:Label name="run-setup-header" class="title-panel-title" text="맵 선택" />
+                <ui:Label name="run-setup-hint" class="title-panel-subtitle" text="" />
+
+                <ui:VisualElement name="run-setup-map-step" class="title-step-root">
+                    <ui:VisualElement class="title-card">
+                        <ui:Label class="title-section-title" text="출격 선택" />
+                        <ui:Label name="run-setup-map-selection" class="title-hero-text" text="" />
+                        <ui:Label class="title-subsection-title" text="맵" />
+                        <ui:VisualElement name="run-setup-map-button-row" class="title-chip-row" />
+                        <ui:Label name="run-setup-map-lock-text" class="title-inline-note" text="" />
+                        <ui:Label class="title-subsection-title" text="난이도" />
+                        <ui:VisualElement name="run-setup-difficulty-button-row" class="title-chip-row" />
+                    </ui:VisualElement>
+
+                    <ui:VisualElement class="title-footer-row">
+                        <ui:Button name="run-setup-map-next-button" class="title-footer-button" text="다음" />
+                        <ui:Button name="run-setup-map-back-button" class="title-footer-button title-footer-button-subtle" text="뒤로" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+
+                <ui:VisualElement name="run-setup-character-step" class="title-step-root">
+                    <ui:VisualElement class="title-two-column-row">
+                        <ui:VisualElement class="title-card title-character-list-card">
+                            <ui:Label class="title-section-title" text="캐릭터 선택" />
+                            <ui:ScrollView name="run-setup-character-scroll" class="title-scroll" />
+                        </ui:VisualElement>
+
+                        <ui:VisualElement class="title-card title-character-detail-card">
+                            <ui:Label class="title-section-title" text="출격 정보" />
+                            <ui:Label name="run-setup-selection-summary" class="title-inline-note title-inline-note-strong" text="" />
+                            <ui:Label name="run-setup-character-name" class="title-hero-text title-character-name" text="" />
+                            <ui:ScrollView name="run-setup-character-detail-scroll" class="title-scroll">
+                                <ui:Label name="run-setup-character-detail" class="title-body-text title-body-text-scroll" text="" />
+                            </ui:ScrollView>
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+
+                    <ui:VisualElement class="title-footer-row">
+                        <ui:Button name="run-setup-start-button" class="title-footer-button" text="출격 시작" />
+                        <ui:Button name="run-setup-character-back-button" class="title-footer-button title-footer-button-subtle" text="뒤로" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:VisualElement name="achievement-screen" class="title-screen title-overlay-screen">
+            <ui:VisualElement class="title-panel-shell title-wide-shell">
+                <ui:Label class="title-panel-title" text="도전과제" />
+                <ui:VisualElement class="title-card title-summary-card">
+                    <ui:Label name="achievement-summary" class="title-inline-note title-inline-note-strong" text="" />
+                </ui:VisualElement>
+                <ui:ScrollView name="achievement-scroll" class="title-scroll title-large-scroll" />
+                <ui:Button name="achievement-back-button" class="title-footer-button" text="뒤로" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:VisualElement name="meta-screen" class="title-screen title-overlay-screen">
+            <ui:VisualElement class="title-panel-shell title-wide-shell">
+                <ui:Label class="title-panel-title" text="코인 상점" />
+                <ui:VisualElement class="title-card title-summary-card">
+                    <ui:Label name="meta-header" class="title-inline-note title-inline-note-strong" text="" />
+                </ui:VisualElement>
+                <ui:VisualElement class="title-tab-row">
+                    <ui:Button name="meta-unlocks-tab" class="title-tab-button" text="해금" />
+                    <ui:Button name="meta-upgrades-tab" class="title-tab-button" text="강화" />
+                </ui:VisualElement>
+                <ui:ScrollView name="meta-scroll" class="title-scroll title-large-scroll" />
+                <ui:Button name="meta-back-button" class="title-footer-button" text="뒤로" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:VisualElement name="status-shell" class="title-status-shell">
+            <ui:Label name="status-line" class="title-status-line" text=" " />
+        </ui:VisualElement>
+
+        <ui:VisualElement name="title-modal-layer" class="title-modal-layer">
+            <ui:VisualElement name="summary-modal" class="title-modal-shell">
+                <ui:Label class="title-panel-title" text="최근 결과" />
+                <ui:ScrollView class="title-scroll title-modal-scroll">
+                    <ui:Label name="summary-modal-text" class="title-body-text title-body-text-scroll" text="" />
+                </ui:ScrollView>
+                <ui:VisualElement class="title-footer-row">
+                    <ui:Button name="summary-meta-button" class="title-footer-button" text="코인 상점" />
+                    <ui:Button name="summary-close-button" class="title-footer-button title-footer-button-subtle" text="닫기" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <ui:VisualElement name="confirm-modal" class="title-modal-shell title-confirm-shell">
+                <ui:Label class="title-panel-title" text="확인" />
+                <ui:Label name="confirm-modal-text" class="title-body-text title-confirm-text" text="" />
+                <ui:VisualElement class="title-footer-row">
+                    <ui:Button name="confirm-ok-button" class="title-footer-button" text="확인" />
+                    <ui:Button name="confirm-cancel-button" class="title-footer-button title-footer-button-subtle" text="취소" />
+                </ui:VisualElement>
+            </ui:VisualElement>
         </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

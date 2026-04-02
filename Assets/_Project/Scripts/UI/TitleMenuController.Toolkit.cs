@@ -1,8 +1,9 @@
+using System.Collections.Generic;
 using EJR.Game.Audio;
-using UnityEngine;
-using UnityEngine.UIElements;
 using EJR.Game.Core;
 using EJR.Game.Multiplayer;
+using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace EJR.Game.UI
 {
@@ -13,14 +14,42 @@ namespace EJR.Game.UI
         private const string ToolkitOptionsLayoutResourcePath = "UI/Common/SettingsPanelLayout";
         private const string ToolkitOptionsStylesResourcePath = "UI/Common/SettingsPanelStyles";
         private const string ToolkitRuntimeThemeResourcePath = "UI/Common/UnityDefaultRuntimeTheme";
+        private const string ToolkitPanelSettingsResourcePath = "UI/Common/RuntimeMenuPanelSettings";
 
         private UIDocument _toolkitDocument;
         private PanelSettings _toolkitPanelSettings;
-        private VisualElement _toolkitMainShell;
+        private VisualElement _toolkitRoot;
+        private VisualElement _toolkitMainScreen;
+        private VisualElement _toolkitMultiplayerEntryScreen;
         private VisualElement _toolkitOptionsScreen;
+        private VisualElement _toolkitRunSetupScreen;
+        private VisualElement _toolkitRunSetupMapStep;
+        private VisualElement _toolkitRunSetupCharacterStep;
+        private VisualElement _toolkitAchievementScreen;
+        private VisualElement _toolkitMetaScreen;
+        private VisualElement _toolkitModalLayer;
+        private VisualElement _toolkitSummaryModal;
+        private VisualElement _toolkitConfirmModal;
         private Label _toolkitStatusLabel;
         private Label _toolkitProfileLabel;
         private Label _toolkitRecentRunLabel;
+        private TextField _toolkitJoinCodeField;
+        private Label _toolkitRunSetupHeader;
+        private Label _toolkitRunSetupHint;
+        private Label _toolkitRunSetupMapSelectionLabel;
+        private Label _toolkitRunSetupMapLockLabel;
+        private Label _toolkitRunSetupSelectionSummaryLabel;
+        private Label _toolkitRunSetupCharacterNameLabel;
+        private Label _toolkitRunSetupCharacterDetailLabel;
+        private ScrollView _toolkitRunSetupCharacterScroll;
+        private VisualElement _toolkitRunSetupMapButtonRow;
+        private VisualElement _toolkitRunSetupDifficultyButtonRow;
+        private ScrollView _toolkitAchievementScroll;
+        private Label _toolkitAchievementSummaryLabel;
+        private ScrollView _toolkitMetaScroll;
+        private Label _toolkitMetaHeaderLabel;
+        private Label _toolkitSummaryModalTextLabel;
+        private Label _toolkitConfirmModalTextLabel;
         private Toggle _toolkitOptionsFullscreenToggle;
         private Slider _toolkitOptionsMasterVolumeSlider;
         private Slider _toolkitOptionsBgmVolumeSlider;
@@ -34,14 +63,37 @@ namespace EJR.Game.UI
         private Button _toolkitMetaButton;
         private Button _toolkitOptionsButton;
         private Button _toolkitQuitButton;
+        private Button _toolkitMultiplayerHostButton;
+        private Button _toolkitMultiplayerJoinButton;
+        private Button _toolkitMultiplayerBackButton;
+        private Button _toolkitRunSetupMapNextButton;
+        private Button _toolkitRunSetupMapBackButton;
+        private Button _toolkitRunSetupStartButton;
+        private Button _toolkitRunSetupCharacterBackButton;
+        private Button _toolkitAchievementBackButton;
+        private Button _toolkitMetaBackButton;
+        private Button _toolkitMetaUnlocksTabButton;
+        private Button _toolkitMetaUpgradesTabButton;
+        private Button _toolkitSummaryMetaButton;
+        private Button _toolkitSummaryCloseButton;
+        private Button _toolkitConfirmConfirmButton;
+        private Button _toolkitConfirmCancelButton;
         private Button _toolkitOptionsBackButton;
+        private readonly List<Button> _toolkitDynamicButtons = new();
 
-        private bool HasToolkitMainMenu => _toolkitMainShell != null;
+        private bool HasToolkitMainMenu => _toolkitDocument != null;
         private bool HasToolkitOptionsScreen => _toolkitOptionsScreen != null;
+
+        private bool SupportsToolkitTitleUi()
+        {
+            return Resources.Load<VisualTreeAsset>(ToolkitLayoutResourcePath) != null
+                && Resources.Load<VisualTreeAsset>(ToolkitOptionsLayoutResourcePath) != null
+                && Resources.Load<PanelSettings>(ToolkitPanelSettingsResourcePath) != null;
+        }
 
         private bool SupportsToolkitOptionsPanel()
         {
-            return Resources.Load<VisualTreeAsset>(ToolkitOptionsLayoutResourcePath) != null;
+            return SupportsToolkitTitleUi();
         }
 
         private void BuildToolkitMainMenu()
@@ -52,52 +104,94 @@ namespace EJR.Game.UI
             }
 
             var layout = Resources.Load<VisualTreeAsset>(ToolkitLayoutResourcePath);
-            if (layout == null)
+            var settingsLayout = Resources.Load<VisualTreeAsset>(ToolkitOptionsLayoutResourcePath);
+            var panelTemplate = Resources.Load<PanelSettings>(ToolkitPanelSettingsResourcePath);
+            if (layout == null || settingsLayout == null || panelTemplate == null)
             {
-                Debug.LogWarning($"Title menu layout resource not found at Resources/{ToolkitLayoutResourcePath}.");
+                Debug.LogWarning("Title Toolkit resources are incomplete.");
                 return;
             }
-
-            var styles = Resources.Load<StyleSheet>(ToolkitStylesResourcePath);
 
             var documentObject = new GameObject("TitleToolkitMenu");
             documentObject.transform.SetParent(transform, false);
 
             _toolkitDocument = documentObject.AddComponent<UIDocument>();
-            _toolkitPanelSettings = ScriptableObject.CreateInstance<PanelSettings>();
+            _toolkitPanelSettings = Object.Instantiate(panelTemplate);
             _toolkitPanelSettings.name = "RuntimeTitleMenuPanelSettings";
-            _toolkitPanelSettings.scaleMode = PanelScaleMode.ScaleWithScreenSize;
             _toolkitPanelSettings.referenceResolution = new Vector2Int(1920, 1080);
+            _toolkitPanelSettings.scaleMode = PanelScaleMode.ScaleWithScreenSize;
             _toolkitPanelSettings.screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight;
             _toolkitPanelSettings.match = 0.5f;
             _toolkitPanelSettings.sortingOrder = 120;
             _toolkitPanelSettings.themeStyleSheet = Resources.Load<ThemeStyleSheet>(ToolkitRuntimeThemeResourcePath);
             _toolkitDocument.panelSettings = _toolkitPanelSettings;
 
-            var root = _toolkitDocument.rootVisualElement;
-            root.Clear();
-            layout.CloneTree(root);
-            if (styles != null && !root.styleSheets.Contains(styles))
+            _toolkitRoot = _toolkitDocument.rootVisualElement;
+            _toolkitRoot.Clear();
+            layout.CloneTree(_toolkitRoot);
+            settingsLayout.CloneTree(_toolkitRoot);
+
+            var titleStyles = Resources.Load<StyleSheet>(ToolkitStylesResourcePath);
+            if (titleStyles != null && !_toolkitRoot.styleSheets.Contains(titleStyles))
             {
-                root.styleSheets.Add(styles);
+                _toolkitRoot.styleSheets.Add(titleStyles);
             }
 
-            var optionsLayout = Resources.Load<VisualTreeAsset>(ToolkitOptionsLayoutResourcePath);
-            if (optionsLayout != null)
+            var settingsStyles = Resources.Load<StyleSheet>(ToolkitOptionsStylesResourcePath);
+            if (settingsStyles != null && !_toolkitRoot.styleSheets.Contains(settingsStyles))
             {
-                optionsLayout.CloneTree(root);
-                var optionsStyles = Resources.Load<StyleSheet>(ToolkitOptionsStylesResourcePath);
-                if (optionsStyles != null && !root.styleSheets.Contains(optionsStyles))
-                {
-                    root.styleSheets.Add(optionsStyles);
-                }
+                _toolkitRoot.styleSheets.Add(settingsStyles);
             }
 
-            _toolkitMainShell = root.Q<VisualElement>("screen");
+            QueryToolkitElements(_toolkitRoot);
+            ConfigureToolkitScroll(_toolkitRunSetupCharacterScroll);
+            ConfigureToolkitScroll(_toolkitAchievementScroll);
+            ConfigureToolkitScroll(_toolkitMetaScroll);
+            WireToolkitCallbacks();
+            UpdateToolkitOverviewSummary();
+            RefreshAchievementButtonState();
+            RefreshToolkitRunSetupPanel();
+            RefreshToolkitAchievementPanel();
+            RefreshToolkitMetaPanel();
+            UpdateToolkitStatus(string.Empty);
+            UpdateToolkitInteractivity(!MultiplayerSessionController.EnsureInstance().IsBusy);
+            UpdateToolkitScreenVisibility(_mainMenuPanel);
+            RefreshToolkitModalLayerVisibility();
+        }
+
+        private void QueryToolkitElements(VisualElement root)
+        {
+            _toolkitMainScreen = root.Q<VisualElement>("main-screen");
+            _toolkitMultiplayerEntryScreen = root.Q<VisualElement>("multiplayer-entry-screen");
             _toolkitOptionsScreen = root.Q<VisualElement>("settings-screen");
+            _toolkitRunSetupScreen = root.Q<VisualElement>("run-setup-screen");
+            _toolkitRunSetupMapStep = root.Q<VisualElement>("run-setup-map-step");
+            _toolkitRunSetupCharacterStep = root.Q<VisualElement>("run-setup-character-step");
+            _toolkitAchievementScreen = root.Q<VisualElement>("achievement-screen");
+            _toolkitMetaScreen = root.Q<VisualElement>("meta-screen");
+            _toolkitModalLayer = root.Q<VisualElement>("title-modal-layer");
+            _toolkitSummaryModal = root.Q<VisualElement>("summary-modal");
+            _toolkitConfirmModal = root.Q<VisualElement>("confirm-modal");
             _toolkitStatusLabel = root.Q<Label>("status-line");
             _toolkitProfileLabel = root.Q<Label>("profile-summary");
             _toolkitRecentRunLabel = root.Q<Label>("recent-run-summary");
+            _toolkitJoinCodeField = root.Q<TextField>("multiplayer-join-code-field");
+            _toolkitRunSetupHeader = root.Q<Label>("run-setup-header");
+            _toolkitRunSetupHint = root.Q<Label>("run-setup-hint");
+            _toolkitRunSetupMapSelectionLabel = root.Q<Label>("run-setup-map-selection");
+            _toolkitRunSetupMapLockLabel = root.Q<Label>("run-setup-map-lock-text");
+            _toolkitRunSetupSelectionSummaryLabel = root.Q<Label>("run-setup-selection-summary");
+            _toolkitRunSetupCharacterNameLabel = root.Q<Label>("run-setup-character-name");
+            _toolkitRunSetupCharacterDetailLabel = root.Q<Label>("run-setup-character-detail");
+            _toolkitRunSetupCharacterScroll = root.Q<ScrollView>("run-setup-character-scroll");
+            _toolkitRunSetupMapButtonRow = root.Q<VisualElement>("run-setup-map-button-row");
+            _toolkitRunSetupDifficultyButtonRow = root.Q<VisualElement>("run-setup-difficulty-button-row");
+            _toolkitAchievementSummaryLabel = root.Q<Label>("achievement-summary");
+            _toolkitAchievementScroll = root.Q<ScrollView>("achievement-scroll");
+            _toolkitMetaHeaderLabel = root.Q<Label>("meta-header");
+            _toolkitMetaScroll = root.Q<ScrollView>("meta-scroll");
+            _toolkitSummaryModalTextLabel = root.Q<Label>("summary-modal-text");
+            _toolkitConfirmModalTextLabel = root.Q<Label>("confirm-modal-text");
             _toolkitOptionsFullscreenToggle = root.Q<Toggle>("fullscreen-toggle");
             _toolkitOptionsMasterVolumeSlider = root.Q<Slider>("master-volume-slider");
             _toolkitOptionsBgmVolumeSlider = root.Q<Slider>("bgm-volume-slider");
@@ -111,40 +205,129 @@ namespace EJR.Game.UI
             _toolkitMetaButton = root.Q<Button>("meta-button");
             _toolkitOptionsButton = root.Q<Button>("options-button");
             _toolkitQuitButton = root.Q<Button>("quit-button");
+            _toolkitMultiplayerHostButton = root.Q<Button>("multiplayer-host-button");
+            _toolkitMultiplayerJoinButton = root.Q<Button>("multiplayer-join-button");
+            _toolkitMultiplayerBackButton = root.Q<Button>("multiplayer-back-button");
+            _toolkitRunSetupMapNextButton = root.Q<Button>("run-setup-map-next-button");
+            _toolkitRunSetupMapBackButton = root.Q<Button>("run-setup-map-back-button");
+            _toolkitRunSetupStartButton = root.Q<Button>("run-setup-start-button");
+            _toolkitRunSetupCharacterBackButton = root.Q<Button>("run-setup-character-back-button");
+            _toolkitAchievementBackButton = root.Q<Button>("achievement-back-button");
+            _toolkitMetaBackButton = root.Q<Button>("meta-back-button");
+            _toolkitMetaUnlocksTabButton = root.Q<Button>("meta-unlocks-tab");
+            _toolkitMetaUpgradesTabButton = root.Q<Button>("meta-upgrades-tab");
+            _toolkitSummaryMetaButton = root.Q<Button>("summary-meta-button");
+            _toolkitSummaryCloseButton = root.Q<Button>("summary-close-button");
+            _toolkitConfirmConfirmButton = root.Q<Button>("confirm-ok-button");
+            _toolkitConfirmCancelButton = root.Q<Button>("confirm-cancel-button");
             _toolkitOptionsBackButton = root.Q<Button>("settings-back-button");
+        }
 
+        private void WireToolkitCallbacks()
+        {
             if (_toolkitSinglePlayButton != null) _toolkitSinglePlayButton.clicked += OnSinglePlayClicked;
             if (_toolkitMultiPlayButton != null) _toolkitMultiPlayButton.clicked += OnMultiPlayClicked;
             if (_toolkitAchievementButton != null) _toolkitAchievementButton.clicked += OnAchievementsClicked;
             if (_toolkitMetaButton != null) _toolkitMetaButton.clicked += OnMetaClicked;
             if (_toolkitOptionsButton != null) _toolkitOptionsButton.clicked += OnOptionsClicked;
             if (_toolkitQuitButton != null) _toolkitQuitButton.clicked += OnQuitClicked;
+            if (_toolkitMultiplayerHostButton != null) _toolkitMultiplayerHostButton.clicked += OnHostClicked;
+            if (_toolkitMultiplayerJoinButton != null) _toolkitMultiplayerJoinButton.clicked += OnJoinClicked;
+            if (_toolkitMultiplayerBackButton != null) _toolkitMultiplayerBackButton.clicked += ShowMainMenu;
+            if (_toolkitRunSetupMapNextButton != null) _toolkitRunSetupMapNextButton.clicked += GoToRunSetupCharacterStep;
+            if (_toolkitRunSetupMapBackButton != null) _toolkitRunSetupMapBackButton.clicked += ShowMainMenu;
+            if (_toolkitRunSetupStartButton != null) _toolkitRunSetupStartButton.clicked += StartSinglePlay;
+            if (_toolkitRunSetupCharacterBackButton != null) _toolkitRunSetupCharacterBackButton.clicked += GoToRunSetupMapStep;
+            if (_toolkitAchievementBackButton != null) _toolkitAchievementBackButton.clicked += ShowMainMenu;
+            if (_toolkitMetaBackButton != null) _toolkitMetaBackButton.clicked += ShowMainMenu;
+            if (_toolkitMetaUnlocksTabButton != null) _toolkitMetaUnlocksTabButton.clicked += () => SetMetaTab(MetaTab.Unlocks);
+            if (_toolkitMetaUpgradesTabButton != null) _toolkitMetaUpgradesTabButton.clicked += () => SetMetaTab(MetaTab.Upgrades);
+            if (_toolkitSummaryMetaButton != null) _toolkitSummaryMetaButton.clicked += OpenMetaFromSummary;
+            if (_toolkitSummaryCloseButton != null) _toolkitSummaryCloseButton.clicked += CloseSummaryModal;
+            if (_toolkitConfirmConfirmButton != null) _toolkitConfirmConfirmButton.clicked += ConfirmPendingAction;
+            if (_toolkitConfirmCancelButton != null) _toolkitConfirmCancelButton.clicked += CloseConfirmModal;
             if (_toolkitOptionsBackButton != null) _toolkitOptionsBackButton.clicked += OnToolkitOptionsBackClicked;
             _toolkitOptionsFullscreenToggle?.RegisterValueChangedCallback(OnToolkitOptionsFullscreenChanged);
             _toolkitOptionsMasterVolumeSlider?.RegisterValueChangedCallback(OnToolkitOptionsMasterVolumeChanged);
             _toolkitOptionsBgmVolumeSlider?.RegisterValueChangedCallback(OnToolkitOptionsBgmVolumeChanged);
             _toolkitOptionsSfxVolumeSlider?.RegisterValueChangedCallback(OnToolkitOptionsSfxVolumeChanged);
-
-            UpdateToolkitOverviewSummary();
-            RefreshAchievementButtonState();
-            UpdateToolkitStatus(string.Empty);
-            UpdateToolkitInteractivity(!MultiplayerSessionController.EnsureInstance().IsBusy);
-            UpdateToolkitMainMenuVisibility(false);
-            UpdateToolkitOptionsVisibility(false);
         }
 
-        private void UpdateToolkitMainMenuVisibility(bool visible)
+        private static void ConfigureToolkitScroll(ScrollView scrollView)
         {
-            if (_toolkitMainShell == null)
+            if (scrollView == null)
             {
                 return;
             }
 
-            _toolkitMainShell.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
+            scrollView.contentContainer.style.paddingLeft = 10f;
+            scrollView.contentContainer.style.paddingRight = 10f;
+            scrollView.contentContainer.style.paddingTop = 10f;
+            scrollView.contentContainer.style.paddingBottom = 10f;
+        }
 
+        private void UpdateToolkitScreenVisibility(GameObject activePanel)
+        {
+            if (_toolkitRoot == null)
+            {
+                return;
+            }
+
+            SetDisplay(_toolkitMainScreen, activePanel == _mainMenuPanel);
+            SetDisplay(_toolkitMultiplayerEntryScreen, activePanel == _multiplayerPanel);
+            SetDisplay(_toolkitOptionsScreen, activePanel == _optionsPanel);
+            SetDisplay(_toolkitRunSetupScreen, activePanel == _runSetupPanel);
+            SetDisplay(_toolkitAchievementScreen, activePanel == _achievementPanel);
+            SetDisplay(_toolkitMetaScreen, activePanel == _metaPanel);
+
+            if (activePanel == _optionsPanel)
+            {
+                SyncToolkitOptionsControls();
+            }
+
+            if (activePanel == _mainMenuPanel)
+            {
+                FocusToolkitPrimaryButton();
+            }
+
+            RefreshToolkitModalLayerVisibility();
+        }
+
+        private void RefreshToolkitModalLayerVisibility()
+        {
+            if (_toolkitModalLayer == null)
+            {
+                return;
+            }
+
+            var showSummary = _summaryModal != null && _summaryModal.activeSelf;
+            var showConfirm = _confirmModal != null && _confirmModal.activeSelf;
+            SetDisplay(_toolkitModalLayer, showSummary || showConfirm);
+            SetDisplay(_toolkitSummaryModal, showSummary);
+            SetDisplay(_toolkitConfirmModal, showConfirm);
+        }
+
+        private void UpdateToolkitMainMenuVisibility(bool visible)
+        {
+            SetDisplay(_toolkitMainScreen, visible);
             if (visible)
             {
                 FocusToolkitPrimaryButton();
+            }
+        }
+
+        private void UpdateToolkitOptionsVisibility(bool visible)
+        {
+            if (_toolkitOptionsScreen == null)
+            {
+                return;
+            }
+
+            SetDisplay(_toolkitOptionsScreen, visible);
+            if (visible)
+            {
+                SyncToolkitOptionsControls();
+                _toolkitOptionsFullscreenToggle?.schedule.Execute(() => _toolkitOptionsFullscreenToggle.Focus()).ExecuteLater(0);
             }
         }
 
@@ -173,10 +356,10 @@ namespace EJR.Game.UI
 
             var selectedCharacter = SharedGameCatalog.GetCharacter(_selectedCharacterId);
             _toolkitProfileLabel.text =
-                $"크레딧 {MetaProgressionService.CurrentCredits}\n" +
-                $"선택 {selectedCharacter.DisplayName} · {SharedGameCatalog.GetWeaponDisplayName(selectedCharacter.StarterWeaponId)}\n" +
-                $"캐릭터 {unlockedCharacters}/{SharedGameCatalog.CharacterDefinitions.Count} · 강화 {purchasedUpgradeLevels}단계\n" +
-                $"최고 레벨 {MetaProgressionService.BestLevel} · 최고 생존 {MetaProgressionService.BestTimeSeconds:0.0}초";
+                $"코인 {MetaProgressionService.CurrentCredits}\n" +
+                $"선택 {selectedCharacter.DisplayName} | {SharedGameCatalog.GetWeaponDisplayName(selectedCharacter.StarterWeaponId)}\n" +
+                $"캐릭터 {unlockedCharacters}/{SharedGameCatalog.CharacterDefinitions.Count} | 강화 {purchasedUpgradeLevels} 단계\n" +
+                $"최고 레벨 {MetaProgressionService.BestLevel} | 최고 생존 {MetaProgressionService.BestTimeSeconds:0.0}초";
 
             _toolkitRecentRunLabel.text = string.IsNullOrWhiteSpace(_recentRunSummaryText)
                 ? "최근 결과가 없습니다."
@@ -185,12 +368,10 @@ namespace EJR.Game.UI
 
         private void UpdateToolkitStatus(string message)
         {
-            if (_toolkitStatusLabel == null)
+            if (_toolkitStatusLabel != null)
             {
-                return;
+                _toolkitStatusLabel.text = string.IsNullOrWhiteSpace(message) ? " " : message;
             }
-
-            _toolkitStatusLabel.text = string.IsNullOrWhiteSpace(message) ? " " : message;
         }
 
         private void UpdateToolkitInteractivity(bool interactable)
@@ -201,32 +382,32 @@ namespace EJR.Game.UI
             _toolkitMetaButton?.SetEnabled(interactable);
             _toolkitOptionsButton?.SetEnabled(interactable);
             _toolkitQuitButton?.SetEnabled(interactable);
+            _toolkitMultiplayerHostButton?.SetEnabled(interactable);
+            _toolkitMultiplayerJoinButton?.SetEnabled(interactable);
+            _toolkitMultiplayerBackButton?.SetEnabled(interactable);
+            _toolkitAchievementBackButton?.SetEnabled(interactable);
+            _toolkitMetaBackButton?.SetEnabled(interactable);
+            _toolkitMetaUnlocksTabButton?.SetEnabled(interactable);
+            _toolkitMetaUpgradesTabButton?.SetEnabled(interactable);
+            _toolkitSummaryMetaButton?.SetEnabled(interactable);
+            _toolkitSummaryCloseButton?.SetEnabled(interactable);
+            _toolkitConfirmConfirmButton?.SetEnabled(interactable);
+            _toolkitConfirmCancelButton?.SetEnabled(interactable);
             _toolkitOptionsScreen?.SetEnabled(interactable);
+            _toolkitJoinCodeField?.SetEnabled(interactable);
+
+            RefreshToolkitRunSetupPanel();
+            RefreshToolkitMetaPanel();
         }
 
         private void FocusToolkitPrimaryButton()
         {
-            if (_toolkitMainShell == null || _toolkitMainShell.resolvedStyle.display == DisplayStyle.None)
+            if (_toolkitMainScreen == null || _toolkitMainScreen.resolvedStyle.display == DisplayStyle.None)
             {
                 return;
             }
 
             _toolkitSinglePlayButton?.schedule.Execute(() => _toolkitSinglePlayButton.Focus()).ExecuteLater(0);
-        }
-
-        private void UpdateToolkitOptionsVisibility(bool visible)
-        {
-            if (_toolkitOptionsScreen == null)
-            {
-                return;
-            }
-
-            _toolkitOptionsScreen.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
-            if (visible)
-            {
-                SyncToolkitOptionsControls();
-                _toolkitOptionsFullscreenToggle?.schedule.Execute(() => _toolkitOptionsFullscreenToggle.Focus()).ExecuteLater(0);
-            }
         }
 
         private void SyncToolkitOptionsControls()
@@ -250,19 +431,444 @@ namespace EJR.Game.UI
 
         private static void UpdateToolkitSliderValueLabel(Label label, float value)
         {
-            if (label == null)
+            if (label != null)
+            {
+                label.text = $"{Mathf.RoundToInt(Mathf.Clamp01(value) * 100f)}%";
+            }
+        }
+
+        private void RefreshToolkitRunSetupPanel()
+        {
+            if (_toolkitRunSetupScreen == null)
             {
                 return;
             }
 
-            label.text = $"{Mathf.RoundToInt(Mathf.Clamp01(value) * 100f)}%";
+            if (!MetaProgressionService.IsCharacterUnlocked(_selectedCharacterId))
+            {
+                _selectedCharacterId = MetaProgressionService.GetSingleSelectedCharacterId();
+                if (!MetaProgressionService.IsCharacterUnlocked(_selectedCharacterId))
+                {
+                    _selectedCharacterId = SharedGameCatalog.GetDefaultUnlockedCharacterId();
+                }
+            }
+
+            _selectedMapId = SharedRunCatalog.IsMapUnlocked(_selectedMapId)
+                ? SharedRunCatalog.GetMap(_selectedMapId).Id
+                : GetFirstUnlockedMapId();
+            _selectedDifficultyId = SharedRunCatalog.GetDifficulty(_selectedDifficultyId).Id;
+            _selectedStarterWeaponId = MetaProgressionService.GetCharacterStarterWeapon(_selectedCharacterId);
+            _inspectedCharacterId = _selectedCharacterId;
+
+            var selectedMap = SharedRunCatalog.GetMap(_selectedMapId);
+            var selectedDifficulty = SharedRunCatalog.GetDifficulty(_selectedDifficultyId);
+            var selectedCharacter = SharedGameCatalog.GetCharacter(_selectedCharacterId);
+            var mapUnlocked = SharedRunCatalog.IsMapUnlocked(_selectedMapId);
+            var interactable = !MultiplayerSessionController.EnsureInstance().IsBusy;
+            var isMapStep = _currentRunSetupStep == SingleRunSetupStep.MapSelect;
+
+            if (_toolkitRunSetupHeader != null)
+            {
+                _toolkitRunSetupHeader.text = isMapStep ? "맵 선택" : "캐릭터 선택";
+            }
+
+            if (_toolkitRunSetupHint != null)
+            {
+                _toolkitRunSetupHint.text = isMapStep
+                    ? "맵과 난이도를 먼저 정하세요."
+                    : "캐릭터를 선택하고 출격을 시작하세요.";
+            }
+
+            if (_toolkitRunSetupMapSelectionLabel != null)
+            {
+                _toolkitRunSetupMapSelectionLabel.text = $"{selectedMap.DisplayName} | {selectedDifficulty.DisplayName}";
+            }
+
+            if (_toolkitRunSetupMapLockLabel != null)
+            {
+                _toolkitRunSetupMapLockLabel.text = mapUnlocked
+                    ? "선택한 맵으로 출격할 수 있습니다."
+                    : SharedRunCatalog.GetMapUnlockRequirementText(selectedMap.Id);
+            }
+
+            if (_toolkitRunSetupSelectionSummaryLabel != null)
+            {
+                _toolkitRunSetupSelectionSummaryLabel.text = $"{selectedMap.DisplayName} | {selectedDifficulty.DisplayName}";
+            }
+
+            if (_toolkitRunSetupCharacterNameLabel != null)
+            {
+                _toolkitRunSetupCharacterNameLabel.text = $"{selectedCharacter.DisplayName} | {SharedGameCatalog.GetWeaponDisplayName(selectedCharacter.StarterWeaponId)}";
+            }
+
+            if (_toolkitRunSetupCharacterDetailLabel != null)
+            {
+                _toolkitRunSetupCharacterDetailLabel.text =
+                    $"기본 보너스 {BuildMetaBonusSummary(selectedCharacter.BaseBonuses)}\n" +
+                    $"고유 특성 {selectedCharacter.PassiveDescription}";
+            }
+
+            SetDisplay(_toolkitRunSetupMapStep, isMapStep);
+            SetDisplay(_toolkitRunSetupCharacterStep, !isMapStep);
+            RebuildToolkitRunSetupMapButtons();
+            RebuildToolkitRunSetupDifficultyButtons();
+            RebuildToolkitRunSetupCharacterButtons();
+
+            _toolkitRunSetupMapNextButton?.SetEnabled(interactable && mapUnlocked && isMapStep);
+            _toolkitRunSetupMapBackButton?.SetEnabled(interactable);
+            _toolkitRunSetupCharacterBackButton?.SetEnabled(interactable);
+            _toolkitRunSetupStartButton?.SetEnabled(
+                interactable &&
+                !isMapStep &&
+                MetaProgressionService.IsCharacterUnlocked(_selectedCharacterId) &&
+                mapUnlocked);
+
+            UpdateToolkitOverviewSummary();
+        }
+
+        private void RebuildToolkitRunSetupMapButtons()
+        {
+            if (_toolkitRunSetupMapButtonRow == null)
+            {
+                return;
+            }
+
+            _toolkitRunSetupMapButtonRow.Clear();
+            _toolkitDynamicButtons.Clear();
+
+            var interactable = !MultiplayerSessionController.EnsureInstance().IsBusy;
+            for (var i = 0; i < SharedRunCatalog.MapDefinitions.Count; i++)
+            {
+                var definition = SharedRunCatalog.MapDefinitions[i];
+                var unlocked = SharedRunCatalog.IsMapUnlocked(definition.Id);
+                var button = new Button(() => SelectSingleMap(definition.Id))
+                {
+                    text = unlocked ? definition.DisplayName : $"{definition.DisplayName}\n잠김"
+                };
+                button.AddToClassList("title-chip-button");
+                button.EnableInClassList("is-selected", definition.Id == _selectedMapId);
+                button.EnableInClassList("is-locked", !unlocked);
+                button.SetEnabled(interactable && unlocked);
+                _toolkitRunSetupMapButtonRow.Add(button);
+                _toolkitDynamicButtons.Add(button);
+            }
+        }
+
+        private void RebuildToolkitRunSetupDifficultyButtons()
+        {
+            if (_toolkitRunSetupDifficultyButtonRow == null)
+            {
+                return;
+            }
+
+            _toolkitRunSetupDifficultyButtonRow.Clear();
+
+            var interactable = !MultiplayerSessionController.EnsureInstance().IsBusy;
+            for (var i = 0; i < SharedRunCatalog.DifficultyDefinitions.Count; i++)
+            {
+                var definition = SharedRunCatalog.DifficultyDefinitions[i];
+                var button = new Button(() => SelectSingleDifficulty(definition.Id))
+                {
+                    text = definition.DisplayName
+                };
+                button.AddToClassList("title-chip-button");
+                button.EnableInClassList("is-selected", definition.Id == _selectedDifficultyId);
+                button.SetEnabled(interactable);
+                _toolkitRunSetupDifficultyButtonRow.Add(button);
+                _toolkitDynamicButtons.Add(button);
+            }
+        }
+
+        private void RebuildToolkitRunSetupCharacterButtons()
+        {
+            if (_toolkitRunSetupCharacterScroll == null)
+            {
+                return;
+            }
+
+            _toolkitRunSetupCharacterScroll.contentContainer.Clear();
+
+            var interactable = !MultiplayerSessionController.EnsureInstance().IsBusy;
+            for (var i = 0; i < SharedGameCatalog.CharacterDefinitions.Count; i++)
+            {
+                var definition = SharedGameCatalog.CharacterDefinitions[i];
+                var unlocked = MetaProgressionService.IsCharacterUnlocked(definition.Id);
+                var status = unlocked
+                    ? (definition.Id == _selectedCharacterId ? "선택됨" : "선택 가능")
+                    : definition.UnlockSource == CharacterUnlockSource.Achievement
+                        ? "도전과제 해금"
+                        : "상점 해금";
+
+                var button = new Button(() => SelectSingleCharacter(definition.Id));
+                button.AddToClassList("title-list-entry");
+                button.EnableInClassList("is-selected", definition.Id == _selectedCharacterId);
+                button.SetEnabled(interactable && unlocked);
+                button.style.flexDirection = FlexDirection.Column;
+                button.style.alignItems = Align.Stretch;
+                button.style.marginBottom = 12f;
+
+                var title = new Label($"{definition.DisplayName} | {SharedGameCatalog.GetWeaponDisplayName(definition.StarterWeaponId)}");
+                title.AddToClassList("title-entry-title");
+                title.style.color = definition.Color;
+                button.Add(title);
+
+                var subtitle = new Label($"기본 보너스 {BuildMetaBonusSummary(definition.BaseBonuses)}");
+                subtitle.AddToClassList("title-entry-subtitle");
+                button.Add(subtitle);
+
+                var detail = new Label(definition.PassiveDescription);
+                detail.AddToClassList("title-entry-subtitle");
+                button.Add(detail);
+
+                var statusLabel = new Label(status);
+                statusLabel.AddToClassList("title-entry-status");
+                if (unlocked)
+                {
+                    statusLabel.AddToClassList("is-completed");
+                }
+
+                button.Add(statusLabel);
+                _toolkitRunSetupCharacterScroll.contentContainer.Add(button);
+                _toolkitDynamicButtons.Add(button);
+            }
+        }
+
+        private void RefreshToolkitAchievementPanel()
+        {
+            if (_toolkitAchievementScroll == null || _toolkitAchievementSummaryLabel == null)
+            {
+                return;
+            }
+
+            _toolkitAchievementScroll.contentContainer.Clear();
+            var entries = MetaProgressionService.GetAchievementEntries();
+            var completedCount = 0;
+            for (var i = 0; i < entries.Count; i++)
+            {
+                var entry = entries[i];
+                if (entry.IsCompleted)
+                {
+                    completedCount++;
+                }
+
+                var row = new VisualElement();
+                row.AddToClassList("title-list-entry");
+                row.EnableInClassList("is-completed", entry.IsCompleted);
+
+                var title = new Label(entry.DisplayName);
+                title.AddToClassList("title-entry-title");
+                row.Add(title);
+
+                var subtitle = new Label(entry.Description);
+                subtitle.AddToClassList("title-entry-subtitle");
+                row.Add(subtitle);
+
+                var progress = new Label(entry.ProgressText);
+                progress.AddToClassList("title-entry-status");
+                if (entry.IsCompleted)
+                {
+                    progress.AddToClassList("is-completed");
+                }
+
+                row.Add(progress);
+
+                if (!string.IsNullOrWhiteSpace(entry.RewardText))
+                {
+                    var reward = new Label(entry.RewardText);
+                    reward.AddToClassList("title-entry-subtitle");
+                    row.Add(reward);
+                }
+
+                _toolkitAchievementScroll.contentContainer.Add(row);
+            }
+
+            _toolkitAchievementSummaryLabel.text = $"달성 {completedCount}/{entries.Count}";
+        }
+
+        private void RefreshToolkitMetaPanel()
+        {
+            if (_toolkitMetaScroll == null || _toolkitMetaHeaderLabel == null)
+            {
+                return;
+            }
+
+            _toolkitMetaHeaderLabel.text =
+                $"코인 {MetaProgressionService.CurrentCredits} | 누적 수익 {MetaProgressionService.TotalCreditsEarned}\n" +
+                $"플레이 {MetaProgressionService.RunsPlayed} | 클리어 {MetaProgressionService.RunsCleared}\n" +
+                $"최고 레벨 {MetaProgressionService.BestLevel} | 최고 시간 {MetaProgressionService.BestTimeSeconds:0.0}초 | 처치 {MetaProgressionService.TotalEnemiesDefeated}";
+
+            ApplyToolkitMetaTabState(_toolkitMetaUnlocksTabButton, _currentMetaTab == MetaTab.Unlocks);
+            ApplyToolkitMetaTabState(_toolkitMetaUpgradesTabButton, _currentMetaTab == MetaTab.Upgrades);
+
+            _toolkitMetaScroll.contentContainer.Clear();
+            if (_currentMetaTab == MetaTab.Unlocks)
+            {
+                BuildToolkitCharacterShopContent();
+            }
+            else
+            {
+                BuildToolkitUpgradeShopContent();
+            }
+
+            UpdateToolkitOverviewSummary();
+        }
+
+        private void BuildToolkitCharacterShopContent()
+        {
+            if (_toolkitMetaScroll == null)
+            {
+                return;
+            }
+
+            var content = _toolkitMetaScroll.contentContainer;
+            for (var i = 0; i < SharedGameCatalog.CharacterDefinitions.Count; i++)
+            {
+                var definition = SharedGameCatalog.CharacterDefinitions[i];
+                if (definition.UnlockSource == CharacterUnlockSource.Achievement)
+                {
+                    continue;
+                }
+
+                var unlocked = MetaProgressionService.IsCharacterUnlocked(definition.Id);
+                var canBuy = CanPurchaseCharacter(definition.Id);
+                var row = CreateToolkitRowWithAction(
+                    $"{definition.DisplayName} | {SharedGameCatalog.GetWeaponDisplayName(definition.StarterWeaponId)}",
+                    $"기본 보너스 {BuildMetaBonusSummary(definition.BaseBonuses)}\n고유 특성 {definition.PassiveDescription}",
+                    unlocked ? "해금 완료" : $"비용 {definition.UnlockCost} 코인",
+                    unlocked ? "해금 완료" : canBuy ? $"구매 가능 - {definition.UnlockCost} 코인" : $"코인 부족 - {definition.UnlockCost} 코인",
+                    unlocked ? null : () => PromptCharacterPurchase(definition.Id),
+                    unlocked || canBuy,
+                    definition.Color,
+                    unlocked);
+                content.Add(row);
+            }
+        }
+
+        private void BuildToolkitUpgradeShopContent()
+        {
+            if (_toolkitMetaScroll == null)
+            {
+                return;
+            }
+
+            var content = _toolkitMetaScroll.contentContainer;
+            var refund = MetaProgressionService.GetUpgradeRefundPreview();
+            content.Add(CreateToolkitRowWithAction(
+                "재분배",
+                $"구매한 영구 강화를 모두 초기화하고 {refund} 코인을 돌려받습니다.",
+                refund > 0 ? "환급 가능" : "환급할 강화 없음",
+                "초기화",
+                refund > 0 ? PromptUpgradeReset : null,
+                refund > 0,
+                new Color(0.96f, 0.74f, 0.18f, 1f),
+                false));
+
+            var definitions = MetaProgressionService.Config.UpgradeDefinitions;
+            for (var i = 0; i < definitions.Count; i++)
+            {
+                var definition = definitions[i];
+                var level = MetaProgressionService.GetUpgradeLevel(definition.Id);
+                var maxed = level >= definition.MaxLevel;
+                var cost = maxed ? 0 : MetaProgressionService.Config.GetUpgradeCost(definition.Id, level);
+                var canBuy = CanPurchaseUpgrade(definition.Id);
+                content.Add(CreateToolkitRowWithAction(
+                    $"{definition.Title}  Lv.{level}/{definition.MaxLevel}",
+                    definition.Description,
+                    maxed ? "최대 단계" : $"다음 비용 {cost} 코인",
+                    maxed ? "최대" : canBuy ? "구매" : $"부족 - {cost}",
+                    maxed ? null : () => TryPurchaseUpgrade(definition.Id),
+                    canBuy,
+                    Color.white,
+                    maxed));
+            }
+        }
+
+        private VisualElement CreateToolkitRowWithAction(
+            string titleText,
+            string subtitleText,
+            string statusText,
+            string actionText,
+            System.Action action,
+            bool actionEnabled,
+            Color titleColor,
+            bool completed)
+        {
+            var row = new VisualElement();
+            row.AddToClassList("title-list-entry");
+            row.EnableInClassList("is-completed", completed);
+            row.AddToClassList("title-row");
+            row.style.alignItems = Align.Stretch;
+
+            var textColumn = new VisualElement();
+            textColumn.style.flexGrow = 1f;
+
+            var title = new Label(titleText);
+            title.AddToClassList("title-entry-title");
+            title.style.color = titleColor;
+            textColumn.Add(title);
+
+            var subtitle = new Label(subtitleText);
+            subtitle.AddToClassList("title-entry-subtitle");
+            textColumn.Add(subtitle);
+
+            var status = new Label(statusText);
+            status.AddToClassList("title-entry-status");
+            if (completed)
+            {
+                status.AddToClassList("is-completed");
+            }
+
+            textColumn.Add(status);
+            row.Add(textColumn);
+
+            var button = new Button();
+            button.text = actionText;
+            button.AddToClassList("title-footer-button");
+            button.AddToClassList("title-entry-action");
+            button.SetEnabled(actionEnabled && action != null);
+            if (action != null)
+            {
+                button.clicked += () => action();
+            }
+
+            row.Add(button);
+            _toolkitDynamicButtons.Add(button);
+            return row;
+        }
+
+        private static void ApplyToolkitMetaTabState(Button button, bool selected)
+        {
+            if (button == null)
+            {
+                return;
+            }
+
+            button.style.backgroundColor = selected
+                ? new Color(52f / 255f, 80f / 255f, 114f / 255f, 1f)
+                : new Color(20f / 255f, 28f / 255f, 38f / 255f, 0.98f);
+            button.style.color = selected
+                ? new Color(0.98f, 0.86f, 0.42f, 1f)
+                : new Color(0.93f, 0.95f, 0.98f, 1f);
+        }
+
+        private static void SetDisplay(VisualElement element, bool visible)
+        {
+            if (element != null)
+            {
+                element.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+        }
+
+        private string GetToolkitJoinCode()
+        {
+            return _toolkitJoinCodeField?.value ?? string.Empty;
         }
 
         private void OnToolkitOptionsBackClicked()
         {
             AudioService.Instance.PlayUi(AudioCueId.UiBack);
             ShowMainMenu();
-            SetStatus("모드를 선택하세요.");
+            SetStatus("메뉴를 선택하세요.");
         }
 
         private void OnToolkitOptionsFullscreenChanged(ChangeEvent<bool> evt)
@@ -326,6 +932,19 @@ namespace EJR.Game.UI
                 if (_toolkitMetaButton != null) _toolkitMetaButton.clicked -= OnMetaClicked;
                 if (_toolkitOptionsButton != null) _toolkitOptionsButton.clicked -= OnOptionsClicked;
                 if (_toolkitQuitButton != null) _toolkitQuitButton.clicked -= OnQuitClicked;
+                if (_toolkitMultiplayerHostButton != null) _toolkitMultiplayerHostButton.clicked -= OnHostClicked;
+                if (_toolkitMultiplayerJoinButton != null) _toolkitMultiplayerJoinButton.clicked -= OnJoinClicked;
+                if (_toolkitMultiplayerBackButton != null) _toolkitMultiplayerBackButton.clicked -= ShowMainMenu;
+                if (_toolkitRunSetupMapNextButton != null) _toolkitRunSetupMapNextButton.clicked -= GoToRunSetupCharacterStep;
+                if (_toolkitRunSetupMapBackButton != null) _toolkitRunSetupMapBackButton.clicked -= ShowMainMenu;
+                if (_toolkitRunSetupStartButton != null) _toolkitRunSetupStartButton.clicked -= StartSinglePlay;
+                if (_toolkitRunSetupCharacterBackButton != null) _toolkitRunSetupCharacterBackButton.clicked -= GoToRunSetupMapStep;
+                if (_toolkitAchievementBackButton != null) _toolkitAchievementBackButton.clicked -= ShowMainMenu;
+                if (_toolkitMetaBackButton != null) _toolkitMetaBackButton.clicked -= ShowMainMenu;
+                if (_toolkitSummaryMetaButton != null) _toolkitSummaryMetaButton.clicked -= OpenMetaFromSummary;
+                if (_toolkitSummaryCloseButton != null) _toolkitSummaryCloseButton.clicked -= CloseSummaryModal;
+                if (_toolkitConfirmConfirmButton != null) _toolkitConfirmConfirmButton.clicked -= ConfirmPendingAction;
+                if (_toolkitConfirmCancelButton != null) _toolkitConfirmCancelButton.clicked -= CloseConfirmModal;
                 if (_toolkitOptionsBackButton != null) _toolkitOptionsBackButton.clicked -= OnToolkitOptionsBackClicked;
                 _toolkitOptionsFullscreenToggle?.UnregisterValueChangedCallback(OnToolkitOptionsFullscreenChanged);
                 _toolkitOptionsMasterVolumeSlider?.UnregisterValueChangedCallback(OnToolkitOptionsMasterVolumeChanged);
