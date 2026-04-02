@@ -163,6 +163,15 @@ namespace EJR.Game.Gameplay
             return PlayClipOneShot("Attack", durationSeconds);
         }
 
+        public void SetBaseColor(Color color)
+        {
+            _defaultColor = color;
+            if (_targetRenderer != null && _hurtFlashTimer <= 0f)
+            {
+                _targetRenderer.color = color;
+            }
+        }
+
         public float PlayClipOneShot(string clipName, float durationSeconds)
         {
             if (_isDying || _targetRenderer == null || _frames == null || _frames.Length == 0)

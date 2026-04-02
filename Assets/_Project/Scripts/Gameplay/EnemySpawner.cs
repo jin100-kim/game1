@@ -12,8 +12,6 @@ namespace EJR.Game.Gameplay
         private const float WaveRewardPickupRadius = 0.8f;
         private const float WaveTargetVisualScaleMultiplier = 2f;
         private const float WaveTargetCollisionRadiusMultiplier = 1.7f;
-        private const float WaveTargetHighlightScaleMultiplier = 1.18f;
-        private static readonly Color WaveTargetOverlayColor = new(1f, 1f, 1f, 0.92f);
 
         private EnemyConfig _config;
         private Transform _target;
@@ -556,32 +554,15 @@ namespace EJR.Game.Gameplay
             }
 
             var tintTransform = visualRoot.Find("WaveTargetTint");
-            if (tintTransform == null)
+            if (tintTransform != null)
             {
-                tintTransform = new GameObject("WaveTargetTint").transform;
-                tintTransform.SetParent(visualRoot, false);
+                tintTransform.gameObject.SetActive(false);
             }
 
-            tintTransform.localPosition = Vector3.zero;
-            tintTransform.localScale = new Vector3(WaveTargetHighlightScaleMultiplier, WaveTargetHighlightScaleMultiplier, 1f);
+            baseRenderer.color = Color.white;
 
-            var tintRenderer = tintTransform.GetComponent<SpriteRenderer>();
-            if (tintRenderer == null)
-            {
-                tintRenderer = tintTransform.gameObject.AddComponent<SpriteRenderer>();
-            }
-
-            tintRenderer.sprite = baseRenderer.sprite;
-            tintRenderer.color = WaveTargetOverlayColor;
-            tintRenderer.sortingOrder = Mathf.Max(0, baseRenderer.sortingOrder - 1);
-
-            var mirror = tintTransform.GetComponent<SpriteRendererMirror>();
-            if (mirror == null)
-            {
-                mirror = tintTransform.gameObject.AddComponent<SpriteRendererMirror>();
-            }
-
-            mirror.Initialize(baseRenderer, tintRenderer);
+            var animator = visualRoot.GetComponent<EnemySpriteAnimator>();
+            animator?.SetBaseColor(Color.white);
         }
 
         private WaveRewardChest GetLatestRewardChest()
@@ -1033,35 +1014,4 @@ namespace EJR.Game.Gameplay
         }
     }
 
-    [DisallowMultipleComponent]
-    internal sealed class SpriteRendererMirror : MonoBehaviour
-    {
-        private SpriteRenderer _sourceRenderer;
-        private SpriteRenderer _targetRenderer;
-
-        public void Initialize(SpriteRenderer sourceRenderer, SpriteRenderer targetRenderer)
-        {
-            _sourceRenderer = sourceRenderer;
-            _targetRenderer = targetRenderer;
-            Sync();
-        }
-
-        private void LateUpdate()
-        {
-            Sync();
-        }
-
-        private void Sync()
-        {
-            if (_sourceRenderer == null || _targetRenderer == null)
-            {
-                return;
-            }
-
-            _targetRenderer.sprite = _sourceRenderer.sprite;
-            _targetRenderer.flipX = _sourceRenderer.flipX;
-            _targetRenderer.flipY = _sourceRenderer.flipY;
-            _targetRenderer.drawMode = _sourceRenderer.drawMode;
-        }
-    }
 }

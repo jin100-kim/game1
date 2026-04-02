@@ -18,8 +18,6 @@ namespace EJR.Game.Multiplayer
         }
 
         private const string VisualObjectName = "Visual";
-        private const float WaveTargetHighlightScaleMultiplier = 1.18f;
-        private static readonly Color WaveTargetOverlayColor = new(1f, 1f, 1f, 0.92f);
         private const float WaveTargetVisualScaleMultiplier = 2f;
         private static readonly System.Collections.Generic.List<MultiplayerSharedEnemyActor> ActiveActors = new();
 
@@ -296,6 +294,7 @@ namespace EJR.Game.Multiplayer
             _spriteRenderer.sortingOrder = 15;
             ApplyVisualScale(_visualRoot, baseSprite, visualWorldSize);
             _spriteAnimator.Initialize(_spriteRenderer, enemyFrames, animationProfile);
+            _spriteAnimator.SetBaseColor(Color.white);
             RefreshWaveTargetGlow(visualWorldSize);
 
             var healthBarYOffset = _enemyConfig.visualYOffset + Mathf.Max(0.28f, visualWorldSize * 0.36f);
@@ -338,20 +337,7 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
-            glowObject.SetActive(true);
-            _waveTargetGlowRenderer.sprite = _spriteRenderer != null ? _spriteRenderer.sprite : RuntimeSpriteFactory.GetSquareSprite();
-            _waveTargetGlowRenderer.color = WaveTargetOverlayColor;
-            _waveTargetGlowRenderer.sortingOrder = Mathf.Max(0, (_spriteRenderer != null ? _spriteRenderer.sortingOrder : 15) - 1);
-            glowObject.transform.localPosition = Vector3.zero;
-            glowObject.transform.localScale = new Vector3(WaveTargetHighlightScaleMultiplier, WaveTargetHighlightScaleMultiplier, 1f);
-
-            var mirror = glowObject.GetComponent<SpriteRendererMirror>();
-            if (mirror == null)
-            {
-                mirror = glowObject.AddComponent<SpriteRendererMirror>();
-            }
-
-            mirror.Initialize(_spriteRenderer, _waveTargetGlowRenderer);
+            glowObject.SetActive(false);
         }
 
         private void RefreshHealthBar(float currentHealth, float maxHealth, bool playHurt)
