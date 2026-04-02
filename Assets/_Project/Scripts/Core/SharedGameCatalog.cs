@@ -66,23 +66,23 @@ namespace EJR.Game.Core
         {
             new(
                 0,
-                "군인",
+                "궁수",
                 new Color(0.92f, 0.92f, 0.82f, 1f),
                 0,
                 true,
                 CharacterUnlockSource.Default,
-                WeaponUpgradeId.Rifle,
+                WeaponUpgradeId.ShortBow,
                 new MetaBonusValues { attackSpeedPercent = 10f },
-                CharacterPassiveId.SoldierLevelAttackSpeed,
+                CharacterPassiveId.ArcherLevelAttackSpeed,
                 "현재 레벨만큼 공속 +1%"),
             new(
                 1,
-                "뱀파이어",
+                "흡혈귀",
                 new Color(0.94f, 0.42f, 0.56f, 1f),
                 100,
                 false,
                 CharacterUnlockSource.Shop,
-                WeaponUpgradeId.SniperRifle,
+                WeaponUpgradeId.Bat,
                 new MetaBonusValues { healthRegenPerSecond = 1f },
                 CharacterPassiveId.VampireMaxHealthDamage,
                 "추가 체력 3당 피해량 +1%"),
@@ -99,54 +99,54 @@ namespace EJR.Game.Core
                 "현재 레벨만큼 이동 속도 +1%"),
             new(
                 3,
-                "마법사",
+                "도사",
                 new Color(0.96f, 0.74f, 0.38f, 1f),
                 100,
                 false,
                 CharacterUnlockSource.Shop,
-                WeaponUpgradeId.Smg,
+                WeaponUpgradeId.FireCharm,
                 new MetaBonusValues { attackPowerPercent = 10f },
-                CharacterPassiveId.WizardLevelDamage,
+                CharacterPassiveId.TaoistLevelDamage,
                 "현재 레벨만큼 피해량 +1%"),
             new(
                 4,
-                "성직자",
+                "퇴마사",
                 new Color(0.72f, 1f, 0.84f, 1f),
                 100,
                 false,
                 CharacterUnlockSource.Achievement,
                 WeaponUpgradeId.Aura,
                 new MetaBonusValues { attackRangePercent = 10f },
-                CharacterPassiveId.PriestLevelRange,
+                CharacterPassiveId.ExorcistLevelRange,
                 "현재 레벨만큼 범위 +1%",
                 "desert_clear"),
             new(
                 5,
-                "번개술사",
+                "뇌전술사",
                 new Color(1f, 0.94f, 0.42f, 1f),
                 100,
                 false,
                 CharacterUnlockSource.Achievement,
                 WeaponUpgradeId.ChainAttack,
                 default,
-                CharacterPassiveId.LightningMageChainMastery,
-                "체인어택 감쇠 제거, 체인 수 +2",
+                CharacterPassiveId.ThunderMageChainMastery,
+                "뇌부 감쇠 제거, 연쇄 수 +2",
                 "snow_clear"),
         };
 
         private static readonly SharedWeaponDefinition[] StarterWeapons =
         {
-            new(WeaponUpgradeId.Rifle, "라이플"),
-            new(WeaponUpgradeId.Smg, "기관단총"),
-            new(WeaponUpgradeId.SniperRifle, "저격총"),
-            new(WeaponUpgradeId.Shotgun, "샷건"),
-            new(WeaponUpgradeId.BfSword, "BF소드"),
-            new(WeaponUpgradeId.Katana, "카타나"),
-            new(WeaponUpgradeId.ChainAttack, "체인어택"),
-            new(WeaponUpgradeId.SatelliteBeam, "위성빔"),
-            new(WeaponUpgradeId.Drone, "드론 사출", isSelectable: false),
-            new(WeaponUpgradeId.RifleTurret, "터렛"),
-            new(WeaponUpgradeId.Aura, "오라"),
+            new(WeaponUpgradeId.ShortBow, "단궁"),
+            new(WeaponUpgradeId.FireCharm, "화부"),
+            new(WeaponUpgradeId.Bat, "박쥐"),
+            new(WeaponUpgradeId.Arquebus, "철포"),
+            new(WeaponUpgradeId.BfSword, "대도"),
+            new(WeaponUpgradeId.Katana, "환도"),
+            new(WeaponUpgradeId.ChainAttack, "뇌부"),
+            new(WeaponUpgradeId.SatelliteBeam, "천벌광"),
+            new(WeaponUpgradeId.Drone, "식신", isSelectable: false),
+            new(WeaponUpgradeId.RifleTurret, "노포"),
+            new(WeaponUpgradeId.Aura, "퇴마진"),
         };
 
         public static int CharacterCount => Characters.Length;
@@ -255,7 +255,7 @@ namespace EJR.Game.Core
                 }
             }
 
-            return "라이플";
+            return "단궁";
         }
 
         public static string GetStatDisplayName(StatUpgradeId statId)

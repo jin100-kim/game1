@@ -107,13 +107,13 @@ namespace EJR.Game.Audio
         {
             switch (request.WeaponId)
             {
-                case WeaponUpgradeId.Rifle:
+                case WeaponUpgradeId.ShortBow:
                     PlaySfx(AudioCueId.WeaponRifle);
                     break;
-                case WeaponUpgradeId.Shotgun:
+                case WeaponUpgradeId.Arquebus:
                     PlaySfx(AudioCueId.WeaponShotgun);
                     break;
-                case WeaponUpgradeId.Smg:
+                case WeaponUpgradeId.FireCharm:
                     PlaySfx(AudioCueId.WeaponFireball);
                     break;
                 case WeaponUpgradeId.Katana:
@@ -141,7 +141,7 @@ namespace EJR.Game.Audio
                         PlaySfx(AudioCueId.WeaponRifle, 0.92f);
                     }
                     break;
-                case WeaponUpgradeId.SniperRifle:
+                case WeaponUpgradeId.Bat:
                     if (request.Kind == WeaponSoundKind.Latch)
                     {
                         PlaySfx(AudioCueId.WeaponBatLatch);

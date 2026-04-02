@@ -736,7 +736,7 @@ namespace EJR.Game.Multiplayer
 
             switch (passiveId)
             {
-                case CharacterPassiveId.SoldierLevelAttackSpeed:
+                case CharacterPassiveId.ArcherLevelAttackSpeed:
                     dynamicBonuses.attackSpeedPercent = currentLevel;
                     break;
                 case CharacterPassiveId.VampireMaxHealthDamage:
@@ -750,13 +750,13 @@ namespace EJR.Game.Multiplayer
                 case CharacterPassiveId.SwordsmanLevelMoveSpeed:
                     dynamicBonuses.moveSpeedPercent = currentLevel;
                     break;
-                case CharacterPassiveId.WizardLevelDamage:
+                case CharacterPassiveId.TaoistLevelDamage:
                     dynamicBonuses.attackPowerPercent = currentLevel;
                     break;
-                case CharacterPassiveId.PriestLevelRange:
+                case CharacterPassiveId.ExorcistLevelRange:
                     dynamicBonuses.attackRangePercent = currentLevel;
                     break;
-                case CharacterPassiveId.LightningMageChainMastery:
+                case CharacterPassiveId.ThunderMageChainMastery:
                     ignoreChainDecay = true;
                     bonusChains = 2;
                     break;

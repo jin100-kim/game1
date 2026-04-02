@@ -41,7 +41,7 @@ namespace EJR.Game.Tests.EditMode
         public void Level9_DoesNotOfferThirdWeapon_WhenTwoSlotsAreFull()
         {
             var system = CreateSystemWithDefaultBuild(out var build);
-            AcquireWeapon(build, WeaponUpgradeId.Smg);
+            AcquireWeapon(build, WeaponUpgradeId.FireCharm);
             var firstOptions = OpenChoiceAtLevel(system, 9);
 
             Assert.That(firstOptions.Length, Is.GreaterThan(0));
@@ -52,7 +52,7 @@ namespace EJR.Game.Tests.EditMode
         public void Level10_CanOfferThirdWeapon_WhenThirdSlotUnlocks()
         {
             var system = CreateSystemWithDefaultBuild(out var build);
-            AcquireWeapon(build, WeaponUpgradeId.Smg);
+            AcquireWeapon(build, WeaponUpgradeId.FireCharm);
             var firstOptions = OpenChoiceAtLevel(system, 10);
 
             Assert.That(firstOptions.Length, Is.GreaterThan(0));
@@ -63,8 +63,8 @@ namespace EJR.Game.Tests.EditMode
         public void Level10Plus_NeverOffersMoreThanThreeWeapons()
         {
             var system = CreateSystemWithDefaultBuild(out var build);
-            AcquireWeapon(build, WeaponUpgradeId.Smg);
-            AcquireWeapon(build, WeaponUpgradeId.Shotgun);
+            AcquireWeapon(build, WeaponUpgradeId.FireCharm);
+            AcquireWeapon(build, WeaponUpgradeId.Arquebus);
             var firstOptions = OpenChoiceAtLevel(system, 15);
 
             Assert.That(firstOptions.Length, Is.GreaterThan(0));
@@ -75,11 +75,11 @@ namespace EJR.Game.Tests.EditMode
         public void WeaponLevel4_PromotesSpecialMilestoneAtLevel5()
         {
             var system = CreateSystemWithDefaultBuild(out var build);
-            AdvanceWeaponToLevel(build, WeaponUpgradeId.Rifle, 4);
+            AdvanceWeaponToLevel(build, WeaponUpgradeId.ShortBow, 4);
             var firstOptions = OpenChoiceAtLevel(system, 5);
 
             Assert.That(firstOptions.Length, Is.GreaterThan(0));
-            Assert.That(ContainsSpecialMilestoneAcrossRerolls(system, firstOptions, WeaponUpgradeId.Rifle, 64), Is.True);
+            Assert.That(ContainsSpecialMilestoneAcrossRerolls(system, firstOptions, WeaponUpgradeId.ShortBow, 64), Is.True);
         }
 
         [Test]

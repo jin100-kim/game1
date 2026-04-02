@@ -119,7 +119,7 @@ namespace EJR.Game.Gameplay
         private AutoPlayAgent _autoPlayAgent;
         private string _debugRevealBuffer = string.Empty;
         private int _selectedSingleCharacterId;
-        private WeaponUpgradeId _selectedSingleStarterWeaponId = WeaponUpgradeId.Rifle;
+        private WeaponUpgradeId _selectedSingleStarterWeaponId = WeaponUpgradeId.ShortBow;
         private int _enemiesDefeated;
         private readonly RunCombatTracker _combatTracker = new();
         private float _lastObservedPlayerMaxHealth = -1f;
@@ -925,14 +925,14 @@ namespace EJR.Game.Gameplay
             {
                 var score = options[i].WeaponId switch
                 {
-                    WeaponUpgradeId.Rifle => 48,
+                    WeaponUpgradeId.ShortBow => 48,
                     WeaponUpgradeId.BfSword => 47,
-                    WeaponUpgradeId.Smg => 44,
+                    WeaponUpgradeId.FireCharm => 44,
                     WeaponUpgradeId.Drone => 43,
                     WeaponUpgradeId.SatelliteBeam => 42,
                     WeaponUpgradeId.RifleTurret => 41,
-                    WeaponUpgradeId.Shotgun => 40,
-                    WeaponUpgradeId.SniperRifle => 39,
+                    WeaponUpgradeId.Arquebus => 40,
+                    WeaponUpgradeId.Bat => 39,
                     WeaponUpgradeId.Aura => 38,
                     WeaponUpgradeId.ChainAttack => 37,
                     WeaponUpgradeId.Katana => 36,
@@ -1872,7 +1872,7 @@ namespace EJR.Game.Gameplay
 
             switch (passiveId)
             {
-                case CharacterPassiveId.SoldierLevelAttackSpeed:
+                case CharacterPassiveId.ArcherLevelAttackSpeed:
                     dynamicBonuses.attackSpeedPercent = currentLevel;
                     break;
 
@@ -1889,15 +1889,15 @@ namespace EJR.Game.Gameplay
                     dynamicBonuses.moveSpeedPercent = currentLevel;
                     break;
 
-                case CharacterPassiveId.WizardLevelDamage:
+                case CharacterPassiveId.TaoistLevelDamage:
                     dynamicBonuses.attackPowerPercent = currentLevel;
                     break;
 
-                case CharacterPassiveId.PriestLevelRange:
+                case CharacterPassiveId.ExorcistLevelRange:
                     dynamicBonuses.attackRangePercent = currentLevel;
                     break;
 
-                case CharacterPassiveId.LightningMageChainMastery:
+                case CharacterPassiveId.ThunderMageChainMastery:
                     ignoreChainDecay = true;
                     bonusChains = 2;
                     break;

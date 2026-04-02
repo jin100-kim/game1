@@ -417,7 +417,7 @@ namespace EJR.Game.Gameplay
 
             switch (weapon.WeaponId)
             {
-                case WeaponUpgradeId.SniperRifle:
+                case WeaponUpgradeId.Bat:
                     UpdateBatWeapon(weapon);
                     return;
                 case WeaponUpgradeId.BfSword:
@@ -437,7 +437,7 @@ namespace EJR.Game.Gameplay
                     return;
             }
 
-            if (weapon.WeaponId == WeaponUpgradeId.Smg && weapon.BurstShotsRemaining > 0)
+            if (weapon.WeaponId == WeaponUpgradeId.FireCharm && weapon.BurstShotsRemaining > 0)
             {
                 weapon.BurstShotCooldown -= Time.deltaTime;
                 if (weapon.BurstShotCooldown <= 0f)
@@ -458,7 +458,7 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            if (weapon.WeaponId == WeaponUpgradeId.Rifle && weapon.BurstShotsRemaining > 0)
+            if (weapon.WeaponId == WeaponUpgradeId.ShortBow && weapon.BurstShotsRemaining > 0)
             {
                 weapon.BurstShotCooldown -= Time.deltaTime;
                 if (weapon.BurstShotCooldown <= 0f)
@@ -516,18 +516,18 @@ namespace EJR.Game.Gameplay
 
             switch (weapon.WeaponId)
             {
-                case WeaponUpgradeId.Rifle:
+                case WeaponUpgradeId.ShortBow:
                     FireRifle(weapon, fireDirection);
                     break;
-                case WeaponUpgradeId.Smg:
+                case WeaponUpgradeId.FireCharm:
                     FireFireball(weapon, fireDirection);
                     weapon.Cooldown = GetAttackInterval(weapon);
                     break;
-                case WeaponUpgradeId.SniperRifle:
+                case WeaponUpgradeId.Bat:
                     FireSniper(weapon, fireDirection);
                     weapon.Cooldown = GetAttackInterval(weapon);
                     break;
-                case WeaponUpgradeId.Shotgun:
+                case WeaponUpgradeId.Arquebus:
                     FireShotgun(weapon, fireDirection);
                     weapon.Cooldown = GetAttackInterval(weapon);
                     break;
@@ -2715,15 +2715,15 @@ namespace EJR.Game.Gameplay
 
             var baseInterval = weapon.WeaponId switch
             {
-                WeaponUpgradeId.Rifle => Mathf.Max(0.05f, _config.rifleAttackInterval),
-                WeaponUpgradeId.Smg => Mathf.Max(0.05f, _config.fireballAttackInterval),
-                WeaponUpgradeId.SniperRifle => Mathf.Max(0.05f, _config.batAttackInterval),
+                WeaponUpgradeId.ShortBow => Mathf.Max(0.05f, _config.rifleAttackInterval),
+                WeaponUpgradeId.FireCharm => Mathf.Max(0.05f, _config.fireballAttackInterval),
+                WeaponUpgradeId.Bat => Mathf.Max(0.05f, _config.batAttackInterval),
                 WeaponUpgradeId.BfSword => Mathf.Max(0.01f, _config.bfSwordHitInterval),
                 WeaponUpgradeId.SatelliteBeam => Mathf.Max(0.05f, _config.maceAttackInterval),
                 _ => Mathf.Max(0.05f, _config.attackInterval),
             };
 
-            if (weapon.WeaponId == WeaponUpgradeId.Shotgun)
+            if (weapon.WeaponId == WeaponUpgradeId.Arquebus)
             {
                 baseInterval *= 1.08f;
             }
@@ -2770,10 +2770,10 @@ namespace EJR.Game.Gameplay
             var weaponDamageMultiplier = 1f + GetWeaponDamageBonusPercent(weapon);
             var weaponBaseDamage = weapon.WeaponId switch
             {
-                WeaponUpgradeId.Rifle => Mathf.Max(0.1f, _config.rifleBaseDamage),
-                WeaponUpgradeId.Smg => Mathf.Max(0.1f, _config.fireballBaseDamage),
-                WeaponUpgradeId.SniperRifle => Mathf.Max(0.1f, _config.batBaseDamage),
-                WeaponUpgradeId.Shotgun => Mathf.Max(0.1f, _config.shotgunBaseDamage),
+                WeaponUpgradeId.ShortBow => Mathf.Max(0.1f, _config.rifleBaseDamage),
+                WeaponUpgradeId.FireCharm => Mathf.Max(0.1f, _config.fireballBaseDamage),
+                WeaponUpgradeId.Bat => Mathf.Max(0.1f, _config.batBaseDamage),
+                WeaponUpgradeId.Arquebus => Mathf.Max(0.1f, _config.shotgunBaseDamage),
                 WeaponUpgradeId.Katana => Mathf.Max(0.1f, _config.katanaBaseDamage),
                 WeaponUpgradeId.BfSword => Mathf.Max(0.1f, _config.bfSwordBaseDamage),
                 WeaponUpgradeId.ChainAttack => Mathf.Max(0.1f, _config.chainAttackBaseDamage),
@@ -2793,10 +2793,10 @@ namespace EJR.Game.Gameplay
 
             var baseRange = weapon.WeaponId switch
             {
-                WeaponUpgradeId.Rifle => Mathf.Max(0.5f, _config.rifleRange),
-                WeaponUpgradeId.Smg => Mathf.Max(0.5f, _config.fireballRange),
-                WeaponUpgradeId.SniperRifle => Mathf.Max(0.5f, _config.batLatchRange),
-                WeaponUpgradeId.Shotgun => Mathf.Max(0.5f, _config.shotgunRange),
+                WeaponUpgradeId.ShortBow => Mathf.Max(0.5f, _config.rifleRange),
+                WeaponUpgradeId.FireCharm => Mathf.Max(0.5f, _config.fireballRange),
+                WeaponUpgradeId.Bat => Mathf.Max(0.5f, _config.batLatchRange),
+                WeaponUpgradeId.Arquebus => Mathf.Max(0.5f, _config.shotgunRange),
                 WeaponUpgradeId.Katana => Mathf.Max(0.25f, _config.katanaRange),
                 WeaponUpgradeId.BfSword => Mathf.Max(0.2f, _config.bfSwordLength),
                 WeaponUpgradeId.ChainAttack => Mathf.Max(0.5f, _config.chainAttackRange),
@@ -3259,16 +3259,16 @@ namespace EJR.Game.Gameplay
             var color = GetWeaponCollisionGizmoColor(weapon.WeaponId);
             switch (weapon.WeaponId)
             {
-                case WeaponUpgradeId.Rifle:
+                case WeaponUpgradeId.ShortBow:
                     DrawRifleCollisionGizmo(weapon, aimDirection, color);
                     break;
-                case WeaponUpgradeId.Smg:
+                case WeaponUpgradeId.FireCharm:
                     DrawSmgCollisionGizmo(weapon, aimDirection, color);
                     break;
-                case WeaponUpgradeId.SniperRifle:
+                case WeaponUpgradeId.Bat:
                     DrawSingleProjectileCollisionGizmo(weapon, aimDirection, color, _config.projectileHitRadius * 0.95f);
                     break;
-                case WeaponUpgradeId.Shotgun:
+                case WeaponUpgradeId.Arquebus:
                     DrawShotgunCollisionGizmo(weapon, aimDirection, color);
                     break;
                 case WeaponUpgradeId.Katana:
@@ -3521,10 +3521,10 @@ namespace EJR.Game.Gameplay
         {
             return weaponId switch
             {
-                WeaponUpgradeId.Rifle => new Color(0.45f, 1f, 0.95f, 0.95f),
-                WeaponUpgradeId.Smg => new Color(0.9f, 0.95f, 0.35f, 0.95f),
-                WeaponUpgradeId.SniperRifle => new Color(1f, 0.65f, 0.35f, 0.95f),
-                WeaponUpgradeId.Shotgun => new Color(1f, 0.5f, 0.2f, 0.95f),
+                WeaponUpgradeId.ShortBow => new Color(0.45f, 1f, 0.95f, 0.95f),
+                WeaponUpgradeId.FireCharm => new Color(0.9f, 0.95f, 0.35f, 0.95f),
+                WeaponUpgradeId.Bat => new Color(1f, 0.65f, 0.35f, 0.95f),
+                WeaponUpgradeId.Arquebus => new Color(1f, 0.5f, 0.2f, 0.95f),
                 WeaponUpgradeId.Katana => new Color(1f, 0.9f, 0.95f, 0.95f),
                 WeaponUpgradeId.BfSword => new Color(0.3f, 1f, 0.3f, 0.95f),
                 WeaponUpgradeId.ChainAttack => new Color(0.55f, 0.85f, 1f, 0.95f),

@@ -427,7 +427,7 @@ namespace EJR.Game.Gameplay
 
         public void ReceiveDamage(float damage)
         {
-            ReceiveWeaponDamage(damage, WeaponUpgradeId.Rifle);
+            ReceiveWeaponDamage(damage, WeaponUpgradeId.ShortBow);
         }
 
         public void ReceiveWeaponDamage(float damage, WeaponUpgradeId sourceWeaponId)
@@ -498,8 +498,8 @@ namespace EJR.Game.Gameplay
         {
             var duration = sourceWeaponId switch
             {
-                WeaponUpgradeId.Rifle => RifleMinorStunDuration,
-                WeaponUpgradeId.Shotgun => ShotgunMinorStunDuration,
+                WeaponUpgradeId.ShortBow => RifleMinorStunDuration,
+                WeaponUpgradeId.Arquebus => ShotgunMinorStunDuration,
                 WeaponUpgradeId.Katana => KatanaMinorStunDuration,
                 _ => 0f,
             };
@@ -624,7 +624,7 @@ namespace EJR.Game.Gameplay
                 while (_burnTickTimer <= 0f && _burnRemaining > 0f && !_isDead)
                 {
                     _burnTickTimer += tickInterval;
-                    ReceiveWeaponDamage(_burnDamagePerTick, WeaponUpgradeId.Smg);
+                    ReceiveWeaponDamage(_burnDamagePerTick, WeaponUpgradeId.FireCharm);
                 }
 
                 if (_burnRemaining <= 0f || _isDead)

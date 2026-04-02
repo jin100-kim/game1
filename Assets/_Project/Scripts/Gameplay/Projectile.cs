@@ -115,7 +115,7 @@ namespace EJR.Game.Gameplay
 
                 try
                 {
-                    if (_sourceWeaponId == WeaponUpgradeId.Smg)
+                    if (_sourceWeaponId == WeaponUpgradeId.FireCharm)
                     {
                         TriggerFireballExplosion(transform.position);
                     }
@@ -131,7 +131,7 @@ namespace EJR.Game.Gameplay
                     _remainingHits--;
                 }
 
-                if (_sourceWeaponId == WeaponUpgradeId.Smg)
+                if (_sourceWeaponId == WeaponUpgradeId.FireCharm)
                 {
                     Release();
                     return;

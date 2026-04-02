@@ -380,7 +380,7 @@ namespace EJR.Game.Multiplayer
                 1,
                 0f,
                 1f,
-                WeaponUpgradeId.Rifle,
+                WeaponUpgradeId.ShortBow,
                 ReturnProjectileVisualToPool,
                 useBoundsCulling: true,
                 bounds: arenaBounds);

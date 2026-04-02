@@ -97,7 +97,7 @@ namespace EJR.Game.Gameplay
 
             if (grantStarterRifle)
             {
-                AcquireWeaponInternal(WeaponUpgradeId.Rifle);
+                AcquireWeaponInternal(WeaponUpgradeId.ShortBow);
             }
         }
 
@@ -231,10 +231,10 @@ namespace EJR.Game.Gameplay
             var milestones = GetWeaponMilestoneCount(id);
             return id switch
             {
-                WeaponUpgradeId.Rifle => milestones,
-                WeaponUpgradeId.Smg => milestones,
-                WeaponUpgradeId.SniperRifle => milestones,
-                WeaponUpgradeId.Shotgun => milestones * 2,
+                WeaponUpgradeId.ShortBow => milestones,
+                WeaponUpgradeId.FireCharm => milestones,
+                WeaponUpgradeId.Bat => milestones,
+                WeaponUpgradeId.Arquebus => milestones * 2,
                 WeaponUpgradeId.Katana => milestones,
                 WeaponUpgradeId.ChainAttack => (milestones * 2) + _chainAttackBonusJumps,
                 WeaponUpgradeId.RifleTurret => milestones,

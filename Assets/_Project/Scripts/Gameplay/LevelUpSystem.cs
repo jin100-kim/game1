@@ -9,10 +9,10 @@ namespace EJR.Game.Gameplay
     {
         private static readonly WeaponUpgradeId[] AllWeaponIds =
         {
-            WeaponUpgradeId.Rifle,
-            WeaponUpgradeId.Smg,
-            WeaponUpgradeId.SniperRifle,
-            WeaponUpgradeId.Shotgun,
+            WeaponUpgradeId.ShortBow,
+            WeaponUpgradeId.FireCharm,
+            WeaponUpgradeId.Bat,
+            WeaponUpgradeId.Arquebus,
             WeaponUpgradeId.Katana,
             WeaponUpgradeId.BfSword,
             WeaponUpgradeId.ChainAttack,
@@ -355,10 +355,10 @@ namespace EJR.Game.Gameplay
         {
             return weaponId switch
             {
-                WeaponUpgradeId.Rifle => WeaponMilestoneKind.ExtraProjectile,
-                WeaponUpgradeId.Smg => WeaponMilestoneKind.ExtraProjectile,
-                WeaponUpgradeId.SniperRifle => WeaponMilestoneKind.ExtraProjectile,
-                WeaponUpgradeId.Shotgun => WeaponMilestoneKind.ExtraPellets,
+                WeaponUpgradeId.ShortBow => WeaponMilestoneKind.ExtraProjectile,
+                WeaponUpgradeId.FireCharm => WeaponMilestoneKind.ExtraProjectile,
+                WeaponUpgradeId.Bat => WeaponMilestoneKind.ExtraProjectile,
+                WeaponUpgradeId.Arquebus => WeaponMilestoneKind.ExtraPellets,
                 WeaponUpgradeId.Katana => WeaponMilestoneKind.ExtraSlashes,
                 WeaponUpgradeId.BfSword when nextLevel == 5 => WeaponMilestoneKind.BfSwordWidth,
                 WeaponUpgradeId.BfSword => WeaponMilestoneKind.BfSwordLength,
@@ -374,9 +374,9 @@ namespace EJR.Game.Gameplay
         {
             return weaponId switch
             {
-                WeaponUpgradeId.Smg => 1f,
-                WeaponUpgradeId.SniperRifle => 1f,
-                WeaponUpgradeId.Shotgun => 2f,
+                WeaponUpgradeId.FireCharm => 1f,
+                WeaponUpgradeId.Bat => 1f,
+                WeaponUpgradeId.Arquebus => 2f,
                 WeaponUpgradeId.ChainAttack => 2f,
                 WeaponUpgradeId.BfSword => 1f,
                 WeaponUpgradeId.SatelliteBeam => 25f,
@@ -389,17 +389,17 @@ namespace EJR.Game.Gameplay
         {
             return weaponId switch
             {
-                WeaponUpgradeId.Rifle => "추가 발사 +1",
-                WeaponUpgradeId.Smg => "화염구 +1",
-                WeaponUpgradeId.SniperRifle => "박쥐 수 +1",
-                WeaponUpgradeId.Shotgun => "산탄 +2",
+                WeaponUpgradeId.ShortBow => "추가 발사 +1",
+                WeaponUpgradeId.FireCharm => "화부 +1",
+                WeaponUpgradeId.Bat => "박쥐 수 +1",
+                WeaponUpgradeId.Arquebus => "철포 탄막 +2",
                 WeaponUpgradeId.Katana => "추가 베기 +1",
                 WeaponUpgradeId.BfSword when nextLevel == 5 => "검폭 +20%",
                 WeaponUpgradeId.BfSword => "검길이 +25%",
                 WeaponUpgradeId.ChainAttack => "연쇄 수 +2",
                 WeaponUpgradeId.SatelliteBeam => "기절 위력 +25%",
-                WeaponUpgradeId.RifleTurret => "터렛 수 +1",
-                WeaponUpgradeId.Aura => "오라 반경 +20%",
+                WeaponUpgradeId.RifleTurret => "노포 수 +1",
+                WeaponUpgradeId.Aura => "퇴마진 반경 +20%",
                 _ => "특수 강화",
             };
         }
