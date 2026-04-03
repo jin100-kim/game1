@@ -117,7 +117,6 @@ namespace EJR.Game.Gameplay
         private bool _autoPlayEnabled;
         private float _nextAutoPlayChoiceAt;
         private AutoPlayAgent _autoPlayAgent;
-        private string _debugRevealBuffer = string.Empty;
         private int _selectedSingleCharacterId;
         private WeaponUpgradeId _selectedSingleStarterWeaponId = WeaponUpgradeId.ShortBow;
         private int _enemiesDefeated;
@@ -125,8 +124,6 @@ namespace EJR.Game.Gameplay
         private float _lastObservedPlayerMaxHealth = -1f;
         private RunMapDefinition _currentMapDefinition;
         private RunDifficultyDefinition _currentDifficultyDefinition;
-
-        private const string DebugRevealCode = "admin";
 
         private void Awake()
         {
@@ -216,7 +213,7 @@ namespace EJR.Game.Gameplay
                     _bossWaveTriggered = true;
                 }
 
-                if (!_bossWaveTriggered)
+                if (!_bossWaveTriggered && (_enemySpawner == null || !_enemySpawner.DebugMonsterLabEnabled))
                 {
                     _remainingSeconds -= Time.deltaTime;
                     if (_remainingSeconds <= 0f)
@@ -386,50 +383,12 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            var typed = Input.inputString;
-            if (string.IsNullOrEmpty(typed))
+            if (!DebugSessionService.CaptureTypedInput(Input.inputString))
             {
                 return;
             }
 
-            for (var i = 0; i < typed.Length; i++)
-            {
-                var character = typed[i];
-                if (character == '\b')
-                {
-                    if (_debugRevealBuffer.Length > 0)
-                    {
-                        _debugRevealBuffer = _debugRevealBuffer.Substring(0, _debugRevealBuffer.Length - 1);
-                    }
-
-                    continue;
-                }
-
-                if (!char.IsLetter(character))
-                {
-                    if (!char.IsWhiteSpace(character))
-                    {
-                        _debugRevealBuffer = string.Empty;
-                    }
-
-                    continue;
-                }
-
-                _debugRevealBuffer += char.ToLowerInvariant(character);
-                if (_debugRevealBuffer.Length > DebugRevealCode.Length)
-                {
-                    _debugRevealBuffer = _debugRevealBuffer.Substring(_debugRevealBuffer.Length - DebugRevealCode.Length);
-                }
-
-                if (!string.Equals(_debugRevealBuffer, DebugRevealCode, StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                _hud.SetDebugAccessVisible(true);
-                _debugRevealBuffer = string.Empty;
-                break;
-            }
+            _hud.SetDebugAccessVisible(true);
         }
 
         private void HandlePauseMenuInput()
@@ -654,7 +613,7 @@ namespace EJR.Game.Gameplay
                     SetAutoPlayEnabled(!_autoPlayEnabled);
                     UpdateHud();
                 });
-            _hud.SetDebugAccessVisible(false);
+            _hud.SetDebugAccessVisible(DebugSessionService.IsUnlocked);
 
             var ownedMultiplayerPlayer = MultiplayerPlayerActor.FindOwnedLocalPlayer();
             _usingOwnedMultiplayerPlayer = ownedMultiplayerPlayer != null;
@@ -798,6 +757,47 @@ namespace EJR.Game.Gameplay
             enemySpawner.WaveCleared += HandleWaveCleared;
             enemySpawner.WaveRewardChestCollected += HandleWaveRewardChestCollected;
             _enemySpawner = enemySpawner;
+            _hud.ConfigureMonsterLabTools(
+                enabled =>
+                {
+                    _enemySpawner.DebugSetMonsterLabEnabled(enabled);
+                    if (!enabled)
+                    {
+                        SyncRemainingTimeFromSpawner();
+                    }
+
+                    UpdateHud();
+                },
+                variantIndex =>
+                {
+                    _enemySpawner.DebugSetSelectedVariant(SharedEnemyVariantCatalog.GetByIndex(variantIndex));
+                    UpdateHud();
+                },
+                () =>
+                {
+                    _enemySpawner.DebugSpawnVariant(_enemySpawner.DebugSelectedVariantId, 1);
+                    UpdateHud();
+                },
+                () =>
+                {
+                    _enemySpawner.DebugSpawnVariant(_enemySpawner.DebugSelectedVariantId, 5);
+                    UpdateHud();
+                },
+                () =>
+                {
+                    _enemySpawner.DebugClearNonBossEnemies();
+                    UpdateHud();
+                },
+                () =>
+                {
+                    _enemySpawner.DebugSetMonsterLabTimePaused(!_enemySpawner.DebugMonsterLabTimePaused);
+                    UpdateHud();
+                },
+                SharedEnemyVariantCatalog.GetDisplayNames());
+            _hud.SetMonsterLabState(
+                _enemySpawner.DebugMonsterLabEnabled,
+                SharedEnemyVariantCatalog.GetIndex(_enemySpawner.DebugSelectedVariantId),
+                _enemySpawner.DebugMonsterLabTimePaused);
             if (enemySpawner.BossWaveStartSeconds > 0f)
             {
                 _remainingSeconds = enemySpawner.BossWaveStartSeconds;
@@ -1778,6 +1778,14 @@ namespace EJR.Game.Gameplay
 
             _hud.SetModeHint(string.Empty);
             _hud.SetBuildInfo(BuildWeaponSummary(), BuildStatSummary());
+            if (_enemySpawner != null)
+            {
+                _hud.SetMonsterLabState(
+                    _enemySpawner.DebugMonsterLabEnabled,
+                    SharedEnemyVariantCatalog.GetIndex(_enemySpawner.DebugSelectedVariantId),
+                    _enemySpawner.DebugMonsterLabTimePaused);
+            }
+
             if (_enemySpawner != null && _enemySpawner.HasActiveWave)
             {
                 _hud.SetWaveStatus(_enemySpawner.ActiveWaveIndex, _enemySpawner.ActiveWaveRemainingCount);

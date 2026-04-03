@@ -17,6 +17,13 @@ namespace EJR.Game.Gameplay
             ProjectileVolley = 5,
         }
 
+        private enum VariantActionState
+        {
+            None = 0,
+            Windup = 1,
+            Executing = 2,
+        }
+
         private const float FireExplosionRadius = 0.725f;
         private const float FireExplosionMaxRadiusMultiplier = 1.25f;
         private const float FireExplosionMinRadiusRatio = 0.5f;
@@ -28,6 +35,9 @@ namespace EJR.Game.Gameplay
         private const float FireBoomFxFps = 10f;
         private const float FireStackFxScale = 2.7f;
         private const float FireBoomFxScale = 6f;
+        private const float VariantProjectileHitRadius = 0.12f;
+        private const float VariantProjectileVisualScale = 0.2f;
+        private const float VariantBlinkInterval = 0.12f;
         private const float BossTelegraphDuration = 1f;
         private const float BossEnragedTelegraphDuration = 0.8f;
         private const float BossDashDuration = 0.8f;
@@ -75,7 +85,9 @@ namespace EJR.Game.Gameplay
         private EnemyRegistry _registry;
         private ExperienceSystem _experienceSystem;
         private Action<Vector3, int> _experienceOrbSpawner;
+        private Action<EnemyController, EnemyVariantDefinition> _variantSplitSpawnHandler;
         private RuntimeSpriteFactory.EnemyVisualKind _visualKind;
+        private EnemyVariantDefinition _variantDefinition;
         private bool _isBossBehavior;
         private NetworkObject _networkObject;
 
@@ -91,6 +103,7 @@ namespace EJR.Game.Gameplay
         private bool _hasArenaBounds;
         private int _experienceOnDeath = 1;
         private EnemySpriteAnimator _spriteAnimator;
+        private SpriteRenderer _visualRenderer;
         private bool _isDead;
 
         private float _activeSlowMultiplier = 1f;
@@ -119,6 +132,13 @@ namespace EJR.Game.Gameplay
         private bool _bossUseDashPatternNext;
         private bool _bossUseEightWayNext = true;
         private float _bossShotTimer;
+        private float _variantAccumulatedDamage;
+        private float _variantActionTimer;
+        private float _variantCooldownTimer;
+        private float _variantBlinkTimer;
+        private Vector2 _variantActionDirection = Vector2.right;
+        private VariantActionState _variantActionState;
+        private Color _variantBaseColor = Color.white;
         private static Material _fireExplosionFxMaterial;
         private static Material _bossDashTelegraphMaterial;
         private Transform _fireStackFxRoot;
@@ -135,6 +155,7 @@ namespace EJR.Game.Gameplay
         public float CurrentHealth => _health;
         public float CollisionRadius => _collisionRadius;
         public RuntimeSpriteFactory.EnemyVisualKind VisualKind => _visualKind;
+        public EnemyVariantId VariantId => _variantDefinition?.Id ?? EnemyVariantId.None;
         public bool IsBoss => _isBossBehavior;
         public bool IsDead => _isDead;
 
@@ -168,6 +189,7 @@ namespace EJR.Game.Gameplay
             _hasArenaBounds = hasArenaBounds;
             _arenaBounds = arenaBounds;
             _spriteAnimator = GetComponentInChildren<EnemySpriteAnimator>();
+            _visualRenderer = GetComponentInChildren<SpriteRenderer>();
 
             var healthMultiplier = statProfile != null ? Mathf.Max(0.1f, statProfile.healthMultiplier) : 1f;
             var moveMultiplier = statProfile != null ? Mathf.Max(0.1f, statProfile.moveSpeedMultiplier) : 1f;
@@ -196,8 +218,32 @@ namespace EJR.Game.Gameplay
             _bossUseDashPatternNext = UnityEngine.Random.value < GetBossDashPatternChance();
             _bossUseEightWayNext = true;
             _bossShotTimer = 0f;
+            _variantAccumulatedDamage = 0f;
+            _variantActionTimer = 0f;
+            _variantCooldownTimer = 0f;
+            _variantBlinkTimer = 0f;
+            _variantActionDirection = Vector2.right;
+            _variantActionState = VariantActionState.None;
+            _variantBaseColor = Color.white;
             _registry.Register(this);
             Changed?.Invoke(_health, _maxHealth);
+        }
+
+        public void ConfigureVariant(EnemyVariantDefinition variantDefinition, Action<EnemyController, EnemyVariantDefinition> splitSpawnHandler = null)
+        {
+            _variantDefinition = variantDefinition;
+            _variantSplitSpawnHandler = splitSpawnHandler;
+            _variantAccumulatedDamage = 0f;
+            _variantActionTimer = 0f;
+            _variantCooldownTimer = variantDefinition != null
+                ? UnityEngine.Random.Range(0f, Mathf.Max(0.05f, variantDefinition.AttackCooldown * 0.35f))
+                : 0f;
+            _variantBlinkTimer = 0f;
+            _variantActionDirection = Vector2.right;
+            _variantActionState = VariantActionState.None;
+            _visualRenderer ??= GetComponentInChildren<SpriteRenderer>();
+            _variantBaseColor = variantDefinition != null ? variantDefinition.TintColor : Color.white;
+            ApplyVariantBaseColor();
         }
 
         public void SetTargetResolver(Func<Transform> targetResolver, Func<PlayerHealth> playerHealthResolver)
@@ -244,12 +290,19 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
+            if (DebugSessionService.IsMonsterLabTimePaused)
+            {
+                _spriteAnimator?.SetMotion(Vector2.zero);
+                return;
+            }
+
             TickCoreEffectDurations();
             var isStunned = _stunRemaining > 0f;
 
             var previousPosition = transform.position;
             var handledByBossPattern = UpdateBossPattern(Time.deltaTime);
-            if (!handledByBossPattern && !isStunned)
+            var handledByVariant = !handledByBossPattern && UpdateVariantBehavior(Time.deltaTime, isStunned);
+            if (!handledByBossPattern && !handledByVariant && !isStunned)
             {
                 var toPlayer = _target.position - transform.position;
                 var distance = toPlayer.magnitude;
@@ -262,19 +315,7 @@ namespace EJR.Game.Gameplay
                 {
                     desired += (Vector2)direction;
                 }
-
-                if (desired.sqrMagnitude > 1f)
-                {
-                    desired.Normalize();
-                }
-
-                var effectiveMoveSpeed = _moveSpeed * Mathf.Clamp(_activeSlowMultiplier, 0.1f, 1f);
-                var moveBudget = effectiveMoveSpeed * Time.deltaTime;
-                var next = transform.position + (Vector3)(desired * moveBudget);
-                next = ResolvePlayerOverlap(next, minimumSeparation, (Vector2)direction);
-                next = ResolveCrowdOverlaps(next);
-                transform.position = next;
-                _registry?.NotifyMoved(this, transform.position);
+                MoveUsingDesiredVector(desired, (Vector2)direction, Time.deltaTime);
             }
 
             if (_spriteAnimator != null)
@@ -425,9 +466,349 @@ namespace EJR.Game.Gameplay
             return resolved;
         }
 
+        private void MoveUsingDesiredVector(Vector2 desired, Vector2 fallbackDirection, float deltaTime)
+        {
+            if (desired.sqrMagnitude > 1f)
+            {
+                desired.Normalize();
+            }
+
+            var effectiveMoveSpeed = _moveSpeed * Mathf.Clamp(_activeSlowMultiplier, 0.1f, 1f);
+            var moveBudget = effectiveMoveSpeed * deltaTime;
+            var minimumSeparation = CollisionRadius + _playerCollisionRadius;
+            var next = transform.position + (Vector3)(desired * moveBudget);
+            next = ResolvePlayerOverlap(next, minimumSeparation, fallbackDirection);
+            next = ResolveCrowdOverlaps(next);
+            next = ClampPositionToArena(next);
+            transform.position = next;
+            _registry?.NotifyMoved(this, transform.position);
+        }
+
+        private bool UpdateVariantBehavior(float deltaTime, bool isStunned)
+        {
+            if (_variantDefinition == null || _target == null || _playerHealth == null)
+            {
+                return false;
+            }
+
+            _variantCooldownTimer = Mathf.Max(0f, _variantCooldownTimer - deltaTime);
+
+            return _variantDefinition.BehaviorKind switch
+            {
+                EnemyVariantBehaviorKind.ProximityBomber => UpdateBomberVariant(deltaTime),
+                EnemyVariantBehaviorKind.Shooter => UpdateShooterVariant(deltaTime, isStunned, 2.4f, 4.4f),
+                EnemyVariantBehaviorKind.Healer => UpdateHealerVariant(isStunned),
+                EnemyVariantBehaviorKind.Charger => UpdateChargerVariant(deltaTime, isStunned),
+                EnemyVariantBehaviorKind.Archer => UpdateShooterVariant(
+                    deltaTime,
+                    isStunned,
+                    Mathf.Max(0f, _variantDefinition.DesiredMinRange),
+                    Mathf.Max(_variantDefinition.DesiredMinRange, _variantDefinition.DesiredMaxRange),
+                    keepRange: true),
+                _ => false,
+            };
+        }
+
+        private bool UpdateBomberVariant(float deltaTime)
+        {
+            if (_variantActionState == VariantActionState.Windup)
+            {
+                UpdateVariantBlink(deltaTime, Color.white);
+                _variantActionTimer -= deltaTime;
+                if (_variantActionTimer <= 0f)
+                {
+                    ApplyVariantBaseColor();
+                    ExecuteBomberExplosion();
+                }
+
+                return true;
+            }
+
+            if (_variantActionState != VariantActionState.None)
+            {
+                return true;
+            }
+
+            var triggerDamageThreshold = MaxHealth * Mathf.Clamp01(_variantDefinition.TriggerDamageRatio);
+            var triggerDistance = Mathf.Max(0.1f, _variantDefinition.TriggerDistance);
+            var distanceToPlayer = Vector2.Distance(transform.position, _target.position);
+            if (_variantAccumulatedDamage < triggerDamageThreshold && distanceToPlayer > triggerDistance)
+            {
+                return false;
+            }
+
+            return TryStartBomberWindup();
+        }
+
+        private bool UpdateHealerVariant(bool isStunned)
+        {
+            if (isStunned)
+            {
+                return false;
+            }
+
+            if (_variantCooldownTimer > 0f)
+            {
+                return false;
+            }
+
+            ExecuteHealPulse();
+            _variantCooldownTimer = Mathf.Max(0.1f, _variantDefinition.AttackCooldown);
+            return false;
+        }
+
+        private bool UpdateShooterVariant(float deltaTime, bool isStunned, float minRange, float maxRange, bool keepRange = false)
+        {
+            if (_target == null)
+            {
+                return false;
+            }
+
+            var toPlayer = (Vector2)(_target.position - transform.position);
+            var distance = toPlayer.magnitude;
+            var direction = distance > 0.001f ? toPlayer / distance : Vector2.right;
+            if (!isStunned)
+            {
+                var separation = ComputeSeparationVector((Vector2)transform.position) * Mathf.Max(0f, _config.separationWeight);
+                var desired = separation;
+                if (distance > maxRange)
+                {
+                    desired += direction;
+                }
+                else if (distance < minRange)
+                {
+                    desired -= direction;
+                }
+                else if (keepRange)
+                {
+                    desired += separation * 0.35f;
+                }
+
+                MoveUsingDesiredVector(desired, direction, deltaTime);
+            }
+
+            if (isStunned || _variantCooldownTimer > 0f)
+            {
+                return true;
+            }
+
+            if (distance > Mathf.Max(maxRange + 1f, 5.5f))
+            {
+                return true;
+            }
+
+            SpawnVariantProjectile(
+                direction,
+                Mathf.Max(0.1f, _variantDefinition.ProjectileSpeed),
+                Mathf.Max(0.1f, _variantDefinition.ProjectileLifetime),
+                Mathf.Max(0f, _contactDamage * Mathf.Max(0.1f, _variantDefinition.ProjectileDamageMultiplier)),
+                _variantBaseColor);
+            _variantCooldownTimer = Mathf.Max(0.1f, _variantDefinition.AttackCooldown);
+            return true;
+        }
+
+        private bool UpdateChargerVariant(float deltaTime, bool isStunned)
+        {
+            if (_variantActionState == VariantActionState.Windup)
+            {
+                UpdateVariantBlink(deltaTime, Color.white);
+                _variantActionTimer -= deltaTime;
+                if (_variantActionTimer <= 0f)
+                {
+                    ApplyVariantBaseColor();
+                    _variantActionState = VariantActionState.Executing;
+                    _variantActionTimer = Mathf.Max(0.1f, _variantDefinition.DashDuration);
+                }
+
+                return true;
+            }
+
+            if (_variantActionState == VariantActionState.Executing)
+            {
+                var dashDirection = _variantActionDirection.sqrMagnitude > 0.0001f ? _variantActionDirection.normalized : Vector2.right;
+                var effectiveMoveSpeed = _moveSpeed * Mathf.Clamp(_activeSlowMultiplier, 0.1f, 1f) * Mathf.Max(0.1f, _variantDefinition.DashSpeedMultiplier);
+                var next = transform.position + (Vector3)(dashDirection * (effectiveMoveSpeed * deltaTime));
+                next = ClampPositionToArena(next);
+                transform.position = next;
+                _registry?.NotifyMoved(this, transform.position);
+                _variantActionTimer -= deltaTime;
+                if (_variantActionTimer <= 0f)
+                {
+                    _variantActionState = VariantActionState.None;
+                    _variantCooldownTimer = Mathf.Max(0.1f, _variantDefinition.AttackCooldown);
+                    ApplyVariantBaseColor();
+                }
+
+                return true;
+            }
+
+            if (isStunned)
+            {
+                return false;
+            }
+
+            if (_variantCooldownTimer > 0f)
+            {
+                return false;
+            }
+
+            var toPlayer = (Vector2)(_target.position - transform.position);
+            var distance = toPlayer.magnitude;
+            if (distance <= CollisionRadius + _playerCollisionRadius + 0.15f || distance > 6.5f)
+            {
+                return false;
+            }
+
+            _variantActionDirection = distance > 0.001f ? toPlayer / distance : Vector2.right;
+            _variantActionState = VariantActionState.Windup;
+            _variantActionTimer = Mathf.Max(0.1f, _variantDefinition.DashTelegraphSeconds);
+            _variantBlinkTimer = 0f;
+            return true;
+        }
+
+        private void UpdateVariantBlink(float deltaTime, Color flashColor)
+        {
+            _variantBlinkTimer -= deltaTime;
+            if (_variantBlinkTimer > 0f)
+            {
+                return;
+            }
+
+            _variantBlinkTimer = VariantBlinkInterval;
+            if (_visualRenderer == null)
+            {
+                return;
+            }
+
+            var nextColor = _visualRenderer.color == _variantBaseColor ? flashColor : _variantBaseColor;
+            _visualRenderer.color = nextColor;
+        }
+
+        private void ExecuteBomberExplosion()
+        {
+            var radius = Mathf.Max(0.1f, _variantDefinition.ExplosionRadius);
+            var damage = Mathf.Max(0f, _contactDamage * Mathf.Max(0.1f, _variantDefinition.ExplosionDamageMultiplier));
+            var origin = (Vector2)transform.position;
+            var hitLimit = radius + _playerCollisionRadius;
+            if (_playerHealth != null && ((Vector2)_target.position - origin).sqrMagnitude <= hitLimit * hitLimit)
+            {
+                _playerHealth.TakeDamage(damage);
+            }
+
+            if (_registry != null)
+            {
+                var searchRadius = radius + _registry.GetMaxCollisionRadius();
+                _registry.GetNearby(origin, searchRadius, _nearbyBuffer);
+                for (var i = 0; i < _nearbyBuffer.Count; i++)
+                {
+                    var enemy = _nearbyBuffer[i];
+                    if (enemy == null || ReferenceEquals(enemy, this) || enemy.IsDead)
+                    {
+                        continue;
+                    }
+
+                    var limit = radius + enemy.CollisionRadius;
+                    if (((Vector2)enemy.transform.position - origin).sqrMagnitude > limit * limit)
+                    {
+                        continue;
+                    }
+
+                    enemy.ReceiveDamage(damage);
+                }
+            }
+
+            _health = 0f;
+            Changed?.Invoke(_health, MaxHealth);
+            Die();
+        }
+
+        private void ExecuteHealPulse()
+        {
+            if (_registry == null)
+            {
+                return;
+            }
+
+            var radius = Mathf.Max(0.1f, _variantDefinition.HealRadius);
+            var amount = Mathf.Max(1f, _variantDefinition.HealAmount);
+            var origin = (Vector2)transform.position;
+            var searchRadius = radius + _registry.GetMaxCollisionRadius();
+            _registry.GetNearby(origin, searchRadius, _nearbyBuffer);
+            for (var i = 0; i < _nearbyBuffer.Count; i++)
+            {
+                var enemy = _nearbyBuffer[i];
+                if (enemy == null || ReferenceEquals(enemy, this) || enemy.IsDead)
+                {
+                    continue;
+                }
+
+                var limit = radius + enemy.CollisionRadius;
+                if (((Vector2)enemy.transform.position - origin).sqrMagnitude > limit * limit)
+                {
+                    continue;
+                }
+
+                enemy.Heal(amount);
+            }
+        }
+
+        private void SpawnVariantProjectile(Vector2 direction, float speed, float lifetime, float damage, Color color)
+        {
+            if (_playerHealth == null || damage <= 0f)
+            {
+                return;
+            }
+
+            var projectileObject = new GameObject("EnemyVariantProjectile");
+            projectileObject.transform.position = transform.position + new Vector3(0f, Mathf.Max(0.12f, _collisionRadius * 0.35f), 0f);
+            var renderer = projectileObject.AddComponent<SpriteRenderer>();
+            renderer.sprite = RuntimeSpriteFactory.GetSquareSprite();
+            renderer.color = color;
+            renderer.sortingOrder = 43;
+            projectileObject.transform.localScale = Vector3.one * VariantProjectileVisualScale;
+            var projectile = projectileObject.AddComponent<EnemyVariantProjectile>();
+            projectile.Initialize(
+                direction,
+                speed,
+                lifetime,
+                damage,
+                VariantProjectileHitRadius,
+                _playerHealth,
+                _playerCollisionRadius);
+        }
+
+        private void ApplyVariantBaseColor()
+        {
+            if (_visualRenderer != null)
+            {
+                _visualRenderer.color = _variantBaseColor;
+            }
+
+            _spriteAnimator?.SetBaseColor(_variantBaseColor);
+        }
+
         public void ReceiveDamage(float damage)
         {
             ReceiveWeaponDamage(damage, WeaponUpgradeId.ShortBow);
+        }
+
+        public void Heal(float amount)
+        {
+            if (_isDead || amount <= 0f)
+            {
+                return;
+            }
+
+            var previousHealth = _health;
+            _health = Mathf.Clamp(_health + amount, 0f, _maxHealth);
+            var healedAmount = _health - previousHealth;
+            if (healedAmount <= 0f)
+            {
+                return;
+            }
+
+            CombatTextSpawner.SpawnHealing(transform.position + new Vector3(0f, 0.8f, 0f), healedAmount);
+            Changed?.Invoke(_health, MaxHealth);
         }
 
         public void ReceiveWeaponDamage(float damage, WeaponUpgradeId sourceWeaponId)
@@ -443,8 +824,31 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
+            var isBomberVariant = _variantDefinition != null &&
+                _variantDefinition.BehaviorKind == EnemyVariantBehaviorKind.ProximityBomber;
+            var bomberAlreadyArmed = isBomberVariant && _variantActionState != VariantActionState.None;
             var appliedDamage = Mathf.Min(baseDamage, Mathf.Max(0f, _health));
-            _health = Mathf.Max(0f, _health - baseDamage);
+            var nextHealth = Mathf.Max(0f, _health - baseDamage);
+
+            if (isBomberVariant && _variantActionState == VariantActionState.None)
+            {
+                _variantAccumulatedDamage += appliedDamage;
+            }
+
+            if (bomberAlreadyArmed)
+            {
+                _health = Mathf.Max(1f, nextHealth);
+            }
+            else if (isBomberVariant && nextHealth <= 0f && TryStartBomberWindup())
+            {
+                // A lethal hit arms the bomber instead of killing it immediately.
+                _health = 1f;
+            }
+            else
+            {
+                _health = nextHealth;
+            }
+
             if (_health > 0f &&
                 !IsBoss &&
                 _visualKind != RuntimeSpriteFactory.EnemyVisualKind.Skeleton)
@@ -462,6 +866,21 @@ namespace EJR.Game.Gameplay
             {
                 Die();
             }
+        }
+
+        private bool TryStartBomberWindup()
+        {
+            if (_variantDefinition == null ||
+                _variantDefinition.BehaviorKind != EnemyVariantBehaviorKind.ProximityBomber ||
+                _variantActionState != VariantActionState.None)
+            {
+                return false;
+            }
+
+            _variantActionState = VariantActionState.Windup;
+            _variantActionTimer = Mathf.Max(0.1f, _variantDefinition.WindupSeconds);
+            _variantBlinkTimer = 0f;
+            return true;
         }
 
         public void ApplyBurn(float damagePerTick, float duration, float tickInterval)
@@ -560,6 +979,12 @@ namespace EJR.Game.Gameplay
             if (_registry != null)
             {
                 _registry.Unregister(this);
+            }
+
+            if (_variantDefinition != null &&
+                _variantDefinition.BehaviorKind == EnemyVariantBehaviorKind.SplitOnDeath)
+            {
+                _variantSplitSpawnHandler?.Invoke(this, _variantDefinition);
             }
 
             Defeated?.Invoke(this);

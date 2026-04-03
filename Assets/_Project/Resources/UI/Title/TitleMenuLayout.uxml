@@ -39,6 +39,41 @@
             </ui:VisualElement>
         </ui:VisualElement>
 
+        <ui:VisualElement name="settings-screen" class="title-screen title-overlay-screen">
+            <ui:VisualElement class="settings-shell">
+                <ui:Label class="settings-title" text="설정" />
+
+                <ui:VisualElement class="settings-card">
+                    <ui:Label class="settings-section-title" text="화면" />
+                    <ui:Toggle name="fullscreen-toggle" class="settings-toggle" text="전체 화면" />
+                </ui:VisualElement>
+
+                <ui:VisualElement class="settings-card">
+                    <ui:Label class="settings-section-title" text="오디오" />
+
+                    <ui:VisualElement class="settings-slider-row">
+                        <ui:Label class="settings-slider-label" text="마스터" />
+                        <ui:Slider name="master-volume-slider" class="settings-slider" low-value="0" high-value="1" />
+                        <ui:Label name="master-volume-value" class="settings-slider-value" text="100%" />
+                    </ui:VisualElement>
+
+                    <ui:VisualElement class="settings-slider-row">
+                        <ui:Label class="settings-slider-label" text="배경음" />
+                        <ui:Slider name="bgm-volume-slider" class="settings-slider" low-value="0" high-value="1" />
+                        <ui:Label name="bgm-volume-value" class="settings-slider-value" text="100%" />
+                    </ui:VisualElement>
+
+                    <ui:VisualElement class="settings-slider-row">
+                        <ui:Label class="settings-slider-label" text="효과음" />
+                        <ui:Slider name="sfx-volume-slider" class="settings-slider" low-value="0" high-value="1" />
+                        <ui:Label name="sfx-volume-value" class="settings-slider-value" text="100%" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+
+                <ui:Button name="settings-back-button" class="settings-back-button" text="뒤로" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
         <ui:VisualElement name="run-setup-screen" class="title-screen title-overlay-screen">
             <ui:VisualElement class="title-panel-shell title-wide-shell">
                 <ui:Label name="run-setup-header" class="title-panel-title" text="맵 선택" />
@@ -114,6 +149,29 @@
 
         <ui:VisualElement name="status-shell" class="title-status-shell">
             <ui:Label name="status-line" class="title-status-line" text=" " />
+        </ui:VisualElement>
+
+        <ui:Button name="dev-button" class="dev-corner-button" text="DEV" />
+
+        <ui:VisualElement name="dev-panel" class="dev-panel-shell">
+            <ui:Label class="dev-panel-title" text="DEV" />
+            <ui:Label name="dev-panel-status" class="dev-panel-note" text="세션 DEV 모드가 활성화되었습니다." />
+            <ui:VisualElement class="dev-panel-section">
+                <ui:Label class="dev-panel-section-title" text="현재 상태" />
+                <ui:Label name="dev-panel-context" class="dev-panel-note" text="Monster Lab은 싱글 플레이 중 사용할 수 있습니다." />
+            </ui:VisualElement>
+            <ui:VisualElement class="dev-panel-section">
+                <ui:Label class="dev-panel-section-title" text="재화" />
+                <ui:VisualElement name="dev-currency-actions" />
+            </ui:VisualElement>
+            <ui:VisualElement class="dev-panel-section">
+                <ui:Label class="dev-panel-section-title" text="진행" />
+                <ui:VisualElement name="dev-progress-actions" />
+            </ui:VisualElement>
+            <ui:VisualElement class="dev-panel-section">
+                <ui:Label class="dev-panel-section-title" text="초기화" />
+                <ui:VisualElement name="dev-reset-actions" />
+            </ui:VisualElement>
         </ui:VisualElement>
 
         <ui:VisualElement name="title-modal-layer" class="title-modal-layer">

@@ -13,6 +13,7 @@ namespace EJR.Game.UI
         private const string ToolkitStylesResourcePath = "UI/Title/TitleMenuStyles";
         private const string ToolkitOptionsLayoutResourcePath = "UI/Common/SettingsPanelLayout";
         private const string ToolkitOptionsStylesResourcePath = "UI/Common/SettingsPanelStyles";
+        private const string ToolkitDevOverlayStylesResourcePath = "UI/Common/DevOverlayStyles";
         private const string ToolkitRuntimeThemeResourcePath = "UI/Common/UnityDefaultRuntimeTheme";
         private const string ToolkitPanelSettingsResourcePath = "UI/Common/RuntimeMenuPanelSettings";
 
@@ -30,7 +31,13 @@ namespace EJR.Game.UI
         private VisualElement _toolkitModalLayer;
         private VisualElement _toolkitSummaryModal;
         private VisualElement _toolkitConfirmModal;
+        private VisualElement _toolkitDevPanel;
+        private VisualElement _toolkitDevCurrencyActions;
+        private VisualElement _toolkitDevProgressActions;
+        private VisualElement _toolkitDevResetActions;
         private Label _toolkitStatusLabel;
+        private Label _toolkitDevPanelStatusLabel;
+        private Label _toolkitDevPanelContextLabel;
         private Label _toolkitProfileLabel;
         private Label _toolkitRecentRunLabel;
         private TextField _toolkitJoinCodeField;
@@ -62,6 +69,7 @@ namespace EJR.Game.UI
         private Button _toolkitAchievementButton;
         private Button _toolkitMetaButton;
         private Button _toolkitOptionsButton;
+        private Button _toolkitDevButton;
         private Button _toolkitQuitButton;
         private Button _toolkitMultiplayerHostButton;
         private Button _toolkitMultiplayerJoinButton;
@@ -143,7 +151,14 @@ namespace EJR.Game.UI
                 _toolkitRoot.styleSheets.Add(settingsStyles);
             }
 
+            var devOverlayStyles = Resources.Load<StyleSheet>(ToolkitDevOverlayStylesResourcePath);
+            if (devOverlayStyles != null && !_toolkitRoot.styleSheets.Contains(devOverlayStyles))
+            {
+                _toolkitRoot.styleSheets.Add(devOverlayStyles);
+            }
+
             QueryToolkitElements(_toolkitRoot);
+            BuildToolkitDevPanelActions();
             ConfigureToolkitScroll(_toolkitRunSetupCharacterScroll);
             ConfigureToolkitScroll(_toolkitAchievementScroll);
             ConfigureToolkitScroll(_toolkitMetaScroll);
@@ -172,7 +187,13 @@ namespace EJR.Game.UI
             _toolkitModalLayer = root.Q<VisualElement>("title-modal-layer");
             _toolkitSummaryModal = root.Q<VisualElement>("summary-modal");
             _toolkitConfirmModal = root.Q<VisualElement>("confirm-modal");
+            _toolkitDevPanel = root.Q<VisualElement>("dev-panel");
+            _toolkitDevCurrencyActions = root.Q<VisualElement>("dev-currency-actions");
+            _toolkitDevProgressActions = root.Q<VisualElement>("dev-progress-actions");
+            _toolkitDevResetActions = root.Q<VisualElement>("dev-reset-actions");
             _toolkitStatusLabel = root.Q<Label>("status-line");
+            _toolkitDevPanelStatusLabel = root.Q<Label>("dev-panel-status");
+            _toolkitDevPanelContextLabel = root.Q<Label>("dev-panel-context");
             _toolkitProfileLabel = root.Q<Label>("profile-summary");
             _toolkitRecentRunLabel = root.Q<Label>("recent-run-summary");
             _toolkitJoinCodeField = root.Q<TextField>("multiplayer-join-code-field");
@@ -204,6 +225,7 @@ namespace EJR.Game.UI
             _toolkitAchievementButton = root.Q<Button>("achievement-button");
             _toolkitMetaButton = root.Q<Button>("meta-button");
             _toolkitOptionsButton = root.Q<Button>("options-button");
+            _toolkitDevButton = root.Q<Button>("dev-button");
             _toolkitQuitButton = root.Q<Button>("quit-button");
             _toolkitMultiplayerHostButton = root.Q<Button>("multiplayer-host-button");
             _toolkitMultiplayerJoinButton = root.Q<Button>("multiplayer-join-button");
@@ -230,6 +252,7 @@ namespace EJR.Game.UI
             if (_toolkitAchievementButton != null) _toolkitAchievementButton.clicked += OnAchievementsClicked;
             if (_toolkitMetaButton != null) _toolkitMetaButton.clicked += OnMetaClicked;
             if (_toolkitOptionsButton != null) _toolkitOptionsButton.clicked += OnOptionsClicked;
+            if (_toolkitDevButton != null) _toolkitDevButton.clicked += OnDevClicked;
             if (_toolkitQuitButton != null) _toolkitQuitButton.clicked += OnQuitClicked;
             if (_toolkitMultiplayerHostButton != null) _toolkitMultiplayerHostButton.clicked += OnHostClicked;
             if (_toolkitMultiplayerJoinButton != null) _toolkitMultiplayerJoinButton.clicked += OnJoinClicked;
@@ -284,6 +307,8 @@ namespace EJR.Game.UI
             {
                 SyncToolkitOptionsControls();
             }
+
+            RefreshToolkitDebugButtonVisibility();
 
             if (activePanel == _mainMenuPanel)
             {
@@ -381,6 +406,7 @@ namespace EJR.Game.UI
             _toolkitAchievementButton?.SetEnabled(interactable);
             _toolkitMetaButton?.SetEnabled(interactable);
             _toolkitOptionsButton?.SetEnabled(interactable);
+            _toolkitDevButton?.SetEnabled(interactable);
             _toolkitQuitButton?.SetEnabled(interactable);
             _toolkitMultiplayerHostButton?.SetEnabled(interactable);
             _toolkitMultiplayerJoinButton?.SetEnabled(interactable);
@@ -398,6 +424,79 @@ namespace EJR.Game.UI
 
             RefreshToolkitRunSetupPanel();
             RefreshToolkitMetaPanel();
+        }
+
+        private void RefreshToolkitDebugButtonVisibility()
+        {
+            if (_toolkitDevButton == null)
+            {
+                return;
+            }
+
+            var unlocked = DebugSessionService.IsUnlocked;
+            _toolkitDevButton.style.display = unlocked ? DisplayStyle.Flex : DisplayStyle.None;
+
+            if (_toolkitDevPanel != null)
+            {
+                _toolkitDevPanel.style.display = unlocked && DebugSessionService.IsOverlayOpen
+                    ? DisplayStyle.Flex
+                    : DisplayStyle.None;
+            }
+
+            if (_toolkitDevPanelStatusLabel != null)
+            {
+                _toolkitDevPanelStatusLabel.text = unlocked
+                    ? "세션 DEV 모드가 활성화되었습니다."
+                    : "DEV 모드가 잠겨 있습니다.";
+            }
+
+            if (_toolkitDevPanelContextLabel != null)
+            {
+                _toolkitDevPanelContextLabel.text = "Monster Lab은 싱글 플레이 중 사용할 수 있습니다.";
+            }
+        }
+
+        private void BuildToolkitDevPanelActions()
+        {
+            BuildToolkitDevSection(
+                _toolkitDevCurrencyActions,
+                ("코인 +100", (System.Action)AddCredits100FromDev),
+                ("코인 +1000", AddCredits1000FromDev));
+
+            BuildToolkitDevSection(
+                _toolkitDevProgressActions,
+                ("캐릭터 모두 해금", UnlockAllCharactersFromDev),
+                ("맵 모두 해금", UnlockAllMapsFromDev),
+                ("도전과제 모두 완료", CompleteAllAchievementsFromDev));
+
+            BuildToolkitDevSection(
+                _toolkitDevResetActions,
+                ("코인 0으로", PromptResetCreditsFromDev),
+                ("캐릭터 해금 초기화", PromptResetCharacterUnlocksFromDev),
+                ("맵 클리어 초기화", PromptResetMapClearsFromDev),
+                ("도전과제 초기화", PromptResetAchievementsFromDev),
+                ("영구 강화 초기화", PromptResetUpgradesFromDev),
+                ("메타 전체 초기화", PromptResetAllMetaProgressFromDev));
+        }
+
+        private void BuildToolkitDevSection(VisualElement root, params (string Label, System.Action Callback)[] entries)
+        {
+            if (root == null)
+            {
+                return;
+            }
+
+            root.Clear();
+            for (var i = 0; i < entries.Length; i++)
+            {
+                var button = new Button(entries[i].Callback)
+                {
+                    text = entries[i].Label,
+                };
+                button.AddToClassList("dev-panel-button");
+                root.Add(button);
+                _toolkitDynamicButtons.Add(button);
+            }
         }
 
         private void FocusToolkitPrimaryButton()

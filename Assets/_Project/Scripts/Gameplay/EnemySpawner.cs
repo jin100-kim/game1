@@ -12,6 +12,7 @@ namespace EJR.Game.Gameplay
         private const float WaveRewardPickupRadius = 0.8f;
         private const float WaveTargetVisualScaleMultiplier = 2f;
         private const float WaveTargetCollisionRadiusMultiplier = 1.7f;
+        private const float DebugVariantSpawnRingRadius = 2.4f;
 
         private EnemyConfig _config;
         private Transform _target;
@@ -38,9 +39,13 @@ namespace EJR.Game.Gameplay
         private RuntimeSpriteFactory.EnemyVisualKind _bossVisualKind = RuntimeSpriteFactory.EnemyVisualKind.Boss;
         private readonly HashSet<EnemyController> _activeWaveEnemies = new();
         private readonly List<WaveRewardChest> _activeRewardChests = new();
+        private readonly HashSet<EnemyController> _debugMonsterLabEnemies = new();
         private int _spawnSequenceCounter;
         private int _bossSpawnSequence;
         private int _waveTargetSpawnSequence;
+        private bool _debugMonsterLabEnabled;
+        private bool _debugMonsterLabTimePaused;
+        private EnemyVariantId _debugSelectedVariantId = EnemyVariantId.SlimeSplit;
 
         public float ElapsedSeconds => _elapsedSeconds;
         public bool IsBossWaveTriggered => _bossWaveTriggered;
@@ -52,6 +57,9 @@ namespace EJR.Game.Gameplay
         public int ActiveWaveIndex => _activeWaveIndex;
         public int ActiveWaveRemainingCount => _activeWaveRemainingCount;
         public Transform CurrentRewardChestTransform => GetLatestRewardChest()?.transform;
+        public bool DebugMonsterLabEnabled => _debugMonsterLabEnabled;
+        public bool DebugMonsterLabTimePaused => _debugMonsterLabTimePaused;
+        public EnemyVariantId DebugSelectedVariantId => _debugSelectedVariantId;
 
         public event Action<int> WaveStarted;
         public event Action<int> WaveCleared;
@@ -116,11 +124,21 @@ namespace EJR.Game.Gameplay
             _spawnSequenceCounter = 0;
             _bossSpawnSequence = 0;
             _waveTargetSpawnSequence = 0;
+            _debugMonsterLabEnabled = false;
+            _debugMonsterLabTimePaused = false;
+            _debugSelectedVariantId = EnemyVariantId.SlimeSplit;
+            _debugMonsterLabEnemies.Clear();
+            DebugSessionService.SetMonsterLabTimePaused(false);
         }
 
         private void Update()
         {
             if (_config == null || _target == null || _playerHealth == null || _registry == null)
+            {
+                return;
+            }
+
+            if (_debugMonsterLabEnabled)
             {
                 return;
             }
@@ -239,6 +257,112 @@ namespace EJR.Game.Gameplay
             }
         }
 
+        public void DebugSetMonsterLabEnabled(bool enabled)
+        {
+            if (_debugMonsterLabEnabled == enabled)
+            {
+                return;
+            }
+
+            _debugMonsterLabEnabled = enabled;
+            _debugMonsterLabTimePaused = false;
+            DebugSessionService.SetMonsterLabTimePaused(false);
+            DebugClearNonBossEnemies();
+            ClearActiveRewardChests();
+            ResetWaveTracking();
+
+            if (enabled)
+            {
+                _bossEnemy = null;
+                _bossWaveTriggered = false;
+                _pendingBoss = false;
+                _pendingWave2 = false;
+                _spawnTimer = float.MaxValue;
+            }
+            else
+            {
+                _spawnTimer = 0f;
+            }
+        }
+
+        public void DebugSetMonsterLabTimePaused(bool paused)
+        {
+            _debugMonsterLabTimePaused = _debugMonsterLabEnabled && paused;
+            DebugSessionService.SetMonsterLabTimePaused(_debugMonsterLabTimePaused);
+        }
+
+        public void DebugSetSelectedVariant(EnemyVariantId variantId)
+        {
+            if (variantId == EnemyVariantId.None)
+            {
+                return;
+            }
+
+            _debugSelectedVariantId = variantId;
+        }
+
+        public void DebugSpawnVariant(EnemyVariantId variantId, int count)
+        {
+            if (!_debugMonsterLabEnabled || _target == null || count <= 0)
+            {
+                return;
+            }
+
+            var definition = SharedEnemyVariantCatalog.Get(variantId);
+            if (definition == null)
+            {
+                return;
+            }
+
+            _debugSelectedVariantId = definition.Id;
+            var center = _target.position;
+            var angleOffset = Random.value * Mathf.PI * 2f;
+            for (var i = 0; i < count; i++)
+            {
+                var angle = angleOffset + ((Mathf.PI * 2f * i) / Mathf.Max(1, count));
+                var radius = count <= 1 ? 1.8f : DebugVariantSpawnRingRadius + Random.Range(-0.25f, 0.25f);
+                var position = center + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius;
+                SpawnVariantEnemy(definition, position);
+            }
+        }
+
+        public void DebugClearNonBossEnemies()
+        {
+            ClearActiveRewardChests();
+            ResetWaveTracking();
+            if (_registry == null || _registry.Enemies == null)
+            {
+                _debugMonsterLabEnemies.Clear();
+                _bossEnemy = null;
+                return;
+            }
+
+            var enemies = new List<EnemyController>(_registry.Enemies.Count);
+            for (var i = 0; i < _registry.Enemies.Count; i++)
+            {
+                var enemy = _registry.Enemies[i];
+                if (enemy != null)
+                {
+                    enemies.Add(enemy);
+                }
+            }
+
+            for (var i = 0; i < enemies.Count; i++)
+            {
+                if (enemies[i] != null)
+                {
+                    Destroy(enemies[i].gameObject);
+                }
+            }
+
+            _debugMonsterLabEnemies.Clear();
+            _bossEnemy = null;
+            _bossSpawnSequence = 0;
+            _activeWaveTargetEnemy = null;
+            _activeWaveTargetLabel = string.Empty;
+            _waveTargetSpawnSequence = 0;
+        }
+
         private EnemyController SpawnEnemy(
             RuntimeSpriteFactory.EnemyVisualKind visualKind,
             Vector3? requestedPosition = null,
@@ -325,6 +449,38 @@ namespace EJR.Game.Gameplay
                 TrackWaveEnemy(enemy);
             }
 
+            return enemy;
+        }
+
+        private EnemyController SpawnVariantEnemy(EnemyVariantDefinition definition, Vector3 requestedPosition)
+        {
+            if (definition == null)
+            {
+                return null;
+            }
+
+            var baseProfile = _config.GetStatProfile(definition.BaseVisualKind);
+            var variantProfile = new EnemyStatProfile
+            {
+                healthMultiplier = Mathf.Max(0.1f, (baseProfile != null ? baseProfile.healthMultiplier : 1f) * Mathf.Max(0.1f, definition.HealthMultiplier)),
+                moveSpeedMultiplier = Mathf.Max(0.1f, (baseProfile != null ? baseProfile.moveSpeedMultiplier : 1f) * Mathf.Max(0.1f, definition.MoveSpeedMultiplier)),
+                contactDamageMultiplier = Mathf.Max(0.1f, (baseProfile != null ? baseProfile.contactDamageMultiplier : 1f) * Mathf.Max(0.1f, definition.ContactDamageMultiplier)),
+                experienceMultiplier = Mathf.Max(0.1f, baseProfile != null ? baseProfile.experienceMultiplier : 1f),
+                visualScaleMultiplier = Mathf.Max(0.1f, (baseProfile != null ? baseProfile.visualScaleMultiplier : 1f) * Mathf.Max(0.1f, definition.VisualScaleMultiplier)),
+                collisionRadiusMultiplier = Mathf.Max(0.1f, (baseProfile != null ? baseProfile.collisionRadiusMultiplier : 1f) * Mathf.Max(0.1f, definition.CollisionRadiusMultiplier)),
+            };
+
+            var collisionRadius = CalculateCollisionRadius(variantProfile);
+            var spawnPosition = ResolveDebugSpawnPosition(requestedPosition, collisionRadius);
+            var enemy = SpawnEnemy(definition.BaseVisualKind, spawnPosition, variantProfile);
+            if (enemy == null)
+            {
+                return null;
+            }
+
+            enemy.ConfigureVariant(definition, HandleVariantSplitSpawnRequested);
+            enemy.gameObject.name = definition.DisplayName;
+            _debugMonsterLabEnemies.Add(enemy);
             return enemy;
         }
 
@@ -643,6 +799,8 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
+            _debugMonsterLabEnemies.Remove(enemy);
+
             if (_bossEnemy == enemy)
             {
                 _bossEnemy = null;
@@ -694,6 +852,56 @@ namespace EJR.Game.Gameplay
             WaveStateChanged?.Invoke(_activeWaveIndex, _activeWaveRemainingCount);
         }
 
+        private void ResetWaveTracking()
+        {
+            _activeWaveIndex = 0;
+            _activeWaveRemainingCount = 0;
+            _activeWaveEnemies.Clear();
+            _activeWaveTargetEnemy = null;
+            _activeWaveTargetLabel = string.Empty;
+            _waveTargetSpawnSequence = 0;
+            RaiseWaveStateChanged();
+        }
+
+        private void ClearActiveRewardChests()
+        {
+            for (var i = 0; i < _activeRewardChests.Count; i++)
+            {
+                var chest = _activeRewardChests[i];
+                if (chest != null)
+                {
+                    Destroy(chest.gameObject);
+                }
+            }
+
+            _activeRewardChests.Clear();
+        }
+
+        private void HandleVariantSplitSpawnRequested(EnemyController source, EnemyVariantDefinition definition)
+        {
+            if (source == null || definition == null || definition.BehaviorKind != EnemyVariantBehaviorKind.SplitOnDeath)
+            {
+                return;
+            }
+
+            var count = Mathf.Max(0, definition.SplitSpawnCount);
+            if (count <= 0)
+            {
+                return;
+            }
+
+            var childRadius = CalculateCollisionRadius(_config.GetStatProfile(RuntimeSpriteFactory.EnemyVisualKind.Slime));
+            var ringRadius = Mathf.Max(0.45f, childRadius * 2.2f);
+            var angleOffset = Random.value * Mathf.PI * 2f;
+            for (var i = 0; i < count; i++)
+            {
+                var angle = angleOffset + ((Mathf.PI * 2f * i) / Mathf.Max(1, count));
+                var offset = new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * ringRadius;
+                var spawnPosition = ResolveDebugSpawnPosition(source.transform.position + offset, childRadius);
+                SpawnEnemy(RuntimeSpriteFactory.EnemyVisualKind.Slime, spawnPosition);
+            }
+        }
+
         private void TryProcessPendingWaveSchedule()
         {
             if (HasActiveWave || _bossWaveTriggered || _config == null)
@@ -734,6 +942,38 @@ namespace EJR.Game.Gameplay
 
             var uniformScale = clampedSize / spriteSize;
             targetTransform.localScale = new Vector3(uniformScale, uniformScale, 1f);
+        }
+
+        private Vector3 ResolveDebugSpawnPosition(Vector3 requestedPosition, float candidateRadius)
+        {
+            if (IsSpawnClear(requestedPosition, candidateRadius))
+            {
+                return requestedPosition;
+            }
+
+            for (var i = 0; i < 12; i++)
+            {
+                var offset = (Vector3)(UnityEngine.Random.insideUnitCircle.normalized * Random.Range(0.6f, 2.4f));
+                var candidate = ClampToArena(requestedPosition + offset);
+                if (IsSpawnClear(candidate, candidateRadius))
+                {
+                    return candidate;
+                }
+            }
+
+            return ClampToArena(requestedPosition);
+        }
+
+        private Vector3 ClampToArena(Vector3 position)
+        {
+            if (!_hasArenaBounds)
+            {
+                return new Vector3(position.x, position.y, 0f);
+            }
+
+            var clampedX = Mathf.Clamp(position.x, _arenaBounds.xMin, _arenaBounds.xMax);
+            var clampedY = Mathf.Clamp(position.y, _arenaBounds.yMin, _arenaBounds.yMax);
+            return new Vector3(clampedX, clampedY, 0f);
         }
 
         private Vector3 FindSpawnPosition(float candidateRadius, float minSpawnRadius, float maxSpawnRadius)

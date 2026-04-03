@@ -84,15 +84,25 @@
                 </ui:VisualElement>
             </ui:VisualElement>
 
-            <ui:Button name="debug-access-button" class="gameplay-debug-access" text="DEV" />
+            <ui:Button name="debug-access-button" class="dev-corner-button gameplay-debug-access" text="DEV" />
 
-            <ui:VisualElement name="debug-tools-panel" class="gameplay-debug-panel">
-                <ui:Label class="gameplay-panel-title gameplay-debug-title" text="디버그 도구" />
-                <ui:Button name="debug-grant-level-button" class="gameplay-debug-button" text="레벨 지급" />
-                <ui:Button name="debug-advance-time-button" class="gameplay-debug-button" text="시간 진행" />
-                <ui:Button name="debug-reroll-button" class="gameplay-debug-button" text="선택지 다시 굴리기" />
-                <ui:Button name="debug-skip-boss-button" class="gameplay-debug-button" text="보스로 건너뛰기" />
-                <ui:Button name="debug-autoplay-button" class="gameplay-debug-button" text="자동 전투: 꺼짐" />
+            <ui:VisualElement name="debug-tools-panel" class="dev-panel-shell gameplay-debug-panel">
+                <ui:Label class="dev-panel-title gameplay-debug-title" text="디버그 도구" />
+                <ui:Button name="debug-grant-level-button" class="dev-panel-button gameplay-debug-button" text="레벨 지급" />
+                <ui:Button name="debug-advance-time-button" class="dev-panel-button gameplay-debug-button" text="시간 진행" />
+                <ui:Button name="debug-reroll-button" class="dev-panel-button gameplay-debug-button" text="선택지 다시 굴리기" />
+                <ui:Button name="debug-skip-boss-button" class="dev-panel-button gameplay-debug-button" text="보스로 건너뛰기" />
+                <ui:Button name="debug-autoplay-button" class="dev-panel-button gameplay-debug-button" text="자동 전투: 꺼짐" />
+
+                <ui:VisualElement name="monster-lab-section" class="dev-panel-section gameplay-debug-section">
+                    <ui:Label class="dev-panel-section-title gameplay-debug-section-title" text="Monster Lab" />
+                    <ui:Toggle name="monster-lab-toggle" class="gameplay-debug-toggle" label="실험장 모드" />
+                    <ui:DropdownField name="monster-lab-dropdown" class="gameplay-debug-dropdown" label="변주" />
+                    <ui:Button name="monster-lab-spawn-one-button" class="dev-panel-button gameplay-debug-button" text="1마리 생성" />
+                    <ui:Button name="monster-lab-spawn-five-button" class="dev-panel-button gameplay-debug-button" text="5마리 생성" />
+                    <ui:Button name="monster-lab-clear-button" class="dev-panel-button gameplay-debug-button" text="전체 삭제" />
+                    <ui:Button name="monster-lab-pause-button" class="dev-panel-button gameplay-debug-button" text="시간 정지" />
+                </ui:VisualElement>
             </ui:VisualElement>
         </ui:VisualElement>
     </ui:VisualElement>

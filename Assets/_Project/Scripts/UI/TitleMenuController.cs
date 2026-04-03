@@ -153,11 +153,13 @@ namespace EJR.Game.UI
         private void OnEnable()
         {
             MultiplayerSessionController.StatusChanged += HandleStatusChanged;
+            DebugSessionService.Changed += HandleDebugSessionChanged;
         }
 
         private void OnDisable()
         {
             MultiplayerSessionController.StatusChanged -= HandleStatusChanged;
+            DebugSessionService.Changed -= HandleDebugSessionChanged;
         }
 
         private void Start()
@@ -184,6 +186,15 @@ namespace EJR.Game.UI
             else
             {
                 SetStatus("모드를 선택하세요.");
+            }
+        }
+
+        private void Update()
+        {
+            if (DebugSessionService.CaptureTypedInput(Input.inputString))
+            {
+                RefreshToolkitDebugButtonVisibility();
+                SetStatus("DEV 기능이 열렸습니다.");
             }
         }
 
@@ -1667,8 +1678,20 @@ namespace EJR.Game.UI
         private void ShowMainMenu()
         {
             RefreshAchievementButtonState();
+            RefreshToolkitDebugButtonVisibility();
             ShowPanel(_mainMenuPanel, _singlePlayButton);
             UpdateMultiplayerInteractivity();
+        }
+
+        private void OnDevClicked()
+        {
+            if (DebugSessionService.IsUnlocked)
+            {
+                DebugSessionService.ToggleOverlay();
+                RefreshToolkitDebugButtonVisibility();
+                return;
+            }
+            SetStatus("DEV 기능은 싱글 플레이 중 사용할 수 있습니다.");
         }
 
         private void ShowPanel(GameObject activePanel, Selectable preferredSelection)
@@ -2633,6 +2656,114 @@ namespace EJR.Game.UI
             }
         }
 
+        private void AddCredits100FromDev()
+        {
+            MetaProgressionService.AddCreditsForDebug(100);
+            RefreshTitleStateAfterDevMutation("코인 100 추가");
+        }
+
+        private void AddCredits1000FromDev()
+        {
+            MetaProgressionService.AddCreditsForDebug(1000);
+            RefreshTitleStateAfterDevMutation("코인 1000 추가");
+        }
+
+        private void UnlockAllCharactersFromDev()
+        {
+            MetaProgressionService.UnlockAllCharactersForDebug();
+            RefreshTitleStateAfterDevMutation("캐릭터 모두 해금");
+        }
+
+        private void UnlockAllMapsFromDev()
+        {
+            MetaProgressionService.UnlockAllMapsForDebug();
+            RefreshTitleStateAfterDevMutation("모든 맵 해금");
+        }
+
+        private void CompleteAllAchievementsFromDev()
+        {
+            MetaProgressionService.CompleteAllAchievementsForDebug();
+            RefreshTitleStateAfterDevMutation("도전과제 전체 완료");
+        }
+
+        private void PromptResetCreditsFromDev()
+        {
+            OpenConfirmModal("코인을 0으로 초기화합니까?", ConfirmResetCreditsFromDev);
+        }
+
+        private void PromptResetCharacterUnlocksFromDev()
+        {
+            OpenConfirmModal("캐릭터 해금 상태를 기본값으로 초기화합니까?", ConfirmResetCharacterUnlocksFromDev);
+        }
+
+        private void PromptResetMapClearsFromDev()
+        {
+            OpenConfirmModal("맵 클리어 상태를 모두 초기화합니까?", ConfirmResetMapClearsFromDev);
+        }
+
+        private void PromptResetAchievementsFromDev()
+        {
+            OpenConfirmModal("도전과제 완료 상태를 모두 초기화합니까?", ConfirmResetAchievementsFromDev);
+        }
+
+        private void PromptResetUpgradesFromDev()
+        {
+            PromptUpgradeReset();
+        }
+
+        private void PromptResetAllMetaProgressFromDev()
+        {
+            OpenConfirmModal("코인, 캐릭터, 맵, 도전과제, 영구 강화까지 메타 진행도를 모두 초기화합니까?", ConfirmResetAllMetaProgressFromDev);
+        }
+
+        private void ConfirmResetCreditsFromDev()
+        {
+            MetaProgressionService.SetCreditsForDebug(0);
+            RefreshTitleStateAfterDevMutation("코인 초기화 완료");
+        }
+
+        private void ConfirmResetCharacterUnlocksFromDev()
+        {
+            MetaProgressionService.ResetCharacterUnlocksForDebug();
+            RefreshTitleStateAfterDevMutation("캐릭터 해금 초기화 완료");
+        }
+
+        private void ConfirmResetMapClearsFromDev()
+        {
+            MetaProgressionService.ResetMapClearsForDebug();
+            RefreshTitleStateAfterDevMutation("맵 클리어 초기화 완료");
+        }
+
+        private void ConfirmResetAchievementsFromDev()
+        {
+            MetaProgressionService.ResetAchievementsForDebug();
+            RefreshTitleStateAfterDevMutation("도전과제 초기화 완료");
+        }
+
+        private void ConfirmResetAllMetaProgressFromDev()
+        {
+            MetaProgressionService.ResetAllProgressForDebug();
+            _selectedMapId = SharedRunCatalog.DefaultMapId;
+            _selectedDifficultyId = SharedRunCatalog.DefaultDifficultyId;
+            RefreshTitleStateAfterDevMutation("메타 전체 초기화 완료");
+        }
+
+        private void RefreshTitleStateAfterDevMutation(string statusMessage)
+        {
+            _selectedCharacterId = MetaProgressionService.GetSingleSelectedCharacterId();
+            _inspectedCharacterId = _selectedCharacterId;
+            _selectedStarterWeaponId = MetaProgressionService.GetSingleSelectedStarterWeapon();
+            _selectedMapId = SharedRunCatalog.IsMapUnlocked(_selectedMapId)
+                ? SharedRunCatalog.GetMap(_selectedMapId).Id
+                : GetFirstUnlockedMapId();
+            _selectedDifficultyId = SharedRunCatalog.GetDifficulty(_selectedDifficultyId).Id;
+
+            RefreshRunSetupPanelV2();
+            RefreshAchievementPanel();
+            RefreshMetaPanel();
+            SetStatus(statusMessage);
+        }
+
 #if false
         private string BuildMetaBonusSummary(MetaBonusValues bonuses)
         {
@@ -2870,6 +3001,11 @@ namespace EJR.Game.UI
         {
             SetStatus(message);
             UpdateMultiplayerInteractivity();
+        }
+
+        private void HandleDebugSessionChanged(bool unlocked)
+        {
+            RefreshToolkitDebugButtonVisibility();
         }
 
         private void SetStatus(string message)

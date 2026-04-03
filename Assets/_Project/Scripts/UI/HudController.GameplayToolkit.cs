@@ -13,6 +13,7 @@ namespace EJR.Game.UI
     {
         private const string GameplayToolkitLayoutResourcePath = "UI/Common/GameplayHudLayout";
         private const string GameplayToolkitStylesResourcePath = "UI/Common/GameplayHudStyles";
+        private const string GameplayToolkitDevOverlayStylesResourcePath = "UI/Common/DevOverlayStyles";
         private UIDocument _gameplayToolkitDocument;
         private PanelSettings _gameplayToolkitPanelSettings;
         private UIToolkitVisualElement _gameplayToolkitScreen;
@@ -52,7 +53,15 @@ namespace EJR.Game.UI
         private UIToolkitButton _gameplayToolkitDebugRerollButton;
         private UIToolkitButton _gameplayToolkitDebugSkipBossButton;
         private UIToolkitButton _gameplayToolkitDebugAutoPlayButton;
+        private UIToolkitVisualElement _gameplayToolkitMonsterLabSection;
+        private Toggle _gameplayToolkitMonsterLabToggle;
+        private DropdownField _gameplayToolkitMonsterLabDropdown;
+        private UIToolkitButton _gameplayToolkitMonsterLabSpawnOneButton;
+        private UIToolkitButton _gameplayToolkitMonsterLabSpawnFiveButton;
+        private UIToolkitButton _gameplayToolkitMonsterLabClearButton;
+        private UIToolkitButton _gameplayToolkitMonsterLabPauseButton;
         private readonly Dictionary<UIToolkitButton, Action> _gameplayToolkitDebugHandlers = new();
+        private bool _suppressGameplayToolkitMonsterLabCallbacks;
 
         private bool HasGameplayToolkit => _gameplayToolkitScreen != null;
 
@@ -76,6 +85,7 @@ namespace EJR.Game.UI
             }
 
             var styles = Resources.Load<StyleSheet>(GameplayToolkitStylesResourcePath);
+            var devOverlayStyles = Resources.Load<StyleSheet>(GameplayToolkitDevOverlayStylesResourcePath);
 
             var documentObject = new GameObject("GameplayHudToolkit");
             documentObject.transform.SetParent(_canvas.transform, false);
@@ -97,6 +107,11 @@ namespace EJR.Game.UI
             if (styles != null && !root.styleSheets.Contains(styles))
             {
                 root.styleSheets.Add(styles);
+            }
+
+            if (devOverlayStyles != null && !root.styleSheets.Contains(devOverlayStyles))
+            {
+                root.styleSheets.Add(devOverlayStyles);
             }
 
             _gameplayToolkitScreen = root.Q<UIToolkitVisualElement>("gameplay-hud-screen");
@@ -130,6 +145,13 @@ namespace EJR.Game.UI
             _gameplayToolkitDebugRerollButton = root.Q<UIToolkitButton>("debug-reroll-button");
             _gameplayToolkitDebugSkipBossButton = root.Q<UIToolkitButton>("debug-skip-boss-button");
             _gameplayToolkitDebugAutoPlayButton = root.Q<UIToolkitButton>("debug-autoplay-button");
+            _gameplayToolkitMonsterLabSection = root.Q<UIToolkitVisualElement>("monster-lab-section");
+            _gameplayToolkitMonsterLabToggle = root.Q<Toggle>("monster-lab-toggle");
+            _gameplayToolkitMonsterLabDropdown = root.Q<DropdownField>("monster-lab-dropdown");
+            _gameplayToolkitMonsterLabSpawnOneButton = root.Q<UIToolkitButton>("monster-lab-spawn-one-button");
+            _gameplayToolkitMonsterLabSpawnFiveButton = root.Q<UIToolkitButton>("monster-lab-spawn-five-button");
+            _gameplayToolkitMonsterLabClearButton = root.Q<UIToolkitButton>("monster-lab-clear-button");
+            _gameplayToolkitMonsterLabPauseButton = root.Q<UIToolkitButton>("monster-lab-pause-button");
 
             for (var i = 0; i < _gameplayToolkitLevelButtons.Length; i++)
             {
@@ -151,6 +173,36 @@ namespace EJR.Game.UI
                 _gameplayToolkitDebugAccessButton.clicked += ToggleDebugEntry;
             }
 
+            if (_gameplayToolkitMonsterLabToggle != null)
+            {
+                _gameplayToolkitMonsterLabToggle.RegisterValueChangedCallback(evt =>
+                {
+                    if (_suppressGameplayToolkitMonsterLabCallbacks)
+                    {
+                        return;
+                    }
+
+                    _debugMonsterLabSetEnabledAction?.Invoke(evt.newValue);
+                });
+            }
+
+            if (_gameplayToolkitMonsterLabDropdown != null)
+            {
+                _gameplayToolkitMonsterLabDropdown.RegisterValueChangedCallback(evt =>
+                {
+                    if (_suppressGameplayToolkitMonsterLabCallbacks || _debugMonsterLabSelectVariantAction == null)
+                    {
+                        return;
+                    }
+
+                    var index = _gameplayToolkitMonsterLabDropdown.choices?.IndexOf(evt.newValue) ?? -1;
+                    if (index >= 0)
+                    {
+                        _debugMonsterLabSelectVariantAction.Invoke(index);
+                    }
+                });
+            }
+
             UpdateGameplayToolkitVisibility(true);
             SetGameplayToolkitBuildDrawerOpen(false);
             HideGameplayToolkitWaveStatus();
@@ -160,6 +212,10 @@ namespace EJR.Game.UI
             HideGameplayToolkitResult();
             HideGameplayToolkitDebugPanels();
             SetGameplayToolkitDebugAccessVisible(false);
+            if (_gameplayToolkitMonsterLabSection != null)
+            {
+                _gameplayToolkitMonsterLabSection.style.display = DisplayStyle.None;
+            }
             ConfigureGameplayToolkitDebugButtons();
         }
 
@@ -514,7 +570,10 @@ namespace EJR.Game.UI
             if (!visible)
             {
                 HideGameplayToolkitDebugPanels();
+                return;
             }
+
+            ApplyGameplayToolkitDebugOverlayState();
         }
 
         private void HideGameplayToolkitDebugPanels()
@@ -532,8 +591,19 @@ namespace EJR.Game.UI
                 return;
             }
 
+            DebugSessionService.ToggleOverlay();
+            ApplyGameplayToolkitDebugOverlayState();
+        }
+
+        private void ApplyGameplayToolkitDebugOverlayState()
+        {
+            if (_gameplayToolkitDebugPanel == null)
+            {
+                return;
+            }
+
             _gameplayToolkitDebugPanel.style.display =
-                _gameplayToolkitDebugPanel.resolvedStyle.display == DisplayStyle.None
+                _debugAccessVisible && DebugSessionService.IsOverlayOpen
                     ? DisplayStyle.Flex
                     : DisplayStyle.None;
         }
@@ -579,6 +649,70 @@ namespace EJR.Game.UI
             ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugRerollButton, "선택지 다시 굴리기", _debugRerollAction);
             ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugSkipBossButton, "보스로 건너뛰기", _debugSkipBossAction);
             ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugAutoPlayButton, _debugAutoPlayEnabled ? "자동 전투: 켜짐" : "자동 전투: 꺼짐", _debugAutoPlayAction);
+        }
+
+        private void ConfigureGameplayToolkitMonsterLabOptions()
+        {
+            if (_gameplayToolkitMonsterLabSection == null || _gameplayToolkitMonsterLabDropdown == null || _gameplayToolkitMonsterLabToggle == null)
+            {
+                return;
+            }
+
+            var hasOptions =
+                _debugMonsterLabSetEnabledAction != null &&
+                _debugMonsterLabSelectVariantAction != null &&
+                _debugMonsterLabVariantNames != null &&
+                _debugMonsterLabVariantNames.Count > 0;
+
+            _gameplayToolkitMonsterLabSection.style.display = hasOptions ? DisplayStyle.Flex : DisplayStyle.None;
+            if (!hasOptions)
+            {
+                return;
+            }
+
+            _suppressGameplayToolkitMonsterLabCallbacks = true;
+            _gameplayToolkitMonsterLabDropdown.choices = _debugMonsterLabVariantNames;
+            var safeIndex = Mathf.Clamp(_debugMonsterLabSelectedIndex, 0, _debugMonsterLabVariantNames.Count - 1);
+            _gameplayToolkitMonsterLabDropdown.SetValueWithoutNotify(_debugMonsterLabVariantNames[safeIndex]);
+            _gameplayToolkitMonsterLabToggle.SetValueWithoutNotify(_debugMonsterLabEnabled);
+            _gameplayToolkitMonsterLabToggle.label = "실험장 모드";
+            _gameplayToolkitMonsterLabDropdown.label = "변주";
+            _suppressGameplayToolkitMonsterLabCallbacks = false;
+
+            ConfigureGameplayToolkitDebugButton(_gameplayToolkitMonsterLabSpawnOneButton, "1마리 생성", _debugMonsterLabSpawnOneAction);
+            ConfigureGameplayToolkitDebugButton(_gameplayToolkitMonsterLabSpawnFiveButton, "5마리 생성", _debugMonsterLabSpawnFiveAction);
+            ConfigureGameplayToolkitDebugButton(_gameplayToolkitMonsterLabClearButton, "전체 삭제", _debugMonsterLabClearAction);
+            ConfigureGameplayToolkitDebugButton(_gameplayToolkitMonsterLabPauseButton, _debugMonsterLabTimePaused ? "시간 재개" : "시간 정지", _debugMonsterLabToggleTimePauseAction);
+        }
+
+        private void SetGameplayToolkitMonsterLabState(bool enabled, int selectedIndex, bool timePaused)
+        {
+            if (_gameplayToolkitMonsterLabSection == null || _gameplayToolkitMonsterLabDropdown == null || _gameplayToolkitMonsterLabToggle == null)
+            {
+                return;
+            }
+
+            if (_debugMonsterLabVariantNames == null || _debugMonsterLabVariantNames.Count == 0)
+            {
+                _gameplayToolkitMonsterLabSection.style.display = DisplayStyle.None;
+                return;
+            }
+
+            _gameplayToolkitMonsterLabSection.style.display = DisplayStyle.Flex;
+            _suppressGameplayToolkitMonsterLabCallbacks = true;
+            if (_gameplayToolkitMonsterLabDropdown.choices == null || _gameplayToolkitMonsterLabDropdown.choices.Count != _debugMonsterLabVariantNames.Count)
+            {
+                _gameplayToolkitMonsterLabDropdown.choices = _debugMonsterLabVariantNames;
+            }
+
+            var safeIndex = Mathf.Clamp(selectedIndex, 0, _debugMonsterLabVariantNames.Count - 1);
+            _gameplayToolkitMonsterLabDropdown.SetValueWithoutNotify(_debugMonsterLabVariantNames[safeIndex]);
+            _gameplayToolkitMonsterLabToggle.SetValueWithoutNotify(enabled);
+            _gameplayToolkitMonsterLabToggle.label = "실험장 모드";
+            _gameplayToolkitMonsterLabDropdown.label = "변주";
+            _suppressGameplayToolkitMonsterLabCallbacks = false;
+
+            ConfigureGameplayToolkitDebugButton(_gameplayToolkitMonsterLabPauseButton, timePaused ? "시간 재개" : "시간 정지", _debugMonsterLabToggleTimePauseAction);
         }
 
         private void RefreshGameplayToolkitTransientPanels()

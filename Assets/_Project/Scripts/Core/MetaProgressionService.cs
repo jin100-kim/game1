@@ -503,6 +503,122 @@ namespace EJR.Game.Core
             SaveNow();
         }
 
+        public static void AddCreditsForDebug(int amount)
+        {
+            EnsureLoaded();
+            if (amount == 0)
+            {
+                return;
+            }
+
+            s_profile.currentCredits = Mathf.Max(0, s_profile.currentCredits + amount);
+            SaveNow();
+        }
+
+        public static void SetCreditsForDebug(int amount)
+        {
+            EnsureLoaded();
+            s_profile.currentCredits = Mathf.Max(0, amount);
+            SaveNow();
+        }
+
+        public static void UnlockAllCharactersForDebug()
+        {
+            EnsureLoaded();
+            s_profile.unlockedCharacterIds.Clear();
+            for (var i = 0; i < SharedGameCatalog.CharacterDefinitions.Count; i++)
+            {
+                s_profile.unlockedCharacterIds.Add(SharedGameCatalog.CharacterDefinitions[i].Id);
+            }
+
+            DeduplicateInts(s_profile.unlockedCharacterIds);
+            NormalizeSelectedCharacter();
+            SaveNow();
+        }
+
+        public static void ResetCharacterUnlocksForDebug()
+        {
+            EnsureLoaded();
+            s_profile.unlockedCharacterIds.Clear();
+            for (var i = 0; i < SharedGameCatalog.CharacterDefinitions.Count; i++)
+            {
+                var definition = SharedGameCatalog.CharacterDefinitions[i];
+                if (definition.DefaultUnlocked)
+                {
+                    s_profile.unlockedCharacterIds.Add(definition.Id);
+                }
+            }
+
+            DeduplicateInts(s_profile.unlockedCharacterIds);
+            NormalizeSelectedCharacter();
+            SaveNow();
+        }
+
+        public static void UnlockAllMapsForDebug()
+        {
+            EnsureLoaded();
+            s_profile.clearedMapIds.Clear();
+            for (var i = 0; i < SharedRunCatalog.MapDefinitions.Count; i++)
+            {
+                s_profile.clearedMapIds.Add(SharedRunCatalog.MapDefinitions[i].Id);
+            }
+
+            DeduplicateStrings(s_profile.clearedMapIds);
+            SaveNow();
+        }
+
+        public static void ResetMapClearsForDebug()
+        {
+            EnsureLoaded();
+            s_profile.clearedMapIds.Clear();
+            SaveNow();
+        }
+
+        public static void CompleteAllAchievementsForDebug()
+        {
+            EnsureLoaded();
+            s_profile.completedAchievementIds.Clear();
+            s_profile.unseenAchievementIds.Clear();
+            for (var i = 0; i < SharedAchievementCatalog.Definitions.Count; i++)
+            {
+                var definition = SharedAchievementCatalog.Definitions[i];
+                s_profile.completedAchievementIds.Add(definition.Id);
+                s_profile.unseenAchievementIds.Add(definition.Id);
+                ApplyAchievementReward(definition);
+            }
+
+            DeduplicateStrings(s_profile.completedAchievementIds);
+            DeduplicateStrings(s_profile.unseenAchievementIds);
+            NormalizeSelectedCharacter();
+            SaveNow();
+        }
+
+        public static void ResetAchievementsForDebug()
+        {
+            EnsureLoaded();
+            s_profile.completedAchievementIds.Clear();
+            s_profile.unseenAchievementIds.Clear();
+
+            for (var i = s_profile.unlockedCharacterIds.Count - 1; i >= 0; i--)
+            {
+                var definition = SharedGameCatalog.GetCharacter(s_profile.unlockedCharacterIds[i]);
+                if (definition.UnlockSource == CharacterUnlockSource.Achievement)
+                {
+                    s_profile.unlockedCharacterIds.RemoveAt(i);
+                }
+            }
+
+            NormalizeSelectedCharacter();
+            SaveNow();
+        }
+
+        public static void ResetAllProgressForDebug()
+        {
+            EnsureLoaded();
+            s_profile = CreateDefaultProfile();
+            SaveNow();
+        }
+
         public static IReadOnlyList<MetaUpgradeProgressEntry> GetUpgradeProgressEntries()
         {
             EnsureLoaded();
@@ -828,6 +944,18 @@ namespace EJR.Game.Core
                     values.RemoveAt(i);
                 }
             }
+        }
+
+        private static void NormalizeSelectedCharacter()
+        {
+            var normalizedCharacterId = SharedGameCatalog.NormalizeCharacterId(s_profile.lastSingleCharacterId);
+            if (!s_profile.unlockedCharacterIds.Contains(normalizedCharacterId))
+            {
+                s_profile.lastSingleCharacterId = SharedGameCatalog.GetDefaultUnlockedCharacterId();
+                return;
+            }
+
+            s_profile.lastSingleCharacterId = normalizedCharacterId;
         }
 
         private static string GetSavePath()

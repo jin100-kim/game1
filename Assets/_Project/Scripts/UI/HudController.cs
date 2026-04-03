@@ -108,8 +108,18 @@ namespace EJR.Game.UI
         private Action _debugRerollAction;
         private Action _debugSkipBossAction;
         private Action _debugAutoPlayAction;
+        private Action<bool> _debugMonsterLabSetEnabledAction;
+        private Action<int> _debugMonsterLabSelectVariantAction;
+        private Action _debugMonsterLabSpawnOneAction;
+        private Action _debugMonsterLabSpawnFiveAction;
+        private Action _debugMonsterLabClearAction;
+        private Action _debugMonsterLabToggleTimePauseAction;
         private bool _debugAccessVisible;
         private bool _debugAutoPlayEnabled;
+        private bool _debugMonsterLabEnabled;
+        private bool _debugMonsterLabTimePaused;
+        private int _debugMonsterLabSelectedIndex;
+        private List<string> _debugMonsterLabVariantNames = new();
         private int _lastCurrentHp = int.MinValue;
         private int _lastMaxHp = int.MinValue;
         private int _lastLevel = int.MinValue;
@@ -299,6 +309,34 @@ namespace EJR.Game.UI
             _debugAutoPlayAction = onToggleAutoPlay;
             RefreshDebugToolButtons();
             ConfigureGameplayToolkitDebugButtons();
+        }
+
+        public void ConfigureMonsterLabTools(
+            Action<bool> onSetEnabled,
+            Action<int> onSelectVariant,
+            Action onSpawnOne,
+            Action onSpawnFive,
+            Action onClear,
+            Action onToggleTimePause,
+            IReadOnlyList<string> variantNames)
+        {
+            _debugMonsterLabSetEnabledAction = onSetEnabled;
+            _debugMonsterLabSelectVariantAction = onSelectVariant;
+            _debugMonsterLabSpawnOneAction = onSpawnOne;
+            _debugMonsterLabSpawnFiveAction = onSpawnFive;
+            _debugMonsterLabClearAction = onClear;
+            _debugMonsterLabToggleTimePauseAction = onToggleTimePause;
+            _debugMonsterLabVariantNames = variantNames != null ? new List<string>(variantNames) : new List<string>();
+            ConfigureGameplayToolkitMonsterLabOptions();
+            SetGameplayToolkitMonsterLabState(_debugMonsterLabEnabled, _debugMonsterLabSelectedIndex, _debugMonsterLabTimePaused);
+        }
+
+        public void SetMonsterLabState(bool enabled, int selectedIndex, bool timePaused)
+        {
+            _debugMonsterLabEnabled = enabled;
+            _debugMonsterLabSelectedIndex = Mathf.Max(0, selectedIndex);
+            _debugMonsterLabTimePaused = timePaused;
+            SetGameplayToolkitMonsterLabState(enabled, _debugMonsterLabSelectedIndex, timePaused);
         }
 
         public void SetDebugAccessVisible(bool visible)
