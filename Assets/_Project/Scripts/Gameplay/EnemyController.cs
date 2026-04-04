@@ -49,6 +49,12 @@ namespace EJR.Game.Gameplay
         private const float VariantProjectileHitRadius = 0.12f;
         private const float VariantProjectileVisualScale = 0.2f;
         private const float VariantBlinkInterval = 0.12f;
+        private const float VariantBomberTelegraphLineWidth = 0.09f;
+        private const float VariantBomberTelegraphDurationPadding = 0.06f;
+        private const float VariantBomberBurstDuration = 0.22f;
+        private const float VariantHealPulseLineWidth = 0.08f;
+        private const float VariantHealPulseDuration = 0.34f;
+        private const float VariantHealBurstDuration = 0.24f;
         private const float BossProjectileLifetime = 4f;
         private const float BossProjectileHitRadius = 0.14f;
         private const float BossProjectileVisualScale = 0.22f;
@@ -82,6 +88,9 @@ namespace EJR.Game.Gameplay
         private static readonly Color FireIndicatorColor = new(1f, 0.45f, 0.1f, 0.95f);
         private static readonly Color SlowIndicatorColor = new(0.38f, 0.86f, 1f, 0.95f);
         private static readonly Color LightIndicatorColor = new(1f, 0.92f, 0.36f, 0.95f);
+        private static readonly Color VariantBomberTelegraphColor = new(1f, 0.44f, 0.18f, 0.94f);
+        private static readonly Color VariantBomberExplosionColor = new(1f, 0.58f, 0.24f, 0.98f);
+        private static readonly Color VariantHealPulseColor = new(0.38f, 1f, 0.48f, 0.92f);
 
         public event Action<float, float> Changed;
         public event Action BossProjectileVolleyStarted;
@@ -720,6 +729,15 @@ namespace EJR.Game.Gameplay
             var radius = Mathf.Max(0.1f, _variantDefinition.ExplosionRadius);
             var damage = Mathf.Max(0f, _contactDamage * Mathf.Max(0.1f, _variantDefinition.ExplosionDamageMultiplier));
             var origin = (Vector2)transform.position;
+            SpawnVariantAreaFx(
+                origin,
+                radius,
+                VariantBomberExplosionColor,
+                VariantBomberTelegraphLineWidth + 0.02f,
+                0.20f,
+                VariantBomberBurstDuration,
+                10,
+                "BomberExplosionFx");
             var hitLimit = radius + _playerCollisionRadius;
             if (_playerHealth != null && ((Vector2)_target.position - origin).sqrMagnitude <= hitLimit * hitLimit)
             {
@@ -763,6 +781,15 @@ namespace EJR.Game.Gameplay
             var radius = Mathf.Max(0.1f, _variantDefinition.HealRadius);
             var amount = Mathf.Max(1f, _variantDefinition.HealAmount);
             var origin = (Vector2)transform.position;
+            SpawnVariantAreaFx(
+                origin,
+                radius,
+                VariantHealPulseColor,
+                VariantHealPulseLineWidth,
+                VariantHealPulseDuration,
+                VariantHealBurstDuration,
+                9,
+                "HealerPulseFx");
             var searchRadius = radius + _registry.GetMaxCollisionRadius();
             _registry.GetNearby(origin, searchRadius, _nearbyBuffer);
             for (var i = 0; i < _nearbyBuffer.Count; i++)
@@ -911,7 +938,51 @@ namespace EJR.Game.Gameplay
             _variantActionState = VariantActionState.Windup;
             _variantActionTimer = Mathf.Max(0.1f, _variantDefinition.WindupSeconds);
             _variantBlinkTimer = 0f;
+            SpawnVariantAreaFx(
+                transform.position,
+                Mathf.Max(0.1f, _variantDefinition.ExplosionRadius),
+                VariantBomberTelegraphColor,
+                VariantBomberTelegraphLineWidth,
+                _variantActionTimer + VariantBomberTelegraphDurationPadding,
+                VariantBomberBurstDuration,
+                8,
+                "BomberTelegraphFx");
             return true;
+        }
+
+        private void SpawnVariantAreaFx(
+            Vector2 origin,
+            float radius,
+            Color color,
+            float lineWidth,
+            float duration,
+            float burstDuration,
+            int spokeCount,
+            string name)
+        {
+            var center = new Vector3(origin.x, origin.y, 0f);
+            var fxParent = transform.parent != null ? transform.parent : transform;
+            WeaponFxRenderer.SpawnRingFx(
+                fxParent,
+                center,
+                Mathf.Max(0.1f, radius),
+                32,
+                color,
+                Mathf.Max(0.02f, lineWidth),
+                Mathf.Max(0.05f, duration),
+                name,
+                518);
+            WeaponFxRenderer.SpawnBurstFx(
+                fxParent,
+                center,
+                color,
+                Mathf.Max(4, spokeCount),
+                0.14f,
+                Mathf.Max(0.24f, radius),
+                Mathf.Max(0.03f, lineWidth * 0.72f),
+                Mathf.Max(0.05f, burstDuration),
+                $"{name}_Burst",
+                519);
         }
 
         public void ApplyBurn(float damagePerTick, float duration, float tickInterval)

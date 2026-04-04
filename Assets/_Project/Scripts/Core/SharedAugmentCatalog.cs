@@ -29,6 +29,9 @@ namespace EJR.Game.Core
             float maxHealthScale = 1f,
             bool suppressPassiveRegen = false,
             int lifestealHealPerHit = 0,
+            float lifestealDamageRatio = 0f,
+            float lifestealMaxHealPerHit = 0f,
+            float lifestealBossMultiplier = 1f,
             float lifestealInternalCooldown = 0f,
             float lowHealthDamagePercentMax = 0f,
             float lowHealthMoveSpeedPercentMax = 0f,
@@ -46,6 +49,9 @@ namespace EJR.Game.Core
             MaxHealthScale = Mathf.Max(0.05f, maxHealthScale);
             SuppressPassiveRegen = suppressPassiveRegen;
             LifestealHealPerHit = Mathf.Max(0, lifestealHealPerHit);
+            LifestealDamageRatio = Mathf.Max(0f, lifestealDamageRatio);
+            LifestealMaxHealPerHit = Mathf.Max(0f, lifestealMaxHealPerHit);
+            LifestealBossMultiplier = Mathf.Clamp(lifestealBossMultiplier, 0f, 1f);
             LifestealInternalCooldown = Mathf.Max(0f, lifestealInternalCooldown);
             LowHealthDamagePercentMax = Mathf.Max(0f, lowHealthDamagePercentMax);
             LowHealthMoveSpeedPercentMax = Mathf.Max(0f, lowHealthMoveSpeedPercentMax);
@@ -64,6 +70,9 @@ namespace EJR.Game.Core
         public float MaxHealthScale { get; }
         public bool SuppressPassiveRegen { get; }
         public int LifestealHealPerHit { get; }
+        public float LifestealDamageRatio { get; }
+        public float LifestealMaxHealPerHit { get; }
+        public float LifestealBossMultiplier { get; }
         public float LifestealInternalCooldown { get; }
         public float LowHealthDamagePercentMax { get; }
         public float LowHealthMoveSpeedPercentMax { get; }
@@ -126,11 +135,13 @@ namespace EJR.Game.Core
             new(
                 RunAugmentId.Vampirism,
                 "흡혈",
-                "체력 재생 불가, 직접 타격 시 체력 1 회복",
+                "체력 재생 불가, 직접 타격 피해의 3% 흡혈 (최소 1, 최대 3, 보스 50%)",
                 default,
                 suppressPassiveRegen: true,
-                lifestealHealPerHit: 1,
-                lifestealInternalCooldown: 0.15f),
+                lifestealDamageRatio: 0.03f,
+                lifestealMaxHealPerHit: 3f,
+                lifestealBossMultiplier: 0.5f,
+                lifestealInternalCooldown: 0.12f),
             new(
                 RunAugmentId.BerserkerHeart,
                 "광폭화",

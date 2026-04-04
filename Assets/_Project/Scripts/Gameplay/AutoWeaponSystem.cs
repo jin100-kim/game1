@@ -3136,8 +3136,9 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            enemy.ReceiveWeaponDamage(ApplyContextualDamageModifiers(damage, enemy), weaponId);
-            TryApplyDirectHitLifesteal();
+            var appliedDamage = ApplyContextualDamageModifiers(damage, enemy);
+            enemy.ReceiveWeaponDamage(appliedDamage, weaponId);
+            TryApplyDirectHitLifesteal(appliedDamage, enemy);
         }
 
         private float ApplyContextualDamageModifiers(float damage, EnemyController enemy)
@@ -3151,15 +3152,20 @@ namespace EJR.Game.Gameplay
             return Mathf.Max(0f, damage) * _build.GetContextualDamageMultiplier(enemy, attackerPosition);
         }
 
-        private void TryApplyDirectHitLifesteal()
+        private void TryApplyDirectHitLifesteal(float damageDealt, EnemyController enemy)
         {
             if (_build == null || _playerHealth == null)
             {
                 return;
             }
 
-            var healPerHit = _build.LifestealHealPerHit;
-            if (healPerHit <= 0)
+            if (damageDealt <= 0f)
+            {
+                return;
+            }
+
+            var lifestealRatio = _build.LifestealDamageRatio;
+            if (lifestealRatio <= 0f)
             {
                 return;
             }
@@ -3171,7 +3177,25 @@ namespace EJR.Game.Gameplay
             }
 
             _nextLifestealAt = now + Mathf.Max(0f, _build.LifestealInternalCooldown);
-            _playerHealth.Heal(healPerHit);
+            var effectiveDamage = damageDealt;
+            if (enemy != null && enemy.IsBoss)
+            {
+                effectiveDamage *= Mathf.Clamp01(_build.LifestealBossMultiplier);
+            }
+
+            var healAmount = effectiveDamage * lifestealRatio;
+            if (healAmount <= 0f)
+            {
+                return;
+            }
+
+            var clampedHeal = Mathf.Max(1f, healAmount);
+            if (_build.LifestealMaxHealPerHit > 0f)
+            {
+                clampedHeal = Mathf.Min(clampedHeal, _build.LifestealMaxHealPerHit);
+            }
+
+            _playerHealth.Heal(clampedHeal);
         }
 
         private void CleanupLoadoutRuntimeState()

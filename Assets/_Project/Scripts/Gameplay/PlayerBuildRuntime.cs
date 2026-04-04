@@ -48,6 +48,9 @@ namespace EJR.Game.Gameplay
         private float _maxHealthScale = 1f;
         private bool _suppressPassiveRegen;
         private int _lifestealHealPerHit;
+        private float _lifestealDamageRatio;
+        private float _lifestealMaxHealPerHit;
+        private float _lifestealBossMultiplier = 1f;
         private float _lifestealInternalCooldown;
         private float _lowHealthDamagePercentMax;
         private float _lowHealthMoveSpeedPercentMax;
@@ -75,6 +78,9 @@ namespace EJR.Game.Gameplay
         public float GlobalMaxHealthScale => _maxHealthScale;
         public bool SuppressesPassiveRegen => _suppressPassiveRegen;
         public int LifestealHealPerHit => _lifestealHealPerHit;
+        public float LifestealDamageRatio => _lifestealDamageRatio;
+        public float LifestealMaxHealPerHit => _lifestealMaxHealPerHit;
+        public float LifestealBossMultiplier => _lifestealBossMultiplier;
         public float LifestealInternalCooldown => _lifestealInternalCooldown;
         public bool HasLowHealthBonuses => _lowHealthDamagePercentMax > 0f || _lowHealthMoveSpeedPercentMax > 0f;
 
@@ -92,6 +98,9 @@ namespace EJR.Game.Gameplay
             _maxHealthScale = 1f;
             _suppressPassiveRegen = false;
             _lifestealHealPerHit = 0;
+            _lifestealDamageRatio = 0f;
+            _lifestealMaxHealPerHit = 0f;
+            _lifestealBossMultiplier = 1f;
             _lifestealInternalCooldown = 0f;
             _lowHealthDamagePercentMax = 0f;
             _lowHealthMoveSpeedPercentMax = 0f;
@@ -485,6 +494,9 @@ namespace EJR.Game.Gameplay
             _maxHealthScale *= definition.MaxHealthScale;
             _suppressPassiveRegen |= definition.SuppressPassiveRegen;
             _lifestealHealPerHit += definition.LifestealHealPerHit;
+            _lifestealDamageRatio += definition.LifestealDamageRatio;
+            _lifestealMaxHealPerHit = Mathf.Max(_lifestealMaxHealPerHit, definition.LifestealMaxHealPerHit);
+            _lifestealBossMultiplier = Mathf.Min(_lifestealBossMultiplier, definition.LifestealBossMultiplier);
             _lifestealInternalCooldown = Mathf.Max(_lifestealInternalCooldown, definition.LifestealInternalCooldown);
             _lowHealthDamagePercentMax += definition.LowHealthDamagePercentMax;
             _lowHealthMoveSpeedPercentMax += definition.LowHealthMoveSpeedPercentMax;
