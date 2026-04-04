@@ -557,11 +557,17 @@ namespace EJR.Game.UI
                 : GetFirstUnlockedMapId();
             _selectedDifficultyId = SharedRunCatalog.GetDifficulty(_selectedDifficultyId).Id;
             _selectedStarterWeaponId = MetaProgressionService.GetCharacterStarterWeapon(_selectedCharacterId);
-            _inspectedCharacterId = _selectedCharacterId;
+            _inspectedCharacterId = SharedGameCatalog.NormalizeCharacterId(_inspectedCharacterId);
+            if (_inspectedCharacterId == 0 && _selectedCharacterId != 0)
+            {
+                _inspectedCharacterId = _selectedCharacterId;
+            }
 
             var selectedMap = SharedRunCatalog.GetMap(_selectedMapId);
             var selectedDifficulty = SharedRunCatalog.GetDifficulty(_selectedDifficultyId);
             var selectedCharacter = SharedGameCatalog.GetCharacter(_selectedCharacterId);
+            var inspectedCharacter = SharedGameCatalog.GetCharacter(_inspectedCharacterId);
+            var inspectedUnlocked = MetaProgressionService.IsCharacterUnlocked(inspectedCharacter.Id);
             var mapUnlocked = SharedRunCatalog.IsMapUnlocked(_selectedMapId);
             var interactable = !MultiplayerSessionController.EnsureInstance().IsBusy;
             var isMapStep = _currentRunSetupStep == SingleRunSetupStep.MapSelect;
@@ -592,12 +598,15 @@ namespace EJR.Game.UI
 
             if (_toolkitRunSetupSelectionSummaryLabel != null)
             {
-                _toolkitRunSetupSelectionSummaryLabel.text = $"{selectedMap.DisplayName} | {selectedDifficulty.DisplayName}";
+                _toolkitRunSetupSelectionSummaryLabel.text =
+                    $"{selectedMap.DisplayName} | {selectedDifficulty.DisplayName} | 현재 선택 {selectedCharacter.DisplayName}";
             }
 
             if (_toolkitRunSetupCharacterNameLabel != null)
             {
-                _toolkitRunSetupCharacterNameLabel.text = $"{selectedCharacter.DisplayName} | {SharedGameCatalog.GetWeaponDisplayName(selectedCharacter.StarterWeaponId)}";
+                _toolkitRunSetupCharacterNameLabel.text =
+                    $"{inspectedCharacter.DisplayName} | {SharedGameCatalog.GetWeaponDisplayName(inspectedCharacter.StarterWeaponId)}";
+                _toolkitRunSetupCharacterNameLabel.style.color = inspectedCharacter.Color;
             }
 
             if (_toolkitRunSetupCharacterDetailLabel != null)
@@ -605,6 +614,18 @@ namespace EJR.Game.UI
                 _toolkitRunSetupCharacterDetailLabel.text =
                     $"기본 보너스 {BuildMetaBonusSummary(selectedCharacter.BaseBonuses)}\n" +
                     $"고유 특성 {selectedCharacter.PassiveDescription}";
+            }
+
+            if (_toolkitRunSetupCharacterDetailLabel != null)
+            {
+                var inspectedStatus = GetToolkitCharacterStatusText(
+                    inspectedCharacter,
+                    inspectedUnlocked,
+                    inspectedCharacter.Id == _selectedCharacterId);
+                _toolkitRunSetupCharacterDetailLabel.text =
+                    $"상태: {inspectedStatus}\n" +
+                    $"기본 보너스 {BuildMetaBonusSummary(inspectedCharacter.BaseBonuses)}\n" +
+                    $"고유 특성 {inspectedCharacter.PassiveDescription}";
             }
 
             SetDisplay(_toolkitRunSetupMapStep, isMapStep);
@@ -692,35 +713,61 @@ namespace EJR.Game.UI
             {
                 var definition = SharedGameCatalog.CharacterDefinitions[i];
                 var unlocked = MetaProgressionService.IsCharacterUnlocked(definition.Id);
+                var displayStatus = GetToolkitCharacterStatusText(definition, unlocked, definition.Id == _selectedCharacterId);
                 var status = unlocked
                     ? (definition.Id == _selectedCharacterId ? "선택됨" : "선택 가능")
                     : definition.UnlockSource == CharacterUnlockSource.Achievement
                         ? "도전과제 해금"
                         : "상점 해금";
 
-                var button = new Button(() => SelectSingleCharacter(definition.Id));
+                var button = new Button(() => InspectToolkitCharacter(definition.Id));
                 button.AddToClassList("title-list-entry");
-                button.EnableInClassList("is-selected", definition.Id == _selectedCharacterId);
-                button.SetEnabled(interactable && unlocked);
-                button.style.flexDirection = FlexDirection.Column;
-                button.style.alignItems = Align.Stretch;
-                button.style.marginBottom = 12f;
+                button.AddToClassList("title-character-entry");
+                button.EnableInClassList("is-selected", definition.Id == _inspectedCharacterId);
+                button.EnableInClassList("is-locked", !unlocked);
+                button.SetEnabled(interactable);
 
-                var title = new Label($"{definition.DisplayName} | {SharedGameCatalog.GetWeaponDisplayName(definition.StarterWeaponId)}");
+                var portraitShell = new VisualElement();
+                portraitShell.AddToClassList("title-character-entry-visual-shell");
+
+                var portrait = new Image
+                {
+                    sprite = RuntimeSpriteFactory.GetPlayerSprite(),
+                    tintColor = definition.Color,
+                    scaleMode = ScaleMode.ScaleToFit,
+                };
+                portrait.AddToClassList("title-character-entry-visual");
+                portraitShell.Add(portrait);
+                button.Add(portraitShell);
+
+                var metaColumn = new VisualElement();
+                metaColumn.AddToClassList("title-character-entry-meta");
+
+                var title = new Label(definition.DisplayName);
                 title.AddToClassList("title-entry-title");
-                title.style.color = definition.Color;
-                button.Add(title);
+                title.AddToClassList("title-character-entry-name");
+                metaColumn.Add(title);
+
+                var weaponLabel = new Label(SharedGameCatalog.GetWeaponDisplayName(definition.StarterWeaponId));
+                weaponLabel.AddToClassList("title-entry-subtitle");
+                weaponLabel.AddToClassList("title-character-entry-weapon");
+                metaColumn.Add(weaponLabel);
 
                 var subtitle = new Label($"기본 보너스 {BuildMetaBonusSummary(definition.BaseBonuses)}");
                 subtitle.AddToClassList("title-entry-subtitle");
+                subtitle.style.display = DisplayStyle.None;
                 button.Add(subtitle);
 
                 var detail = new Label(definition.PassiveDescription);
                 detail.AddToClassList("title-entry-subtitle");
+                detail.style.display = DisplayStyle.None;
                 button.Add(detail);
 
-                var statusLabel = new Label(status);
+                button.Add(metaColumn);
+
+                var statusLabel = new Label(displayStatus);
                 statusLabel.AddToClassList("title-entry-status");
+                statusLabel.AddToClassList("title-character-entry-status");
                 if (unlocked)
                 {
                     statusLabel.AddToClassList("is-completed");
@@ -730,6 +777,33 @@ namespace EJR.Game.UI
                 _toolkitRunSetupCharacterScroll.contentContainer.Add(button);
                 _toolkitDynamicButtons.Add(button);
             }
+        }
+
+        private static string GetToolkitCharacterStatusText(SharedCharacterDefinition definition, bool unlocked, bool selected)
+        {
+            if (unlocked)
+            {
+                return selected ? "선택됨" : "선택 가능";
+            }
+
+            return definition.UnlockSource == CharacterUnlockSource.Achievement
+                ? "도전과제 해금"
+                : "상점 해금";
+        }
+
+        private void InspectToolkitCharacter(int characterId)
+        {
+            characterId = SharedGameCatalog.NormalizeCharacterId(characterId);
+            _inspectedCharacterId = characterId;
+
+            if (MetaProgressionService.IsCharacterUnlocked(characterId))
+            {
+                var definition = SharedGameCatalog.GetCharacter(characterId);
+                _selectedCharacterId = characterId;
+                _selectedStarterWeaponId = definition.StarterWeaponId;
+            }
+
+            RefreshToolkitRunSetupPanel();
         }
 
         private void RefreshToolkitAchievementPanel()

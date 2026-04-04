@@ -318,6 +318,58 @@ namespace EJR.Game.Gameplay
                     new EnemyAnimationClipRange("Death", 27, 34, false),
                 },
             },
+            new EnemyAnimationProfile
+            {
+                visualKind = RuntimeSpriteFactory.EnemyVisualKind.Warrior,
+                animationFps = 10f,
+                flipByMoveDirection = true,
+                idleStartFrame = 0,
+                idleEndFrame = 5,
+                moveStartFrame = 6,
+                moveEndFrame = 13,
+                useHurtAnimation = true,
+                hurtStartFrame = 30,
+                hurtEndFrame = 35,
+                dieStartFrame = 36,
+                dieEndFrame = 42,
+                clipRanges = new[]
+                {
+                    new EnemyAnimationClipRange("Idle", 0, 5, true),
+                    new EnemyAnimationClipRange("Walk", 6, 13, true),
+                    new EnemyAnimationClipRange("Run", 6, 13, true),
+                    new EnemyAnimationClipRange("Attack", 14, 22, false),
+                    new EnemyAnimationClipRange("Attack01", 14, 22, false),
+                    new EnemyAnimationClipRange("Attack02", 23, 29, false),
+                    new EnemyAnimationClipRange("Hurt", 30, 35, false),
+                    new EnemyAnimationClipRange("Death", 36, 42, false),
+                },
+            },
+            new EnemyAnimationProfile
+            {
+                visualKind = RuntimeSpriteFactory.EnemyVisualKind.Wizard,
+                animationFps = 10f,
+                flipByMoveDirection = true,
+                idleStartFrame = 0,
+                idleEndFrame = 5,
+                moveStartFrame = 6,
+                moveEndFrame = 13,
+                useHurtAnimation = true,
+                hurtStartFrame = 35,
+                hurtEndFrame = 40,
+                dieStartFrame = 41,
+                dieEndFrame = 47,
+                clipRanges = new[]
+                {
+                    new EnemyAnimationClipRange("Idle", 0, 5, true),
+                    new EnemyAnimationClipRange("Walk", 6, 13, true),
+                    new EnemyAnimationClipRange("Run", 6, 13, true),
+                    new EnemyAnimationClipRange("Attack", 14, 23, false),
+                    new EnemyAnimationClipRange("Attack01", 14, 23, false),
+                    new EnemyAnimationClipRange("Attack02", 24, 34, false),
+                    new EnemyAnimationClipRange("Hurt", 35, 40, false),
+                    new EnemyAnimationClipRange("Death", 41, 47, false),
+                },
+            },
         };
 
         [Header("Type Stat Profiles")]

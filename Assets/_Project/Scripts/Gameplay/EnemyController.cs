@@ -722,6 +722,7 @@ namespace EJR.Game.Gameplay
                 return false;
             }
 
+            _spriteAnimator?.PlayAttackOneShot(Mathf.Clamp(_variantDefinition.AttackCooldown * 0.18f, 0.16f, 0.28f));
             ExecuteHealPulse();
             _variantCooldownTimer = Mathf.Max(0.1f, _variantDefinition.AttackCooldown);
             return false;
@@ -767,6 +768,7 @@ namespace EJR.Game.Gameplay
                 return true;
             }
 
+            _spriteAnimator?.PlayAttackOneShot(Mathf.Clamp(_variantDefinition.AttackCooldown * 0.16f, 0.12f, 0.24f));
             SpawnVariantProjectile(
                 direction,
                 Mathf.Max(0.1f, _variantDefinition.ProjectileSpeed),
@@ -788,6 +790,7 @@ namespace EJR.Game.Gameplay
                     ApplyVariantBaseColor();
                     _variantActionState = VariantActionState.Executing;
                     _variantActionTimer = Mathf.Max(0.1f, _variantDefinition.DashDuration);
+                    _spriteAnimator?.PlayAttackOneShot(Mathf.Clamp(_variantDefinition.DashDuration * 0.8f, 0.12f, 0.28f));
                 }
 
                 return true;
@@ -833,6 +836,14 @@ namespace EJR.Game.Gameplay
             _variantActionState = VariantActionState.Windup;
             _variantActionTimer = Mathf.Max(0.1f, _variantDefinition.DashTelegraphSeconds);
             _variantBlinkTimer = 0f;
+            if (_spriteAnimator != null)
+            {
+                var windupDuration = Mathf.Clamp(_variantActionTimer, 0.12f, 0.45f);
+                if (_spriteAnimator.PlayClipOneShot("Defense", windupDuration) <= 0f)
+                {
+                    _spriteAnimator.PlayAttackOneShot(windupDuration);
+                }
+            }
             return true;
         }
 
@@ -1401,7 +1412,7 @@ namespace EJR.Game.Gameplay
                 HideBossAreaTelegraphFx();
             }
 
-            _spriteAnimator?.PlayHurtOneShot(_bossStateTimer);
+            PlayBossTelegraphAnimation();
         }
 
         private void BeginBossExecution()
@@ -1421,12 +1432,14 @@ namespace EJR.Game.Gameplay
                     break;
 
                 case BossPatternActionKind.WizardSigilField:
+                    PlayBossClipOneShot("Attack02", 0.28f);
                     SpawnBossSigils(3, WizardSigilRingRadius, WizardSigilDelay, WizardSigilRadius, WizardSigilDamageMultiplier);
                     EnterBossRecovery(GetBossRecoveryDuration(_bossCurrentAction));
                     break;
 
                 case BossPatternActionKind.WizardCrossBurst:
                     _bossRepeatRemaining = ScaleBossActionCount(2);
+                    PlayBossClipOneShot("Attack02", 0.24f);
                     SpawnVariantAreaFx(transform.position, WizardCrossBurstTelegraphRadius, WizardCrossTelegraphColor, 0.07f, 0.24f, 0.18f, 8, "BossCrossBurstCastFx");
                     BossProjectileVolleyStarted?.Invoke();
                     break;
@@ -1437,6 +1450,7 @@ namespace EJR.Game.Gameplay
                     break;
 
                 case BossPatternActionKind.WarriorGroundSlam:
+                    PlayBossClipOneShot("Attack02", 0.30f);
                     SpawnVariantAreaFx(transform.position, GroundSlamTelegraphRadius, GroundSlamTelegraphColor, 0.08f, 0.28f, 0.22f, 10, "BossGroundSlamCastFx");
                     FireBossRadialBurst(GroundSlamProjectileCount, GetBossProjectileSpeed(5.5f));
                     EnterBossRecovery(GetBossRecoveryDuration(_bossCurrentAction));
@@ -1455,6 +1469,7 @@ namespace EJR.Game.Gameplay
                 case BossPatternActionKind.FinalGravityNova:
                     _bossExecutionTimer = FinalGravityDuration;
                     SpawnVariantAreaFx(transform.position, FinalGravityRadius, GravityTelegraphColor, 0.08f, FinalGravityDuration + 0.12f, 0.22f, 12, "BossGravityNovaCastFx");
+                    PlayBossClipOneShot("Attack", Mathf.Clamp(FinalGravityDuration * 0.45f, 0.18f, 0.36f));
                     ApplyBossPullState(transform.position, FinalGravityRadius, GetBossPullSpeed(2.8f));
                     break;
             }
@@ -1853,11 +1868,72 @@ namespace EJR.Game.Gameplay
             return toPlayer.sqrMagnitude > 0.000001f ? toPlayer.normalized : Vector2.right;
         }
 
+        private void PlayBossTelegraphAnimation()
+        {
+            var duration = Mathf.Max(0.1f, _bossStateTimer);
+            switch (_bossCurrentAction)
+            {
+                case BossPatternActionKind.WizardFanVolley:
+                    PlayBossClipOneShot("Attack01", duration);
+                    break;
+                case BossPatternActionKind.WizardSigilField:
+                case BossPatternActionKind.WizardCrossBurst:
+                    PlayBossClipOneShot("Attack02", duration);
+                    break;
+                case BossPatternActionKind.WarriorChargeCombo:
+                    PlayBossClipOneShot("Attack01", duration);
+                    break;
+                case BossPatternActionKind.WarriorGroundSlam:
+                    PlayBossClipOneShot("Attack02", duration);
+                    break;
+                case BossPatternActionKind.FinalMixedVolley:
+                case BossPatternActionKind.FinalChargeCombo:
+                case BossPatternActionKind.FinalGravityNova:
+                    PlayBossClipOneShot("Attack", duration);
+                    break;
+                default:
+                    _spriteAnimator?.PlayHurtOneShot(duration);
+                    break;
+            }
+        }
+
+        private float PlayBossClipOneShot(string clipName, float durationSeconds)
+        {
+            if (_spriteAnimator == null)
+            {
+                return 0f;
+            }
+
+            var clampedDuration = Mathf.Max(0.05f, durationSeconds);
+            if (!string.IsNullOrWhiteSpace(clipName))
+            {
+                var played = _spriteAnimator.PlayClipOneShot(clipName, clampedDuration);
+                if (played > 0f)
+                {
+                    return played;
+                }
+            }
+
+            return _spriteAnimator.PlayAttackOneShot(clampedDuration);
+        }
+
         private void BeginBossDashRun(BossPatternActionKind action)
         {
             _bossDashDirection = GetDirectionToPlayer();
             _bossExecutionTimer = Mathf.Max(0.05f, GetBossDashDuration(action));
             _bossActionStep = 1;
+            switch (action)
+            {
+                case BossPatternActionKind.WarriorChargeCombo:
+                    PlayBossClipOneShot("Attack01", Mathf.Clamp(_bossExecutionTimer, 0.16f, 0.34f));
+                    break;
+                case BossPatternActionKind.FinalChargeCombo:
+                    PlayBossClipOneShot("Attack", Mathf.Clamp(_bossExecutionTimer, 0.12f, 0.30f));
+                    break;
+                default:
+                    _spriteAnimator?.PlayAttackOneShot(Mathf.Clamp(_bossExecutionTimer, 0.12f, 0.30f));
+                    break;
+            }
         }
 
         private void EnterBossRecovery(float duration)
@@ -1873,7 +1949,15 @@ namespace EJR.Game.Gameplay
         {
             var centerDirection = GetDirectionToPlayer();
             var shotDuration = Mathf.Max(0.08f, WizardFanShotInterval * 0.8f);
-            _spriteAnimator?.PlayAttackOneShot(shotDuration);
+            if (_bossCurrentAction == BossPatternActionKind.WizardFanVolley)
+            {
+                PlayBossClipOneShot("Attack01", shotDuration);
+            }
+            else
+            {
+                PlayBossClipOneShot("Attack", shotDuration);
+            }
+
             SpawnBossProjectile(RotateDirection(centerDirection, -BossAimFanSpreadDegrees * 2f), projectileSpeed);
             SpawnBossProjectile(RotateDirection(centerDirection, -BossAimFanSpreadDegrees), projectileSpeed);
             SpawnBossProjectile(centerDirection, projectileSpeed);
@@ -1888,7 +1972,17 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            _spriteAnimator?.PlayAttackOneShot(0.12f);
+            switch (_bossCurrentAction)
+            {
+                case BossPatternActionKind.WizardCrossBurst:
+                case BossPatternActionKind.WarriorGroundSlam:
+                    PlayBossClipOneShot("Attack02", 0.16f);
+                    break;
+                default:
+                    PlayBossClipOneShot("Attack", 0.12f);
+                    break;
+            }
+
             for (var i = 0; i < projectileCount; i++)
             {
                 var radians = (Mathf.PI * 2f * i) / projectileCount;
@@ -1905,7 +1999,7 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            _spriteAnimator?.PlayAttackOneShot(0.16f);
+            PlayBossClipOneShot("Attack02", 0.18f);
             var origin = (Vector2)_target.position;
             var startAngle = UnityEngine.Random.value * 360f;
             for (var i = 0; i < sigilCount; i++)
