@@ -98,6 +98,7 @@ namespace EJR.Game.UI
         private Button _debugWave1Button;
         private Button _debugWave2Button;
         private Button _debugSkipBossButton;
+        private Button _debugSpeedButton;
         private Button _debugInvincibleButton;
         private Button _debugAutoPlayButton;
         private Text _debugGrantLevelLabel;
@@ -106,6 +107,7 @@ namespace EJR.Game.UI
         private Text _debugWave1Label;
         private Text _debugWave2Label;
         private Text _debugSkipBossLabel;
+        private Text _debugSpeedLabel;
         private Text _debugInvincibleLabel;
         private Text _debugAutoPlayLabel;
         private Func<string, bool> _debugUnlockValidator;
@@ -115,6 +117,7 @@ namespace EJR.Game.UI
         private Action _debugWave1Action;
         private Action _debugWave2Action;
         private Action _debugSkipBossAction;
+        private Action _debugSpeedAction;
         private Action _debugInvincibleAction;
         private Action _debugAutoPlayAction;
         private Action<bool> _debugMonsterLabSetEnabledAction;
@@ -126,6 +129,7 @@ namespace EJR.Game.UI
         private bool _debugAccessVisible;
         private bool _debugInvincibleEnabled;
         private bool _debugAutoPlayEnabled;
+        private float _debugPlaySpeedMultiplier = 1f;
         private bool _debugMonsterLabEnabled;
         private bool _debugMonsterLabTimePaused;
         private int _debugMonsterLabSelectedIndex;
@@ -312,6 +316,7 @@ namespace EJR.Game.UI
             Action onWave1,
             Action onWave2,
             Action onBoss,
+            Action onToggleSpeed,
             Action onToggleInvincible,
             Action onToggleAutoPlay)
         {
@@ -321,6 +326,7 @@ namespace EJR.Game.UI
             _debugWave1Action = onWave1;
             _debugWave2Action = onWave2;
             _debugSkipBossAction = onBoss;
+            _debugSpeedAction = onToggleSpeed;
             _debugInvincibleAction = onToggleInvincible;
             _debugAutoPlayAction = onToggleAutoPlay;
             RefreshDebugToolButtons();
@@ -399,6 +405,20 @@ namespace EJR.Game.UI
             if (_debugInvincibleLabel != null)
             {
                 _debugInvincibleLabel.text = enabled ? "무적: 켜짐" : "무적: 꺼짐";
+            }
+        }
+
+        public void SetDebugPlaySpeedState(float multiplier)
+        {
+            _debugPlaySpeedMultiplier = Mathf.Max(1f, multiplier);
+            if (HasGameplayToolkit)
+            {
+                SetGameplayToolkitDebugPlaySpeedState(_debugPlaySpeedMultiplier);
+            }
+
+            if (_debugSpeedLabel != null)
+            {
+                _debugSpeedLabel.text = $"속도: {Mathf.RoundToInt(_debugPlaySpeedMultiplier)}x";
             }
         }
 
@@ -1440,6 +1460,7 @@ namespace EJR.Game.UI
             ConfigureDebugButton(_debugWave1Button, _debugWave1Label, "1웨이브", _debugWave1Action);
             ConfigureDebugButton(_debugWave2Button, _debugWave2Label, "2웨이브", _debugWave2Action);
             ConfigureDebugButton(_debugSkipBossButton, _debugSkipBossLabel, "보스", _debugSkipBossAction);
+            ConfigureDebugButton(_debugSpeedButton, _debugSpeedLabel, $"속도: {Mathf.RoundToInt(Mathf.Max(1f, _debugPlaySpeedMultiplier))}x", _debugSpeedAction);
             ConfigureDebugButton(_debugInvincibleButton, _debugInvincibleLabel, _debugInvincibleEnabled ? "무적: 켜짐" : "무적: 꺼짐", _debugInvincibleAction);
             ConfigureDebugButton(_debugAutoPlayButton, _debugAutoPlayLabel, _debugAutoPlayEnabled ? "자동 전투: 켜짐" : "자동 전투: 꺼짐", _debugAutoPlayAction);
             ConfigureGameplayToolkitDebugButtons();
@@ -1808,7 +1829,7 @@ namespace EJR.Game.UI
             _debugAccessButton.onClick.AddListener(ToggleDebugEntry);
             _debugAccessButton.gameObject.SetActive(false);
 
-            _debugToolsPanel = CreatePanel(_canvas.transform, "DebugToolsPanelV2", new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(18f, 68f), new Vector2(328f, 438f), new Color(0.03f, 0.05f, 0.09f, 0.94f));
+            _debugToolsPanel = CreatePanel(_canvas.transform, "DebugToolsPanelV2", new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(18f, 68f), new Vector2(328f, 486f), new Color(0.03f, 0.05f, 0.09f, 0.94f));
             _debugToolsPanel.SetActive(false);
 
             var toolsTitle = CreateText(_debugToolsPanel.transform, "DebugToolsTitleV2", new Vector2(0f, 188f), "\uB514\uBC84\uADF8 \uB3C4\uAD6C");
@@ -1828,9 +1849,11 @@ namespace EJR.Game.UI
             _debugWave2Label = _debugWave2Button.GetComponentInChildren<Text>();
             _debugSkipBossButton = CreateButton(_debugToolsPanel.transform, "DebugSkipBossButtonV2", new Vector2(0f, -94f), new Vector2(260f, 40f));
             _debugSkipBossLabel = _debugSkipBossButton.GetComponentInChildren<Text>();
-            _debugInvincibleButton = CreateButton(_debugToolsPanel.transform, "DebugInvincibleButtonV2", new Vector2(0f, -140f), new Vector2(260f, 40f));
+            _debugSpeedButton = CreateButton(_debugToolsPanel.transform, "DebugSpeedButtonV2", new Vector2(0f, -140f), new Vector2(260f, 40f));
+            _debugSpeedLabel = _debugSpeedButton.GetComponentInChildren<Text>();
+            _debugInvincibleButton = CreateButton(_debugToolsPanel.transform, "DebugInvincibleButtonV2", new Vector2(0f, -186f), new Vector2(260f, 40f));
             _debugInvincibleLabel = _debugInvincibleButton.GetComponentInChildren<Text>();
-            _debugAutoPlayButton = CreateButton(_debugToolsPanel.transform, "DebugAutoPlayButtonV2", new Vector2(0f, -186f), new Vector2(260f, 40f));
+            _debugAutoPlayButton = CreateButton(_debugToolsPanel.transform, "DebugAutoPlayButtonV2", new Vector2(0f, -232f), new Vector2(260f, 40f));
             _debugAutoPlayLabel = _debugAutoPlayButton.GetComponentInChildren<Text>();
 
             RefreshDebugToolButtons();

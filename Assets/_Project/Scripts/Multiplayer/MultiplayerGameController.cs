@@ -94,6 +94,7 @@ namespace EJR.Game.Multiplayer
                 null,
                 null,
                 null,
+                null,
                 () =>
                 {
                     SetAutoPlayEnabled(!_autoPlayEnabled);
@@ -1266,9 +1267,24 @@ namespace EJR.Game.Multiplayer
             var healthRatio = localPlayer.MaxHealth > 0f
                 ? localPlayer.CurrentHealth / localPlayer.MaxHealth
                 : 1f;
+            var nearestOrbPosition = ResolveNearestSharedOrbPosition(localPlayer.transform.position);
+            var waveTargetPosition = coop.CurrentWaveTargetTransform != null
+                ? coop.CurrentWaveTargetTransform.position
+                : (Vector3?)null;
+            var bossPosition = coop.CurrentBossTransform != null
+                ? coop.CurrentBossTransform.position
+                : (Vector3?)null;
 
             return _autoPlayAgent != null
-                ? _autoPlayAgent.EvaluateMove(localPlayer.transform.position, coop.ArenaBounds, healthRatio, coop.EnemyRegistry, ResolveNearestSharedOrbPosition)
+                ? _autoPlayAgent.EvaluateMove(
+                    localPlayer.transform.position,
+                    coop.ArenaBounds,
+                    healthRatio,
+                    coop.EnemyRegistry,
+                    nearestOrbPosition,
+                    null,
+                    waveTargetPosition,
+                    bossPosition)
                 : Vector2.zero;
         }
 

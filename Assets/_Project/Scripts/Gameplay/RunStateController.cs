@@ -117,6 +117,7 @@ namespace EJR.Game.Gameplay
         private bool _usingOwnedMultiplayerPlayer;
         private bool _autoPlayEnabled;
         private bool _debugInvincibleEnabled;
+        private float _debugPlaySpeedMultiplier = 1f;
         private float _nextAutoPlayChoiceAt;
         private AutoPlayAgent _autoPlayAgent;
         private int _selectedSingleCharacterId;
@@ -131,7 +132,8 @@ namespace EJR.Game.Gameplay
         {
             // Keep simulation running even when the game window loses focus.
             Application.runInBackground = true;
-            Time.timeScale = 1f;
+            _debugPlaySpeedMultiplier = GameplaySpeedService.GameplaySpeedMultiplier;
+            ApplySimulationTimeScale();
             EnsureCamera();
             EnsureConfigs();
             ApplySingleRunSelection();
@@ -330,7 +332,7 @@ namespace EJR.Game.Gameplay
 
             EnemyController.Defeated -= HandleEnemyDefeated;
 
-            Time.timeScale = 1f;
+            GameplaySpeedService.ApplyMenuTimeState();
         }
 
         private void EnsureCamera()
@@ -429,7 +431,7 @@ namespace EJR.Game.Gameplay
 
             AudioService.Instance.PlayUi(AudioCueId.UiConfirm);
             _isPauseMenuOpen = true;
-            Time.timeScale = 0f;
+            ApplySimulationTimeScale();
             _hud.ShowPauseMenu(ResumeFromPauseMenu, ReturnToLobbyFromPauseMenu);
         }
 
@@ -443,10 +445,7 @@ namespace EJR.Game.Gameplay
             AudioService.Instance.PlayUi(AudioCueId.UiBack);
             _isPauseMenuOpen = false;
             _hud?.HidePauseMenu();
-            if (!_isGameOver && !IsAnyChoiceAwaiting())
-            {
-                Time.timeScale = 1f;
-            }
+            ApplySimulationTimeScale();
 
             UpdateHud();
         }
@@ -456,8 +455,33 @@ namespace EJR.Game.Gameplay
             AudioService.Instance.PlayUi(AudioCueId.UiBack);
             _isPauseMenuOpen = false;
             _hud?.HidePauseMenu();
-            Time.timeScale = 1f;
+            GameplaySpeedService.ApplyMenuTimeState();
             SceneManager.LoadScene(MultiplayerSessionController.TitleSceneName);
+        }
+
+        private void ToggleDebugPlaySpeed()
+        {
+            var next = _debugPlaySpeedMultiplier < 1.5f
+                ? 2f
+                : _debugPlaySpeedMultiplier < 3f
+                    ? 4f
+                    : 1f;
+            SetDebugPlaySpeedMultiplier(next);
+        }
+
+        private void SetDebugPlaySpeedMultiplier(float multiplier)
+        {
+            _debugPlaySpeedMultiplier = Mathf.Clamp(multiplier, 1f, 4f);
+            ApplySimulationTimeScale();
+            _hud?.SetDebugPlaySpeedState(_debugPlaySpeedMultiplier);
+            UpdateHud();
+        }
+
+        private void ApplySimulationTimeScale()
+        {
+            GameplaySpeedService.SetGameplaySpeedMultiplier(_debugPlaySpeedMultiplier);
+            GameplaySpeedService.ApplyGameplayTimeState(
+                _isGameOver || _isPauseMenuOpen || IsAnyChoiceAwaiting());
         }
 
         private void GrantDebugLevels(int levelsToGrant)
@@ -716,6 +740,7 @@ namespace EJR.Game.Gameplay
                 enableDebugTimeSkip ? () => DebugStartWave1() : null,
                 enableDebugTimeSkip ? () => DebugStartWave2() : null,
                 enableDebugTimeSkip ? () => DebugStartBoss() : null,
+                enableDebugTimeSkip ? () => ToggleDebugPlaySpeed() : null,
                 () =>
                 {
                     _debugInvincibleEnabled = !_debugInvincibleEnabled;
@@ -730,6 +755,7 @@ namespace EJR.Game.Gameplay
                 });
             _hud.SetDebugAccessVisible(DebugSessionService.IsUnlocked);
             _hud.SetDebugInvincibleState(_debugInvincibleEnabled);
+            _hud.SetDebugPlaySpeedState(_debugPlaySpeedMultiplier);
 
             var ownedMultiplayerPlayer = MultiplayerPlayerActor.FindOwnedLocalPlayer();
             _usingOwnedMultiplayerPlayer = ownedMultiplayerPlayer != null;
@@ -985,8 +1011,36 @@ namespace EJR.Game.Gameplay
                 ? _playerHealth.CurrentHealth / _playerHealth.MaxHealth
                 : 1f;
 
+            var nearestOrbPosition = ResolveNearestSinglePlayerOrbPosition(_playerTransform.position);
+            var nearestRewardChestPosition = ResolveNearestRewardChestPosition(_playerTransform.position);
+            var waveTargetPosition = _enemySpawner != null && _enemySpawner.CurrentWaveTarget != null
+                ? _enemySpawner.CurrentWaveTarget.transform.position
+                : (Vector3?)null;
+            var bossPosition = _enemySpawner != null && _enemySpawner.CurrentBoss != null
+                ? _enemySpawner.CurrentBoss.transform.position
+                : (Vector3?)null;
+            var bossPullActive = false;
+            var bossPullCenter = Vector2.zero;
+            var bossPullRadius = 0f;
+            if (_enemySpawner != null && _enemySpawner.CurrentBoss != null &&
+                _enemySpawner.CurrentBoss.TryGetBossPullState(out bossPullCenter, out bossPullRadius, out _))
+            {
+                bossPullActive = true;
+            }
+
             return _autoPlayAgent != null
-                ? _autoPlayAgent.EvaluateMove(_playerTransform.position, arenaBounds, healthRatio, _enemyRegistry, ResolveNearestSinglePlayerOrbPosition)
+                ? _autoPlayAgent.EvaluateMove(
+                    _playerTransform.position,
+                    arenaBounds,
+                    healthRatio,
+                    _enemyRegistry,
+                    nearestOrbPosition,
+                    nearestRewardChestPosition,
+                    waveTargetPosition,
+                    bossPosition,
+                    bossPullActive,
+                    bossPullCenter,
+                    bossPullRadius)
                 : Vector2.zero;
         }
 
@@ -1012,6 +1066,32 @@ namespace EJR.Game.Gameplay
 
                 bestDistanceSq = distanceSq;
                 bestPosition = orb.transform.position;
+            }
+
+            return bestPosition;
+        }
+
+        private Vector3? ResolveNearestRewardChestPosition(Vector3 fromPosition)
+        {
+            if (_enemySpawner == null)
+            {
+                return null;
+            }
+
+            _enemySpawner.GetRewardChestWorldPositions(_rewardChestWorldPositions);
+            var bestDistanceSq = float.MaxValue;
+            Vector3? bestPosition = null;
+            for (var i = 0; i < _rewardChestWorldPositions.Count; i++)
+            {
+                var chestPosition = _rewardChestWorldPositions[i];
+                var distanceSq = (chestPosition - fromPosition).sqrMagnitude;
+                if (distanceSq >= bestDistanceSq)
+                {
+                    continue;
+                }
+
+                bestDistanceSq = distanceSq;
+                bestPosition = chestPosition;
             }
 
             return bestPosition;
@@ -1764,10 +1844,7 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            if (Time.timeScale <= 0f)
-            {
-                Time.timeScale = 1f;
-            }
+            ApplySimulationTimeScale();
 
             UpdateHud();
         }
@@ -1827,7 +1904,7 @@ namespace EJR.Game.Gameplay
             _activeChoiceContext = nextChoice.Context;
             _currentOptions = nextChoice.Options;
             _activeChoiceTitle = nextChoice.Title;
-            Time.timeScale = 0f;
+            ApplySimulationTimeScale();
             AudioService.Instance.PlaySfx(AudioCueId.LevelUpAppear);
             _hud.ShowLevelUpOptions(nextChoice.Options, SelectLevelUpOption, nextChoice.Title);
             UpdateHud();
@@ -1847,7 +1924,7 @@ namespace EJR.Game.Gameplay
             _activeChoiceContext = PendingChoiceContext.None;
             _currentOptions = null;
             _activeChoiceTitle = string.Empty;
-            Time.timeScale = 0f;
+            ApplySimulationTimeScale();
 #if false
             MetaProgressionService.RecordRunSummary(MetaProgressionService.BuildRunRewardSummary(
                 "싱글",
@@ -1904,13 +1981,13 @@ namespace EJR.Game.Gameplay
 
         private void RestartRun()
         {
-            Time.timeScale = 1f;
+            GameplaySpeedService.ApplyMenuTimeState();
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
         }
 
         private void ReturnToLobby()
         {
-            Time.timeScale = 1f;
+            GameplaySpeedService.ApplyMenuTimeState();
             SceneManager.LoadScene(MultiplayerSessionController.TitleSceneName);
         }
 
@@ -1947,6 +2024,8 @@ namespace EJR.Game.Gameplay
             {
                 _hud.HideWaveStatus();
             }
+
+            _hud.SetDebugPlaySpeedState(_debugPlaySpeedMultiplier);
             UpdateBossHud();
         }
 

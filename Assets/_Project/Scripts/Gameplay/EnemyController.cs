@@ -186,6 +186,24 @@ namespace EJR.Game.Gameplay
         public bool IsBoss => _isBossBehavior;
         public bool IsDead => _isDead;
 
+        public bool TryGetVariantExplosionHazard(out Vector2 center, out float radius, out float remainingTime)
+        {
+            center = transform.position;
+            radius = 0f;
+            remainingTime = 0f;
+
+            if (_variantDefinition == null ||
+                _variantDefinition.BehaviorKind != EnemyVariantBehaviorKind.ProximityBomber ||
+                _variantActionState != VariantActionState.Windup)
+            {
+                return false;
+            }
+
+            radius = Mathf.Max(0.1f, _variantDefinition.ExplosionRadius);
+            remainingTime = Mathf.Max(0f, _variantActionTimer);
+            return true;
+        }
+
         public bool TryGetBossPullState(out Vector2 center, out float radius, out float speed)
         {
             center = _bossPullCenter;
@@ -2378,6 +2396,14 @@ namespace EJR.Game.Gameplay
         private float _hitRadius;
         private float _playerCollisionRadius;
         private PlayerHealth _targetPlayer;
+        private static readonly System.Collections.Generic.List<BossProjectile> s_activeProjectiles = new();
+
+        public static System.Collections.Generic.IReadOnlyList<BossProjectile> ActiveProjectiles => s_activeProjectiles;
+        public Vector2 WorldPosition => transform.position;
+        public Vector2 Direction => _direction;
+        public float Speed => _speed;
+        public float RemainingLifetime => Mathf.Max(0f, _lifetime);
+        public float HitRadius => _hitRadius;
 
         public void Initialize(
             Vector2 direction,
@@ -2397,8 +2423,26 @@ namespace EJR.Game.Gameplay
             _playerCollisionRadius = Mathf.Max(0.05f, playerCollisionRadius);
         }
 
+        private void OnEnable()
+        {
+            if (!s_activeProjectiles.Contains(this))
+            {
+                s_activeProjectiles.Add(this);
+            }
+        }
+
+        private void OnDisable()
+        {
+            s_activeProjectiles.Remove(this);
+        }
+
         private void Update()
         {
+            if (DebugSessionService.IsMonsterLabTimePaused)
+            {
+                return;
+            }
+
             transform.position += new Vector3(_direction.x, _direction.y, 0f) * (_speed * Time.deltaTime);
             _lifetime -= Time.deltaTime;
             if (_lifetime <= 0f)

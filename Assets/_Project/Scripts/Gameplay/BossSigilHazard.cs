@@ -21,6 +21,12 @@ namespace EJR.Game.Gameplay
         private float _remaining;
         private LineRenderer _ringRenderer;
         private bool _initialized;
+        private static readonly System.Collections.Generic.List<BossSigilHazard> s_activeHazards = new();
+
+        public static System.Collections.Generic.IReadOnlyList<BossSigilHazard> ActiveHazards => s_activeHazards;
+        public Vector2 WorldPosition => transform.position;
+        public float Radius => _radius;
+        public float RemainingTime => Mathf.Max(0f, _remaining);
 
         public void Initialize(
             PlayerHealth targetPlayer,
@@ -39,6 +45,19 @@ namespace EJR.Game.Gameplay
             _visualOnly = visualOnly;
             EnsureVisual();
             _initialized = true;
+        }
+
+        private void OnEnable()
+        {
+            if (!s_activeHazards.Contains(this))
+            {
+                s_activeHazards.Add(this);
+            }
+        }
+
+        private void OnDisable()
+        {
+            s_activeHazards.Remove(this);
         }
 
         private void Update()

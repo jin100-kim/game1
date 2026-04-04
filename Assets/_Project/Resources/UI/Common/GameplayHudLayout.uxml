@@ -72,11 +72,11 @@
 
             <ui:VisualElement name="result-panel" class="modal-screen gameplay-result-screen">
                 <ui:VisualElement class="modal-shell gameplay-result-shell">
-                    <ui:Label class="modal-title" text="런 결과" />
+                    <ui:Label class="modal-title" text="결과" />
 
                     <ui:VisualElement class="gameplay-result-card">
                         <ui:ScrollView mode="Vertical" name="result-scroll" class="gameplay-result-scroll">
-                            <ui:Label name="result-text" class="gameplay-result-text" text="런 결과" />
+                            <ui:Label name="result-text" class="gameplay-result-text" text="결과" />
                         </ui:ScrollView>
                     </ui:VisualElement>
 
@@ -94,8 +94,19 @@
                 <ui:Button name="debug-wave1-button" class="dev-panel-button gameplay-debug-button" text="1웨이브" />
                 <ui:Button name="debug-wave2-button" class="dev-panel-button gameplay-debug-button" text="2웨이브" />
                 <ui:Button name="debug-skip-boss-button" class="dev-panel-button gameplay-debug-button" text="보스" />
+                <ui:Button name="debug-speed-button" class="dev-panel-button gameplay-debug-button" text="속도: 1x" />
                 <ui:Button name="debug-invincible-button" class="dev-panel-button gameplay-debug-button" text="무적: 꺼짐" />
                 <ui:Button name="debug-autoplay-button" class="dev-panel-button gameplay-debug-button" text="자동 전투: 꺼짐" />
+
+                <ui:VisualElement name="monster-lab-section" class="dev-subsection">
+                    <ui:Label class="dev-subsection-title" text="Monster Lab" />
+                    <ui:Toggle name="monster-lab-toggle" text="실험장 모드" />
+                    <ui:DropdownField name="monster-lab-dropdown" label="변주" />
+                    <ui:Button name="monster-lab-spawn-one-button" class="dev-panel-button gameplay-debug-button" text="1마리 생성" />
+                    <ui:Button name="monster-lab-spawn-five-button" class="dev-panel-button gameplay-debug-button" text="5마리 생성" />
+                    <ui:Button name="monster-lab-clear-button" class="dev-panel-button gameplay-debug-button" text="전체 제거" />
+                    <ui:Button name="monster-lab-pause-button" class="dev-panel-button gameplay-debug-button" text="시간 정지" />
+                </ui:VisualElement>
             </ui:VisualElement>
         </ui:VisualElement>
     </ui:VisualElement>

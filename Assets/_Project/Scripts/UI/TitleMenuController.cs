@@ -136,6 +136,7 @@ namespace EJR.Game.UI
 
         private void Awake()
         {
+            GameplaySpeedService.ApplyMenuTimeState();
             _font = RuntimeFontProvider.GetDefaultFont();
             MetaProgressionService.EnsureLoaded();
             _selectedCharacterId = MetaProgressionService.GetSingleSelectedCharacterId();
@@ -1149,7 +1150,7 @@ namespace EJR.Game.UI
 
             MetaProgressionService.SetSingleSelectedCharacterId(_selectedCharacterId);
             MetaProgressionService.SetSingleSelectedStarterWeapon(_selectedStarterWeaponId);
-            Time.timeScale = 1f;
+            GameplaySpeedService.ApplyMenuTimeState();
             SceneManager.LoadScene(gameplaySceneName);
         }
 
@@ -1568,7 +1569,7 @@ namespace EJR.Game.UI
 
             MetaProgressionService.SetSingleSelectedCharacterId(_selectedCharacterId);
             RunSelectionService.SetSingleSelection(_selectedMapId, _selectedDifficultyId);
-            Time.timeScale = 1f;
+            GameplaySpeedService.ApplyMenuTimeState();
             SceneManager.LoadScene(gameplaySceneName);
         }
 
@@ -2989,7 +2990,7 @@ namespace EJR.Game.UI
 
         private static void OnQuitClicked()
         {
-            Time.timeScale = 1f;
+            GameplaySpeedService.ApplyMenuTimeState();
 #if UNITY_EDITOR
             EditorApplication.isPlaying = false;
 #else

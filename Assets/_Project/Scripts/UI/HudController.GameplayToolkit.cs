@@ -54,6 +54,7 @@ namespace EJR.Game.UI
         private UIToolkitButton _gameplayToolkitDebugWave1Button;
         private UIToolkitButton _gameplayToolkitDebugWave2Button;
         private UIToolkitButton _gameplayToolkitDebugSkipBossButton;
+        private UIToolkitButton _gameplayToolkitDebugSpeedButton;
         private UIToolkitButton _gameplayToolkitDebugInvincibleButton;
         private UIToolkitButton _gameplayToolkitDebugAutoPlayButton;
         private UIToolkitVisualElement _gameplayToolkitMonsterLabSection;
@@ -149,6 +150,7 @@ namespace EJR.Game.UI
             _gameplayToolkitDebugWave1Button = root.Q<UIToolkitButton>("debug-wave1-button");
             _gameplayToolkitDebugWave2Button = root.Q<UIToolkitButton>("debug-wave2-button");
             _gameplayToolkitDebugSkipBossButton = root.Q<UIToolkitButton>("debug-skip-boss-button");
+            _gameplayToolkitDebugSpeedButton = root.Q<UIToolkitButton>("debug-speed-button");
             _gameplayToolkitDebugInvincibleButton = root.Q<UIToolkitButton>("debug-invincible-button");
             _gameplayToolkitDebugAutoPlayButton = root.Q<UIToolkitButton>("debug-autoplay-button");
             _gameplayToolkitMonsterLabSection = root.Q<UIToolkitVisualElement>("monster-lab-section");
@@ -630,6 +632,14 @@ namespace EJR.Game.UI
             }
         }
 
+        private void SetGameplayToolkitDebugPlaySpeedState(float multiplier)
+        {
+            if (_gameplayToolkitDebugSpeedButton != null)
+            {
+                _gameplayToolkitDebugSpeedButton.text = $"속도: {Mathf.RoundToInt(Mathf.Max(1f, multiplier))}x";
+            }
+        }
+
         private void ConfigureGameplayToolkitDebugButton(UIToolkitButton button, string text, Action action)
         {
             if (button == null)
@@ -664,6 +674,7 @@ namespace EJR.Game.UI
             ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugWave1Button, "1웨이브", _debugWave1Action);
             ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugWave2Button, "2웨이브", _debugWave2Action);
             ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugSkipBossButton, "보스", _debugSkipBossAction);
+            ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugSpeedButton, $"속도: {Mathf.RoundToInt(Mathf.Max(1f, _debugPlaySpeedMultiplier))}x", _debugSpeedAction);
             ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugInvincibleButton, _debugInvincibleEnabled ? "무적: 켜짐" : "무적: 꺼짐", _debugInvincibleAction);
             ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugAutoPlayButton, _debugAutoPlayEnabled ? "자동 전투: 켜짐" : "자동 전투: 꺼짐", _debugAutoPlayAction);
         }

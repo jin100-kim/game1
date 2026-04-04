@@ -12,6 +12,14 @@ namespace EJR.Game.Gameplay
         private float _hitRadius;
         private float _playerCollisionRadius;
         private PlayerHealth _targetPlayer;
+        private static readonly System.Collections.Generic.List<EnemyVariantProjectile> s_activeProjectiles = new();
+
+        public static System.Collections.Generic.IReadOnlyList<EnemyVariantProjectile> ActiveProjectiles => s_activeProjectiles;
+        public Vector2 WorldPosition => transform.position;
+        public Vector2 Direction => _direction;
+        public float Speed => _speed;
+        public float RemainingLifetime => Mathf.Max(0f, _lifetime);
+        public float HitRadius => _hitRadius;
 
         public void Initialize(
             Vector2 direction,
@@ -29,6 +37,19 @@ namespace EJR.Game.Gameplay
             _hitRadius = Mathf.Max(0.02f, hitRadius);
             _targetPlayer = targetPlayer;
             _playerCollisionRadius = Mathf.Max(0.05f, playerCollisionRadius);
+        }
+
+        private void OnEnable()
+        {
+            if (!s_activeProjectiles.Contains(this))
+            {
+                s_activeProjectiles.Add(this);
+            }
+        }
+
+        private void OnDisable()
+        {
+            s_activeProjectiles.Remove(this);
         }
 
         private void Update()
