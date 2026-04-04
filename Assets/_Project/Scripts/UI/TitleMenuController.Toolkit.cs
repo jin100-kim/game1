@@ -82,6 +82,7 @@ namespace EJR.Game.UI
         private Button _toolkitMetaBackButton;
         private Button _toolkitMetaUnlocksTabButton;
         private Button _toolkitMetaUpgradesTabButton;
+        private Button _toolkitMetaUpgradeResetButton;
         private Button _toolkitSummaryMetaButton;
         private Button _toolkitSummaryCloseButton;
         private Button _toolkitConfirmConfirmButton;
@@ -238,6 +239,7 @@ namespace EJR.Game.UI
             _toolkitMetaBackButton = root.Q<Button>("meta-back-button");
             _toolkitMetaUnlocksTabButton = root.Q<Button>("meta-unlocks-tab");
             _toolkitMetaUpgradesTabButton = root.Q<Button>("meta-upgrades-tab");
+            _toolkitMetaUpgradeResetButton = root.Q<Button>("meta-upgrade-reset-button");
             _toolkitSummaryMetaButton = root.Q<Button>("summary-meta-button");
             _toolkitSummaryCloseButton = root.Q<Button>("summary-close-button");
             _toolkitConfirmConfirmButton = root.Q<Button>("confirm-ok-button");
@@ -265,6 +267,7 @@ namespace EJR.Game.UI
             if (_toolkitMetaBackButton != null) _toolkitMetaBackButton.clicked += ShowMainMenu;
             if (_toolkitMetaUnlocksTabButton != null) _toolkitMetaUnlocksTabButton.clicked += () => SetMetaTab(MetaTab.Unlocks);
             if (_toolkitMetaUpgradesTabButton != null) _toolkitMetaUpgradesTabButton.clicked += () => SetMetaTab(MetaTab.Upgrades);
+            if (_toolkitMetaUpgradeResetButton != null) _toolkitMetaUpgradeResetButton.clicked += PromptUpgradeReset;
             if (_toolkitSummaryMetaButton != null) _toolkitSummaryMetaButton.clicked += OpenMetaFromSummary;
             if (_toolkitSummaryCloseButton != null) _toolkitSummaryCloseButton.clicked += CloseSummaryModal;
             if (_toolkitConfirmConfirmButton != null) _toolkitConfirmConfirmButton.clicked += ConfirmPendingAction;
@@ -707,6 +710,14 @@ namespace EJR.Game.UI
             }
 
             _toolkitRunSetupCharacterScroll.contentContainer.Clear();
+            _toolkitRunSetupCharacterScroll.mode = ScrollViewMode.Vertical;
+            _toolkitRunSetupCharacterScroll.contentContainer.style.width = Length.Percent(100);
+            _toolkitRunSetupCharacterScroll.contentContainer.style.flexGrow = 1f;
+            _toolkitRunSetupCharacterScroll.contentContainer.style.flexDirection = FlexDirection.Row;
+            _toolkitRunSetupCharacterScroll.contentContainer.style.flexWrap = Wrap.Wrap;
+            _toolkitRunSetupCharacterScroll.contentContainer.style.alignContent = Align.FlexStart;
+            _toolkitRunSetupCharacterScroll.contentContainer.style.alignItems = Align.FlexStart;
+            _toolkitRunSetupCharacterScroll.contentContainer.style.justifyContent = Justify.FlexStart;
 
             var interactable = !MultiplayerSessionController.EnsureInstance().IsBusy;
             for (var i = 0; i < SharedGameCatalog.CharacterDefinitions.Count; i++)
@@ -748,10 +759,6 @@ namespace EJR.Game.UI
                 title.AddToClassList("title-character-entry-name");
                 metaColumn.Add(title);
 
-                var weaponLabel = new Label(SharedGameCatalog.GetWeaponDisplayName(definition.StarterWeaponId));
-                weaponLabel.AddToClassList("title-entry-subtitle");
-                weaponLabel.AddToClassList("title-character-entry-weapon");
-                metaColumn.Add(weaponLabel);
 
                 var subtitle = new Label($"기본 보너스 {BuildMetaBonusSummary(definition.BaseBonuses)}");
                 subtitle.AddToClassList("title-entry-subtitle");
@@ -763,8 +770,6 @@ namespace EJR.Game.UI
                 detail.style.display = DisplayStyle.None;
                 button.Add(detail);
 
-                button.Add(metaColumn);
-
                 var statusLabel = new Label(displayStatus);
                 statusLabel.AddToClassList("title-entry-status");
                 statusLabel.AddToClassList("title-character-entry-status");
@@ -773,7 +778,8 @@ namespace EJR.Game.UI
                     statusLabel.AddToClassList("is-completed");
                 }
 
-                button.Add(statusLabel);
+                metaColumn.Add(statusLabel);
+                button.Add(metaColumn);
                 _toolkitRunSetupCharacterScroll.contentContainer.Add(button);
                 _toolkitDynamicButtons.Add(button);
             }
@@ -814,6 +820,12 @@ namespace EJR.Game.UI
             }
 
             _toolkitAchievementScroll.contentContainer.Clear();
+            _toolkitAchievementScroll.contentContainer.style.flexDirection = FlexDirection.Row;
+            _toolkitAchievementScroll.contentContainer.style.flexWrap = Wrap.Wrap;
+            _toolkitAchievementScroll.contentContainer.style.alignContent = Align.FlexStart;
+            _toolkitAchievementScroll.contentContainer.style.alignItems = Align.FlexStart;
+            _toolkitAchievementScroll.contentContainer.style.justifyContent = Justify.FlexStart;
+            _toolkitAchievementScroll.contentContainer.style.width = Length.Percent(100);
             var entries = MetaProgressionService.GetAchievementEntries();
             var completedCount = 0;
             for (var i = 0; i < entries.Count; i++)
@@ -826,18 +838,23 @@ namespace EJR.Game.UI
 
                 var row = new VisualElement();
                 row.AddToClassList("title-list-entry");
+                row.AddToClassList("title-meta-card");
+                row.AddToClassList("title-achievement-card");
                 row.EnableInClassList("is-completed", entry.IsCompleted);
 
                 var title = new Label(entry.DisplayName);
                 title.AddToClassList("title-entry-title");
+                title.AddToClassList("title-meta-card-title");
                 row.Add(title);
 
                 var subtitle = new Label(entry.Description);
                 subtitle.AddToClassList("title-entry-subtitle");
+                subtitle.AddToClassList("title-meta-card-body");
                 row.Add(subtitle);
 
                 var progress = new Label(entry.ProgressText);
                 progress.AddToClassList("title-entry-status");
+                progress.AddToClassList("title-meta-card-status");
                 if (entry.IsCompleted)
                 {
                     progress.AddToClassList("is-completed");
@@ -849,6 +866,7 @@ namespace EJR.Game.UI
                 {
                     var reward = new Label(entry.RewardText);
                     reward.AddToClassList("title-entry-subtitle");
+                    reward.AddToClassList("title-achievement-card-reward");
                     row.Add(reward);
                 }
 
@@ -873,7 +891,21 @@ namespace EJR.Game.UI
             ApplyToolkitMetaTabState(_toolkitMetaUnlocksTabButton, _currentMetaTab == MetaTab.Unlocks);
             ApplyToolkitMetaTabState(_toolkitMetaUpgradesTabButton, _currentMetaTab == MetaTab.Upgrades);
 
+            var refund = MetaProgressionService.GetUpgradeRefundPreview();
+            if (_toolkitMetaUpgradeResetButton != null)
+            {
+                _toolkitMetaUpgradeResetButton.text = refund > 0 ? $"강화 초기화 | {refund} 코인" : "강화 초기화";
+                _toolkitMetaUpgradeResetButton.SetEnabled(_currentMetaTab == MetaTab.Upgrades && refund > 0);
+                SetDisplay(_toolkitMetaUpgradeResetButton, _currentMetaTab == MetaTab.Upgrades);
+            }
+
             _toolkitMetaScroll.contentContainer.Clear();
+            _toolkitMetaScroll.contentContainer.style.flexDirection = FlexDirection.Row;
+            _toolkitMetaScroll.contentContainer.style.flexWrap = Wrap.Wrap;
+            _toolkitMetaScroll.contentContainer.style.alignContent = Align.FlexStart;
+            _toolkitMetaScroll.contentContainer.style.alignItems = Align.FlexStart;
+            _toolkitMetaScroll.contentContainer.style.justifyContent = Justify.FlexStart;
+            _toolkitMetaScroll.contentContainer.style.width = Length.Percent(100);
             if (_currentMetaTab == MetaTab.Unlocks)
             {
                 BuildToolkitCharacterShopContent();
@@ -925,17 +957,6 @@ namespace EJR.Game.UI
             }
 
             var content = _toolkitMetaScroll.contentContainer;
-            var refund = MetaProgressionService.GetUpgradeRefundPreview();
-            content.Add(CreateToolkitRowWithAction(
-                "재분배",
-                $"구매한 영구 강화를 모두 초기화하고 {refund} 코인을 돌려받습니다.",
-                refund > 0 ? "환급 가능" : "환급할 강화 없음",
-                "초기화",
-                refund > 0 ? PromptUpgradeReset : null,
-                refund > 0,
-                new Color(0.96f, 0.74f, 0.18f, 1f),
-                false));
-
             var definitions = MetaProgressionService.Config.UpgradeDefinitions;
             for (var i = 0; i < definitions.Count; i++)
             {
@@ -944,7 +965,7 @@ namespace EJR.Game.UI
                 var maxed = level >= definition.MaxLevel;
                 var cost = maxed ? 0 : MetaProgressionService.Config.GetUpgradeCost(definition.Id, level);
                 var canBuy = CanPurchaseUpgrade(definition.Id);
-                content.Add(CreateToolkitRowWithAction(
+                var card = CreateToolkitRowWithAction(
                     $"{definition.Title}  Lv.{level}/{definition.MaxLevel}",
                     definition.Description,
                     maxed ? "최대 단계" : $"다음 비용 {cost} 코인",
@@ -952,7 +973,9 @@ namespace EJR.Game.UI
                     maxed ? null : () => TryPurchaseUpgrade(definition.Id),
                     canBuy,
                     Color.white,
-                    maxed));
+                    maxed);
+                card.AddToClassList("title-upgrade-card");
+                content.Add(card);
             }
         }
 
@@ -968,36 +991,34 @@ namespace EJR.Game.UI
         {
             var row = new VisualElement();
             row.AddToClassList("title-list-entry");
+            row.AddToClassList("title-meta-card");
             row.EnableInClassList("is-completed", completed);
-            row.AddToClassList("title-row");
-            row.style.alignItems = Align.Stretch;
-
-            var textColumn = new VisualElement();
-            textColumn.style.flexGrow = 1f;
 
             var title = new Label(titleText);
             title.AddToClassList("title-entry-title");
+            title.AddToClassList("title-meta-card-title");
             title.style.color = titleColor;
-            textColumn.Add(title);
+            row.Add(title);
 
             var subtitle = new Label(subtitleText);
             subtitle.AddToClassList("title-entry-subtitle");
-            textColumn.Add(subtitle);
+            subtitle.AddToClassList("title-meta-card-body");
+            row.Add(subtitle);
 
             var status = new Label(statusText);
             status.AddToClassList("title-entry-status");
+            status.AddToClassList("title-meta-card-status");
             if (completed)
             {
                 status.AddToClassList("is-completed");
             }
 
-            textColumn.Add(status);
-            row.Add(textColumn);
+            row.Add(status);
 
             var button = new Button();
             button.text = actionText;
             button.AddToClassList("title-footer-button");
-            button.AddToClassList("title-entry-action");
+            button.AddToClassList("title-meta-card-action");
             button.SetEnabled(actionEnabled && action != null);
             if (action != null)
             {

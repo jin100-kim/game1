@@ -128,7 +128,7 @@ namespace EJR.Game.Core
     public static class SharedRunCatalog
     {
         public const string DefaultMapId = "forest";
-        public const string DefaultDifficultyId = "normal";
+        public const string DefaultDifficultyId = "easy";
 
         private static readonly RunMapDefinition[] s_mapDefinitions =
         {
@@ -349,7 +349,7 @@ namespace EJR.Game.Core
                 return difficulty;
             }
 
-            return s_difficultyDefinitions[1];
+            return s_difficultyDefinitions[0];
         }
 
         public static bool TryGetDifficulty(string difficultyId, out RunDifficultyDefinition difficulty)
@@ -365,7 +365,7 @@ namespace EJR.Game.Core
                 return true;
             }
 
-            difficulty = s_difficultyDefinitions[1];
+            difficulty = s_difficultyDefinitions[0];
             return false;
         }
 
@@ -384,7 +384,7 @@ namespace EJR.Game.Core
                 }
             }
 
-            return 1;
+            return 0;
         }
 
         public static bool IsMapUnlocked(string mapId)

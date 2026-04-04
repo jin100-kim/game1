@@ -141,6 +141,8 @@
                 <ui:VisualElement class="title-tab-row">
                     <ui:Button name="meta-unlocks-tab" class="title-tab-button" text="해금" />
                     <ui:Button name="meta-upgrades-tab" class="title-tab-button" text="강화" />
+                    <ui:VisualElement class="title-tab-spacer" />
+                    <ui:Button name="meta-upgrade-reset-button" class="title-tab-utility-button" text="강화 초기화" />
                 </ui:VisualElement>
                 <ui:ScrollView name="meta-scroll" class="title-scroll title-large-scroll" />
                 <ui:Button name="meta-back-button" class="title-footer-button" text="뒤로" />
