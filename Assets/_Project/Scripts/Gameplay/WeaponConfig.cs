@@ -108,7 +108,7 @@ namespace EJR.Game.Gameplay
         [Header("BF Sword")]
         [Min(0.01f)] public float bfSwordHitInterval = 0.38f;
         [Min(0.2f)] public float bfSwordLength = 1.75f;
-        [Min(0.05f)] public float bfSwordThickness = 0.275f;
+        [Min(0.05f)] public float bfSwordThickness = 0.36f;
         [Min(0f)] public float bfSwordForwardOffset = 0.96f;
         [Min(0.1f)] public float bfSwordBaseDamage = 12f;
         [Min(0.02f)] public float bfSwordStunDuration = 0.18f;

@@ -1219,15 +1219,15 @@ namespace EJR.Game.Gameplay
                 LevelUpOptionDomain.WeaponAcquire => hasWeaponRoom ? 10f : 6f,
                 LevelUpOptionDomain.Augment => option.AugmentId switch
                 {
-                    RunAugmentId.Berserk => 8.7f,
-                    RunAugmentId.Overclock => 8.4f,
-                    RunAugmentId.Finisher => 8.5f,
-                    RunAugmentId.CloseQuarters => 7.3f,
+                    RunAugmentId.Berserk => 8.9f,
+                    RunAugmentId.Overclock => 8.8f,
+                    RunAugmentId.Finisher => 9.1f,
+                    RunAugmentId.CloseQuarters => 8.6f,
                     RunAugmentId.Ambidextrous => 8.2f,
-                    RunAugmentId.GlassCannon => 7.6f + (healthRatio >= 0.85f ? 0.5f : 0f),
-                    RunAugmentId.CautiousAttack => 8.0f,
-                    RunAugmentId.Vampirism => 6.4f + ((1f - healthRatio) * 2.6f),
-                    RunAugmentId.BerserkerHeart => 7.6f,
+                    RunAugmentId.GlassCannon => 7.8f + (healthRatio >= 0.9f ? 0.6f : 0f),
+                    RunAugmentId.CautiousAttack => 8.5f,
+                    RunAugmentId.Vampirism => 7.3f + ((1f - healthRatio) * 3.1f),
+                    RunAugmentId.BerserkerHeart => 8.2f + ((1f - healthRatio) * 0.8f),
                     _ => 6.4f,
                 },
                 LevelUpOptionDomain.GlobalStatRoll => option.StatId switch
@@ -2122,6 +2122,7 @@ namespace EJR.Game.Gameplay
             {
                 var preserveCurrentRatio = _buildRuntime != null && !Mathf.Approximately(_buildRuntime.GlobalMaxHealthScale, 1f);
                 _playerHealth.SetMaxHealth(GetCurrentMaxHealth(), healDelta: !preserveCurrentRatio, preserveCurrentRatio: preserveCurrentRatio);
+                _playerHealth.SetDamageTakenMultiplier(_playerStats != null ? _playerStats.DamageTakenMultiplier : 1f);
             }
 
             if (_playerMover != null)
@@ -2257,14 +2258,22 @@ namespace EJR.Game.Gameplay
             }
 
             lines += $"\n이동 속도 {FormatSignedPercent(_buildRuntime.GlobalMoveSpeedPercentTotal)}";
-            lines += $"\n공격 범위 +{_buildRuntime.GlobalAttackRangePercentTotal:0.#}%";
+            lines += $"\n공격 범위 {FormatSignedPercent(_buildRuntime.GlobalAttackRangePercentTotal)}";
             lines += $"\n행운 {_buildRuntime.GlobalLuckTotal:0}";
             if (!Mathf.Approximately(_buildRuntime.GlobalMaxHealthScale, 1f))
             {
                 lines += $"\n최대 체력 배율 x{_buildRuntime.GlobalMaxHealthScale:0.##}";
             }
+            if (_playerStats != null && !Mathf.Approximately(_playerStats.DamageTakenMultiplier, 1f))
+            {
+                lines += $"\n받는 피해 x{_playerStats.DamageTakenMultiplier:0.##}";
+            }
 
-            if (_buildRuntime.LifestealHealPerHit > 0)
+            if (_buildRuntime.LifestealDamageRatio > 0f)
+            {
+                lines += $"\n흡혈 피해의 {_buildRuntime.LifestealDamageRatio * 100f:0.#}%";
+            }
+            else if (_buildRuntime.LifestealHealPerHit > 0)
             {
                 lines += $"\n흡혈 {_buildRuntime.LifestealHealPerHit}/타격";
             }

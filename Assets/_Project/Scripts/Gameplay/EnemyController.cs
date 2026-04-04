@@ -74,14 +74,22 @@ namespace EJR.Game.Gameplay
         private const float FinalGravityPulseInterval = 0.50f;
         private const int GroundSlamProjectileCount = 8;
         private const int GravityPulseProjectileCount = 10;
+        private const float GroundSlamTelegraphRadius = 2.25f;
+        private const float WizardCrossBurstTelegraphRadius = 2.1f;
         private const float BossDashTelegraphLength = 6.5f;
         private const float BossDashTelegraphWidth = 0.12f;
+        private const float BossAreaTelegraphWidth = 0.08f;
+        private const int BossAreaTelegraphSegments = 48;
         private const float WindKnockbackCooldown = 0.5f;
         private const float MinorStunInternalCooldown = 0.15f;
         private const float RifleMinorStunDuration = 0.04f;
         private const float ShotgunMinorStunDuration = 0.05f;
         private const float KatanaMinorStunDuration = 0.05f;
         private static readonly Color BossDashTelegraphColor = new(1f, 0.28f, 0.22f, 0.78f);
+        private static readonly Color BossDashTelegraphHotColor = new(1f, 0.66f, 0.2f, 0.95f);
+        private static readonly Color GroundSlamTelegraphColor = new(1f, 0.56f, 0.2f, 0.9f);
+        private static readonly Color WizardCrossTelegraphColor = new(0.95f, 0.44f, 1f, 0.9f);
+        private static readonly Color GravityTelegraphColor = new(0.42f, 0.88f, 1f, 0.92f);
         private const float StatusIndicatorScale = 0.08f;
         private const float StatusIndicatorHeightOffset = 0.22f;
         private const float StatusIndicatorSpacing = 0.14f;
@@ -171,6 +179,7 @@ namespace EJR.Game.Gameplay
         private Transform _fireStackFxRoot;
         private SpriteFxAnimator _fireStackFxAnimator;
         private LineRenderer _bossDashTelegraphLine;
+        private LineRenderer _bossAreaTelegraphLine;
         private Transform _statusIndicatorRoot;
         private SpriteRenderer _fireIndicatorRenderer;
         private SpriteRenderer _slowIndicatorRenderer;
@@ -210,6 +219,109 @@ namespace EJR.Game.Gameplay
             radius = _bossPullRadius;
             speed = _bossPullSpeed;
             return _bossPullActive && radius > 0.0001f && speed > 0.0001f;
+        }
+
+        public bool HasBossProjectilePressure()
+        {
+            if (!IsBoss)
+            {
+                return false;
+            }
+
+            if (_bossPatternState != BossPatternState.Telegraph && _bossPatternState != BossPatternState.Executing)
+            {
+                return false;
+            }
+
+            return _bossCurrentAction == BossPatternActionKind.WizardFanVolley
+                || _bossCurrentAction == BossPatternActionKind.WizardCrossBurst
+                || _bossCurrentAction == BossPatternActionKind.FinalMixedVolley;
+        }
+
+        public bool TryGetBossDashHazard(out Vector2 center, out Vector2 direction, out float length, out float width, out float remainingTime)
+        {
+            center = transform.position;
+            direction = Vector2.right;
+            length = 0f;
+            width = 0f;
+            remainingTime = 0f;
+
+            if (!IsBoss ||
+                (_bossCurrentAction != BossPatternActionKind.WarriorChargeCombo && _bossCurrentAction != BossPatternActionKind.FinalChargeCombo))
+            {
+                return false;
+            }
+
+            if (_bossPatternState != BossPatternState.Telegraph && _bossPatternState != BossPatternState.Executing)
+            {
+                return false;
+            }
+
+            direction = _bossDashDirection.sqrMagnitude > 0.000001f ? _bossDashDirection.normalized : GetDirectionToPlayer();
+            width = BossDashTelegraphWidth;
+
+            if (_bossPatternState == BossPatternState.Telegraph)
+            {
+                length = BossDashTelegraphLength;
+                remainingTime = Mathf.Max(0f, _bossStateTimer);
+                return true;
+            }
+
+            var dashSpeed = Mathf.Max(0.1f, _moveSpeed) * GetBossDashSpeedMultiplier(_bossCurrentAction);
+            length = Mathf.Max(1.5f, dashSpeed * Mathf.Max(0.05f, _bossExecutionTimer));
+            remainingTime = Mathf.Max(0f, _bossExecutionTimer);
+            return true;
+        }
+
+        public bool TryGetBossRadialHazard(out Vector2 center, out float radius, out float remainingTime)
+        {
+            center = transform.position;
+            radius = 0f;
+            remainingTime = 0f;
+
+            if (!IsBoss)
+            {
+                return false;
+            }
+
+            switch (_bossCurrentAction)
+            {
+                case BossPatternActionKind.WarriorGroundSlam:
+                    if (_bossPatternState != BossPatternState.Telegraph)
+                    {
+                        return false;
+                    }
+
+                    radius = GroundSlamTelegraphRadius;
+                    remainingTime = Mathf.Max(0f, _bossStateTimer);
+                    return true;
+
+                case BossPatternActionKind.WizardCrossBurst:
+                    if (_bossPatternState != BossPatternState.Telegraph && _bossPatternState != BossPatternState.Executing)
+                    {
+                        return false;
+                    }
+
+                    radius = WizardCrossBurstTelegraphRadius;
+                    remainingTime = _bossPatternState == BossPatternState.Telegraph
+                        ? Mathf.Max(0f, _bossStateTimer)
+                        : Mathf.Max(0f, _bossShotTimer);
+                    return true;
+
+                case BossPatternActionKind.FinalGravityNova:
+                    if (_bossPatternState != BossPatternState.Telegraph && _bossPatternState != BossPatternState.Executing)
+                    {
+                        return false;
+                    }
+
+                    radius = FinalGravityRadius;
+                    remainingTime = _bossPatternState == BossPatternState.Telegraph
+                        ? Mathf.Max(0f, _bossStateTimer)
+                        : Mathf.Max(0f, _bossExecutionTimer + (_bossActionStep > 0 ? _bossSecondaryTimer : 0f));
+                    return true;
+            }
+
+            return false;
         }
 
         public void Initialize(
@@ -1205,19 +1317,39 @@ namespace EJR.Game.Gameplay
                         HideBossDashTelegraphFx();
                     }
 
+                    if (ShouldShowAreaTelegraph(_bossCurrentAction))
+                    {
+                        UpdateBossAreaTelegraphFx();
+                    }
+                    else
+                    {
+                        HideBossAreaTelegraphFx();
+                    }
+
                     _bossStateTimer -= deltaTime;
                     if (_bossStateTimer <= 0f)
                     {
                         HideBossDashTelegraphFx();
+                        HideBossAreaTelegraphFx();
                         BeginBossExecution();
                     }
 
                     return true;
 
                 case BossPatternState.Executing:
+                    if (_bossCurrentAction == BossPatternActionKind.FinalGravityNova)
+                    {
+                        UpdateBossAreaTelegraphFx();
+                    }
+                    else
+                    {
+                        HideBossAreaTelegraphFx();
+                    }
+
                     return UpdateBossExecuting(deltaTime);
 
                 case BossPatternState.Recovery:
+                    HideBossAreaTelegraphFx();
                     _bossStateTimer -= deltaTime;
                     if (_bossStateTimer <= 0f)
                     {
@@ -1260,6 +1392,15 @@ namespace EJR.Game.Gameplay
                 HideBossDashTelegraphFx();
             }
 
+            if (ShouldShowAreaTelegraph(_bossCurrentAction))
+            {
+                UpdateBossAreaTelegraphFx();
+            }
+            else
+            {
+                HideBossAreaTelegraphFx();
+            }
+
             _spriteAnimator?.PlayHurtOneShot(_bossStateTimer);
         }
 
@@ -1286,6 +1427,7 @@ namespace EJR.Game.Gameplay
 
                 case BossPatternActionKind.WizardCrossBurst:
                     _bossRepeatRemaining = ScaleBossActionCount(2);
+                    SpawnVariantAreaFx(transform.position, WizardCrossBurstTelegraphRadius, WizardCrossTelegraphColor, 0.07f, 0.24f, 0.18f, 8, "BossCrossBurstCastFx");
                     BossProjectileVolleyStarted?.Invoke();
                     break;
 
@@ -1295,6 +1437,7 @@ namespace EJR.Game.Gameplay
                     break;
 
                 case BossPatternActionKind.WarriorGroundSlam:
+                    SpawnVariantAreaFx(transform.position, GroundSlamTelegraphRadius, GroundSlamTelegraphColor, 0.08f, 0.28f, 0.22f, 10, "BossGroundSlamCastFx");
                     FireBossRadialBurst(GroundSlamProjectileCount, GetBossProjectileSpeed(5.5f));
                     EnterBossRecovery(GetBossRecoveryDuration(_bossCurrentAction));
                     break;
@@ -1311,6 +1454,7 @@ namespace EJR.Game.Gameplay
 
                 case BossPatternActionKind.FinalGravityNova:
                     _bossExecutionTimer = FinalGravityDuration;
+                    SpawnVariantAreaFx(transform.position, FinalGravityRadius, GravityTelegraphColor, 0.08f, FinalGravityDuration + 0.12f, 0.22f, 12, "BossGravityNovaCastFx");
                     ApplyBossPullState(transform.position, FinalGravityRadius, GetBossPullSpeed(2.8f));
                     break;
             }
@@ -1522,6 +1666,7 @@ namespace EJR.Game.Gameplay
         private void EndBossPattern()
         {
             HideBossDashTelegraphFx();
+            HideBossAreaTelegraphFx();
             ClearBossPullState();
             _bossPreviousAction = _bossCurrentAction;
             _bossPatternState = BossPatternState.None;
@@ -1613,6 +1758,13 @@ namespace EJR.Game.Gameplay
         private bool ShouldShowDashTelegraph(BossPatternActionKind action)
         {
             return action == BossPatternActionKind.WarriorChargeCombo || action == BossPatternActionKind.FinalChargeCombo;
+        }
+
+        private bool ShouldShowAreaTelegraph(BossPatternActionKind action)
+        {
+            return action == BossPatternActionKind.WarriorGroundSlam
+                || action == BossPatternActionKind.WizardCrossBurst
+                || action == BossPatternActionKind.FinalGravityNova;
         }
 
         private float GetBossTelegraphDuration(BossPatternActionKind action)
@@ -1711,6 +1863,7 @@ namespace EJR.Game.Gameplay
         private void EnterBossRecovery(float duration)
         {
             HideBossDashTelegraphFx();
+            HideBossAreaTelegraphFx();
             ClearBossPullState();
             _bossPatternState = BossPatternState.Recovery;
             _bossStateTimer = Mathf.Max(0.05f, duration);
@@ -1812,10 +1965,100 @@ namespace EJR.Game.Gameplay
             var direction = _bossDashDirection.sqrMagnitude > 0.000001f ? _bossDashDirection.normalized : GetDirectionToPlayer();
             var start = (Vector2)transform.position;
             var end = start + (direction * BossDashTelegraphLength);
+            var telegraphDuration = Mathf.Max(0.05f, GetBossTelegraphDuration(_bossCurrentAction));
+            var progress = 1f - Mathf.Clamp01(_bossStateTimer / telegraphDuration);
+            var width = Mathf.Lerp(BossDashTelegraphWidth * 0.7f, BossDashTelegraphWidth * 1.9f, progress);
+            var color = Color.Lerp(BossDashTelegraphColor, BossDashTelegraphHotColor, progress);
 
             _bossDashTelegraphLine.enabled = true;
+            _bossDashTelegraphLine.startWidth = width;
+            _bossDashTelegraphLine.endWidth = width;
+            _bossDashTelegraphLine.startColor = color;
+            _bossDashTelegraphLine.endColor = color;
             _bossDashTelegraphLine.SetPosition(0, new Vector3(start.x, start.y, -0.03f));
             _bossDashTelegraphLine.SetPosition(1, new Vector3(end.x, end.y, -0.03f));
+        }
+
+        private void UpdateBossAreaTelegraphFx()
+        {
+            if (!TryGetBossAreaTelegraphSpec(out var radius, out var color, out var width))
+            {
+                HideBossAreaTelegraphFx();
+                return;
+            }
+
+            EnsureBossAreaTelegraphFx();
+            if (_bossAreaTelegraphLine == null)
+            {
+                return;
+            }
+
+            _bossAreaTelegraphLine.enabled = true;
+            _bossAreaTelegraphLine.startWidth = width;
+            _bossAreaTelegraphLine.endWidth = width;
+            _bossAreaTelegraphLine.startColor = color;
+            _bossAreaTelegraphLine.endColor = color;
+            WeaponFxRenderer.SetCircleLinePositions(_bossAreaTelegraphLine, transform.position, radius, BossAreaTelegraphSegments, -0.03f);
+        }
+
+        private bool TryGetBossAreaTelegraphSpec(out float radius, out Color color, out float width)
+        {
+            radius = 0f;
+            color = Color.white;
+            width = BossAreaTelegraphWidth;
+
+            var time = _bossPatternState == BossPatternState.Telegraph
+                ? Mathf.Max(0f, _bossStateTimer)
+                : Mathf.Max(0f, _bossExecutionTimer + _bossSecondaryTimer);
+            var pulse = 0.5f + (0.5f * Mathf.Sin(Time.time * 12f));
+
+            switch (_bossCurrentAction)
+            {
+                case BossPatternActionKind.WarriorGroundSlam:
+                    if (_bossPatternState != BossPatternState.Telegraph)
+                    {
+                        return false;
+                    }
+
+                    radius = GroundSlamTelegraphRadius;
+                    color = Color.Lerp(GroundSlamTelegraphColor, BossDashTelegraphHotColor, pulse * 0.55f);
+                    width = Mathf.Lerp(BossAreaTelegraphWidth, BossAreaTelegraphWidth * 1.55f, pulse);
+                    return true;
+
+                case BossPatternActionKind.WizardCrossBurst:
+                    if (_bossPatternState != BossPatternState.Telegraph)
+                    {
+                        return false;
+                    }
+
+                    radius = WizardCrossBurstTelegraphRadius;
+                    color = Color.Lerp(WizardCrossTelegraphColor, Color.white, pulse * 0.35f);
+                    width = Mathf.Lerp(BossAreaTelegraphWidth, BossAreaTelegraphWidth * 1.4f, pulse);
+                    return true;
+
+                case BossPatternActionKind.FinalGravityNova:
+                    if (_bossPatternState != BossPatternState.Telegraph && _bossPatternState != BossPatternState.Executing)
+                    {
+                        return false;
+                    }
+
+                    radius = FinalGravityRadius;
+                    if (_bossPatternState == BossPatternState.Telegraph)
+                    {
+                        color = Color.Lerp(GravityTelegraphColor, Color.white, pulse * 0.25f);
+                        width = Mathf.Lerp(BossAreaTelegraphWidth * 1.1f, BossAreaTelegraphWidth * 1.9f, pulse);
+                    }
+                    else
+                    {
+                        var timePulse = 0.55f + (0.45f * Mathf.Sin(Time.time * 10f));
+                        color = Color.Lerp(GravityTelegraphColor, new Color(0.82f, 0.96f, 1f, 0.98f), timePulse * 0.5f);
+                        width = Mathf.Lerp(BossAreaTelegraphWidth * 1.3f, BossAreaTelegraphWidth * 2.2f, timePulse);
+                    }
+
+                    return true;
+            }
+
+            return false;
         }
 
         private void EnsureBossDashTelegraphFx()
@@ -1846,11 +2089,47 @@ namespace EJR.Game.Gameplay
             _bossDashTelegraphLine = lineRenderer;
         }
 
+        private void EnsureBossAreaTelegraphFx()
+        {
+            if (_bossAreaTelegraphLine != null)
+            {
+                return;
+            }
+
+            var fxObject = new GameObject("BossAreaTelegraphFx");
+            fxObject.transform.SetParent(transform, false);
+
+            var lineRenderer = fxObject.AddComponent<LineRenderer>();
+            lineRenderer.useWorldSpace = true;
+            lineRenderer.loop = true;
+            lineRenderer.positionCount = BossAreaTelegraphSegments;
+            lineRenderer.alignment = LineAlignment.View;
+            lineRenderer.numCapVertices = 2;
+            lineRenderer.numCornerVertices = 2;
+            lineRenderer.startWidth = BossAreaTelegraphWidth;
+            lineRenderer.endWidth = BossAreaTelegraphWidth;
+            lineRenderer.startColor = GravityTelegraphColor;
+            lineRenderer.endColor = GravityTelegraphColor;
+            lineRenderer.sortingOrder = 519;
+            lineRenderer.sharedMaterial = GetOrCreateBossDashTelegraphMaterial();
+            lineRenderer.enabled = false;
+
+            _bossAreaTelegraphLine = lineRenderer;
+        }
+
         private void HideBossDashTelegraphFx()
         {
             if (_bossDashTelegraphLine != null)
             {
                 _bossDashTelegraphLine.enabled = false;
+            }
+        }
+
+        private void HideBossAreaTelegraphFx()
+        {
+            if (_bossAreaTelegraphLine != null)
+            {
+                _bossAreaTelegraphLine.enabled = false;
             }
         }
 

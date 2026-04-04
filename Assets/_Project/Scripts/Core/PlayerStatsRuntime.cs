@@ -7,6 +7,7 @@ namespace EJR.Game.Core
     public sealed class PlayerStatsRuntime
     {
         public float DamageMultiplier { get; private set; } = 1f;
+        public float DamageTakenMultiplier { get; private set; } = 1f;
         public float AttackIntervalMultiplier { get; private set; } = 1f;
         public float MoveSpeedMultiplier { get; private set; } = 1f;
         public float AttackRangeMultiplier { get; private set; } = 1f;
@@ -20,6 +21,7 @@ namespace EJR.Game.Core
         public void RecalculateFromBuild(PlayerBuildRuntime build)
         {
             DamageMultiplier = 1f;
+            DamageTakenMultiplier = 1f;
             AttackIntervalMultiplier = 1f;
             MoveSpeedMultiplier = 1f;
             AttackRangeMultiplier = 1f;
@@ -36,10 +38,11 @@ namespace EJR.Game.Core
             }
 
             DamageMultiplier = 1f + (Mathf.Max(0f, build.GlobalAttackPowerPercentTotal) / 100f);
+            DamageTakenMultiplier = Mathf.Max(0.1f, build.GlobalDamageTakenScale);
             var attackSpeedScale = Mathf.Max(0.25f, 1f + (build.GlobalAttackSpeedPercentTotal / 100f));
             AttackIntervalMultiplier = 1f / attackSpeedScale;
             MoveSpeedMultiplier = 1f + (Mathf.Max(0f, build.GlobalMoveSpeedPercentTotal) / 100f);
-            AttackRangeMultiplier = 1f + (Mathf.Max(0f, build.GlobalAttackRangePercentTotal) / 100f);
+            AttackRangeMultiplier = Mathf.Max(0.25f, 1f + (build.GlobalAttackRangePercentTotal / 100f));
             MaxHealthBonus = Mathf.Max(0f, build.GlobalMaxHealthFlatTotal);
             MaxHealthScale = Mathf.Max(0.05f, build.GlobalMaxHealthScale);
             HealthRegenPerSecond = build.SuppressesPassiveRegen ? 0f : Mathf.Max(0f, build.GlobalHealthRegenPerSecondTotal);

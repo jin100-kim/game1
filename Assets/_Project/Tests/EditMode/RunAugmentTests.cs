@@ -31,7 +31,7 @@ namespace EJR.Game.Tests.EditMode
             var option = LevelUpOption.CreateAugment(
                 RunAugmentId.Berserk,
                 "광전사",
-                "피해량 +15%",
+                "피해량 +18%",
                 "광전사");
 
             buildRuntime.Apply(option);
@@ -39,7 +39,7 @@ namespace EJR.Game.Tests.EditMode
 
             Assert.That(buildRuntime.ActiveAugments.Count, Is.EqualTo(1));
             Assert.That(buildRuntime.ActiveAugments.First(), Is.EqualTo(RunAugmentId.Berserk));
-            Assert.That(buildRuntime.GlobalAttackPowerPercentTotal, Is.EqualTo(15f).Within(0.001f));
+            Assert.That(buildRuntime.GlobalAttackPowerPercentTotal, Is.EqualTo(18f).Within(0.001f));
         }
 
         [Test]
@@ -74,10 +74,25 @@ namespace EJR.Game.Tests.EditMode
             var stats = new PlayerStatsRuntime();
             stats.RecalculateFromBuild(buildRuntime);
 
-            Assert.That(stats.DamageMultiplier, Is.EqualTo(2f).Within(0.001f));
-            Assert.That(stats.AttackIntervalMultiplier, Is.EqualTo(1.25f).Within(0.001f));
-            Assert.That(stats.MaxHealthScale, Is.EqualTo(0.2f).Within(0.001f));
+            Assert.That(stats.DamageMultiplier, Is.EqualTo(2.0f).Within(0.001f));
+            Assert.That(stats.DamageTakenMultiplier, Is.EqualTo(2.0f).Within(0.001f));
+            Assert.That(stats.AttackIntervalMultiplier, Is.EqualTo(1f / 0.82f).Within(0.001f));
+            Assert.That(stats.MaxHealthScale, Is.EqualTo(1f).Within(0.001f));
             Assert.That(stats.HealthRegenPerSecond, Is.EqualTo(0f).Within(0.001f));
+        }
+
+        [Test]
+        public void CloseQuarters_ReducesAttackRangeAndIncreasesDamage()
+        {
+            var buildRuntime = new PlayerBuildRuntime();
+            buildRuntime.InitializeDefaults(grantStarterRifle: false);
+            buildRuntime.Apply(LevelUpOption.CreateAugment(RunAugmentId.CloseQuarters, "백병전", string.Empty, string.Empty));
+
+            var stats = new PlayerStatsRuntime();
+            stats.RecalculateFromBuild(buildRuntime);
+
+            Assert.That(stats.DamageMultiplier, Is.EqualTo(1.6f).Within(0.001f));
+            Assert.That(stats.AttackRangeMultiplier, Is.EqualTo(0.65f).Within(0.001f));
         }
 
         [Test]
@@ -93,10 +108,10 @@ namespace EJR.Game.Tests.EditMode
 
             Assert.That(fullHealthBonuses.attackPowerPercent, Is.EqualTo(0f).Within(0.001f));
             Assert.That(fullHealthBonuses.moveSpeedPercent, Is.EqualTo(0f).Within(0.001f));
-            Assert.That(midHealthBonuses.attackPowerPercent, Is.EqualTo(15f).Within(0.01f));
-            Assert.That(midHealthBonuses.moveSpeedPercent, Is.EqualTo(15f).Within(0.01f));
-            Assert.That(lowHealthBonuses.attackPowerPercent, Is.EqualTo(30f).Within(0.001f));
-            Assert.That(lowHealthBonuses.moveSpeedPercent, Is.EqualTo(30f).Within(0.001f));
+            Assert.That(midHealthBonuses.attackPowerPercent, Is.EqualTo(13.125f).Within(0.02f));
+            Assert.That(midHealthBonuses.moveSpeedPercent, Is.EqualTo(13.125f).Within(0.02f));
+            Assert.That(lowHealthBonuses.attackPowerPercent, Is.EqualTo(35f).Within(0.001f));
+            Assert.That(lowHealthBonuses.moveSpeedPercent, Is.EqualTo(35f).Within(0.001f));
         }
     }
 }

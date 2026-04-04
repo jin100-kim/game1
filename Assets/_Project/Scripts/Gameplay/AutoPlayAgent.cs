@@ -111,7 +111,10 @@ namespace EJR.Game.Gameplay
             CollectNearbyHazards(playerPosition2D, Mathf.Max(searchDistance, 8.5f));
             var hazardAvoid = ComputeHazardAvoidance(playerPosition2D, healthRatio);
             var cornerPressure = ComputeCornerPressure(playerPosition2D, movementBounds);
-            var dangerPressure = Mathf.Clamp01((evade.magnitude * 0.45f) + (hazardAvoid.magnitude * 0.55f) + (cornerPressure * 0.6f));
+            var projectilePressure = ComputeProjectilePressure(playerPosition2D);
+            var bossProjectilePressure = ComputeBossProjectilePressure(playerPosition2D);
+            var combinedProjectilePressure = Mathf.Clamp01(Mathf.Max(projectilePressure, bossProjectilePressure));
+            var dangerPressure = Mathf.Clamp01((evade.magnitude * 0.38f) + (hazardAvoid.magnitude * 0.6f) + (cornerPressure * 0.65f) + (combinedProjectilePressure * 0.95f));
             var escape = ComputeEscapeObjective(
                 playerPosition2D,
                 movementBounds,
@@ -120,7 +123,7 @@ namespace EJR.Game.Gameplay
 
             var objective = Vector2.zero;
             var hasPriorityObjective = false;
-            if (nearestRewardChestPosition.HasValue)
+            if (nearestRewardChestPosition.HasValue && combinedProjectilePressure < 0.35f)
             {
                 objective += ComputeChestObjective(
                     playerPosition2D,
@@ -143,7 +146,7 @@ namespace EJR.Game.Gameplay
 
             if (bossPosition.HasValue)
             {
-                objective += ComputeBossObjective(playerPosition2D, bossPosition.Value, healthRatio);
+                objective += ComputeBossObjective(playerPosition2D, bossPosition.Value, healthRatio, Mathf.Max(bossProjectilePressure, combinedProjectilePressure * 0.65f));
                 hasPriorityObjective = true;
             }
 
@@ -159,10 +162,10 @@ namespace EJR.Game.Gameplay
                 }
             }
 
-            objective *= Mathf.Lerp(1f, 0.52f, dangerPressure);
+            objective *= Mathf.Lerp(1f, 0.28f, Mathf.Clamp01(dangerPressure + (combinedProjectilePressure * 0.55f)));
 
             var collect = Vector2.zero;
-            if (!hasPriorityObjective && nearestOrbPosition.HasValue && dangerPressure < 0.25f && cornerPressure < 0.45f)
+            if (!hasPriorityObjective && nearestOrbPosition.HasValue && dangerPressure < 0.15f && combinedProjectilePressure < 0.15f && cornerPressure < 0.35f)
             {
                 var toOrb = (Vector2)(nearestOrbPosition.Value - playerPosition);
                 var orbDistance = toOrb.magnitude;
@@ -185,7 +188,7 @@ namespace EJR.Game.Gameplay
                 + (escape * Mathf.Lerp(0.65f, 2.35f, Mathf.Clamp01(dangerPressure + (cornerPressure * 0.5f))))
                 + (objective * 1.35f)
                 + (collect * 1f)
-                + (approach * (hasPriorityObjective ? 0.12f : Mathf.Lerp(0.18f, 0.55f, 1f - dangerPressure)))
+                + (approach * (hasPriorityObjective ? 0.05f : Mathf.Lerp(0.06f, 0.36f, 1f - Mathf.Clamp01(dangerPressure + (combinedProjectilePressure * 0.5f)))))
                 + (inward * Mathf.Lerp(1.25f, 3f, cornerPressure))
                 + (centerBias * 0.25f)
                 + wander;
@@ -236,7 +239,10 @@ namespace EJR.Game.Gameplay
                     continue;
                 }
 
-                if ((projectile.WorldPosition - playerPosition).sqrMagnitude <= searchRadiusSq)
+                var horizon = Mathf.Min(projectile.RemainingLifetime, 0.95f);
+                var travelPadding = Mathf.Min(projectile.Speed * horizon, 5.5f) + projectile.HitRadius + 0.35f;
+                var paddedRadius = searchRadius + travelPadding;
+                if ((projectile.WorldPosition - playerPosition).sqrMagnitude <= paddedRadius * paddedRadius)
                 {
                     _nearbyVariantProjectiles.Add(projectile);
                 }
@@ -251,7 +257,10 @@ namespace EJR.Game.Gameplay
                     continue;
                 }
 
-                if ((projectile.WorldPosition - playerPosition).sqrMagnitude <= searchRadiusSq)
+                var horizon = Mathf.Min(projectile.RemainingLifetime, 0.9f);
+                var travelPadding = Mathf.Min(projectile.Speed * horizon, 5f) + projectile.HitRadius + 0.35f;
+                var paddedRadius = searchRadius + travelPadding;
+                if ((projectile.WorldPosition - playerPosition).sqrMagnitude <= paddedRadius * paddedRadius)
                 {
                     _nearbyBossProjectiles.Add(projectile);
                 }
@@ -308,22 +317,28 @@ namespace EJR.Game.Gameplay
             return objective;
         }
 
-        private Vector2 ComputeBossObjective(Vector2 playerPosition, Vector3 bossPosition, float healthRatio)
+        private Vector2 ComputeBossObjective(Vector2 playerPosition, Vector3 bossPosition, float healthRatio, float projectilePressure)
         {
-            var preferredDistance = Mathf.Lerp(4.4f, 3.4f, healthRatio);
-            var dangerDistance = Mathf.Lerp(2.6f, 1.9f, healthRatio);
+            var clampedPressure = Mathf.Clamp01(projectilePressure);
+            var preferredDistance = Mathf.Lerp(4.4f, 3.4f, healthRatio) + Mathf.Lerp(0f, 1.4f, clampedPressure);
+            var dangerDistance = Mathf.Lerp(2.6f, 1.9f, healthRatio) + Mathf.Lerp(0f, 0.5f, clampedPressure);
             var objective = ComputeCombatObjective(
                 playerPosition,
                 bossPosition,
                 preferredDistance,
                 dangerDistance,
-                1.35f);
+                Mathf.Lerp(1.35f, 2.05f, clampedPressure));
 
             var toBoss = (Vector2)bossPosition - playerPosition;
             var bossDistance = toBoss.magnitude;
             if (bossDistance > preferredDistance + 1.2f && bossDistance <= 8.5f)
             {
                 objective += (toBoss / Mathf.Max(0.001f, bossDistance)) * 0.45f;
+            }
+
+            if (clampedPressure > 0.01f && bossDistance < preferredDistance)
+            {
+                objective -= (toBoss / Mathf.Max(0.001f, bossDistance)) * Mathf.Lerp(0.2f, 0.75f, clampedPressure);
             }
 
             return objective;
@@ -353,6 +368,41 @@ namespace EJR.Game.Gameplay
                 var direction = distance > 0.0001f ? toPlayer / distance : Random.insideUnitCircle.normalized;
                 var weight = 1f - (distance / Mathf.Max(0.1f, safeRadius));
                 avoid += direction * Mathf.Lerp(1.1f, 2.2f, weight);
+            }
+
+            for (var i = 0; i < _nearbyEnemies.Count; i++)
+            {
+                var enemy = _nearbyEnemies[i];
+                if (enemy == null || enemy.IsDead || !enemy.IsBoss)
+                {
+                    continue;
+                }
+
+                if (enemy.TryGetBossDashHazard(out var center, out var direction, out var length, out var width, out _))
+                {
+                    AddDashHazardAvoidance(
+                        playerPosition,
+                        center,
+                        direction,
+                        length,
+                        width + 0.55f,
+                        ref avoid);
+                }
+
+                if (enemy.TryGetBossRadialHazard(out center, out var radialRadius, out var radialRemainingTime))
+                {
+                    var toPlayer = playerPosition - center;
+                    var distance = toPlayer.magnitude;
+                    var safeRadius = radialRadius + clearancePadding + Mathf.Lerp(0.15f, 0.65f, Mathf.Clamp01(radialRemainingTime));
+                    if (distance >= safeRadius)
+                    {
+                        continue;
+                    }
+
+                    var awayDirection = distance > 0.0001f ? toPlayer / distance : Random.insideUnitCircle.normalized;
+                    var weight = 1f - (distance / Mathf.Max(0.1f, safeRadius));
+                    avoid += awayDirection * Mathf.Lerp(1.15f, 2.25f, weight);
+                }
             }
 
             for (var i = 0; i < _nearbySigils.Count; i++)
@@ -391,7 +441,7 @@ namespace EJR.Game.Gameplay
                     projectile.Speed,
                     projectile.RemainingLifetime,
                     projectile.HitRadius,
-                    0.65f,
+                    0.95f,
                     ref avoid);
             }
 
@@ -410,7 +460,7 @@ namespace EJR.Game.Gameplay
                     projectile.Speed,
                     projectile.RemainingLifetime,
                     projectile.HitRadius,
-                    0.9f,
+                    1.05f,
                     ref avoid);
             }
 
@@ -489,6 +539,29 @@ namespace EJR.Game.Gameplay
                         score -= Mathf.Lerp(5.5f, 0f, blastDistance / 1.2f);
                     }
                 }
+
+                if (!enemy.IsBoss)
+                {
+                    continue;
+                }
+
+                if (enemy.TryGetBossDashHazard(out center, out var direction, out var length, out var width, out _))
+                {
+                    score -= EvaluateDashThreat(samplePosition, center, direction, length, width + 0.55f);
+                }
+
+                if (enemy.TryGetBossRadialHazard(out center, out radius, out _))
+                {
+                    var radialDistance = Vector2.Distance(samplePosition, center) - radius;
+                    if (radialDistance <= 0.15f)
+                    {
+                        score -= 9.5f;
+                    }
+                    else if (radialDistance <= 1.3f)
+                    {
+                        score -= Mathf.Lerp(5.8f, 0f, radialDistance / 1.3f);
+                    }
+                }
             }
 
             for (var i = 0; i < _nearbySigils.Count; i++)
@@ -525,7 +598,7 @@ namespace EJR.Game.Gameplay
                     projectile.Speed,
                     projectile.RemainingLifetime,
                     projectile.HitRadius,
-                    0.65f);
+                    1.05f);
             }
 
             for (var i = 0; i < _nearbyBossProjectiles.Count; i++)
@@ -543,7 +616,7 @@ namespace EJR.Game.Gameplay
                     projectile.Speed,
                     projectile.RemainingLifetime,
                     projectile.HitRadius,
-                    0.9f);
+                    1.1f);
             }
 
             return score;
@@ -565,7 +638,7 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            var horizon = Mathf.Min(remainingLifetime, 0.65f);
+            var horizon = Mathf.Min(remainingLifetime, 0.95f);
             var projectedEnd = projectilePosition + (direction * speed * horizon);
             var closestPoint = ClosestPointOnSegment(playerPosition, projectilePosition, projectedEnd);
             var offset = playerPosition - closestPoint;
@@ -579,8 +652,38 @@ namespace EJR.Game.Gameplay
             var awayDirection = distance > 0.0001f
                 ? offset / distance
                 : new Vector2(-direction.y, direction.x).normalized;
-            var weight = 1f - (distance / Mathf.Max(0.05f, safeRadius));
-            avoid += awayDirection * Mathf.Lerp(0.8f, 1.85f, weight);
+            var approachDistance = Mathf.Max(0f, Vector2.Dot(closestPoint - projectilePosition, direction.normalized));
+            var impactTime = speed > 0.001f ? approachDistance / speed : horizon;
+            var timeWeight = 1f - Mathf.Clamp01(impactTime / Mathf.Max(0.05f, horizon));
+            var weight = (1f - (distance / Mathf.Max(0.05f, safeRadius))) * Mathf.Lerp(0.8f, 1.3f, timeWeight);
+            avoid += awayDirection * Mathf.Lerp(1.1f, 2.55f, weight);
+        }
+
+        private static void AddDashHazardAvoidance(
+            Vector2 playerPosition,
+            Vector2 dashOrigin,
+            Vector2 dashDirection,
+            float dashLength,
+            float hazardWidth,
+            ref Vector2 avoid)
+        {
+            var projectedEnd = dashOrigin + (dashDirection.normalized * Mathf.Max(0.25f, dashLength));
+            var closestPoint = ClosestPointOnSegment(playerPosition, dashOrigin, projectedEnd);
+            var offset = playerPosition - closestPoint;
+            var distance = offset.magnitude;
+            var safeWidth = Mathf.Max(0.15f, hazardWidth);
+            if (distance >= safeWidth)
+            {
+                return;
+            }
+
+            var lateralDirection = distance > 0.0001f
+                ? offset / distance
+                : new Vector2(-dashDirection.y, dashDirection.x).normalized;
+            var longitudinal = playerPosition - dashOrigin;
+            var aheadFactor = Mathf.Clamp01(Vector2.Dot(dashDirection.normalized, longitudinal) / Mathf.Max(0.5f, dashLength));
+            var weight = (1f - (distance / safeWidth)) * Mathf.Lerp(0.65f, 1.2f, aheadFactor);
+            avoid += lateralDirection * Mathf.Lerp(1.25f, 2.4f, weight);
         }
 
         private static float EvaluateProjectileThreat(
@@ -598,7 +701,7 @@ namespace EJR.Game.Gameplay
                 return 0f;
             }
 
-            var horizon = Mathf.Min(remainingLifetime, 0.65f);
+            var horizon = Mathf.Min(remainingLifetime, 0.95f);
             var projectedEnd = projectilePosition + (direction * speed * horizon);
             var closestPoint = ClosestPointOnSegment(samplePosition, projectilePosition, projectedEnd);
             var distance = Vector2.Distance(samplePosition, closestPoint);
@@ -608,8 +711,97 @@ namespace EJR.Game.Gameplay
                 return 0f;
             }
 
-            var weight = 1f - (distance / Mathf.Max(0.05f, safeRadius));
-            return Mathf.Lerp(0.6f, 3.2f, weight);
+            var approachDistance = Mathf.Max(0f, Vector2.Dot(closestPoint - projectilePosition, direction.normalized));
+            var impactTime = speed > 0.001f ? approachDistance / speed : horizon;
+            var timeWeight = 1f - Mathf.Clamp01(impactTime / Mathf.Max(0.05f, horizon));
+            var weight = (1f - (distance / Mathf.Max(0.05f, safeRadius))) * Mathf.Lerp(0.8f, 1.3f, timeWeight);
+            return Mathf.Lerp(0.85f, 4.6f, weight);
+        }
+
+        private float ComputeProjectilePressure(Vector2 playerPosition)
+        {
+            var pressure = 0f;
+
+            for (var i = 0; i < _nearbyVariantProjectiles.Count; i++)
+            {
+                var projectile = _nearbyVariantProjectiles[i];
+                if (projectile == null)
+                {
+                    continue;
+                }
+
+                var threat = EvaluateProjectileThreat(
+                    playerPosition,
+                    projectile.WorldPosition,
+                    projectile.Direction,
+                    projectile.Speed,
+                    projectile.RemainingLifetime,
+                    projectile.HitRadius,
+                    1.05f);
+                pressure = Mathf.Max(pressure, Mathf.Clamp01(threat / 4.2f));
+            }
+
+            for (var i = 0; i < _nearbyBossProjectiles.Count; i++)
+            {
+                var projectile = _nearbyBossProjectiles[i];
+                if (projectile == null)
+                {
+                    continue;
+                }
+
+                var threat = EvaluateProjectileThreat(
+                    playerPosition,
+                    projectile.WorldPosition,
+                    projectile.Direction,
+                    projectile.Speed,
+                    projectile.RemainingLifetime,
+                    projectile.HitRadius,
+                    1.1f);
+                pressure = Mathf.Max(pressure, Mathf.Clamp01(threat / 4.6f));
+            }
+
+            return pressure;
+        }
+
+        private static float EvaluateDashThreat(
+            Vector2 samplePosition,
+            Vector2 dashOrigin,
+            Vector2 dashDirection,
+            float dashLength,
+            float hazardWidth)
+        {
+            var projectedEnd = dashOrigin + (dashDirection.normalized * Mathf.Max(0.25f, dashLength));
+            var closestPoint = ClosestPointOnSegment(samplePosition, dashOrigin, projectedEnd);
+            var distance = Vector2.Distance(samplePosition, closestPoint);
+            var safeWidth = Mathf.Max(0.15f, hazardWidth);
+            if (distance >= safeWidth)
+            {
+                return 0f;
+            }
+
+            var longitudinal = samplePosition - dashOrigin;
+            var aheadFactor = Mathf.Clamp01(Vector2.Dot(dashDirection.normalized, longitudinal) / Mathf.Max(0.5f, dashLength));
+            var weight = (1f - (distance / safeWidth)) * Mathf.Lerp(0.75f, 1.2f, aheadFactor);
+            return Mathf.Lerp(1.25f, 4.25f, weight);
+        }
+
+        private float ComputeBossProjectilePressure(Vector2 playerPosition)
+        {
+            var pressure = 0f;
+            for (var i = 0; i < _nearbyEnemies.Count; i++)
+            {
+                var enemy = _nearbyEnemies[i];
+                if (enemy == null || enemy.IsDead || !enemy.IsBoss || !enemy.HasBossProjectilePressure())
+                {
+                    continue;
+                }
+
+                var distance = Vector2.Distance(playerPosition, enemy.transform.position);
+                var distanceWeight = 1f - Mathf.Clamp01(distance / 8.5f);
+                pressure = Mathf.Max(pressure, Mathf.Lerp(0.35f, 1f, distanceWeight));
+            }
+
+            return pressure;
         }
 
         private void RefreshWanderDirection()

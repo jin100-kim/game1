@@ -27,6 +27,7 @@ namespace EJR.Game.Core
             MetaBonusValues bonuses,
             int extraWeaponSlots = 0,
             float maxHealthScale = 1f,
+            float damageTakenScale = 1f,
             bool suppressPassiveRegen = false,
             int lifestealHealPerHit = 0,
             float lifestealDamageRatio = 0f,
@@ -37,9 +38,7 @@ namespace EJR.Game.Core
             float lowHealthMoveSpeedPercentMax = 0f,
             float lowHealthMaxThreshold = 0f,
             float lowEnemyHealthDamagePercent = 0f,
-            float lowEnemyHealthThreshold = 0f,
-            float closeRangeDamagePercent = 0f,
-            float closeRangeRadius = 0f)
+            float lowEnemyHealthThreshold = 0f)
         {
             Id = id;
             DisplayName = string.IsNullOrWhiteSpace(displayName) ? id.ToString() : displayName;
@@ -47,6 +46,7 @@ namespace EJR.Game.Core
             Bonuses = bonuses;
             ExtraWeaponSlots = Mathf.Max(0, extraWeaponSlots);
             MaxHealthScale = Mathf.Max(0.05f, maxHealthScale);
+            DamageTakenScale = Mathf.Max(0.1f, damageTakenScale);
             SuppressPassiveRegen = suppressPassiveRegen;
             LifestealHealPerHit = Mathf.Max(0, lifestealHealPerHit);
             LifestealDamageRatio = Mathf.Max(0f, lifestealDamageRatio);
@@ -58,8 +58,6 @@ namespace EJR.Game.Core
             LowHealthMaxThreshold = Mathf.Clamp(lowHealthMaxThreshold, 0f, 1f);
             LowEnemyHealthDamagePercent = Mathf.Max(0f, lowEnemyHealthDamagePercent);
             LowEnemyHealthThreshold = Mathf.Clamp(lowEnemyHealthThreshold, 0f, 1f);
-            CloseRangeDamagePercent = Mathf.Max(0f, closeRangeDamagePercent);
-            CloseRangeRadius = Mathf.Max(0f, closeRangeRadius);
         }
 
         public RunAugmentId Id { get; }
@@ -68,6 +66,7 @@ namespace EJR.Game.Core
         public MetaBonusValues Bonuses { get; }
         public int ExtraWeaponSlots { get; }
         public float MaxHealthScale { get; }
+        public float DamageTakenScale { get; }
         public bool SuppressPassiveRegen { get; }
         public int LifestealHealPerHit { get; }
         public float LifestealDamageRatio { get; }
@@ -79,8 +78,6 @@ namespace EJR.Game.Core
         public float LowHealthMaxThreshold { get; }
         public float LowEnemyHealthDamagePercent { get; }
         public float LowEnemyHealthThreshold { get; }
-        public float CloseRangeDamagePercent { get; }
-        public float CloseRangeRadius { get; }
     }
 
     public static class SharedAugmentCatalog
@@ -90,27 +87,29 @@ namespace EJR.Game.Core
             new(
                 RunAugmentId.Berserk,
                 "광전사",
-                "피해량 +15%",
-                new MetaBonusValues { attackPowerPercent = 15f }),
+                "피해량 +18%",
+                new MetaBonusValues { attackPowerPercent = 18f }),
             new(
                 RunAugmentId.Overclock,
                 "과부하",
-                "공격 속도 +15%",
-                new MetaBonusValues { attackSpeedPercent = 15f }),
+                "공격 속도 +18%",
+                new MetaBonusValues { attackSpeedPercent = 18f }),
             new(
                 RunAugmentId.Finisher,
-                "끝장내기",
-                "체력 50% 이하 적 대상 피해 +50%",
+                "마무리타격",
+                "체력 30% 이하 적 대상 피해 2배",
                 default,
-                lowEnemyHealthDamagePercent: 50f,
-                lowEnemyHealthThreshold: 0.5f),
+                lowEnemyHealthDamagePercent: 100f,
+                lowEnemyHealthThreshold: 0.3f),
             new(
                 RunAugmentId.CloseQuarters,
                 "백병전",
-                "가까운 적 대상 피해 +30%",
-                default,
-                closeRangeDamagePercent: 30f,
-                closeRangeRadius: 2.5f),
+                "공격 범위 -35%, 피해량 +60%",
+                new MetaBonusValues
+                {
+                    attackPowerPercent = 60f,
+                    attackRangePercent = -35f,
+                }),
             new(
                 RunAugmentId.Ambidextrous,
                 "양손잡이",
@@ -120,36 +119,36 @@ namespace EJR.Game.Core
             new(
                 RunAugmentId.GlassCannon,
                 "유리대포",
-                "피해량 +60%, 최대 체력 20%",
-                new MetaBonusValues { attackPowerPercent = 60f },
-                maxHealthScale: 0.2f),
+                "피해량 +55%, 받는 피해 2배",
+                new MetaBonusValues { attackPowerPercent = 55f },
+                damageTakenScale: 2f),
             new(
                 RunAugmentId.CautiousAttack,
                 "신중한 공격",
-                "공격력 +40%, 공격 속도 -20%",
+                "공격력 +45%, 공격 속도 -18%",
                 new MetaBonusValues
                 {
-                    attackPowerPercent = 40f,
-                    attackSpeedPercent = -20f,
+                    attackPowerPercent = 45f,
+                    attackSpeedPercent = -18f,
                 }),
             new(
                 RunAugmentId.Vampirism,
                 "흡혈",
-                "체력 재생 불가, 직접 타격 피해의 3% 흡혈 (최소 1, 최대 3, 보스 50%)",
+                "체력 재생 불가, 직접 타격 피해의 4% 흡혈 (최소 1, 최대 4, 보스 60%)",
                 default,
                 suppressPassiveRegen: true,
-                lifestealDamageRatio: 0.03f,
-                lifestealMaxHealPerHit: 3f,
-                lifestealBossMultiplier: 0.5f,
-                lifestealInternalCooldown: 0.12f),
+                lifestealDamageRatio: 0.04f,
+                lifestealMaxHealPerHit: 4f,
+                lifestealBossMultiplier: 0.6f,
+                lifestealInternalCooldown: 0.10f),
             new(
                 RunAugmentId.BerserkerHeart,
                 "광폭화",
-                "체력이 낮을수록 공격력/이동 속도 증가",
+                "체력이 낮을수록 공격력/이동 속도 증가 (40% 이하 최대)",
                 default,
-                lowHealthDamagePercentMax: 30f,
-                lowHealthMoveSpeedPercentMax: 30f,
-                lowHealthMaxThreshold: 0.3f),
+                lowHealthDamagePercentMax: 35f,
+                lowHealthMoveSpeedPercentMax: 35f,
+                lowHealthMaxThreshold: 0.4f),
         };
 
         private static readonly Dictionary<RunAugmentId, RunAugmentDefinition> s_lookup = BuildLookup();

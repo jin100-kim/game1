@@ -13,6 +13,7 @@ namespace EJR.Game.Gameplay
 
         private PlayerSpriteAnimator _spriteAnimator;
         private float _damageInvulnerabilitySeconds;
+        private float _damageTakenMultiplier = 1f;
         private float _invulnerableUntil = -1f;
         private float _pendingHealPopupAmount;
         private bool _debugInvincible;
@@ -27,6 +28,7 @@ namespace EJR.Game.Gameplay
             MaxHealth = Mathf.Max(1f, maxHealth);
             CurrentHealth = MaxHealth;
             _damageInvulnerabilitySeconds = Mathf.Max(0f, damageInvulnerabilitySeconds);
+            _damageTakenMultiplier = 1f;
             _invulnerableUntil = -1f;
             _pendingHealPopupAmount = 0f;
             _debugInvincible = false;
@@ -36,6 +38,11 @@ namespace EJR.Game.Gameplay
         public void SetDebugInvincible(bool enabled)
         {
             _debugInvincible = enabled;
+        }
+
+        public void SetDamageTakenMultiplier(float multiplier)
+        {
+            _damageTakenMultiplier = Mathf.Max(0.1f, multiplier);
         }
 
         public void Restore(float currentHealth, float maxHealth = -1f)
@@ -157,7 +164,7 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            var appliedDamage = Mathf.Max(0f, damage);
+            var appliedDamage = Mathf.Max(0f, damage) * _damageTakenMultiplier;
             if (appliedDamage <= 0f)
             {
                 return;

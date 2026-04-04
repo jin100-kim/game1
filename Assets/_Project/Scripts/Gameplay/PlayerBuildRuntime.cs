@@ -46,6 +46,7 @@ namespace EJR.Game.Gameplay
         private MetaBonusValues _runBonuses;
         private int _extraWeaponSlots;
         private float _maxHealthScale = 1f;
+        private float _damageTakenScale = 1f;
         private bool _suppressPassiveRegen;
         private int _lifestealHealPerHit;
         private float _lifestealDamageRatio;
@@ -57,8 +58,6 @@ namespace EJR.Game.Gameplay
         private float _lowHealthMaxThreshold;
         private float _lowEnemyHealthDamagePercent;
         private float _lowEnemyHealthThreshold;
-        private float _closeRangeDamagePercent;
-        private float _closeRangeRadius;
         private bool _chainAttackIgnoresDecay;
         private int _chainAttackBonusJumps;
 
@@ -76,6 +75,7 @@ namespace EJR.Game.Gameplay
         public float GlobalCreditGainPercentTotal => _metaBonuses.creditGainPercent + _characterBaseBonuses.creditGainPercent + _characterDynamicBonuses.creditGainPercent + _runBonuses.creditGainPercent;
         public int ExtraWeaponSlots => _extraWeaponSlots;
         public float GlobalMaxHealthScale => _maxHealthScale;
+        public float GlobalDamageTakenScale => _damageTakenScale;
         public bool SuppressesPassiveRegen => _suppressPassiveRegen;
         public int LifestealHealPerHit => _lifestealHealPerHit;
         public float LifestealDamageRatio => _lifestealDamageRatio;
@@ -96,6 +96,7 @@ namespace EJR.Game.Gameplay
             _runBonuses = default;
             _extraWeaponSlots = 0;
             _maxHealthScale = 1f;
+            _damageTakenScale = 1f;
             _suppressPassiveRegen = false;
             _lifestealHealPerHit = 0;
             _lifestealDamageRatio = 0f;
@@ -107,8 +108,6 @@ namespace EJR.Game.Gameplay
             _lowHealthMaxThreshold = 0f;
             _lowEnemyHealthDamagePercent = 0f;
             _lowEnemyHealthThreshold = 0f;
-            _closeRangeDamagePercent = 0f;
-            _closeRangeRadius = 0f;
             _chainAttackIgnoresDecay = false;
             _chainAttackBonusJumps = 0;
 
@@ -356,15 +355,6 @@ namespace EJR.Game.Gameplay
                 }
             }
 
-            if (_closeRangeDamagePercent > 0f && _closeRangeRadius > 0f)
-            {
-                var distanceToEnemy = Vector2.Distance(attackerPosition, enemy.transform.position);
-                if (distanceToEnemy <= _closeRangeRadius + enemy.CollisionRadius)
-                {
-                    bonusPercent += _closeRangeDamagePercent;
-                }
-            }
-
             return 1f + (Mathf.Max(0f, bonusPercent) / 100f);
         }
 
@@ -492,6 +482,7 @@ namespace EJR.Game.Gameplay
             _runBonuses += definition.Bonuses;
             _extraWeaponSlots += definition.ExtraWeaponSlots;
             _maxHealthScale *= definition.MaxHealthScale;
+            _damageTakenScale *= definition.DamageTakenScale;
             _suppressPassiveRegen |= definition.SuppressPassiveRegen;
             _lifestealHealPerHit += definition.LifestealHealPerHit;
             _lifestealDamageRatio += definition.LifestealDamageRatio;
@@ -503,8 +494,6 @@ namespace EJR.Game.Gameplay
             _lowHealthMaxThreshold = Mathf.Max(_lowHealthMaxThreshold, definition.LowHealthMaxThreshold);
             _lowEnemyHealthDamagePercent += definition.LowEnemyHealthDamagePercent;
             _lowEnemyHealthThreshold = Mathf.Max(_lowEnemyHealthThreshold, definition.LowEnemyHealthThreshold);
-            _closeRangeDamagePercent += definition.CloseRangeDamagePercent;
-            _closeRangeRadius = Mathf.Max(_closeRangeRadius, definition.CloseRangeRadius);
         }
 
         private WeaponBonusTotals GetWeaponBonuses(WeaponUpgradeId id)
@@ -521,7 +510,6 @@ namespace EJR.Game.Gameplay
             bonuses.maxHealthFlat = Mathf.Max(0f, bonuses.maxHealthFlat);
             bonuses.healthRegenPerSecond = Mathf.Max(0f, bonuses.healthRegenPerSecond);
             bonuses.moveSpeedPercent = Mathf.Max(0f, bonuses.moveSpeedPercent);
-            bonuses.attackRangePercent = Mathf.Max(0f, bonuses.attackRangePercent);
             bonuses.luck = Mathf.Max(0f, bonuses.luck);
             bonuses.experienceGainPercent = Mathf.Max(0f, bonuses.experienceGainPercent);
             bonuses.creditGainPercent = Mathf.Max(0f, bonuses.creditGainPercent);

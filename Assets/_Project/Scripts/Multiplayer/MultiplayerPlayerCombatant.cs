@@ -707,6 +707,7 @@ namespace EJR.Game.Multiplayer
             {
                 var preserveCurrentRatio = _buildRuntime != null && !Mathf.Approximately(_buildRuntime.GlobalMaxHealthScale, 1f);
                 _playerHealth.SetMaxHealth(GetCurrentMaxHealth(), healDelta: !preserveCurrentRatio, preserveCurrentRatio: preserveCurrentRatio);
+                _playerHealth.SetDamageTakenMultiplier(_playerStats != null ? _playerStats.DamageTakenMultiplier : 1f);
             }
 
             _moveSpeedMultiplier.Value = _playerStats != null ? _playerStats.MoveSpeedMultiplier : 1f;
@@ -857,14 +858,22 @@ namespace EJR.Game.Multiplayer
             }
 
             builder.Append('\n').Append("이동 속도 ").Append(FormatSignedPercent(_buildRuntime.GlobalMoveSpeedPercentTotal));
-            builder.Append('\n').Append("공격 범위 +").Append(_buildRuntime.GlobalAttackRangePercentTotal.ToString("0.#")).Append('%');
+            builder.Append('\n').Append("공격 범위 ").Append(FormatSignedPercent(_buildRuntime.GlobalAttackRangePercentTotal));
             builder.Append('\n').Append("행운 ").Append(_buildRuntime.GlobalLuckTotal.ToString("0"));
             if (!Mathf.Approximately(_buildRuntime.GlobalMaxHealthScale, 1f))
             {
                 builder.Append('\n').Append("최대 체력 배율 x").Append(_buildRuntime.GlobalMaxHealthScale.ToString("0.##"));
             }
+            if (_playerStats != null && !Mathf.Approximately(_playerStats.DamageTakenMultiplier, 1f))
+            {
+                builder.Append('\n').Append("받는 피해 x").Append(_playerStats.DamageTakenMultiplier.ToString("0.##"));
+            }
 
-            if (_buildRuntime.LifestealHealPerHit > 0)
+            if (_buildRuntime.LifestealDamageRatio > 0f)
+            {
+                builder.Append('\n').Append("흡혈 피해의 ").Append((_buildRuntime.LifestealDamageRatio * 100f).ToString("0.#")).Append('%');
+            }
+            else if (_buildRuntime.LifestealHealPerHit > 0)
             {
                 builder.Append('\n').Append("흡혈 ").Append(_buildRuntime.LifestealHealPerHit).Append("/타격");
             }
