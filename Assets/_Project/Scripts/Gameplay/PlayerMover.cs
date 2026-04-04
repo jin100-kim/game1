@@ -18,7 +18,9 @@ namespace EJR.Game.Gameplay
         private float _collisionRadius = DefaultCollisionRadius;
         private float _facingTurnSpeedDegreesPerSecond = 1080f;
         private Func<Vector2> _moveInputReader;
+        private Func<Vector2> _externalVelocityReader;
         private EJR.Game.Core.PlayerStatsRuntime _stats;
+        private Vector2 _externalVelocity;
 
         public Vector2 CurrentVelocity { get; private set; }
         public Vector2 LastFacingDirection { get; private set; } = Vector2.right;
@@ -41,6 +43,16 @@ namespace EJR.Game.Gameplay
         public void SetMoveInputReader(Func<Vector2> moveInputReader)
         {
             _moveInputReader = moveInputReader;
+        }
+
+        public void SetExternalVelocityReader(Func<Vector2> externalVelocityReader)
+        {
+            _externalVelocityReader = externalVelocityReader;
+        }
+
+        public void SetExternalDisplacement(Vector2 velocityLike)
+        {
+            _externalVelocity = SanitizeVector(velocityLike);
         }
 
         public void SetMoveSpeedMultiplier(float speedMultiplier)
@@ -94,6 +106,8 @@ namespace EJR.Game.Gameplay
                 move.Normalize();
             }
 
+            var externalVelocity = ReadExternalVelocity();
+
             if (move.sqrMagnitude > 0.000001f)
             {
                 LastFacingDirection = move.normalized;
@@ -105,7 +119,8 @@ namespace EJR.Game.Gameplay
                 _facingTurnSpeedDegreesPerSecond * Time.deltaTime);
 
             var previous = transform.position;
-            var delta = (Vector3)move * (moveSpeed * _speedMultiplier * Time.deltaTime);
+            var delta = ((Vector3)move * (moveSpeed * _speedMultiplier * Time.deltaTime))
+                + ((Vector3)externalVelocity * Time.deltaTime);
             var next = previous + delta;
 
             if (clampToBounds)
@@ -122,6 +137,17 @@ namespace EJR.Game.Gameplay
         private void OnDisable()
         {
             CurrentVelocity = Vector2.zero;
+            _externalVelocity = Vector2.zero;
+        }
+
+        private Vector2 ReadExternalVelocity()
+        {
+            if (_externalVelocityReader == null)
+            {
+                return _externalVelocity;
+            }
+
+            return SanitizeVector(_externalVelocityReader.Invoke());
         }
 
         private static Vector2 RotateDirectionTowards(Vector2 current, Vector2 target, float maxDegreesDelta)
@@ -166,6 +192,16 @@ namespace EJR.Game.Gameplay
             if (Mathf.Approximately(y, 0f)) y = Input.GetAxisRaw("Vertical");
 
             return new Vector2(x, y);
+        }
+
+        private static Vector2 SanitizeVector(Vector2 value)
+        {
+            if (!float.IsFinite(value.x) || !float.IsFinite(value.y))
+            {
+                return Vector2.zero;
+            }
+
+            return value;
         }
 
         private void OnDrawGizmos()

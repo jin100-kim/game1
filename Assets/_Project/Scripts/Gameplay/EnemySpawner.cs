@@ -37,6 +37,9 @@ namespace EJR.Game.Gameplay
         private string _activeWaveTargetLabel = string.Empty;
         private Camera _spawnReferenceCamera;
         private RuntimeSpriteFactory.EnemyVisualKind _bossVisualKind = RuntimeSpriteFactory.EnemyVisualKind.Boss;
+        private BossArchetypeId _bossArchetype = BossArchetypeId.Final;
+        private RunDifficultyDefinition _bossDifficulty;
+        private string _mapId = SharedRunCatalog.DefaultMapId;
         private readonly HashSet<EnemyController> _activeWaveEnemies = new();
         private readonly List<WaveRewardChest> _activeRewardChests = new();
         private readonly HashSet<EnemyController> _debugMonsterLabEnemies = new();
@@ -95,7 +98,10 @@ namespace EJR.Game.Gameplay
             ExperienceSystem experienceSystem,
             float playerCollisionRadius,
             Rect arenaBounds,
-            RuntimeSpriteFactory.EnemyVisualKind bossVisualKind = RuntimeSpriteFactory.EnemyVisualKind.Boss)
+            RuntimeSpriteFactory.EnemyVisualKind bossVisualKind = RuntimeSpriteFactory.EnemyVisualKind.Boss,
+            string mapId = SharedRunCatalog.DefaultMapId,
+            BossArchetypeId bossArchetype = BossArchetypeId.Final,
+            RunDifficultyDefinition bossDifficulty = null)
         {
             _config = config;
             _target = target;
@@ -107,6 +113,7 @@ namespace EJR.Game.Gameplay
             _hasArenaBounds = arenaBounds.width > 0f && arenaBounds.height > 0f;
             _spawnTimer = 0f;
             _elapsedSeconds = 0f;
+            _mapId = string.IsNullOrWhiteSpace(mapId) ? SharedRunCatalog.DefaultMapId : mapId;
             _bossWaveTriggered = false;
             _wave1Triggered = false;
             _wave2Triggered = false;
@@ -119,6 +126,8 @@ namespace EJR.Game.Gameplay
             _activeWaveTargetLabel = string.Empty;
             _spawnReferenceCamera = Camera.main;
             _bossVisualKind = bossVisualKind;
+            _bossArchetype = bossArchetype;
+            _bossDifficulty = bossDifficulty ?? SharedRunCatalog.GetDifficulty(SharedRunCatalog.DefaultDifficultyId);
             _activeWaveEnemies.Clear();
             _activeRewardChests.Clear();
             _spawnSequenceCounter = 0;
@@ -322,7 +331,7 @@ namespace EJR.Game.Gameplay
                 var angle = angleOffset + ((Mathf.PI * 2f * i) / Mathf.Max(1, count));
                 var radius = count <= 1 ? 1.8f : DebugVariantSpawnRingRadius + Random.Range(-0.25f, 0.25f);
                 var position = center + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius;
-                SpawnVariantEnemy(definition, position);
+                SpawnVariantEnemy(definition, position, trackAsDebugMonster: true);
             }
         }
 
@@ -427,7 +436,9 @@ namespace EJR.Game.Gameplay
                 runtimeContactDamageMultiplier,
                 isBoss,
                 _hasArenaBounds,
-                _arenaBounds);
+                _arenaBounds,
+                isBoss ? _bossArchetype : BossArchetypeId.Final,
+                isBoss ? _bossDifficulty : null);
 
             if (!isBoss)
             {
@@ -452,27 +463,25 @@ namespace EJR.Game.Gameplay
             return enemy;
         }
 
-        private EnemyController SpawnVariantEnemy(EnemyVariantDefinition definition, Vector3 requestedPosition)
+        private EnemyController SpawnVariantEnemy(
+            EnemyVariantDefinition definition,
+            Vector3? requestedPosition = null,
+            bool trackAsDebugMonster = false)
         {
             if (definition == null)
             {
                 return null;
             }
 
-            var baseProfile = _config.GetStatProfile(definition.BaseVisualKind);
-            var variantProfile = new EnemyStatProfile
+            var variantProfile = SharedEnemyVariantCatalog.CreateVariantStatProfile(_config, definition);
+            var resolvedPosition = requestedPosition;
+            if (trackAsDebugMonster && requestedPosition.HasValue)
             {
-                healthMultiplier = Mathf.Max(0.1f, (baseProfile != null ? baseProfile.healthMultiplier : 1f) * Mathf.Max(0.1f, definition.HealthMultiplier)),
-                moveSpeedMultiplier = Mathf.Max(0.1f, (baseProfile != null ? baseProfile.moveSpeedMultiplier : 1f) * Mathf.Max(0.1f, definition.MoveSpeedMultiplier)),
-                contactDamageMultiplier = Mathf.Max(0.1f, (baseProfile != null ? baseProfile.contactDamageMultiplier : 1f) * Mathf.Max(0.1f, definition.ContactDamageMultiplier)),
-                experienceMultiplier = Mathf.Max(0.1f, baseProfile != null ? baseProfile.experienceMultiplier : 1f),
-                visualScaleMultiplier = Mathf.Max(0.1f, (baseProfile != null ? baseProfile.visualScaleMultiplier : 1f) * Mathf.Max(0.1f, definition.VisualScaleMultiplier)),
-                collisionRadiusMultiplier = Mathf.Max(0.1f, (baseProfile != null ? baseProfile.collisionRadiusMultiplier : 1f) * Mathf.Max(0.1f, definition.CollisionRadiusMultiplier)),
-            };
+                var collisionRadius = CalculateCollisionRadius(variantProfile);
+                resolvedPosition = ResolveDebugSpawnPosition(requestedPosition.Value, collisionRadius);
+            }
 
-            var collisionRadius = CalculateCollisionRadius(variantProfile);
-            var spawnPosition = ResolveDebugSpawnPosition(requestedPosition, collisionRadius);
-            var enemy = SpawnEnemy(definition.BaseVisualKind, spawnPosition, variantProfile);
+            var enemy = SpawnEnemy(definition.BaseVisualKind, resolvedPosition, variantProfile);
             if (enemy == null)
             {
                 return null;
@@ -480,7 +489,11 @@ namespace EJR.Game.Gameplay
 
             enemy.ConfigureVariant(definition, HandleVariantSplitSpawnRequested);
             enemy.gameObject.name = definition.DisplayName;
-            _debugMonsterLabEnemies.Add(enemy);
+            if (trackAsDebugMonster)
+            {
+                _debugMonsterLabEnemies.Add(enemy);
+            }
+
             return enemy;
         }
 
@@ -592,7 +605,16 @@ namespace EJR.Game.Gameplay
                 var angle = angleOffset + (Mathf.PI * 2f * t) + Random.Range(-0.15f, 0.15f);
                 var radius = Random.Range(adjustedMinRadius, adjustedMaxRadius);
                 var position = _target.position + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius;
-                SpawnEnemy(visualKind, position);
+                var variantDefinition = SharedEnemyVariantCatalog.PickWaveVariant(_mapId, _activeWaveIndex, visualKind, i, count);
+                if (variantDefinition != null)
+                {
+                    SpawnVariantEnemy(variantDefinition, position);
+                }
+                else
+                {
+                    SpawnEnemy(visualKind, position);
+                }
+
                 spawnIndex++;
             }
         }
@@ -1080,53 +1102,7 @@ namespace EJR.Game.Gameplay
 
         private RuntimeSpriteFactory.EnemyVisualKind PickEnemyVisualKind()
         {
-            var canSpawnSlime = _config.spawnSlime;
-            var canSpawnMushroom = _config.spawnMushroom;
-            if (!canSpawnSlime && !canSpawnMushroom)
-            {
-                return RuntimeSpriteFactory.EnemyVisualKind.Slime;
-            }
-
-            if (_elapsedSeconds < Mathf.Max(0f, _config.mushroomPhaseStartSeconds))
-            {
-                return canSpawnSlime
-                    ? RuntimeSpriteFactory.EnemyVisualKind.Slime
-                    : RuntimeSpriteFactory.EnemyVisualKind.Mushroom;
-            }
-
-            if (!canSpawnSlime)
-            {
-                return RuntimeSpriteFactory.EnemyVisualKind.Mushroom;
-            }
-
-            if (!canSpawnMushroom)
-            {
-                return RuntimeSpriteFactory.EnemyVisualKind.Slime;
-            }
-
-            var phaseStart = Mathf.Max(0f, _config.mushroomPhaseStartSeconds);
-            var phaseEnd = Mathf.Max(phaseStart + 1f, _config.wave2TimeSeconds);
-            float mushroomChance;
-
-            if (_elapsedSeconds < phaseStart)
-            {
-                // Before phase start: slime only.
-                mushroomChance = 0f;
-            }
-            else if (_elapsedSeconds < phaseEnd)
-            {
-                // Middle phase (e.g. 3~6 min): configured mixed ratio.
-                mushroomChance = Mathf.Clamp01(_config.mushroomRatioAtPhaseStart);
-            }
-            else
-            {
-                // After middle phase: configured post-phase ratio.
-                mushroomChance = Mathf.Clamp01(_config.mushroomRatioBeforeBoss);
-            }
-
-            return Random.value < mushroomChance
-                ? RuntimeSpriteFactory.EnemyVisualKind.Mushroom
-                : RuntimeSpriteFactory.EnemyVisualKind.Slime;
+            return SharedEnemyVariantCatalog.PickDynamicVisualKind(_mapId, _config, _elapsedSeconds);
         }
 
         private float GetBossWaveStartSeconds()
@@ -1149,7 +1125,16 @@ namespace EJR.Game.Gameplay
                     break;
                 }
 
-                SpawnEnemy(PickEnemyVisualKind());
+                var visualKind = PickEnemyVisualKind();
+                var variantDefinition = SharedEnemyVariantCatalog.PickDynamicVariant(_mapId, visualKind, _elapsedSeconds);
+                if (variantDefinition != null)
+                {
+                    SpawnVariantEnemy(variantDefinition);
+                }
+                else
+                {
+                    SpawnEnemy(visualKind);
+                }
             }
         }
 

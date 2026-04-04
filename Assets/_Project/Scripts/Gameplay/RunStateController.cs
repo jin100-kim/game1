@@ -734,6 +734,7 @@ namespace EJR.Game.Gameplay
             _playerMover = playerMover;
 
             playerMover.Initialize(playerConfig, _playerStats, arenaBounds);
+            playerMover.SetExternalVelocityReader(ReadBossPullVelocity);
             SetAutoPlayEnabled(startWithAutoPlayEnabled);
             _cameraFollow?.Initialize(player.transform, cameraOffset, cameraFollowSmoothTime);
             ApplyArenaPresentation();
@@ -752,7 +753,10 @@ namespace EJR.Game.Gameplay
                 _experienceSystem,
                 playerConfig.collisionRadius,
                 arenaBounds,
-                (_currentMapDefinition ?? RunSelectionService.SingleMapDefinition).BossVisualKind);
+                (_currentMapDefinition ?? RunSelectionService.SingleMapDefinition).BossVisualKind,
+                (_currentMapDefinition ?? RunSelectionService.SingleMapDefinition).Id,
+                (_currentMapDefinition ?? RunSelectionService.SingleMapDefinition).BossArchetype,
+                _currentDifficultyDefinition ?? RunSelectionService.SingleDifficultyDefinition);
             enemySpawner.WaveStarted += HandleWaveStarted;
             enemySpawner.WaveCleared += HandleWaveCleared;
             enemySpawner.WaveRewardChestCollected += HandleWaveRewardChestCollected;
@@ -1795,6 +1799,39 @@ namespace EJR.Game.Gameplay
                 _hud.HideWaveStatus();
             }
             UpdateBossHud();
+        }
+
+        private Vector2 ReadBossPullVelocity()
+        {
+            if (_isGameOver || _isPauseMenuOpen || Time.timeScale <= 0f || _enemySpawner == null || _playerTransform == null)
+            {
+                return Vector2.zero;
+            }
+
+            var boss = _enemySpawner.CurrentBoss;
+            if (boss == null || !boss.TryGetBossPullState(out var center, out var radius, out var speed))
+            {
+                return Vector2.zero;
+            }
+
+            return ComputeBossPullVelocity(_playerTransform.position, center, radius, speed);
+        }
+
+        private static Vector2 ComputeBossPullVelocity(Vector3 playerPosition, Vector2 center, float radius, float speed)
+        {
+            if (radius <= 0.0001f || speed <= 0.0001f)
+            {
+                return Vector2.zero;
+            }
+
+            var toCenter = center - (Vector2)playerPosition;
+            var distance = toCenter.magnitude;
+            if (distance <= 0.0001f || distance > radius)
+            {
+                return Vector2.zero;
+            }
+
+            return toCenter / distance * speed;
         }
 
         private void UpdateBossHud()

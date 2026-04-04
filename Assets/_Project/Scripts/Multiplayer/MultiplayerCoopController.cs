@@ -901,13 +901,14 @@ namespace EJR.Game.Multiplayer
             _activeWaveRemainingCount.Value = 0;
             _currentWaveTarget = null;
 
-            SpawnWaveEnemies(alivePlayers, RuntimeSpriteFactory.EnemyVisualKind.Slime, validSlimeCount);
-            SpawnWaveEnemies(alivePlayers, RuntimeSpriteFactory.EnemyVisualKind.Mushroom, validMushroomCount);
-            SpawnWaveEnemies(alivePlayers, RuntimeSpriteFactory.EnemyVisualKind.Skeleton, validSkeletonCount);
+            SpawnWaveEnemies(alivePlayers, RuntimeSpriteFactory.EnemyVisualKind.Slime, validSlimeCount, waveIndex);
+            SpawnWaveEnemies(alivePlayers, RuntimeSpriteFactory.EnemyVisualKind.Mushroom, validMushroomCount, waveIndex);
+            SpawnWaveEnemies(alivePlayers, RuntimeSpriteFactory.EnemyVisualKind.Skeleton, validSkeletonCount, waveIndex);
             _currentWaveTarget = SpawnSharedEnemy(
                 alivePlayers,
                 targetVisualKind,
                 isBoss: false,
+                variantId: EnemyVariantId.None,
                 hudTargetKind: MultiplayerSharedEnemyActor.HudTargetKind.WaveTarget,
                 hudSpawnSequence: ++_hudSpawnSequenceCounter);
             if (_currentWaveTarget != null)
@@ -922,11 +923,16 @@ namespace EJR.Game.Multiplayer
             PublishWaveBanner(1, _activeWaveIndex.Value);
         }
 
-        private void SpawnWaveEnemies(IReadOnlyList<MultiplayerPlayerCombatant> alivePlayers, RuntimeSpriteFactory.EnemyVisualKind visualKind, int count)
+        private void SpawnWaveEnemies(IReadOnlyList<MultiplayerPlayerCombatant> alivePlayers, RuntimeSpriteFactory.EnemyVisualKind visualKind, int count, int waveIndex)
         {
             for (var i = 0; i < count; i++)
             {
-                var enemyActor = SpawnSharedEnemy(alivePlayers, visualKind, isBoss: false);
+                var variantDefinition = SharedEnemyVariantCatalog.PickWaveVariant(SelectedMapId, waveIndex, visualKind, i, count);
+                var enemyActor = SpawnSharedEnemy(
+                    alivePlayers,
+                    visualKind,
+                    isBoss: false,
+                    variantId: variantDefinition?.Id ?? EnemyVariantId.None);
                 if (enemyActor == null)
                 {
                     continue;
@@ -1045,7 +1051,13 @@ namespace EJR.Game.Multiplayer
             var spawnCount = Mathf.Clamp(targetAliveEnemyCount - aliveEnemyCount, 1, Mathf.Max(1, alivePlayers.Count));
             for (var i = 0; i < spawnCount; i++)
             {
-                SpawnSharedEnemy(alivePlayers, PickEnemyVisualKind(), isBoss: false);
+                var visualKind = PickEnemyVisualKind();
+                var variantDefinition = SharedEnemyVariantCatalog.PickDynamicVariant(SelectedMapId, visualKind, _elapsedSeconds);
+                SpawnSharedEnemy(
+                    alivePlayers,
+                    visualKind,
+                    isBoss: false,
+                    variantId: variantDefinition?.Id ?? EnemyVariantId.None);
             }
 
             _nextSpawnAt = Time.time + GetSpawnInterval(aliveEnemyCount, targetAliveEnemyCount);
@@ -1072,6 +1084,7 @@ namespace EJR.Game.Multiplayer
                 alivePlayers,
                 SelectedBossVisualKind,
                 isBoss: true,
+                variantId: EnemyVariantId.None,
                 hudTargetKind: MultiplayerSharedEnemyActor.HudTargetKind.Boss,
                 hudSpawnSequence: ++_hudSpawnSequenceCounter);
 
@@ -1086,10 +1099,12 @@ namespace EJR.Game.Multiplayer
             IReadOnlyList<MultiplayerPlayerCombatant> alivePlayers,
             RuntimeSpriteFactory.EnemyVisualKind visualKind,
             bool isBoss,
+            EnemyVariantId variantId = EnemyVariantId.None,
+            Vector3? requestedPosition = null,
             MultiplayerSharedEnemyActor.HudTargetKind hudTargetKind = MultiplayerSharedEnemyActor.HudTargetKind.None,
             int hudSpawnSequence = 0)
         {
-            var spawnPosition = FindSpawnPosition(alivePlayers, visualKind, isBoss);
+            var spawnPosition = requestedPosition ?? FindSpawnPosition(alivePlayers, visualKind, isBoss, variantId);
             var enemyObject = Instantiate(_enemyPrefab, spawnPosition, Quaternion.identity);
             var enemyActor = enemyObject.GetComponent<MultiplayerSharedEnemyActor>();
             if (enemyActor == null)
@@ -1098,7 +1113,18 @@ namespace EJR.Game.Multiplayer
                 return null;
             }
 
-            enemyActor.InitializeServer(this, visualKind, spawnPosition, _elapsedSeconds, isBoss, hudTargetKind, hudSpawnSequence);
+            enemyActor.InitializeServer(
+                this,
+                visualKind,
+                spawnPosition,
+                _elapsedSeconds,
+                isBoss,
+                variantId,
+                isBoss ? SelectedMapDefinition.BossArchetype : BossArchetypeId.Final,
+                isBoss ? SelectedDifficultyDefinition : null,
+                HandleVariantSplitSpawnRequested,
+                hudTargetKind,
+                hudSpawnSequence);
             enemyActor.NetworkObject.Spawn(true);
             return enemyActor;
         }
@@ -1128,9 +1154,13 @@ namespace EJR.Game.Multiplayer
         private Vector3 FindSpawnPosition(
             IReadOnlyList<MultiplayerPlayerCombatant> alivePlayers,
             RuntimeSpriteFactory.EnemyVisualKind visualKind,
-            bool isBoss)
+            bool isBoss,
+            EnemyVariantId variantId = EnemyVariantId.None)
         {
-            var statProfile = _enemyConfig.GetStatProfile(isBoss ? RuntimeSpriteFactory.EnemyVisualKind.Boss : visualKind);
+            var statProfile = isBoss
+                ? _enemyConfig.GetStatProfile(RuntimeSpriteFactory.EnemyVisualKind.Boss)
+                : SharedEnemyVariantCatalog.CreateVariantStatProfile(_enemyConfig, SharedEnemyVariantCatalog.Get(variantId))
+                    ?? _enemyConfig.GetStatProfile(visualKind);
             var collisionRadius = GetCollisionRadius(statProfile);
             var minRadius = isBoss
                 ? Mathf.Max(2.5f, _enemyConfig.bossSpawnRadius * 0.9f)
@@ -1234,17 +1264,7 @@ namespace EJR.Game.Multiplayer
 
         private RuntimeSpriteFactory.EnemyVisualKind PickEnemyVisualKind()
         {
-            if (_elapsedSeconds >= 150f && Random.value < 0.15f)
-            {
-                return RuntimeSpriteFactory.EnemyVisualKind.Skeleton;
-            }
-
-            if (_elapsedSeconds >= 45f && Random.value < 0.35f)
-            {
-                return RuntimeSpriteFactory.EnemyVisualKind.Mushroom;
-            }
-
-            return RuntimeSpriteFactory.EnemyVisualKind.Slime;
+            return SharedEnemyVariantCatalog.PickDynamicVisualKind(SelectedMapId, _enemyConfig, _elapsedSeconds);
         }
 
         private float GetCollisionRadius(EnemyStatProfile statProfile)
@@ -1454,6 +1474,45 @@ namespace EJR.Game.Multiplayer
                 {
                     CompleteActiveWave();
                 }
+            }
+        }
+
+        private void HandleVariantSplitSpawnRequested(EnemyController source, EnemyVariantDefinition definition)
+        {
+            if (!IsServer || source == null || definition == null || definition.BehaviorKind != EnemyVariantBehaviorKind.SplitOnDeath)
+            {
+                return;
+            }
+
+            CollectCombatPlayers(_combatPlayers);
+            if (_combatPlayers.Count <= 0)
+            {
+                return;
+            }
+
+            var count = Mathf.Max(0, definition.SplitSpawnCount);
+            if (count <= 0)
+            {
+                return;
+            }
+
+            var childRadius = GetCollisionRadius(_enemyConfig.GetStatProfile(RuntimeSpriteFactory.EnemyVisualKind.Slime));
+            var ringRadius = Mathf.Max(0.45f, childRadius * 2.2f);
+            var angleOffset = Random.value * Mathf.PI * 2f;
+            for (var i = 0; i < count; i++)
+            {
+                var angle = angleOffset + ((Mathf.PI * 2f * i) / Mathf.Max(1, count));
+                var offset = new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * ringRadius;
+                var spawnPosition = source.transform.position + offset;
+                spawnPosition.x = Mathf.Clamp(spawnPosition.x, arenaBounds.xMin + childRadius, arenaBounds.xMax - childRadius);
+                spawnPosition.y = Mathf.Clamp(spawnPosition.y, arenaBounds.yMin + childRadius, arenaBounds.yMax - childRadius);
+                spawnPosition.z = 0f;
+                SpawnSharedEnemy(
+                    _combatPlayers,
+                    RuntimeSpriteFactory.EnemyVisualKind.Slime,
+                    isBoss: false,
+                    variantId: EnemyVariantId.None,
+                    requestedPosition: spawnPosition);
             }
         }
 

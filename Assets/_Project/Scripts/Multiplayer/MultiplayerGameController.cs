@@ -210,6 +210,7 @@ namespace EJR.Game.Multiplayer
             if (_boundAutoPlayMover != null)
             {
                 _boundAutoPlayMover.SetMoveInputReader(null);
+                _boundAutoPlayMover.SetExternalVelocityReader(null);
                 _boundAutoPlayMover = null;
             }
         }
@@ -1189,13 +1190,57 @@ namespace EJR.Game.Multiplayer
             if (_boundAutoPlayMover != null)
             {
                 _boundAutoPlayMover.SetMoveInputReader(null);
+                _boundAutoPlayMover.SetExternalVelocityReader(null);
             }
 
             _boundAutoPlayMover = localMover;
-            if (_boundAutoPlayMover != null && _autoPlayEnabled)
+            if (_boundAutoPlayMover != null)
             {
-                _boundAutoPlayMover.SetMoveInputReader(ReadAutoPlayMoveInput);
+                _boundAutoPlayMover.SetExternalVelocityReader(ReadLocalBossPullVelocity);
+                if (_autoPlayEnabled)
+                {
+                    _boundAutoPlayMover.SetMoveInputReader(ReadAutoPlayMoveInput);
+                }
             }
+        }
+
+        private Vector2 ReadLocalBossPullVelocity()
+        {
+            var coop = MultiplayerCoopController.Instance;
+            var localPlayer = MultiplayerPlayerCombatant.FindOwnedLocalPlayer();
+            if (coop == null || localPlayer == null || coop.Phase != MultiplayerRunPhase.Running)
+            {
+                return Vector2.zero;
+            }
+
+            if (!MultiplayerSharedEnemyActor.TryGetCurrentBossActor(out var bossActor))
+            {
+                return Vector2.zero;
+            }
+
+            if (!bossActor.TryGetBossPullState(out var center, out var radius, out var speed))
+            {
+                return Vector2.zero;
+            }
+
+            return ComputeBossPullVelocity(localPlayer.transform.position, center, radius, speed);
+        }
+
+        private static Vector2 ComputeBossPullVelocity(Vector3 playerPosition, Vector2 center, float radius, float speed)
+        {
+            if (radius <= 0.0001f || speed <= 0.0001f)
+            {
+                return Vector2.zero;
+            }
+
+            var toCenter = center - (Vector2)playerPosition;
+            var distance = toCenter.magnitude;
+            if (distance <= 0.0001f || distance > radius)
+            {
+                return Vector2.zero;
+            }
+
+            return toCenter / distance * speed;
         }
 
         private Vector2 ReadAutoPlayMoveInput()

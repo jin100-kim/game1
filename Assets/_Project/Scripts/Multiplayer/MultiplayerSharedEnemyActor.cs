@@ -24,6 +24,9 @@ namespace EJR.Game.Multiplayer
         private readonly NetworkVariable<int> _visualKind =
             new((int)RuntimeSpriteFactory.EnemyVisualKind.Slime, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
+        private readonly NetworkVariable<int> _variantId =
+            new((int)EnemyVariantId.None, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
         private readonly NetworkVariable<float> _currentHealth =
             new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
@@ -35,6 +38,18 @@ namespace EJR.Game.Multiplayer
 
         private readonly NetworkVariable<int> _hudSpawnSequence =
             new(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<bool> _bossPullActive =
+            new(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<Vector2> _bossPullCenter =
+            new(Vector2.zero, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<float> _bossPullRadius =
+            new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<float> _bossPullSpeed =
+            new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
         private EnemyController _enemyController;
         private EnemyConfig _enemyConfig;
@@ -49,6 +64,7 @@ namespace EJR.Game.Multiplayer
         public float CurrentHealthValue => _currentHealth.Value;
         public float MaxHealthValue => _maxHealth.Value;
         public RuntimeSpriteFactory.EnemyVisualKind VisualKindValue => (RuntimeSpriteFactory.EnemyVisualKind)_visualKind.Value;
+        public EnemyVariantId VariantIdValue => (EnemyVariantId)_variantId.Value;
         public HudTargetKind CurrentHudTargetKind => (HudTargetKind)_hudTargetKind.Value;
         public int HudSpawnSequence => _hudSpawnSequence.Value;
         public bool IsHudBossTarget => CurrentHudTargetKind == HudTargetKind.Boss;
@@ -72,6 +88,38 @@ namespace EJR.Game.Multiplayer
             return count;
         }
 
+        public static bool TryGetCurrentBossActor(out MultiplayerSharedEnemyActor actor)
+        {
+            actor = null;
+            var bestSequence = int.MinValue;
+            for (var i = 0; i < ActiveActors.Count; i++)
+            {
+                var candidate = ActiveActors[i];
+                if (candidate == null || !candidate.IsSpawned || !candidate.IsHudBossTarget)
+                {
+                    continue;
+                }
+
+                if (candidate.HudSpawnSequence < bestSequence)
+                {
+                    continue;
+                }
+
+                bestSequence = candidate.HudSpawnSequence;
+                actor = candidate;
+            }
+
+            return actor != null;
+        }
+
+        public bool TryGetBossPullState(out Vector2 center, out float radius, out float speed)
+        {
+            center = _bossPullCenter.Value;
+            radius = _bossPullRadius.Value;
+            speed = _bossPullSpeed.Value;
+            return _bossPullActive.Value && radius > 0.0001f && speed > 0.0001f;
+        }
+
         private void Awake()
         {
             _enemyController = GetComponent<EnemyController>();
@@ -82,6 +130,7 @@ namespace EJR.Game.Multiplayer
         public override void OnNetworkSpawn()
         {
             _visualKind.OnValueChanged += HandleVisualKindChanged;
+            _variantId.OnValueChanged += HandleVariantIdChanged;
             _currentHealth.OnValueChanged += HandleCurrentHealthChanged;
             _maxHealth.OnValueChanged += HandleMaxHealthChanged;
             _hudTargetKind.OnValueChanged += HandleHudTargetKindChanged;
@@ -99,21 +148,68 @@ namespace EJR.Game.Multiplayer
         public override void OnNetworkDespawn()
         {
             _visualKind.OnValueChanged -= HandleVisualKindChanged;
+            _variantId.OnValueChanged -= HandleVariantIdChanged;
             _currentHealth.OnValueChanged -= HandleCurrentHealthChanged;
             _maxHealth.OnValueChanged -= HandleMaxHealthChanged;
             _hudTargetKind.OnValueChanged -= HandleHudTargetKindChanged;
             ActiveActors.Remove(this);
+            ClearBossPullState();
 
             if (IsServer && _enemyController != null)
             {
                 _enemyController.Changed -= HandleServerEnemyHealthChanged;
                 _enemyController.BossProjectileSpawned -= HandleServerBossProjectileSpawned;
+                _enemyController.BossSigilSpawned -= HandleServerBossSigilSpawned;
             }
+        }
+
+        private void SyncBossPullState()
+        {
+            if (_enemyController == null || !_enemyController.IsBoss)
+            {
+                ClearBossPullState();
+                return;
+            }
+
+            if (!_enemyController.TryGetBossPullState(out var center, out var radius, out var speed))
+            {
+                ClearBossPullState();
+                return;
+            }
+
+            _bossPullActive.Value = true;
+            _bossPullCenter.Value = center;
+            _bossPullRadius.Value = radius;
+            _bossPullSpeed.Value = speed;
+        }
+
+        private void ClearBossPullState()
+        {
+            if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening && !IsServer)
+            {
+                return;
+            }
+
+            _bossPullActive.Value = false;
+            _bossPullCenter.Value = Vector2.zero;
+            _bossPullRadius.Value = 0f;
+            _bossPullSpeed.Value = 0f;
         }
 
         private void Update()
         {
-            if (!IsSpawned || IsServer || _spriteAnimator == null)
+            if (!IsSpawned)
+            {
+                _lastPosition = transform.position;
+                return;
+            }
+
+            if (IsServer)
+            {
+                SyncBossPullState();
+            }
+
+            if (IsServer || _spriteAnimator == null)
             {
                 _lastPosition = transform.position;
                 return;
@@ -131,6 +227,10 @@ namespace EJR.Game.Multiplayer
             Vector3 spawnPosition,
             float elapsedSeconds,
             bool isBoss,
+            EnemyVariantId variantId = EnemyVariantId.None,
+            BossArchetypeId bossArchetype = BossArchetypeId.Final,
+            RunDifficultyDefinition bossDifficulty = null,
+            System.Action<EnemyController, EnemyVariantDefinition> splitSpawnHandler = null,
             HudTargetKind hudTargetKind = HudTargetKind.None,
             int hudSpawnSequence = 0)
         {
@@ -146,9 +246,14 @@ namespace EJR.Game.Multiplayer
             _enemyController.Changed += HandleServerEnemyHealthChanged;
             _enemyController.BossProjectileSpawned -= HandleServerBossProjectileSpawned;
             _enemyController.BossProjectileSpawned += HandleServerBossProjectileSpawned;
+            _enemyController.BossSigilSpawned -= HandleServerBossSigilSpawned;
+            _enemyController.BossSigilSpawned += HandleServerBossSigilSpawned;
             SharedRunCatalog.CopyEnemyConfig(_enemyConfig, coopController.CurrentEnemyConfig);
 
-            var statProfile = _enemyConfig.GetStatProfile(isBoss ? RuntimeSpriteFactory.EnemyVisualKind.Boss : visualKind);
+            var variantDefinition = !isBoss ? SharedEnemyVariantCatalog.Get(variantId) : null;
+            var statProfile = variantDefinition != null
+                ? SharedEnemyVariantCatalog.CreateVariantStatProfile(_enemyConfig, variantDefinition)
+                : _enemyConfig.GetStatProfile(isBoss ? RuntimeSpriteFactory.EnemyVisualKind.Boss : visualKind);
             var collisionRadius = GetCollisionRadius(statProfile);
             var runtimeMinuteTier = Mathf.Max(0, Mathf.FloorToInt(elapsedSeconds / 60f));
             var runtimeMoveSpeedMultiplier = 1f + (runtimeMinuteTier * 0.05f);
@@ -158,6 +263,7 @@ namespace EJR.Game.Multiplayer
             var initialPlayerHealth = coopController.ResolveClosestPlayerHealth(spawnPosition);
 
             _visualKind.Value = (int)visualKind;
+            _variantId.Value = (int)(variantDefinition?.Id ?? EnemyVariantId.None);
             _hudTargetKind.Value = (int)hudTargetKind;
             _hudSpawnSequence.Value = Mathf.Max(0, hudSpawnSequence);
             ApplyVisualKind(visualKind);
@@ -177,7 +283,14 @@ namespace EJR.Game.Multiplayer
                 runtimeContactDamageMultiplier,
                 isBoss,
                 true,
-                coopController.ArenaBounds);
+                coopController.ArenaBounds,
+                bossArchetype,
+                bossDifficulty);
+
+            if (variantDefinition != null)
+            {
+                _enemyController.ConfigureVariant(variantDefinition, splitSpawnHandler);
+            }
 
             _enemyController.SetTargetResolver(
                 () => coopController.ResolveClosestPlayerTransform(transform.position),
@@ -188,6 +301,11 @@ namespace EJR.Game.Multiplayer
         private void HandleVisualKindChanged(int previousValue, int newValue)
         {
             ApplyVisualKind((RuntimeSpriteFactory.EnemyVisualKind)newValue);
+        }
+
+        private void HandleVariantIdChanged(int previousValue, int newValue)
+        {
+            ApplyVisualKind((RuntimeSpriteFactory.EnemyVisualKind)_visualKind.Value);
         }
 
         private void HandleHudTargetKindChanged(int previousValue, int newValue)
@@ -229,6 +347,16 @@ namespace EJR.Game.Multiplayer
             }
 
             SpawnBossProjectileVisualClientRpc(spawnPosition, direction, speed, lifetime, visualScale);
+        }
+
+        private void HandleServerBossSigilSpawned(Vector3 spawnPosition, float delay, float radius)
+        {
+            if (!IsServer)
+            {
+                return;
+            }
+
+            SpawnBossSigilVisualClientRpc(spawnPosition, delay, radius);
         }
 
         private void EnsurePresentationObjects()
@@ -278,6 +406,12 @@ namespace EJR.Game.Multiplayer
             EnsurePresentationObjects();
 
             var statProfile = _enemyConfig.GetStatProfile(visualKind);
+            var variantDefinition = SharedEnemyVariantCatalog.Get((EnemyVariantId)_variantId.Value);
+            if (variantDefinition != null)
+            {
+                statProfile = SharedEnemyVariantCatalog.CreateVariantStatProfile(_enemyConfig, variantDefinition);
+            }
+
             var animationProfile = _enemyConfig.GetAnimationProfile(visualKind);
             var enemyFrames = RuntimeSpriteFactory.GetEnemyAnimationFrames(visualKind);
             var baseSprite = enemyFrames.Length > 0 ? enemyFrames[0] : RuntimeSpriteFactory.GetSquareSprite();
@@ -290,11 +424,12 @@ namespace EJR.Game.Multiplayer
 
             _visualRoot.localPosition = new Vector3(0f, _enemyConfig.visualYOffset, 0f);
             _spriteRenderer.sprite = baseSprite;
-            _spriteRenderer.color = Color.white;
+            var baseColor = variantDefinition != null ? variantDefinition.TintColor : Color.white;
+            _spriteRenderer.color = baseColor;
             _spriteRenderer.sortingOrder = 15;
             ApplyVisualScale(_visualRoot, baseSprite, visualWorldSize);
             _spriteAnimator.Initialize(_spriteRenderer, enemyFrames, animationProfile);
-            _spriteAnimator.SetBaseColor(Color.white);
+            _spriteAnimator.SetBaseColor(baseColor);
             RefreshWaveTargetGlow(visualWorldSize);
 
             var healthBarYOffset = _enemyConfig.visualYOffset + Mathf.Max(0.28f, visualWorldSize * 0.36f);
@@ -376,6 +511,20 @@ namespace EJR.Game.Multiplayer
                 0.14f,
                 null,
                 0.05f);
+        }
+
+        [ClientRpc]
+        private void SpawnBossSigilVisualClientRpc(Vector3 spawnPosition, float delay, float radius)
+        {
+            if (IsServer)
+            {
+                return;
+            }
+
+            var sigilObject = new GameObject("BossSigilVisual");
+            sigilObject.transform.position = spawnPosition;
+            var sigil = sigilObject.AddComponent<BossSigilHazard>();
+            sigil.Initialize(null, 0.05f, delay, radius, 0f, visualOnly: true);
         }
 
         private float GetCollisionRadius(EnemyStatProfile statProfile)

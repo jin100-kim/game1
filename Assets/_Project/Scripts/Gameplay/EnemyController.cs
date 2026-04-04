@@ -10,11 +10,22 @@ namespace EJR.Game.Gameplay
         private enum BossPatternState
         {
             None = 0,
-            TelegraphDash = 1,
-            Dashing = 2,
-            DashPause = 3,
-            TelegraphProjectile = 4,
-            ProjectileVolley = 5,
+            Telegraph = 1,
+            Executing = 2,
+            Recovery = 3,
+        }
+
+        private enum BossPatternActionKind
+        {
+            None = 0,
+            WizardFanVolley = 1,
+            WizardSigilField = 2,
+            WizardCrossBurst = 3,
+            WarriorChargeCombo = 4,
+            WarriorGroundSlam = 5,
+            FinalMixedVolley = 6,
+            FinalChargeCombo = 7,
+            FinalGravityNova = 8,
         }
 
         private enum VariantActionState
@@ -38,24 +49,25 @@ namespace EJR.Game.Gameplay
         private const float VariantProjectileHitRadius = 0.12f;
         private const float VariantProjectileVisualScale = 0.2f;
         private const float VariantBlinkInterval = 0.12f;
-        private const float BossTelegraphDuration = 1f;
-        private const float BossEnragedTelegraphDuration = 0.8f;
-        private const float BossDashDuration = 0.8f;
-        private const float BossShortDashDurationMultiplier = 0.5f;
-        private const float BossDashPauseDuration = 0.5f;
-        private const float BossDashSpeedMultiplier = 6f;
-        private const float BossProjectileSpeed = 7.2f;
         private const float BossProjectileLifetime = 4f;
         private const float BossProjectileHitRadius = 0.14f;
         private const float BossProjectileVisualScale = 0.22f;
         private const float BossProjectileDamageMultiplier = 0.8f;
-        private const float BossPhase1ProjectileShotInterval = 0.4f;
-        private const float BossPhase2ProjectileShotInterval = 0.1f;
-        private const int BossPhase1VolleyShots = 3;
-        private const int BossPhase2VolleyShots = 7;
-        private const float BossDashPatternChance = 0.5f;
-        private const float BossAimSpreadDegrees = 15f;
-        private const float BossPhase2HealthThreshold = 0.5f;
+        private const float BossAimFanSpreadDegrees = 12f;
+        private const float WizardFanShotInterval = 0.28f;
+        private const float WizardCrossBurstInterval = 0.30f;
+        private const float WizardSigilDelay = 0.9f;
+        private const float WizardSigilRadius = 0.9f;
+        private const float WizardSigilRingRadius = 1.15f;
+        private const float WizardSigilDamageMultiplier = 1.05f;
+        private const float WarriorChargeIntermission = 0.14f;
+        private const float FinalChargeIntermission = 0.10f;
+        private const float FinalMixedVolleyInterval = 0.30f;
+        private const float FinalGravityDuration = 1.05f;
+        private const float FinalGravityRadius = 6.5f;
+        private const float FinalGravityPulseInterval = 0.50f;
+        private const int GroundSlamProjectileCount = 8;
+        private const int GravityPulseProjectileCount = 10;
         private const float BossDashTelegraphLength = 6.5f;
         private const float BossDashTelegraphWidth = 0.12f;
         private const float WindKnockbackCooldown = 0.5f;
@@ -74,6 +86,7 @@ namespace EJR.Game.Gameplay
         public event Action<float, float> Changed;
         public event Action BossProjectileVolleyStarted;
         public event Action<Vector3, Vector2, float, float, float> BossProjectileSpawned;
+        public event Action<Vector3, float, float> BossSigilSpawned;
         public static event Action<EnemyController> Defeated;
         public static event Action<EnemyController, WeaponUpgradeId, float> Damaged;
 
@@ -89,6 +102,8 @@ namespace EJR.Game.Gameplay
         private RuntimeSpriteFactory.EnemyVisualKind _visualKind;
         private EnemyVariantDefinition _variantDefinition;
         private bool _isBossBehavior;
+        private BossArchetypeId _bossArchetype = BossArchetypeId.Final;
+        private RunDifficultyDefinition _bossDifficulty;
         private NetworkObject _networkObject;
 
         private float _health;
@@ -121,17 +136,20 @@ namespace EJR.Game.Gameplay
         private float _stunRemaining;
         private float _minorStunCooldownUntil = -999f;
         private BossPatternState _bossPatternState;
+        private BossPatternActionKind _bossCurrentAction;
+        private BossPatternActionKind _bossPreviousAction;
         private float _bossPatternCooldown;
         private float _bossStateTimer;
         private Vector2 _bossDashDirection = Vector2.right;
-        private int _bossEightWayShotsRemaining;
-        private int _bossAimShotsRemaining;
-        private int _bossDashTotalInPattern;
-        private int _bossDashRemainingInPattern;
-        private int _bossDashStartedInPattern;
-        private bool _bossUseDashPatternNext;
-        private bool _bossUseEightWayNext = true;
         private float _bossShotTimer;
+        private float _bossExecutionTimer;
+        private float _bossSecondaryTimer;
+        private int _bossRepeatRemaining;
+        private int _bossActionStep;
+        private bool _bossPullActive;
+        private Vector2 _bossPullCenter;
+        private float _bossPullRadius;
+        private float _bossPullSpeed;
         private float _variantAccumulatedDamage;
         private float _variantActionTimer;
         private float _variantCooldownTimer;
@@ -159,6 +177,14 @@ namespace EJR.Game.Gameplay
         public bool IsBoss => _isBossBehavior;
         public bool IsDead => _isDead;
 
+        public bool TryGetBossPullState(out Vector2 center, out float radius, out float speed)
+        {
+            center = _bossPullCenter;
+            radius = _bossPullRadius;
+            speed = _bossPullSpeed;
+            return _bossPullActive && radius > 0.0001f && speed > 0.0001f;
+        }
+
         public void Initialize(
             EnemyConfig config,
             RuntimeSpriteFactory.EnemyVisualKind visualKind,
@@ -174,7 +200,9 @@ namespace EJR.Game.Gameplay
             float runtimeContactDamageMultiplier = 1f,
             bool isBossBehavior = false,
             bool hasArenaBounds = false,
-            Rect arenaBounds = default)
+            Rect arenaBounds = default,
+            BossArchetypeId bossArchetype = BossArchetypeId.Final,
+            RunDifficultyDefinition bossDifficulty = null)
         {
             _config = config;
             _visualKind = visualKind;
@@ -188,6 +216,8 @@ namespace EJR.Game.Gameplay
             _collisionRadius = Mathf.Max(0.05f, collisionRadius);
             _hasArenaBounds = hasArenaBounds;
             _arenaBounds = arenaBounds;
+            _bossArchetype = bossArchetype;
+            _bossDifficulty = bossDifficulty ?? SharedRunCatalog.GetDifficulty(SharedRunCatalog.DefaultDifficultyId);
             _spriteAnimator = GetComponentInChildren<EnemySpriteAnimator>();
             _visualRenderer = GetComponentInChildren<SpriteRenderer>();
 
@@ -207,17 +237,17 @@ namespace EJR.Game.Gameplay
 
             _health = _maxHealth;
             _bossPatternState = BossPatternState.None;
-            _bossPatternCooldown = IsBoss ? GetBossPatternCooldownForCurrentHealth() : float.MaxValue;
+            _bossCurrentAction = BossPatternActionKind.None;
+            _bossPreviousAction = BossPatternActionKind.None;
+            _bossPatternCooldown = IsBoss ? GetBossPatternCooldown() : float.MaxValue;
             _bossStateTimer = 0f;
             _bossDashDirection = Vector2.right;
-            _bossEightWayShotsRemaining = 0;
-            _bossAimShotsRemaining = 0;
-            _bossDashTotalInPattern = 0;
-            _bossDashRemainingInPattern = 0;
-            _bossDashStartedInPattern = 0;
-            _bossUseDashPatternNext = UnityEngine.Random.value < GetBossDashPatternChance();
-            _bossUseEightWayNext = true;
             _bossShotTimer = 0f;
+            _bossExecutionTimer = 0f;
+            _bossSecondaryTimer = 0f;
+            _bossRepeatRemaining = 0;
+            _bossActionStep = 0;
+            ClearBossPullState();
             _variantAccumulatedDamage = 0f;
             _variantActionTimer = 0f;
             _variantCooldownTimer = 0f;
@@ -265,6 +295,7 @@ namespace EJR.Game.Gameplay
                 _registry.Unregister(this);
             }
 
+            ClearBossPullState();
             HideBossDashTelegraphFx();
         }
 
@@ -1069,75 +1100,45 @@ namespace EJR.Game.Gameplay
         {
             if (!IsBoss || _playerHealth == null || _target == null)
             {
+                ClearBossPullState();
                 return false;
             }
 
             switch (_bossPatternState)
             {
-                case BossPatternState.TelegraphDash:
-                    UpdateBossDashTelegraphFx();
+                case BossPatternState.Telegraph:
+                    if (ShouldShowDashTelegraph(_bossCurrentAction))
+                    {
+                        UpdateBossDashTelegraphFx();
+                    }
+                    else
+                    {
+                        HideBossDashTelegraphFx();
+                    }
+
                     _bossStateTimer -= deltaTime;
                     if (_bossStateTimer <= 0f)
                     {
                         HideBossDashTelegraphFx();
-                        BeginBossDash();
+                        BeginBossExecution();
                     }
 
                     return true;
 
-                case BossPatternState.TelegraphProjectile:
+                case BossPatternState.Executing:
+                    return UpdateBossExecuting(deltaTime);
+
+                case BossPatternState.Recovery:
                     _bossStateTimer -= deltaTime;
                     if (_bossStateTimer <= 0f)
                     {
-                        BeginBossProjectileVolley();
-                    }
-
-                    return true;
-
-                case BossPatternState.Dashing:
-                {
-                    var step = _bossDashDirection * (Mathf.Max(0.1f, _moveSpeed) * BossDashSpeedMultiplier) * deltaTime;
-                    var next = (Vector2)transform.position + step;
-                    var clamped = ClampPositionToArena(new Vector3(next.x, next.y, transform.position.z));
-                    transform.position = clamped;
-                    _registry?.NotifyMoved(this, transform.position);
-
-                    _bossStateTimer -= deltaTime;
-                    if (_bossStateTimer <= 0f)
-                    {
-                        if (_bossDashRemainingInPattern > 0)
-                        {
-                            _bossPatternState = BossPatternState.DashPause;
-                            _bossStateTimer = BossDashPauseDuration;
-                        }
-                        else
-                        {
-                            EndBossPattern();
-                        }
-                    }
-
-                    return true;
-                }
-
-                case BossPatternState.DashPause:
-                    _bossStateTimer -= deltaTime;
-                    if (_bossStateTimer <= 0f)
-                    {
-                        BeginBossDash();
-                    }
-
-                    return true;
-
-                case BossPatternState.ProjectileVolley:
-                    _bossShotTimer -= deltaTime;
-                    if (_bossShotTimer <= 0f)
-                    {
-                        FireBossVolleyStep();
+                        EndBossPattern();
                     }
 
                     return true;
             }
 
+            ClearBossPullState();
             _bossPatternCooldown -= deltaTime;
             if (_bossPatternCooldown > 0f)
             {
@@ -1150,119 +1151,238 @@ namespace EJR.Game.Gameplay
 
         private void StartRandomBossPattern()
         {
-            var useDashPattern = _bossUseDashPatternNext;
-            _bossUseDashPatternNext = !_bossUseDashPatternNext;
-            if (useDashPattern)
-            {
-                _bossDashTotalInPattern = GetBossDashCountForCurrentHealth();
-                _bossDashRemainingInPattern = _bossDashTotalInPattern;
-                _bossDashStartedInPattern = 0;
-                _bossPatternState = BossPatternState.TelegraphDash;
-                var telegraphDuration = GetBossTelegraphDurationForCurrentHealth();
-                _bossStateTimer = telegraphDuration;
-                _spriteAnimator?.PlayHurtOneShot(telegraphDuration);
-                UpdateBossDashTelegraphFx();
-                return;
-            }
-
-            HideBossDashTelegraphFx();
-            var projectileTelegraphDuration = GetBossTelegraphDurationForCurrentHealth();
-            _bossPatternState = BossPatternState.TelegraphProjectile;
-            _bossStateTimer = projectileTelegraphDuration;
-            _spriteAnimator?.PlayHurtOneShot(projectileTelegraphDuration);
-        }
-
-        private void BeginBossProjectileVolley()
-        {
-            HideBossDashTelegraphFx();
-            _bossPatternState = BossPatternState.ProjectileVolley;
-            _bossEightWayShotsRemaining = GetBossEightWayShotsForCurrentHealth();
-            _bossAimShotsRemaining = GetBossAimShotsForCurrentHealth();
-            _bossUseEightWayNext = true;
+            _bossCurrentAction = PickNextBossAction();
+            _bossPatternState = BossPatternState.Telegraph;
+            _bossStateTimer = GetBossTelegraphDuration(_bossCurrentAction);
             _bossShotTimer = 0f;
-            BossProjectileVolleyStarted?.Invoke();
+            _bossExecutionTimer = 0f;
+            _bossSecondaryTimer = 0f;
+            _bossRepeatRemaining = 0;
+            _bossActionStep = 0;
+            ClearBossPullState();
+
+            if (ShouldShowDashTelegraph(_bossCurrentAction))
+            {
+                _bossDashDirection = GetDirectionToPlayer();
+                UpdateBossDashTelegraphFx();
+            }
+            else
+            {
+                HideBossDashTelegraphFx();
+            }
+
+            _spriteAnimator?.PlayHurtOneShot(_bossStateTimer);
         }
 
-        private void BeginBossDash()
+        private void BeginBossExecution()
         {
             HideBossDashTelegraphFx();
-            if (_bossDashRemainingInPattern <= 0)
-            {
-                _bossDashRemainingInPattern = 1;
-            }
+            _bossPatternState = BossPatternState.Executing;
+            _bossShotTimer = 0f;
+            _bossExecutionTimer = 0f;
+            _bossSecondaryTimer = 0f;
+            _bossActionStep = 0;
 
-            _bossDashStartedInPattern++;
-            _bossDashRemainingInPattern = Mathf.Max(0, _bossDashRemainingInPattern - 1);
-            var toPlayer = (Vector2)(_target.position - transform.position);
-            _bossDashDirection = toPlayer.sqrMagnitude > 0.000001f ? toPlayer.normalized : Vector2.right;
-            _bossPatternState = BossPatternState.Dashing;
-            var useShortDash = _bossDashTotalInPattern >= 3;
-            var dashDuration = useShortDash
-                ? BossDashDuration * BossShortDashDurationMultiplier
-                : BossDashDuration;
-            _bossStateTimer = Mathf.Max(0.05f, dashDuration);
-        }
-
-        private void FireBossVolleyStep()
-        {
-            var shotDuration = Mathf.Max(0.08f, GetBossProjectileShotIntervalForCurrentHealth() * 0.8f);
-            _spriteAnimator?.PlayAttackOneShot(shotDuration);
-
-            var canFireEightWay = _bossEightWayShotsRemaining > 0;
-            var canFireAim = _bossAimShotsRemaining > 0;
-            if (!canFireEightWay && !canFireAim)
+            switch (_bossCurrentAction)
             {
-                EndBossPattern();
-                return;
-            }
+                case BossPatternActionKind.WizardFanVolley:
+                    _bossRepeatRemaining = ScaleBossActionCount(3);
+                    BossProjectileVolleyStarted?.Invoke();
+                    break;
 
-            var fireEightWay = canFireEightWay && (!canFireAim || _bossUseEightWayNext);
-            if (fireEightWay)
-            {
-                FireBossEightWayBurst();
-                _bossEightWayShotsRemaining--;
-            }
-            else
-            {
-                FireBossAimShot();
-                _bossAimShotsRemaining--;
-            }
+                case BossPatternActionKind.WizardSigilField:
+                    SpawnBossSigils(3, WizardSigilRingRadius, WizardSigilDelay, WizardSigilRadius, WizardSigilDamageMultiplier);
+                    EnterBossRecovery(GetBossRecoveryDuration(_bossCurrentAction));
+                    break;
 
-            if (_bossEightWayShotsRemaining > 0 && _bossAimShotsRemaining > 0)
-            {
-                _bossUseEightWayNext = !_bossUseEightWayNext;
-            }
-            else
-            {
-                _bossUseEightWayNext = _bossEightWayShotsRemaining > 0;
-            }
+                case BossPatternActionKind.WizardCrossBurst:
+                    _bossRepeatRemaining = ScaleBossActionCount(2);
+                    BossProjectileVolleyStarted?.Invoke();
+                    break;
 
-            if (_bossEightWayShotsRemaining <= 0 && _bossAimShotsRemaining <= 0)
-            {
-                EndBossPattern();
-                return;
-            }
+                case BossPatternActionKind.WarriorChargeCombo:
+                    _bossRepeatRemaining = ScaleBossActionCount(2);
+                    BeginBossDashRun(_bossCurrentAction);
+                    break;
 
-            _bossShotTimer = GetBossProjectileShotIntervalForCurrentHealth();
-        }
+                case BossPatternActionKind.WarriorGroundSlam:
+                    FireBossRadialBurst(GroundSlamProjectileCount, GetBossProjectileSpeed(5.5f));
+                    EnterBossRecovery(GetBossRecoveryDuration(_bossCurrentAction));
+                    break;
 
-        private void FireBossEightWayBurst()
-        {
-            for (var i = 0; i < 8; i++)
-            {
-                var radians = (Mathf.PI * 2f * i) / 8f;
-                var direction = new Vector2(Mathf.Cos(radians), Mathf.Sin(radians));
-                SpawnBossProjectile(direction);
+                case BossPatternActionKind.FinalMixedVolley:
+                    _bossRepeatRemaining = ScaleBossActionCount(2);
+                    BossProjectileVolleyStarted?.Invoke();
+                    break;
+
+                case BossPatternActionKind.FinalChargeCombo:
+                    _bossRepeatRemaining = ScaleBossActionCount(2);
+                    BeginBossDashRun(_bossCurrentAction);
+                    break;
+
+                case BossPatternActionKind.FinalGravityNova:
+                    _bossExecutionTimer = FinalGravityDuration;
+                    ApplyBossPullState(transform.position, FinalGravityRadius, GetBossPullSpeed(2.8f));
+                    break;
             }
         }
 
-        private void FireBossAimShot()
+        private bool UpdateBossExecuting(float deltaTime)
         {
-            var toPlayer = (Vector2)(_target.position - transform.position);
-            var centerDirection = toPlayer.sqrMagnitude > 0.000001f ? toPlayer.normalized : Vector2.right;
-            SpawnBossProjectile(centerDirection);
-            SpawnBossProjectile(RotateDirection(centerDirection, -BossAimSpreadDegrees));
-            SpawnBossProjectile(RotateDirection(centerDirection, BossAimSpreadDegrees));
+            switch (_bossCurrentAction)
+            {
+                case BossPatternActionKind.WizardFanVolley:
+                    return UpdateWizardFanVolley(deltaTime);
+                case BossPatternActionKind.WizardCrossBurst:
+                    return UpdateWizardCrossBurst(deltaTime);
+                case BossPatternActionKind.WarriorChargeCombo:
+                case BossPatternActionKind.FinalChargeCombo:
+                    return UpdateBossChargeCombo(deltaTime);
+                case BossPatternActionKind.FinalMixedVolley:
+                    return UpdateFinalMixedVolley(deltaTime);
+                case BossPatternActionKind.FinalGravityNova:
+                    return UpdateFinalGravityNova(deltaTime);
+                default:
+                    EnterBossRecovery(GetBossRecoveryDuration(_bossCurrentAction));
+                    return true;
+            }
+        }
+
+        private bool UpdateWizardFanVolley(float deltaTime)
+        {
+            _bossShotTimer -= deltaTime;
+            if (_bossShotTimer > 0f)
+            {
+                return true;
+            }
+
+            FireBossFanVolley(GetBossProjectileSpeed(7f));
+            _bossRepeatRemaining--;
+            if (_bossRepeatRemaining <= 0)
+            {
+                EnterBossRecovery(GetBossRecoveryDuration(_bossCurrentAction));
+                return true;
+            }
+
+            _bossShotTimer = WizardFanShotInterval;
+            return true;
+        }
+
+        private bool UpdateWizardCrossBurst(float deltaTime)
+        {
+            _bossShotTimer -= deltaTime;
+            if (_bossShotTimer > 0f)
+            {
+                return true;
+            }
+
+            FireBossRadialBurst(8, GetBossProjectileSpeed(7f));
+            _bossRepeatRemaining--;
+            if (_bossRepeatRemaining <= 0)
+            {
+                EnterBossRecovery(GetBossRecoveryDuration(_bossCurrentAction));
+                return true;
+            }
+
+            _bossShotTimer = WizardCrossBurstInterval;
+            return true;
+        }
+
+        private bool UpdateBossChargeCombo(float deltaTime)
+        {
+            if (_bossActionStep == 1)
+            {
+                var dashSpeed = Mathf.Max(0.1f, _moveSpeed) * GetBossDashSpeedMultiplier(_bossCurrentAction);
+                var step = _bossDashDirection * dashSpeed * deltaTime;
+                var next = (Vector2)transform.position + step;
+                var clamped = ClampPositionToArena(new Vector3(next.x, next.y, transform.position.z));
+                transform.position = clamped;
+                _registry?.NotifyMoved(this, transform.position);
+
+                _bossExecutionTimer -= deltaTime;
+                if (_bossExecutionTimer > 0f)
+                {
+                    return true;
+                }
+
+                _bossRepeatRemaining--;
+                if (_bossRepeatRemaining <= 0)
+                {
+                    EnterBossRecovery(GetBossRecoveryDuration(_bossCurrentAction));
+                    return true;
+                }
+
+                _bossActionStep = 2;
+                _bossSecondaryTimer = _bossCurrentAction == BossPatternActionKind.WarriorChargeCombo
+                    ? WarriorChargeIntermission
+                    : FinalChargeIntermission;
+                return true;
+            }
+
+            _bossSecondaryTimer -= deltaTime;
+            if (_bossSecondaryTimer <= 0f)
+            {
+                BeginBossDashRun(_bossCurrentAction);
+            }
+
+            return true;
+        }
+
+        private bool UpdateFinalMixedVolley(float deltaTime)
+        {
+            _bossShotTimer -= deltaTime;
+            if (_bossActionStep == 0)
+            {
+                FireBossRadialBurst(8, GetBossProjectileSpeed(7.6f));
+                _bossActionStep = 1;
+                _bossShotTimer = FinalMixedVolleyInterval;
+                return true;
+            }
+
+            if (_bossShotTimer > 0f)
+            {
+                return true;
+            }
+
+            FireBossFanVolley(GetBossProjectileSpeed(7.6f));
+            _bossRepeatRemaining--;
+            if (_bossRepeatRemaining <= 0)
+            {
+                EnterBossRecovery(GetBossRecoveryDuration(_bossCurrentAction));
+                return true;
+            }
+
+            _bossShotTimer = FinalMixedVolleyInterval;
+            return true;
+        }
+
+        private bool UpdateFinalGravityNova(float deltaTime)
+        {
+            if (_bossActionStep == 0)
+            {
+                ApplyBossPullState(transform.position, FinalGravityRadius, GetBossPullSpeed(2.8f));
+                _bossExecutionTimer -= deltaTime;
+                if (_bossExecutionTimer > 0f)
+                {
+                    return true;
+                }
+
+                ClearBossPullState();
+                FireBossRadialBurst(GravityPulseProjectileCount, GetBossProjectileSpeed(6.2f), 1f);
+                _bossActionStep = 1;
+                _bossSecondaryTimer = FinalGravityPulseInterval;
+                return true;
+            }
+
+            _bossSecondaryTimer -= deltaTime;
+            if (_bossSecondaryTimer > 0f)
+            {
+                return true;
+            }
+
+            FireBossRadialBurst(GravityPulseProjectileCount, GetBossProjectileSpeed(6.2f), 1f);
+            EnterBossRecovery(GetBossRecoveryDuration(_bossCurrentAction));
+            return true;
         }
 
         private static Vector2 RotateDirection(Vector2 direction, float degrees)
@@ -1278,11 +1398,16 @@ namespace EJR.Game.Gameplay
 
         private void SpawnBossProjectile(Vector2 direction)
         {
+            SpawnBossProjectile(direction, 7.2f);
+        }
+
+        private void SpawnBossProjectile(Vector2 direction, float speed, float damageMultiplier = BossProjectileDamageMultiplier)
+        {
             var normalizedDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : Vector2.right;
             BossProjectileSpawned?.Invoke(
                 transform.position,
                 normalizedDirection,
-                BossProjectileSpeed,
+                speed,
                 BossProjectileLifetime,
                 BossProjectileVisualScale);
             var projectileObject = new GameObject("BossProjectile");
@@ -1297,9 +1422,9 @@ namespace EJR.Game.Gameplay
             var projectile = projectileObject.AddComponent<BossProjectile>();
             projectile.Initialize(
                 normalizedDirection,
-                BossProjectileSpeed,
+                speed,
                 BossProjectileLifetime,
-                Mathf.Max(1f, _contactDamage * BossProjectileDamageMultiplier),
+                Mathf.Max(1f, _contactDamage * Mathf.Max(0.1f, damageMultiplier)),
                 BossProjectileHitRadius,
                 _playerHealth,
                 _playerCollisionRadius);
@@ -1308,94 +1433,282 @@ namespace EJR.Game.Gameplay
         private void EndBossPattern()
         {
             HideBossDashTelegraphFx();
+            ClearBossPullState();
+            _bossPreviousAction = _bossCurrentAction;
             _bossPatternState = BossPatternState.None;
+            _bossCurrentAction = BossPatternActionKind.None;
             _bossStateTimer = 0f;
             _bossShotTimer = 0f;
-            _bossEightWayShotsRemaining = 0;
-            _bossAimShotsRemaining = 0;
-            _bossDashTotalInPattern = 0;
-            _bossDashRemainingInPattern = 0;
-            _bossDashStartedInPattern = 0;
-            _bossUseEightWayNext = true;
-            _bossPatternCooldown = GetBossPatternCooldownForCurrentHealth();
+            _bossExecutionTimer = 0f;
+            _bossSecondaryTimer = 0f;
+            _bossRepeatRemaining = 0;
+            _bossActionStep = 0;
+            _bossPatternCooldown = GetBossPatternCooldown();
         }
 
-        private float GetBossHealthRatio()
+        private BossPatternActionKind PickNextBossAction()
         {
-            if (_maxHealth <= 0.0001f)
+            return _bossArchetype switch
             {
-                return 1f;
+                BossArchetypeId.Wizard => PickWeightedBossAction(
+                    (BossPatternActionKind.WizardFanVolley, 0.40f),
+                    (BossPatternActionKind.WizardSigilField, 0.35f),
+                    (BossPatternActionKind.WizardCrossBurst, 0.25f)),
+                BossArchetypeId.Warrior => PickWeightedBossAction(
+                    (BossPatternActionKind.WarriorChargeCombo, 0.65f),
+                    (BossPatternActionKind.WarriorGroundSlam, 0.35f)),
+                _ => PickWeightedBossAction(
+                    (BossPatternActionKind.FinalMixedVolley, 0.38f),
+                    (BossPatternActionKind.FinalChargeCombo, 0.27f),
+                    (BossPatternActionKind.FinalGravityNova, 0.35f)),
+            };
+        }
+
+        private BossPatternActionKind PickWeightedBossAction(params (BossPatternActionKind action, float weight)[] candidates)
+        {
+            var canAvoidRepeat = false;
+            for (var i = 0; i < candidates.Length; i++)
+            {
+                if (candidates[i].action != _bossPreviousAction && candidates[i].weight > 0f)
+                {
+                    canAvoidRepeat = true;
+                    break;
+                }
             }
 
-            return Mathf.Clamp01(_health / _maxHealth);
-        }
-
-        private float GetBossDashPatternChance()
-        {
-            return BossDashPatternChance;
-        }
-
-        private int GetBossDashCountForCurrentHealth()
-        {
-            var healthRatio = GetBossHealthRatio();
-            return healthRatio > BossPhase2HealthThreshold ? 1 : 3;
-        }
-
-        private int GetBossEightWayShotsForCurrentHealth()
-        {
-            var healthRatio = GetBossHealthRatio();
-            if (healthRatio > BossPhase2HealthThreshold)
+            var totalWeight = 0f;
+            for (var i = 0; i < candidates.Length; i++)
             {
-                return BossPhase1VolleyShots;
+                if (candidates[i].weight <= 0f)
+                {
+                    continue;
+                }
+
+                if (canAvoidRepeat && candidates[i].action == _bossPreviousAction)
+                {
+                    continue;
+                }
+
+                totalWeight += candidates[i].weight;
             }
 
-            return BossPhase2VolleyShots;
-        }
-
-        private int GetBossAimShotsForCurrentHealth()
-        {
-            var healthRatio = GetBossHealthRatio();
-            if (healthRatio > BossPhase2HealthThreshold)
+            if (totalWeight <= 0f)
             {
-                return BossPhase1VolleyShots;
+                return candidates.Length > 0 ? candidates[0].action : BossPatternActionKind.None;
             }
 
-            return BossPhase2VolleyShots;
-        }
-
-        private float GetBossProjectileShotIntervalForCurrentHealth()
-        {
-            var healthRatio = GetBossHealthRatio();
-            if (healthRatio > BossPhase2HealthThreshold)
+            var roll = UnityEngine.Random.value * totalWeight;
+            for (var i = 0; i < candidates.Length; i++)
             {
-                return BossPhase1ProjectileShotInterval;
+                var candidate = candidates[i];
+                if (candidate.weight <= 0f)
+                {
+                    continue;
+                }
+
+                if (canAvoidRepeat && candidate.action == _bossPreviousAction)
+                {
+                    continue;
+                }
+
+                roll -= candidate.weight;
+                if (roll <= 0f)
+                {
+                    return candidate.action;
+                }
             }
 
-            return BossPhase2ProjectileShotInterval;
+            return candidates[candidates.Length - 1].action;
         }
 
-        private float GetBossPatternCooldownForCurrentHealth()
+        private bool ShouldShowDashTelegraph(BossPatternActionKind action)
         {
-            var healthRatio = GetBossHealthRatio();
-            if (healthRatio > BossPhase2HealthThreshold)
+            return action == BossPatternActionKind.WarriorChargeCombo || action == BossPatternActionKind.FinalChargeCombo;
+        }
+
+        private float GetBossTelegraphDuration(BossPatternActionKind action)
+        {
+            var baseDuration = action switch
             {
-                return UnityEngine.Random.Range(2.8f, 4.6f);
+                BossPatternActionKind.WizardFanVolley => 0.85f,
+                BossPatternActionKind.WizardSigilField => 0.75f,
+                BossPatternActionKind.WizardCrossBurst => 0.70f,
+                BossPatternActionKind.WarriorChargeCombo => 0.65f,
+                BossPatternActionKind.WarriorGroundSlam => 0.80f,
+                BossPatternActionKind.FinalMixedVolley => 0.75f,
+                BossPatternActionKind.FinalChargeCombo => 0.55f,
+                BossPatternActionKind.FinalGravityNova => 0.85f,
+                _ => 0.75f,
+            };
+
+            return baseDuration * GetBossDifficultyScale(_bossDifficulty?.BossTelegraphScale, 1f);
+        }
+
+        private float GetBossRecoveryDuration(BossPatternActionKind action)
+        {
+            var baseDuration = action switch
+            {
+                BossPatternActionKind.WizardFanVolley => 0.90f,
+                BossPatternActionKind.WizardSigilField => 0.90f,
+                BossPatternActionKind.WizardCrossBurst => 0.90f,
+                BossPatternActionKind.WarriorChargeCombo => 0.85f,
+                BossPatternActionKind.WarriorGroundSlam => 0.85f,
+                BossPatternActionKind.FinalMixedVolley => 0.70f,
+                BossPatternActionKind.FinalChargeCombo => 0.70f,
+                BossPatternActionKind.FinalGravityNova => 0.70f,
+                _ => 0.80f,
+            };
+
+            return baseDuration * GetBossDifficultyScale(_bossDifficulty?.BossCooldownScale, 1f);
+        }
+
+        private float GetBossPatternCooldown()
+        {
+            var baseCooldown = _bossArchetype switch
+            {
+                BossArchetypeId.Wizard => UnityEngine.Random.Range(1.20f, 1.65f),
+                BossArchetypeId.Warrior => UnityEngine.Random.Range(0.95f, 1.40f),
+                _ => UnityEngine.Random.Range(0.90f, 1.30f),
+            };
+
+            return baseCooldown * GetBossDifficultyScale(_bossDifficulty?.BossCooldownScale, 1f);
+        }
+
+        private float GetBossProjectileSpeed(float baseSpeed)
+        {
+            return baseSpeed * GetBossDifficultyScale(_bossDifficulty?.BossProjectileSpeedScale, 1f);
+        }
+
+        private float GetBossDashSpeedMultiplier(BossPatternActionKind action)
+        {
+            var baseMultiplier = action == BossPatternActionKind.FinalChargeCombo ? 5.8f : 5.2f;
+            return baseMultiplier * GetBossDifficultyScale(_bossDifficulty?.BossDashSpeedScale, 1f);
+        }
+
+        private float GetBossDashDuration(BossPatternActionKind action)
+        {
+            return action == BossPatternActionKind.FinalChargeCombo ? 0.40f : 0.42f;
+        }
+
+        private float GetBossPullSpeed(float baseSpeed)
+        {
+            return baseSpeed * GetBossDifficultyScale(_bossDifficulty?.BossPullSpeedScale, 1f);
+        }
+
+        private int ScaleBossActionCount(int baseCount)
+        {
+            var scale = GetBossDifficultyScale(_bossDifficulty?.BossActionCountScale, 1f);
+            return Mathf.Max(1, Mathf.RoundToInt(baseCount * scale));
+        }
+
+        private float GetBossDifficultyScale(float? configuredValue, float fallbackValue)
+        {
+            return Mathf.Max(0.1f, configuredValue ?? fallbackValue);
+        }
+
+        private Vector2 GetDirectionToPlayer()
+        {
+            var toPlayer = (Vector2)(_target.position - transform.position);
+            return toPlayer.sqrMagnitude > 0.000001f ? toPlayer.normalized : Vector2.right;
+        }
+
+        private void BeginBossDashRun(BossPatternActionKind action)
+        {
+            _bossDashDirection = GetDirectionToPlayer();
+            _bossExecutionTimer = Mathf.Max(0.05f, GetBossDashDuration(action));
+            _bossActionStep = 1;
+        }
+
+        private void EnterBossRecovery(float duration)
+        {
+            HideBossDashTelegraphFx();
+            ClearBossPullState();
+            _bossPatternState = BossPatternState.Recovery;
+            _bossStateTimer = Mathf.Max(0.05f, duration);
+        }
+
+        private void FireBossFanVolley(float projectileSpeed)
+        {
+            var centerDirection = GetDirectionToPlayer();
+            var shotDuration = Mathf.Max(0.08f, WizardFanShotInterval * 0.8f);
+            _spriteAnimator?.PlayAttackOneShot(shotDuration);
+            SpawnBossProjectile(RotateDirection(centerDirection, -BossAimFanSpreadDegrees * 2f), projectileSpeed);
+            SpawnBossProjectile(RotateDirection(centerDirection, -BossAimFanSpreadDegrees), projectileSpeed);
+            SpawnBossProjectile(centerDirection, projectileSpeed);
+            SpawnBossProjectile(RotateDirection(centerDirection, BossAimFanSpreadDegrees), projectileSpeed);
+            SpawnBossProjectile(RotateDirection(centerDirection, BossAimFanSpreadDegrees * 2f), projectileSpeed);
+        }
+
+        private void FireBossRadialBurst(int projectileCount, float projectileSpeed, float damageMultiplier = BossProjectileDamageMultiplier)
+        {
+            if (projectileCount <= 0)
+            {
+                return;
             }
 
-            return UnityEngine.Random.Range(1.3f, 2.4f);
+            _spriteAnimator?.PlayAttackOneShot(0.12f);
+            for (var i = 0; i < projectileCount; i++)
+            {
+                var radians = (Mathf.PI * 2f * i) / projectileCount;
+                var direction = new Vector2(Mathf.Cos(radians), Mathf.Sin(radians));
+                SpawnBossProjectile(direction, projectileSpeed, damageMultiplier);
+            }
         }
 
-        private float GetBossTelegraphDurationForCurrentHealth()
+        private void SpawnBossSigils(int sigilCount, float ringRadius, float delay, float explosionRadius, float damageMultiplier)
         {
-            var healthRatio = GetBossHealthRatio();
-            return healthRatio > BossPhase2HealthThreshold
-                ? BossTelegraphDuration
-                : BossEnragedTelegraphDuration;
+            if (sigilCount <= 0)
+            {
+                EnterBossRecovery(GetBossRecoveryDuration(_bossCurrentAction));
+                return;
+            }
+
+            _spriteAnimator?.PlayAttackOneShot(0.16f);
+            var origin = (Vector2)_target.position;
+            var startAngle = UnityEngine.Random.value * 360f;
+            for (var i = 0; i < sigilCount; i++)
+            {
+                var angle = startAngle + ((360f / sigilCount) * i);
+                var radians = angle * Mathf.Deg2Rad;
+                var offset = new Vector2(Mathf.Cos(radians), Mathf.Sin(radians)) * ringRadius;
+                CreateBossSigil(origin + offset, delay, explosionRadius, damageMultiplier);
+            }
+        }
+
+        private void CreateBossSigil(Vector2 position, float delay, float explosionRadius, float damageMultiplier)
+        {
+            BossSigilSpawned?.Invoke(new Vector3(position.x, position.y, 0f), delay, explosionRadius);
+
+            var hazardObject = new GameObject("BossSigilHazard");
+            hazardObject.transform.position = new Vector3(position.x, position.y, 0f);
+            var hazard = hazardObject.AddComponent<BossSigilHazard>();
+            hazard.Initialize(
+                _playerHealth,
+                _playerCollisionRadius,
+                delay,
+                explosionRadius,
+                Mathf.Max(1f, _contactDamage * Mathf.Max(0.1f, damageMultiplier)));
+        }
+
+        private void ApplyBossPullState(Vector2 center, float radius, float speed)
+        {
+            _bossPullActive = true;
+            _bossPullCenter = center;
+            _bossPullRadius = Mathf.Max(0.1f, radius);
+            _bossPullSpeed = Mathf.Max(0.1f, speed);
+        }
+
+        private void ClearBossPullState()
+        {
+            _bossPullActive = false;
+            _bossPullCenter = Vector2.zero;
+            _bossPullRadius = 0f;
+            _bossPullSpeed = 0f;
         }
 
         private void UpdateBossDashTelegraphFx()
         {
-            if (!IsBoss || _target == null)
+            if (!IsBoss)
             {
                 HideBossDashTelegraphFx();
                 return;
@@ -1407,8 +1720,7 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            var toPlayer = (Vector2)(_target.position - transform.position);
-            var direction = toPlayer.sqrMagnitude > 0.000001f ? toPlayer.normalized : Vector2.right;
+            var direction = _bossDashDirection.sqrMagnitude > 0.000001f ? _bossDashDirection.normalized : GetDirectionToPlayer();
             var start = (Vector2)transform.position;
             var end = start + (direction * BossDashTelegraphLength);
 

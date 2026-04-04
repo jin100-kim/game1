@@ -13,7 +13,8 @@ namespace EJR.Game.Core
             Color cameraBackgroundColor,
             Color boundaryColor,
             string requiredClearMapId,
-            RuntimeSpriteFactory.EnemyVisualKind bossVisualKind = RuntimeSpriteFactory.EnemyVisualKind.Boss)
+            RuntimeSpriteFactory.EnemyVisualKind bossVisualKind = RuntimeSpriteFactory.EnemyVisualKind.Boss,
+            BossArchetypeId bossArchetype = BossArchetypeId.Final)
         {
             Id = string.IsNullOrWhiteSpace(id) ? SharedRunCatalog.DefaultMapId : id;
             DisplayName = string.IsNullOrWhiteSpace(displayName) ? Id : displayName;
@@ -22,6 +23,7 @@ namespace EJR.Game.Core
             BoundaryColor = boundaryColor;
             RequiredClearMapId = requiredClearMapId ?? string.Empty;
             BossVisualKind = bossVisualKind;
+            BossArchetype = bossArchetype;
         }
 
         public string Id { get; }
@@ -31,6 +33,7 @@ namespace EJR.Game.Core
         public Color BoundaryColor { get; }
         public string RequiredClearMapId { get; }
         public RuntimeSpriteFactory.EnemyVisualKind BossVisualKind { get; }
+        public BossArchetypeId BossArchetype { get; }
 
         public float InitialSpawnInterval { get; set; }
         public float MinimumSpawnInterval { get; set; }
@@ -70,7 +73,13 @@ namespace EJR.Game.Core
             float bossEscortScale,
             float wave1Offset,
             float wave2Offset,
-            float bossOffset)
+            float bossOffset,
+            float bossTelegraphScale,
+            float bossCooldownScale,
+            float bossActionCountScale,
+            float bossProjectileSpeedScale,
+            float bossDashSpeedScale,
+            float bossPullSpeedScale)
         {
             Id = string.IsNullOrWhiteSpace(id) ? SharedRunCatalog.DefaultDifficultyId : id;
             DisplayName = string.IsNullOrWhiteSpace(displayName) ? Id : displayName;
@@ -86,6 +95,12 @@ namespace EJR.Game.Core
             Wave1Offset = wave1Offset;
             Wave2Offset = wave2Offset;
             BossOffset = bossOffset;
+            BossTelegraphScale = bossTelegraphScale;
+            BossCooldownScale = bossCooldownScale;
+            BossActionCountScale = bossActionCountScale;
+            BossProjectileSpeedScale = bossProjectileSpeedScale;
+            BossDashSpeedScale = bossDashSpeedScale;
+            BossPullSpeedScale = bossPullSpeedScale;
         }
 
         public string Id { get; }
@@ -102,6 +117,12 @@ namespace EJR.Game.Core
         public float Wave1Offset { get; }
         public float Wave2Offset { get; }
         public float BossOffset { get; }
+        public float BossTelegraphScale { get; }
+        public float BossCooldownScale { get; }
+        public float BossActionCountScale { get; }
+        public float BossProjectileSpeedScale { get; }
+        public float BossDashSpeedScale { get; }
+        public float BossPullSpeedScale { get; }
     }
 
     public static class SharedRunCatalog
@@ -118,7 +139,8 @@ namespace EJR.Game.Core
                 new Color(0.10f, 0.16f, 0.12f, 1f),
                 new Color(0.40f, 0.58f, 0.36f, 1f),
                 string.Empty,
-                RuntimeSpriteFactory.EnemyVisualKind.Wizard)
+                RuntimeSpriteFactory.EnemyVisualKind.Wizard,
+                BossArchetypeId.Wizard)
             {
                 InitialSpawnInterval = 2.50f,
                 MinimumSpawnInterval = 0.55f,
@@ -132,11 +154,11 @@ namespace EJR.Game.Core
                 MushroomRatioBeforeBoss = 0.45f,
                 Wave1TimeSeconds = 180f,
                 Wave2TimeSeconds = 360f,
-                Wave1SlimeCount = 14,
-                Wave1MushroomCount = 2,
+                Wave1SlimeCount = 8,
+                Wave1MushroomCount = 1,
                 Wave1SkeletonCount = 0,
-                Wave2SlimeCount = 10,
-                Wave2MushroomCount = 6,
+                Wave2SlimeCount = 6,
+                Wave2MushroomCount = 4,
                 Wave2SkeletonCount = 0,
                 BossWaveStartSeconds = 600f,
                 BossWaveSkeletonCount = 4,
@@ -148,7 +170,8 @@ namespace EJR.Game.Core
                 new Color(0.22f, 0.18f, 0.10f, 1f),
                 new Color(0.82f, 0.66f, 0.32f, 1f),
                 "forest",
-                RuntimeSpriteFactory.EnemyVisualKind.Warrior)
+                RuntimeSpriteFactory.EnemyVisualKind.Warrior,
+                BossArchetypeId.Warrior)
             {
                 InitialSpawnInterval = 2.30f,
                 MinimumSpawnInterval = 0.50f,
@@ -162,11 +185,11 @@ namespace EJR.Game.Core
                 MushroomRatioBeforeBoss = 0.22f,
                 Wave1TimeSeconds = 170f,
                 Wave2TimeSeconds = 340f,
-                Wave1SlimeCount = 18,
+                Wave1SlimeCount = 10,
                 Wave1MushroomCount = 0,
                 Wave1SkeletonCount = 0,
-                Wave2SlimeCount = 20,
-                Wave2MushroomCount = 3,
+                Wave2SlimeCount = 12,
+                Wave2MushroomCount = 2,
                 Wave2SkeletonCount = 0,
                 BossWaveStartSeconds = 600f,
                 BossWaveSkeletonCount = 6,
@@ -178,7 +201,8 @@ namespace EJR.Game.Core
                 new Color(0.12f, 0.18f, 0.24f, 1f),
                 new Color(0.72f, 0.86f, 0.95f, 1f),
                 "desert",
-                RuntimeSpriteFactory.EnemyVisualKind.Boss)
+                RuntimeSpriteFactory.EnemyVisualKind.Boss,
+                BossArchetypeId.Final)
             {
                 InitialSpawnInterval = 2.20f,
                 MinimumSpawnInterval = 0.48f,
@@ -192,11 +216,11 @@ namespace EJR.Game.Core
                 MushroomRatioBeforeBoss = 0.60f,
                 Wave1TimeSeconds = 165f,
                 Wave2TimeSeconds = 330f,
-                Wave1SlimeCount = 12,
-                Wave1MushroomCount = 6,
+                Wave1SlimeCount = 7,
+                Wave1MushroomCount = 4,
                 Wave1SkeletonCount = 0,
-                Wave2SlimeCount = 12,
-                Wave2MushroomCount = 12,
+                Wave2SlimeCount = 8,
+                Wave2MushroomCount = 8,
                 Wave2SkeletonCount = 0,
                 BossWaveStartSeconds = 600f,
                 BossWaveSkeletonCount = 8,
@@ -219,7 +243,13 @@ namespace EJR.Game.Core
                 0.85f,
                 10f,
                 20f,
-                45f),
+                45f,
+                1.15f,
+                1.15f,
+                0.85f,
+                0.90f,
+                0.92f,
+                0.90f),
             new RunDifficultyDefinition(
                 "normal",
                 "\uBCF4\uD1B5",
@@ -234,7 +264,13 @@ namespace EJR.Game.Core
                 1f,
                 0f,
                 0f,
-                0f),
+                0f,
+                1f,
+                1f,
+                1f,
+                1f,
+                1f,
+                1f),
             new RunDifficultyDefinition(
                 "hard",
                 "\uC5B4\uB824\uC6C0",
@@ -249,7 +285,13 @@ namespace EJR.Game.Core
                 1.25f,
                 -10f,
                 -20f,
-                -45f),
+                -45f,
+                0.88f,
+                0.82f,
+                1.20f,
+                1.12f,
+                1.12f,
+                1.15f),
         };
 
         public static IReadOnlyList<RunMapDefinition> MapDefinitions => s_mapDefinitions;
