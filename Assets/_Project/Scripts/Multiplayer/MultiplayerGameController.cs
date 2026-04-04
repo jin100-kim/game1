@@ -91,6 +91,9 @@ namespace EJR.Game.Multiplayer
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
                 () =>
                 {
                     SetAutoPlayEnabled(!_autoPlayEnabled);

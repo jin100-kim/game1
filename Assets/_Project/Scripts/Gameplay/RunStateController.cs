@@ -106,6 +106,7 @@ namespace EJR.Game.Gameplay
         private readonly Queue<PendingChoiceRequest> _pendingChoices = new();
         private readonly List<Vector3> _rewardChestWorldPositions = new();
         private PendingChoiceContext _activeChoiceContext;
+        private string _activeChoiceTitle = string.Empty;
 
         private float _remainingSeconds;
         private bool _isGameOver;
@@ -115,6 +116,7 @@ namespace EJR.Game.Gameplay
         private float _nextHudRefreshAt;
         private bool _usingOwnedMultiplayerPlayer;
         private bool _autoPlayEnabled;
+        private bool _debugInvincibleEnabled;
         private float _nextAutoPlayChoiceAt;
         private AutoPlayAgent _autoPlayAgent;
         private int _selectedSingleCharacterId;
@@ -503,7 +505,7 @@ namespace EJR.Game.Gameplay
                 {
                     if (_currentOptions == null || _currentOptions.Length <= 0)
                     {
-                        if (!_levelUp.RerollCurrentChoice())
+                        if (!TryRerollActiveChoiceOptions())
                         {
                             break;
                         }
@@ -529,15 +531,143 @@ namespace EJR.Game.Gameplay
 
         private void DebugRerollLevelUpOptions()
         {
-            if (_levelUp == null || !_levelUp.IsAwaitingChoice)
+            TryRerollActiveChoiceOptions();
+        }
+
+        private void DebugStartWave1()
+        {
+            if (_enemySpawner == null)
             {
                 return;
             }
 
-            if (_levelUp.RerollCurrentChoice())
+            _enemySpawner.DebugStartWave1();
+            SyncRemainingTimeFromSpawner();
+            UpdateHud();
+        }
+
+        private void DebugStartWave2()
+        {
+            if (_enemySpawner == null)
             {
-                UpdateHud();
+                return;
             }
+
+            _enemySpawner.DebugStartWave2();
+            SyncRemainingTimeFromSpawner();
+            UpdateHud();
+        }
+
+        private void DebugStartBoss()
+        {
+            if (_enemySpawner == null)
+            {
+                return;
+            }
+
+            _enemySpawner.DebugStartBossWave();
+            SyncRemainingTimeFromSpawner();
+            UpdateHud();
+        }
+
+        private bool TryRerollActiveChoiceOptions()
+        {
+            if (_hud == null || _currentOptions == null || _currentOptions.Length <= 0)
+            {
+                return false;
+            }
+
+            LevelUpOption[] rerolledOptions = null;
+            switch (_activeChoiceContext)
+            {
+                case PendingChoiceContext.LevelUp:
+                    if (_levelUp == null || !_levelUp.TryRerollCurrentChoice(out rerolledOptions))
+                    {
+                        return false;
+                    }
+                    break;
+
+                case PendingChoiceContext.WaveAugment:
+                    rerolledOptions = BuildWaveAugmentRerollOptions();
+                    if (rerolledOptions == null || rerolledOptions.Length <= 0)
+                    {
+                        return false;
+                    }
+                    break;
+
+                default:
+                    return false;
+            }
+
+            _currentOptions = rerolledOptions;
+            AudioService.Instance.PlaySfx(AudioCueId.LevelUpAppear);
+            _hud.ShowLevelUpOptions(_currentOptions, SelectLevelUpOption, _activeChoiceTitle);
+            UpdateHud();
+            return true;
+        }
+
+        private LevelUpOption[] BuildWaveAugmentRerollOptions()
+        {
+            if (_buildRuntime == null)
+            {
+                return Array.Empty<LevelUpOption>();
+            }
+
+            var rerolledOptions = SharedAugmentCatalog.BuildRandomOptions(_buildRuntime.ActiveAugments);
+            if (rerolledOptions.Length <= 0)
+            {
+                return rerolledOptions;
+            }
+
+            for (var attempt = 0; attempt < 4 && AreOptionSetsEquivalent(rerolledOptions, _currentOptions); attempt++)
+            {
+                var retryOptions = SharedAugmentCatalog.BuildRandomOptions(_buildRuntime.ActiveAugments);
+                if (retryOptions.Length > 0)
+                {
+                    rerolledOptions = retryOptions;
+                }
+            }
+
+            return rerolledOptions;
+        }
+
+        private static bool AreOptionSetsEquivalent(LevelUpOption[] left, LevelUpOption[] right)
+        {
+            if (left == null || right == null || left.Length != right.Length)
+            {
+                return false;
+            }
+
+            for (var index = 0; index < left.Length; index++)
+            {
+                if (left[index].Domain != right[index].Domain)
+                {
+                    return false;
+                }
+
+                if (left[index].Domain == LevelUpOptionDomain.Augment)
+                {
+                    if (left[index].AugmentId != right[index].AugmentId)
+                    {
+                        return false;
+                    }
+
+                    continue;
+                }
+
+                if (left[index].WeaponId != right[index].WeaponId ||
+                    left[index].StatId != right[index].StatId ||
+                    left[index].WeaponRollKind != right[index].WeaponRollKind ||
+                    left[index].MilestoneKind != right[index].MilestoneKind ||
+                    !Mathf.Approximately(left[index].PrimaryValue, right[index].PrimaryValue) ||
+                    !Mathf.Approximately(left[index].SecondaryValue, right[index].SecondaryValue) ||
+                    left[index].NextLevel != right[index].NextLevel)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private void SyncRemainingTimeFromSpawner()
@@ -561,6 +691,7 @@ namespace EJR.Game.Gameplay
         {
             MetaProgressionService.EnsureLoaded();
             _autoPlayAgent = new AutoPlayAgent();
+            _debugInvincibleEnabled = false;
             _buildRuntime = new PlayerBuildRuntime();
             _buildRuntime.InitializeDefaults(grantStarterRifle: false);
             _selectedSingleCharacterId = MetaProgressionService.GetSingleSelectedCharacterId();
@@ -576,44 +707,29 @@ namespace EJR.Game.Gameplay
             _hud.Initialize();
             _hud.ConfigureDebugTools(
                 enableDebugTimeSkip
-                    ? () =>
-                    {
-                        GrantDebugLevels(Mathf.Max(1, debugGrantLevelsPerPress));
-                        UpdateHud();
-                    }
+                    ? () => GrantDebugLevels(1)
                     : null,
                 enableDebugTimeSkip
-                    ? () =>
-                    {
-                        if (_enemySpawner != null)
-                        {
-                            _enemySpawner.DebugAdvanceSeconds(debugAdvanceSeconds);
-                            SyncRemainingTimeFromSpawner();
-                            UpdateHud();
-                        }
-                    }
+                    ? () => GrantDebugLevels(5)
                     : null,
                 enableDebugTimeSkip ? () => DebugRerollLevelUpOptions() : null,
-                enableDebugTimeSkip
-                    ? () =>
-                    {
-                        if (_enemySpawner != null)
-                        {
-                            _enemySpawner.DebugSkipToBossWave();
-                            _bossWaveTriggered = true;
-                            _remainingSeconds = 0f;
-                        }
-
-                        DebugRandomLevelUpToTarget(debugSkipBossTargetLevel);
-                        UpdateHud();
-                    }
-                    : null,
+                enableDebugTimeSkip ? () => DebugStartWave1() : null,
+                enableDebugTimeSkip ? () => DebugStartWave2() : null,
+                enableDebugTimeSkip ? () => DebugStartBoss() : null,
+                () =>
+                {
+                    _debugInvincibleEnabled = !_debugInvincibleEnabled;
+                    _playerHealth?.SetDebugInvincible(_debugInvincibleEnabled);
+                    _hud?.SetDebugInvincibleState(_debugInvincibleEnabled);
+                    UpdateHud();
+                },
                 () =>
                 {
                     SetAutoPlayEnabled(!_autoPlayEnabled);
                     UpdateHud();
                 });
             _hud.SetDebugAccessVisible(DebugSessionService.IsUnlocked);
+            _hud.SetDebugInvincibleState(_debugInvincibleEnabled);
 
             var ownedMultiplayerPlayer = MultiplayerPlayerActor.FindOwnedLocalPlayer();
             _usingOwnedMultiplayerPlayer = ownedMultiplayerPlayer != null;
@@ -709,6 +825,7 @@ namespace EJR.Game.Gameplay
                 _playerHealth = player.AddComponent<PlayerHealth>();
             }
             _playerHealth.Initialize(GetCurrentMaxHealth(), playerConfig.damageInvulnerabilitySeconds);
+            _playerHealth.SetDebugInvincible(_debugInvincibleEnabled);
 
             _playerHealthBar = player.GetComponent<WorldHealthBar>();
             if (_playerHealthBar == null)
@@ -957,68 +1074,97 @@ namespace EJR.Game.Gameplay
 
         private int ChooseAutoPlayLevelChoiceIndex(LevelUpOption[] options)
         {
+            if (options == null || options.Length <= 1)
+            {
+                return 0;
+            }
+
             var healthRatio = _playerHealth != null && _playerHealth.MaxHealth > 0f
                 ? _playerHealth.CurrentHealth / _playerHealth.MaxHealth
                 : 1f;
 
-            var bestScore = int.MinValue;
-            var bestIndex = 0;
+            var weights = new float[options.Length];
+            var totalWeight = 0f;
             for (var i = 0; i < options.Length; i++)
             {
-                var option = options[i];
-                var rarityScore = option.Rarity switch
-                {
-                    OptionRarity.Legendary => 24,
-                    OptionRarity.Epic => 16,
-                    OptionRarity.Rare => 8,
-                    OptionRarity.Special => 20,
-                    _ => 0,
-                };
-
-                var score = option.Domain switch
-                {
-                    LevelUpOptionDomain.Augment => option.AugmentId switch
-                    {
-                        RunAugmentId.Berserk => 58,
-                        RunAugmentId.Overclock => 56,
-                        RunAugmentId.LongReach => 50,
-                        RunAugmentId.Fleetfoot => 46,
-                        RunAugmentId.VitalCore => 44 + Mathf.RoundToInt((1f - healthRatio) * 18f),
-                        _ => 40,
-                    },
-                    LevelUpOptionDomain.WeaponMilestone => 64 + option.NextLevel,
-                    LevelUpOptionDomain.WeaponAcquire => 48,
-                    LevelUpOptionDomain.WeaponLevelRoll => 40 + option.NextLevel + rarityScore + (option.WeaponRollKind switch
-                    {
-                        WeaponRollKind.DamagePercent => 8,
-                        WeaponRollKind.AttackSpeedPercent => 7,
-                        WeaponRollKind.RangePercent => 4,
-                        _ => 0,
-                    }),
-                    LevelUpOptionDomain.GlobalStatRoll => option.StatId switch
-                    {
-                        StatUpgradeId.AttackPower => 26 + rarityScore,
-                        StatUpgradeId.AttackSpeed => 24 + rarityScore,
-                        StatUpgradeId.AttackRange => 18 + rarityScore,
-                        StatUpgradeId.MaxHealth => 14 + rarityScore + Mathf.RoundToInt((1f - healthRatio) * 18f),
-                        StatUpgradeId.HealthRegen => 12 + rarityScore + Mathf.RoundToInt((1f - healthRatio) * 10f),
-                        StatUpgradeId.MoveSpeed => 10 + rarityScore,
-                        StatUpgradeId.Luck => 8 + rarityScore,
-                        _ => 10,
-                    },
-                    _ => 0,
-                };
-
-                if (score <= bestScore)
-                {
-                    continue;
-                }
-
-                bestScore = score;
-                bestIndex = i;
+                var weight = GetAutoPlayChoiceWeight(options[i], healthRatio);
+                weights[i] = weight;
+                totalWeight += weight;
             }
 
-            return bestIndex;
+            if (totalWeight <= 0.0001f)
+            {
+                return 0;
+            }
+
+            var roll = UnityEngine.Random.value * totalWeight;
+            for (var i = 0; i < weights.Length; i++)
+            {
+                roll -= weights[i];
+                if (roll <= 0f)
+                {
+                    return i;
+                }
+            }
+
+            return weights.Length - 1;
+        }
+
+        private float GetAutoPlayChoiceWeight(LevelUpOption option, float healthRatio)
+        {
+            var rarityMultiplier = option.Rarity switch
+            {
+                OptionRarity.Legendary => 1.42f,
+                OptionRarity.Epic => 1.26f,
+                OptionRarity.Rare => 1.12f,
+                OptionRarity.Special => 1.18f,
+                _ => 1f,
+            };
+
+            var unlockedWeaponSlots = _buildRuntime != null && _levelUp != null
+                ? _buildRuntime.GetUnlockedWeaponSlots(_levelUp.Level)
+                : 1;
+            var hasWeaponRoom = _buildRuntime != null && _buildRuntime.OwnedWeapons.Count < unlockedWeaponSlots;
+
+            var baseWeight = option.Domain switch
+            {
+                LevelUpOptionDomain.WeaponMilestone => 14f + (option.NextLevel * 0.35f),
+                LevelUpOptionDomain.WeaponLevelRoll => 10.5f + (option.NextLevel * 0.4f) + (option.WeaponRollKind switch
+                {
+                    WeaponRollKind.DamagePercent => 2.2f,
+                    WeaponRollKind.AttackSpeedPercent => 1.9f,
+                    WeaponRollKind.RangePercent => 1.0f,
+                    _ => 0f,
+                }),
+                LevelUpOptionDomain.WeaponAcquire => hasWeaponRoom ? 10f : 6f,
+                LevelUpOptionDomain.Augment => option.AugmentId switch
+                {
+                    RunAugmentId.Berserk => 8.7f,
+                    RunAugmentId.Overclock => 8.4f,
+                    RunAugmentId.Finisher => 8.5f,
+                    RunAugmentId.CloseQuarters => 7.3f,
+                    RunAugmentId.Ambidextrous => 8.2f,
+                    RunAugmentId.GlassCannon => 7.6f + (healthRatio >= 0.85f ? 0.5f : 0f),
+                    RunAugmentId.CautiousAttack => 8.0f,
+                    RunAugmentId.Vampirism => 6.4f + ((1f - healthRatio) * 2.6f),
+                    RunAugmentId.BerserkerHeart => 7.6f,
+                    _ => 6.4f,
+                },
+                LevelUpOptionDomain.GlobalStatRoll => option.StatId switch
+                {
+                    StatUpgradeId.AttackPower => 4.8f,
+                    StatUpgradeId.AttackSpeed => 4.5f,
+                    StatUpgradeId.AttackRange => 3.9f,
+                    StatUpgradeId.MaxHealth => 3.2f + ((1f - healthRatio) * 2.8f),
+                    StatUpgradeId.HealthRegen => 2.8f + ((1f - healthRatio) * 2f),
+                    StatUpgradeId.MoveSpeed => 3f,
+                    StatUpgradeId.Luck => 2.4f,
+                    _ => 2.6f,
+                },
+                _ => 1f,
+            };
+
+            return Mathf.Max(0.1f, baseWeight * rarityMultiplier);
         }
 
 
@@ -1580,6 +1726,7 @@ namespace EJR.Game.Gameplay
 
             _currentOptions = null;
             _activeChoiceContext = PendingChoiceContext.None;
+            _activeChoiceTitle = string.Empty;
             _hud.HideLevelUpOptions();
 
             switch (currentContext)
@@ -1679,6 +1826,7 @@ namespace EJR.Game.Gameplay
             var nextChoice = _pendingChoices.Dequeue();
             _activeChoiceContext = nextChoice.Context;
             _currentOptions = nextChoice.Options;
+            _activeChoiceTitle = nextChoice.Title;
             Time.timeScale = 0f;
             AudioService.Instance.PlaySfx(AudioCueId.LevelUpAppear);
             _hud.ShowLevelUpOptions(nextChoice.Options, SelectLevelUpOption, nextChoice.Title);
@@ -1698,6 +1846,7 @@ namespace EJR.Game.Gameplay
             _pendingChoices.Clear();
             _activeChoiceContext = PendingChoiceContext.None;
             _currentOptions = null;
+            _activeChoiceTitle = string.Empty;
             Time.timeScale = 0f;
 #if false
             MetaProgressionService.RecordRunSummary(MetaProgressionService.BuildRunRewardSummary(

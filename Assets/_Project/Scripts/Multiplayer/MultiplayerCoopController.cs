@@ -1088,7 +1088,7 @@ namespace EJR.Game.Multiplayer
                 hudTargetKind: MultiplayerSharedEnemyActor.HudTargetKind.Boss,
                 hudSpawnSequence: ++_hudSpawnSequenceCounter);
 
-            var skeletonCount = Mathf.Max(3, _enemyConfig.bossWaveSkeletonCount);
+            var skeletonCount = Mathf.Max(1, _enemyConfig.bossWaveSkeletonCount);
             for (var i = 0; i < skeletonCount; i++)
             {
                 SpawnSharedEnemy(alivePlayers, RuntimeSpriteFactory.EnemyVisualKind.Skeleton, isBoss: false);

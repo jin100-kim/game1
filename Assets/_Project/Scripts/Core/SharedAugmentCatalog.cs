@@ -8,8 +8,8 @@ namespace EJR.Game.Core
         None = 0,
         Berserk = 1,
         Overclock = 2,
-        LongReach = 3,
-        Fleetfoot = 4,
+        Finisher = 3,
+        CloseQuarters = 4,
         VitalCore = 5,
         Ambidextrous = 6,
         GlassCannon = 7,
@@ -32,7 +32,11 @@ namespace EJR.Game.Core
             float lifestealInternalCooldown = 0f,
             float lowHealthDamagePercentMax = 0f,
             float lowHealthMoveSpeedPercentMax = 0f,
-            float lowHealthMaxThreshold = 0f)
+            float lowHealthMaxThreshold = 0f,
+            float lowEnemyHealthDamagePercent = 0f,
+            float lowEnemyHealthThreshold = 0f,
+            float closeRangeDamagePercent = 0f,
+            float closeRangeRadius = 0f)
         {
             Id = id;
             DisplayName = string.IsNullOrWhiteSpace(displayName) ? id.ToString() : displayName;
@@ -46,6 +50,10 @@ namespace EJR.Game.Core
             LowHealthDamagePercentMax = Mathf.Max(0f, lowHealthDamagePercentMax);
             LowHealthMoveSpeedPercentMax = Mathf.Max(0f, lowHealthMoveSpeedPercentMax);
             LowHealthMaxThreshold = Mathf.Clamp(lowHealthMaxThreshold, 0f, 1f);
+            LowEnemyHealthDamagePercent = Mathf.Max(0f, lowEnemyHealthDamagePercent);
+            LowEnemyHealthThreshold = Mathf.Clamp(lowEnemyHealthThreshold, 0f, 1f);
+            CloseRangeDamagePercent = Mathf.Max(0f, closeRangeDamagePercent);
+            CloseRangeRadius = Mathf.Max(0f, closeRangeRadius);
         }
 
         public RunAugmentId Id { get; }
@@ -60,6 +68,10 @@ namespace EJR.Game.Core
         public float LowHealthDamagePercentMax { get; }
         public float LowHealthMoveSpeedPercentMax { get; }
         public float LowHealthMaxThreshold { get; }
+        public float LowEnemyHealthDamagePercent { get; }
+        public float LowEnemyHealthThreshold { get; }
+        public float CloseRangeDamagePercent { get; }
+        public float CloseRangeRadius { get; }
     }
 
     public static class SharedAugmentCatalog
@@ -68,29 +80,28 @@ namespace EJR.Game.Core
         {
             new(
                 RunAugmentId.Berserk,
-                "Berserk",
-                "공격력 +15%",
+                "광전사",
+                "피해량 +15%",
                 new MetaBonusValues { attackPowerPercent = 15f }),
             new(
                 RunAugmentId.Overclock,
-                "Overclock",
+                "과부하",
                 "공격 속도 +15%",
                 new MetaBonusValues { attackSpeedPercent = 15f }),
             new(
-                RunAugmentId.LongReach,
-                "Long Reach",
-                "공격 범위 +20%",
-                new MetaBonusValues { attackRangePercent = 20f }),
+                RunAugmentId.Finisher,
+                "끝장내기",
+                "체력 50% 이하 적 대상 피해 +50%",
+                default,
+                lowEnemyHealthDamagePercent: 50f,
+                lowEnemyHealthThreshold: 0.5f),
             new(
-                RunAugmentId.Fleetfoot,
-                "Fleetfoot",
-                "이동 속도 +12%",
-                new MetaBonusValues { moveSpeedPercent = 12f }),
-            new(
-                RunAugmentId.VitalCore,
-                "Vital Core",
-                "최대 체력 +25",
-                new MetaBonusValues { maxHealthFlat = 25f }),
+                RunAugmentId.CloseQuarters,
+                "백병전",
+                "가까운 적 대상 피해 +30%",
+                default,
+                closeRangeDamagePercent: 30f,
+                closeRangeRadius: 2.5f),
             new(
                 RunAugmentId.Ambidextrous,
                 "양손잡이",
@@ -100,7 +111,7 @@ namespace EJR.Game.Core
             new(
                 RunAugmentId.GlassCannon,
                 "유리대포",
-                "공격력 +60%, 최대 체력 20%",
+                "피해량 +60%, 최대 체력 20%",
                 new MetaBonusValues { attackPowerPercent = 60f },
                 maxHealthScale: 0.2f),
             new(

@@ -106,20 +106,21 @@ namespace EJR.Game.Gameplay
             ExperienceChanged?.Invoke(CurrentExperience, RequiredExperience, Level);
         }
 
-        public bool RerollCurrentChoice()
+        public bool TryRerollCurrentChoice(out LevelUpOption[] nextOptions)
         {
+            nextOptions = Array.Empty<LevelUpOption>();
             if (!_awaitingChoice || _build == null)
             {
                 return false;
             }
 
-            var nextOptions = GenerateOptions(Level);
+            nextOptions = GenerateOptions(Level);
             if (nextOptions.Length <= 0)
             {
+                nextOptions = Array.Empty<LevelUpOption>();
                 return false;
             }
 
-            OptionsGenerated?.Invoke(nextOptions);
             return true;
         }
 

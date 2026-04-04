@@ -95,18 +95,27 @@ namespace EJR.Game.UI
         private Button _debugGrantLevelButton;
         private Button _debugAdvanceTimeButton;
         private Button _debugRerollButton;
+        private Button _debugWave1Button;
+        private Button _debugWave2Button;
         private Button _debugSkipBossButton;
+        private Button _debugInvincibleButton;
         private Button _debugAutoPlayButton;
         private Text _debugGrantLevelLabel;
         private Text _debugAdvanceTimeLabel;
         private Text _debugRerollLabel;
+        private Text _debugWave1Label;
+        private Text _debugWave2Label;
         private Text _debugSkipBossLabel;
+        private Text _debugInvincibleLabel;
         private Text _debugAutoPlayLabel;
         private Func<string, bool> _debugUnlockValidator;
         private Action _debugGrantLevelAction;
         private Action _debugAdvanceTimeAction;
         private Action _debugRerollAction;
+        private Action _debugWave1Action;
+        private Action _debugWave2Action;
         private Action _debugSkipBossAction;
+        private Action _debugInvincibleAction;
         private Action _debugAutoPlayAction;
         private Action<bool> _debugMonsterLabSetEnabledAction;
         private Action<int> _debugMonsterLabSelectVariantAction;
@@ -115,6 +124,7 @@ namespace EJR.Game.UI
         private Action _debugMonsterLabClearAction;
         private Action _debugMonsterLabToggleTimePauseAction;
         private bool _debugAccessVisible;
+        private bool _debugInvincibleEnabled;
         private bool _debugAutoPlayEnabled;
         private bool _debugMonsterLabEnabled;
         private bool _debugMonsterLabTimePaused;
@@ -297,15 +307,21 @@ namespace EJR.Game.UI
 
         public void ConfigureDebugTools(
             Action onGrantLevel,
-            Action onAdvanceTime,
+            Action onGrantLevelsFive,
             Action onReroll,
-            Action onSkipBoss,
+            Action onWave1,
+            Action onWave2,
+            Action onBoss,
+            Action onToggleInvincible,
             Action onToggleAutoPlay)
         {
             _debugGrantLevelAction = onGrantLevel;
-            _debugAdvanceTimeAction = onAdvanceTime;
+            _debugAdvanceTimeAction = onGrantLevelsFive;
             _debugRerollAction = onReroll;
-            _debugSkipBossAction = onSkipBoss;
+            _debugWave1Action = onWave1;
+            _debugWave2Action = onWave2;
+            _debugSkipBossAction = onBoss;
+            _debugInvincibleAction = onToggleInvincible;
             _debugAutoPlayAction = onToggleAutoPlay;
             RefreshDebugToolButtons();
             ConfigureGameplayToolkitDebugButtons();
@@ -369,6 +385,20 @@ namespace EJR.Game.UI
             if (_debugAutoPlayLabel != null)
             {
                 _debugAutoPlayLabel.text = enabled ? "자동 전투: 켜짐" : "자동 전투: 꺼짐";
+            }
+        }
+
+        public void SetDebugInvincibleState(bool enabled)
+        {
+            _debugInvincibleEnabled = enabled;
+            if (HasGameplayToolkit)
+            {
+                SetGameplayToolkitDebugInvincibleState(enabled);
+            }
+
+            if (_debugInvincibleLabel != null)
+            {
+                _debugInvincibleLabel.text = enabled ? "무적: 켜짐" : "무적: 꺼짐";
             }
         }
 
@@ -1404,10 +1434,13 @@ namespace EJR.Game.UI
 
         private void RefreshDebugToolButtons()
         {
-            ConfigureDebugButton(_debugGrantLevelButton, _debugGrantLevelLabel, "레벨 지급", _debugGrantLevelAction);
-            ConfigureDebugButton(_debugAdvanceTimeButton, _debugAdvanceTimeLabel, "시간 진행", _debugAdvanceTimeAction);
+            ConfigureDebugButton(_debugGrantLevelButton, _debugGrantLevelLabel, "레벨 +1", _debugGrantLevelAction);
+            ConfigureDebugButton(_debugAdvanceTimeButton, _debugAdvanceTimeLabel, "레벨 +5", _debugAdvanceTimeAction);
             ConfigureDebugButton(_debugRerollButton, _debugRerollLabel, "선택지 다시 굴리기", _debugRerollAction);
-            ConfigureDebugButton(_debugSkipBossButton, _debugSkipBossLabel, "보스로 건너뛰기", _debugSkipBossAction);
+            ConfigureDebugButton(_debugWave1Button, _debugWave1Label, "1웨이브", _debugWave1Action);
+            ConfigureDebugButton(_debugWave2Button, _debugWave2Label, "2웨이브", _debugWave2Action);
+            ConfigureDebugButton(_debugSkipBossButton, _debugSkipBossLabel, "보스", _debugSkipBossAction);
+            ConfigureDebugButton(_debugInvincibleButton, _debugInvincibleLabel, _debugInvincibleEnabled ? "무적: 켜짐" : "무적: 꺼짐", _debugInvincibleAction);
             ConfigureDebugButton(_debugAutoPlayButton, _debugAutoPlayLabel, _debugAutoPlayEnabled ? "자동 전투: 켜짐" : "자동 전투: 꺼짐", _debugAutoPlayAction);
             ConfigureGameplayToolkitDebugButtons();
         }
@@ -1775,23 +1808,29 @@ namespace EJR.Game.UI
             _debugAccessButton.onClick.AddListener(ToggleDebugEntry);
             _debugAccessButton.gameObject.SetActive(false);
 
-            _debugToolsPanel = CreatePanel(_canvas.transform, "DebugToolsPanelV2", new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(18f, 68f), new Vector2(328f, 304f), new Color(0.03f, 0.05f, 0.09f, 0.94f));
+            _debugToolsPanel = CreatePanel(_canvas.transform, "DebugToolsPanelV2", new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(18f, 68f), new Vector2(328f, 438f), new Color(0.03f, 0.05f, 0.09f, 0.94f));
             _debugToolsPanel.SetActive(false);
 
-            var toolsTitle = CreateText(_debugToolsPanel.transform, "DebugToolsTitleV2", new Vector2(0f, 122f), "\uB514\uBC84\uADF8 \uB3C4\uAD6C");
+            var toolsTitle = CreateText(_debugToolsPanel.transform, "DebugToolsTitleV2", new Vector2(0f, 188f), "\uB514\uBC84\uADF8 \uB3C4\uAD6C");
             toolsTitle.fontSize = 18;
             toolsTitle.fontStyle = FontStyle.Bold;
             toolsTitle.color = new Color(0.95f, 0.74f, 0.18f, 1f);
 
-            _debugGrantLevelButton = CreateButton(_debugToolsPanel.transform, "DebugGrantLevelButtonV2", new Vector2(0f, 70f), new Vector2(260f, 40f));
+            _debugGrantLevelButton = CreateButton(_debugToolsPanel.transform, "DebugGrantLevelButtonV2", new Vector2(0f, 136f), new Vector2(260f, 40f));
             _debugGrantLevelLabel = _debugGrantLevelButton.GetComponentInChildren<Text>();
-            _debugAdvanceTimeButton = CreateButton(_debugToolsPanel.transform, "DebugAdvanceTimeButtonV2", new Vector2(0f, 24f), new Vector2(260f, 40f));
+            _debugAdvanceTimeButton = CreateButton(_debugToolsPanel.transform, "DebugAdvanceTimeButtonV2", new Vector2(0f, 90f), new Vector2(260f, 40f));
             _debugAdvanceTimeLabel = _debugAdvanceTimeButton.GetComponentInChildren<Text>();
-            _debugRerollButton = CreateButton(_debugToolsPanel.transform, "DebugRerollButtonV2", new Vector2(0f, -22f), new Vector2(260f, 40f));
+            _debugRerollButton = CreateButton(_debugToolsPanel.transform, "DebugRerollButtonV2", new Vector2(0f, 44f), new Vector2(260f, 40f));
             _debugRerollLabel = _debugRerollButton.GetComponentInChildren<Text>();
-            _debugSkipBossButton = CreateButton(_debugToolsPanel.transform, "DebugSkipBossButtonV2", new Vector2(0f, -68f), new Vector2(260f, 40f));
+            _debugWave1Button = CreateButton(_debugToolsPanel.transform, "DebugWave1ButtonV2", new Vector2(0f, -2f), new Vector2(260f, 40f));
+            _debugWave1Label = _debugWave1Button.GetComponentInChildren<Text>();
+            _debugWave2Button = CreateButton(_debugToolsPanel.transform, "DebugWave2ButtonV2", new Vector2(0f, -48f), new Vector2(260f, 40f));
+            _debugWave2Label = _debugWave2Button.GetComponentInChildren<Text>();
+            _debugSkipBossButton = CreateButton(_debugToolsPanel.transform, "DebugSkipBossButtonV2", new Vector2(0f, -94f), new Vector2(260f, 40f));
             _debugSkipBossLabel = _debugSkipBossButton.GetComponentInChildren<Text>();
-            _debugAutoPlayButton = CreateButton(_debugToolsPanel.transform, "DebugAutoPlayButtonV2", new Vector2(0f, -114f), new Vector2(260f, 40f));
+            _debugInvincibleButton = CreateButton(_debugToolsPanel.transform, "DebugInvincibleButtonV2", new Vector2(0f, -140f), new Vector2(260f, 40f));
+            _debugInvincibleLabel = _debugInvincibleButton.GetComponentInChildren<Text>();
+            _debugAutoPlayButton = CreateButton(_debugToolsPanel.transform, "DebugAutoPlayButtonV2", new Vector2(0f, -186f), new Vector2(260f, 40f));
             _debugAutoPlayLabel = _debugAutoPlayButton.GetComponentInChildren<Text>();
 
             RefreshDebugToolButtons();

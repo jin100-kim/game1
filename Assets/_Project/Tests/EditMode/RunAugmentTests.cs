@@ -12,14 +12,14 @@ namespace EJR.Game.Tests.EditMode
         {
             var ownedAugments = SharedAugmentCatalog.Definitions
                 .Select(definition => definition.Id)
-                .Where(id => id != RunAugmentId.VitalCore)
+                .Where(id => id != RunAugmentId.CloseQuarters)
                 .ToArray();
 
             var options = SharedAugmentCatalog.BuildRandomOptions(ownedAugments);
 
             Assert.That(options, Has.Length.EqualTo(1));
             Assert.That(options[0].Domain, Is.EqualTo(LevelUpOptionDomain.Augment));
-            Assert.That(options[0].AugmentId, Is.EqualTo(RunAugmentId.VitalCore));
+            Assert.That(options[0].AugmentId, Is.EqualTo(RunAugmentId.CloseQuarters));
         }
 
         [Test]
@@ -30,9 +30,9 @@ namespace EJR.Game.Tests.EditMode
 
             var option = LevelUpOption.CreateAugment(
                 RunAugmentId.Berserk,
-                "Berserk",
-                "공격력 +15%",
-                "Berserk");
+                "광전사",
+                "피해량 +15%",
+                "광전사");
 
             buildRuntime.Apply(option);
             buildRuntime.Apply(option);

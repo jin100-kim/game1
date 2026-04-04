@@ -52,6 +52,10 @@ namespace EJR.Game.Gameplay
         private float _lowHealthDamagePercentMax;
         private float _lowHealthMoveSpeedPercentMax;
         private float _lowHealthMaxThreshold;
+        private float _lowEnemyHealthDamagePercent;
+        private float _lowEnemyHealthThreshold;
+        private float _closeRangeDamagePercent;
+        private float _closeRangeRadius;
         private bool _chainAttackIgnoresDecay;
         private int _chainAttackBonusJumps;
 
@@ -92,6 +96,10 @@ namespace EJR.Game.Gameplay
             _lowHealthDamagePercentMax = 0f;
             _lowHealthMoveSpeedPercentMax = 0f;
             _lowHealthMaxThreshold = 0f;
+            _lowEnemyHealthDamagePercent = 0f;
+            _lowEnemyHealthThreshold = 0f;
+            _closeRangeDamagePercent = 0f;
+            _closeRangeRadius = 0f;
             _chainAttackIgnoresDecay = false;
             _chainAttackBonusJumps = 0;
 
@@ -321,6 +329,36 @@ namespace EJR.Game.Gameplay
             };
         }
 
+        public float GetContextualDamageMultiplier(EnemyController enemy, Vector3 attackerPosition)
+        {
+            if (enemy == null)
+            {
+                return 1f;
+            }
+
+            var bonusPercent = 0f;
+
+            if (_lowEnemyHealthDamagePercent > 0f && _lowEnemyHealthThreshold > 0f && enemy.MaxHealth > 0.0001f)
+            {
+                var enemyHealthRatio = enemy.CurrentHealth / enemy.MaxHealth;
+                if (enemyHealthRatio <= _lowEnemyHealthThreshold)
+                {
+                    bonusPercent += _lowEnemyHealthDamagePercent;
+                }
+            }
+
+            if (_closeRangeDamagePercent > 0f && _closeRangeRadius > 0f)
+            {
+                var distanceToEnemy = Vector2.Distance(attackerPosition, enemy.transform.position);
+                if (distanceToEnemy <= _closeRangeRadius + enemy.CollisionRadius)
+                {
+                    bonusPercent += _closeRangeDamagePercent;
+                }
+            }
+
+            return 1f + (Mathf.Max(0f, bonusPercent) / 100f);
+        }
+
         private void AcquireWeaponInternal(WeaponUpgradeId weaponId)
         {
             if (_weaponLevels.ContainsKey(weaponId))
@@ -451,6 +489,10 @@ namespace EJR.Game.Gameplay
             _lowHealthDamagePercentMax += definition.LowHealthDamagePercentMax;
             _lowHealthMoveSpeedPercentMax += definition.LowHealthMoveSpeedPercentMax;
             _lowHealthMaxThreshold = Mathf.Max(_lowHealthMaxThreshold, definition.LowHealthMaxThreshold);
+            _lowEnemyHealthDamagePercent += definition.LowEnemyHealthDamagePercent;
+            _lowEnemyHealthThreshold = Mathf.Max(_lowEnemyHealthThreshold, definition.LowEnemyHealthThreshold);
+            _closeRangeDamagePercent += definition.CloseRangeDamagePercent;
+            _closeRangeRadius = Mathf.Max(_closeRangeRadius, definition.CloseRangeRadius);
         }
 
         private WeaponBonusTotals GetWeaponBonuses(WeaponUpgradeId id)

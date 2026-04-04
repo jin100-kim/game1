@@ -51,7 +51,10 @@ namespace EJR.Game.UI
         private UIToolkitButton _gameplayToolkitDebugGrantLevelButton;
         private UIToolkitButton _gameplayToolkitDebugAdvanceTimeButton;
         private UIToolkitButton _gameplayToolkitDebugRerollButton;
+        private UIToolkitButton _gameplayToolkitDebugWave1Button;
+        private UIToolkitButton _gameplayToolkitDebugWave2Button;
         private UIToolkitButton _gameplayToolkitDebugSkipBossButton;
+        private UIToolkitButton _gameplayToolkitDebugInvincibleButton;
         private UIToolkitButton _gameplayToolkitDebugAutoPlayButton;
         private UIToolkitVisualElement _gameplayToolkitMonsterLabSection;
         private Toggle _gameplayToolkitMonsterLabToggle;
@@ -143,7 +146,10 @@ namespace EJR.Game.UI
             _gameplayToolkitDebugGrantLevelButton = root.Q<UIToolkitButton>("debug-grant-level-button");
             _gameplayToolkitDebugAdvanceTimeButton = root.Q<UIToolkitButton>("debug-advance-time-button");
             _gameplayToolkitDebugRerollButton = root.Q<UIToolkitButton>("debug-reroll-button");
+            _gameplayToolkitDebugWave1Button = root.Q<UIToolkitButton>("debug-wave1-button");
+            _gameplayToolkitDebugWave2Button = root.Q<UIToolkitButton>("debug-wave2-button");
             _gameplayToolkitDebugSkipBossButton = root.Q<UIToolkitButton>("debug-skip-boss-button");
+            _gameplayToolkitDebugInvincibleButton = root.Q<UIToolkitButton>("debug-invincible-button");
             _gameplayToolkitDebugAutoPlayButton = root.Q<UIToolkitButton>("debug-autoplay-button");
             _gameplayToolkitMonsterLabSection = root.Q<UIToolkitVisualElement>("monster-lab-section");
             _gameplayToolkitMonsterLabToggle = root.Q<Toggle>("monster-lab-toggle");
@@ -616,6 +622,14 @@ namespace EJR.Game.UI
             }
         }
 
+        private void SetGameplayToolkitDebugInvincibleState(bool enabled)
+        {
+            if (_gameplayToolkitDebugInvincibleButton != null)
+            {
+                _gameplayToolkitDebugInvincibleButton.text = enabled ? "무적: 켜짐" : "무적: 꺼짐";
+            }
+        }
+
         private void ConfigureGameplayToolkitDebugButton(UIToolkitButton button, string text, Action action)
         {
             if (button == null)
@@ -644,10 +658,13 @@ namespace EJR.Game.UI
 
         private void ConfigureGameplayToolkitDebugButtons()
         {
-            ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugGrantLevelButton, "레벨 지급", _debugGrantLevelAction);
-            ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugAdvanceTimeButton, "시간 진행", _debugAdvanceTimeAction);
+            ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugGrantLevelButton, "레벨 +1", _debugGrantLevelAction);
+            ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugAdvanceTimeButton, "레벨 +5", _debugAdvanceTimeAction);
             ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugRerollButton, "선택지 다시 굴리기", _debugRerollAction);
-            ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugSkipBossButton, "보스로 건너뛰기", _debugSkipBossAction);
+            ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugWave1Button, "1웨이브", _debugWave1Action);
+            ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugWave2Button, "2웨이브", _debugWave2Action);
+            ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugSkipBossButton, "보스", _debugSkipBossAction);
+            ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugInvincibleButton, _debugInvincibleEnabled ? "무적: 켜짐" : "무적: 꺼짐", _debugInvincibleAction);
             ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugAutoPlayButton, _debugAutoPlayEnabled ? "자동 전투: 켜짐" : "자동 전투: 꺼짐", _debugAutoPlayAction);
         }
 

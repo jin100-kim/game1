@@ -161,7 +161,7 @@ namespace EJR.Game.Core
                 Wave2MushroomCount = 4,
                 Wave2SkeletonCount = 0,
                 BossWaveStartSeconds = 600f,
-                BossWaveSkeletonCount = 4,
+                BossWaveSkeletonCount = 2,
             },
             new RunMapDefinition(
                 "desert",
@@ -192,7 +192,7 @@ namespace EJR.Game.Core
                 Wave2MushroomCount = 2,
                 Wave2SkeletonCount = 0,
                 BossWaveStartSeconds = 600f,
-                BossWaveSkeletonCount = 6,
+                BossWaveSkeletonCount = 3,
             },
             new RunMapDefinition(
                 "snow",
@@ -223,7 +223,7 @@ namespace EJR.Game.Core
                 Wave2MushroomCount = 8,
                 Wave2SkeletonCount = 0,
                 BossWaveStartSeconds = 600f,
-                BossWaveSkeletonCount = 8,
+                BossWaveSkeletonCount = 4,
             },
         };
 

@@ -182,16 +182,9 @@ namespace EJR.Game.Tests.EditMode
 
         private static LevelUpOption[] CaptureReroll(LevelUpSystem system)
         {
-            LevelUpOption[] captured = null;
-            void HandleOptions(LevelUpOption[] options)
-            {
-                captured = options;
-            }
-
-            system.OptionsGenerated += HandleOptions;
-            system.RerollCurrentChoice();
-            system.OptionsGenerated -= HandleOptions;
-            return captured ?? new LevelUpOption[0];
+            return system.TryRerollCurrentChoice(out var captured)
+                ? captured
+                : new LevelUpOption[0];
         }
 
         private static bool ContainsNewWeapon(LevelUpOption[] options)

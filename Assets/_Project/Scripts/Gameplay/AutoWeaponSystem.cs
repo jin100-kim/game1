@@ -2683,7 +2683,9 @@ namespace EJR.Game.Gameplay
                 ReturnProjectileToPool,
                 TryApplyDirectHitLifesteal,
                 _useProjectileBoundsCulling,
-                _projectileCullBounds);
+                _projectileCullBounds,
+                _owner,
+                _build);
 
             ProjectileVisualRequested?.Invoke(spawnRequest);
             Fired?.Invoke(normalizedDirection);
@@ -3134,8 +3136,19 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            enemy.ReceiveWeaponDamage(damage, weaponId);
+            enemy.ReceiveWeaponDamage(ApplyContextualDamageModifiers(damage, enemy), weaponId);
             TryApplyDirectHitLifesteal();
+        }
+
+        private float ApplyContextualDamageModifiers(float damage, EnemyController enemy)
+        {
+            if (_build == null || enemy == null)
+            {
+                return Mathf.Max(0f, damage);
+            }
+
+            var attackerPosition = _owner != null ? _owner.position : Vector3.zero;
+            return Mathf.Max(0f, damage) * _build.GetContextualDamageMultiplier(enemy, attackerPosition);
         }
 
         private void TryApplyDirectHitLifesteal()

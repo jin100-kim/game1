@@ -31,6 +31,8 @@ namespace EJR.Game.Gameplay
         private bool _isActive;
         private bool _useBoundsCulling;
         private Rect _bounds;
+        private Transform _damageSourceTransform;
+        private PlayerBuildRuntime _build;
         private readonly List<EnemyController> _nearbyEnemies = new(16);
         private readonly List<EnemyController> _hitEnemies = new(8);
         private const float BoundsCullMargin = 0.15f;
@@ -49,7 +51,9 @@ namespace EJR.Game.Gameplay
             Action<Projectile> releaseToPool,
             Action directHitCallback = null,
             bool useBoundsCulling = false,
-            Rect bounds = default)
+            Rect bounds = default,
+            Transform damageSourceTransform = null,
+            PlayerBuildRuntime build = null)
         {
             _registry = registry;
             _direction = direction.normalized;
@@ -66,6 +70,8 @@ namespace EJR.Game.Gameplay
             _directHitCallback = directHitCallback;
             _useBoundsCulling = useBoundsCulling;
             _bounds = bounds;
+            _damageSourceTransform = damageSourceTransform;
+            _build = build;
             _isActive = true;
             _hitEnemies.Clear();
         }
@@ -121,7 +127,7 @@ namespace EJR.Game.Gameplay
                     }
                     else
                     {
-                        enemy.ReceiveWeaponDamage(_currentDamage, _sourceWeaponId);
+                        enemy.ReceiveWeaponDamage(ApplyContextualDamageModifiers(_currentDamage, enemy), _sourceWeaponId);
                         _directHitCallback?.Invoke();
                     }
                 }
@@ -212,11 +218,24 @@ namespace EJR.Game.Gameplay
                     continue;
                 }
 
-                enemy.ReceiveWeaponDamage(explosionDamage, _sourceWeaponId);
+                enemy.ReceiveWeaponDamage(ApplyContextualDamageModifiers(explosionDamage, enemy), _sourceWeaponId);
                 _directHitCallback?.Invoke();
                 enemy.ApplyMinorStun(FireballExplosionMinorStunDuration);
                 enemy.ApplyBurn(burnDamage, FireballBurnDuration, FireballBurnTickInterval);
             }
+        }
+
+        private float ApplyContextualDamageModifiers(float damage, EnemyController enemy)
+        {
+            if (_build == null || enemy == null)
+            {
+                return Mathf.Max(0f, damage);
+            }
+
+            var attackerPosition = _damageSourceTransform != null
+                ? _damageSourceTransform.position
+                : transform.position;
+            return Mathf.Max(0f, damage) * _build.GetContextualDamageMultiplier(enemy, attackerPosition);
         }
 
         private void Release()

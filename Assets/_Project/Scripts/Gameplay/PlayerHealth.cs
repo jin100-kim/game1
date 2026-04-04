@@ -15,10 +15,12 @@ namespace EJR.Game.Gameplay
         private float _damageInvulnerabilitySeconds;
         private float _invulnerableUntil = -1f;
         private float _pendingHealPopupAmount;
+        private bool _debugInvincible;
 
         public float MaxHealth { get; private set; }
         public float CurrentHealth { get; private set; }
         public bool IsInvulnerable => Time.time < _invulnerableUntil;
+        public bool IsDebugInvincible => _debugInvincible;
 
         public void Initialize(float maxHealth, float damageInvulnerabilitySeconds = 0f)
         {
@@ -27,7 +29,13 @@ namespace EJR.Game.Gameplay
             _damageInvulnerabilitySeconds = Mathf.Max(0f, damageInvulnerabilitySeconds);
             _invulnerableUntil = -1f;
             _pendingHealPopupAmount = 0f;
+            _debugInvincible = false;
             Changed?.Invoke(CurrentHealth, MaxHealth);
+        }
+
+        public void SetDebugInvincible(bool enabled)
+        {
+            _debugInvincible = enabled;
         }
 
         public void Restore(float currentHealth, float maxHealth = -1f)
@@ -144,7 +152,7 @@ namespace EJR.Game.Gameplay
 
         public void TakeDamage(float damage)
         {
-            if (CurrentHealth <= 0f || IsInvulnerable)
+            if (CurrentHealth <= 0f || IsInvulnerable || _debugInvincible)
             {
                 return;
             }

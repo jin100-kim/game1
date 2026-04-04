@@ -257,7 +257,9 @@ namespace EJR.Game.Multiplayer
             var collisionRadius = GetCollisionRadius(statProfile);
             var runtimeMinuteTier = Mathf.Max(0, Mathf.FloorToInt(elapsedSeconds / 60f));
             var runtimeMoveSpeedMultiplier = 1f + (runtimeMinuteTier * 0.05f);
-            var runtimeHealthMultiplier = 1f + (runtimeMinuteTier * 0.10f);
+            var runtimeHealthMultiplier = isBoss
+                ? 1f + (Mathf.Min(runtimeMinuteTier, 10) * 0.06f)
+                : 1f + (runtimeMinuteTier * 0.10f);
             var runtimeContactDamageMultiplier = 1f + (Mathf.Min(runtimeMinuteTier, 10) * 0.10f);
             var initialTarget = coopController.ResolveClosestPlayerTransform(spawnPosition);
             var initialPlayerHealth = coopController.ResolveClosestPlayerHealth(spawnPosition);
