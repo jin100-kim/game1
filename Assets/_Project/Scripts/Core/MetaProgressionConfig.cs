@@ -149,58 +149,58 @@ namespace EJR.Game.Core
             _upgradeDefinitions.Clear();
             _upgradeDefinitions.Add(new MetaUpgradeDefinition(
                 MetaUpgradeId.DamagePercent,
-                "피해량 증폭",
-                "영구 피해량 +2%",
-                10,
-                new MetaBonusValues { attackPowerPercent = 2f }));
+                "기본 피해",
+                "단계당 피해량 +4%",
+                5,
+                new MetaBonusValues { attackPowerPercent = 4f }));
             _upgradeDefinitions.Add(new MetaUpgradeDefinition(
                 MetaUpgradeId.AttackSpeedPercent,
-                "공속 증폭",
-                "영구 공격 속도 +2%",
-                10,
-                new MetaBonusValues { attackSpeedPercent = 2f }));
+                "기본 공속",
+                "단계당 공격 속도 +4%",
+                5,
+                new MetaBonusValues { attackSpeedPercent = 4f }));
             _upgradeDefinitions.Add(new MetaUpgradeDefinition(
                 MetaUpgradeId.MaxHealthFlat,
-                "생존력 보강",
-                "영구 최대 체력 +5",
-                10,
-                new MetaBonusValues { maxHealthFlat = 5f }));
+                "기본 체력",
+                "단계당 최대 체력 +10",
+                5,
+                new MetaBonusValues { maxHealthFlat = 10f }));
             _upgradeDefinitions.Add(new MetaUpgradeDefinition(
                 MetaUpgradeId.HealthRegenPerSecond,
-                "재생 회로",
-                "영구 체력 재생 +0.1/초",
-                10,
-                new MetaBonusValues { healthRegenPerSecond = 0.1f }));
+                "기본 재생",
+                "단계당 체력 재생 +0.2/초",
+                5,
+                new MetaBonusValues { healthRegenPerSecond = 0.2f }));
             _upgradeDefinitions.Add(new MetaUpgradeDefinition(
                 MetaUpgradeId.MoveSpeedPercent,
-                "기동 증폭",
-                "영구 이동 속도 +2%",
-                10,
-                new MetaBonusValues { moveSpeedPercent = 2f }));
+                "기본 이속",
+                "단계당 이동 속도 +4%",
+                5,
+                new MetaBonusValues { moveSpeedPercent = 4f }));
             _upgradeDefinitions.Add(new MetaUpgradeDefinition(
                 MetaUpgradeId.RangePercent,
-                "사거리 증폭",
-                "영구 범위 +2%",
-                10,
-                new MetaBonusValues { attackRangePercent = 2f }));
+                "기본 범위",
+                "단계당 공격 범위 +4%",
+                5,
+                new MetaBonusValues { attackRangePercent = 4f }));
             _upgradeDefinitions.Add(new MetaUpgradeDefinition(
                 MetaUpgradeId.Luck,
-                "행운 축적",
-                "영구 행운 +5",
-                10,
-                new MetaBonusValues { luck = 5f }));
+                "기본 행운",
+                "단계당 행운 +10",
+                5,
+                new MetaBonusValues { luck = 10f }));
             _upgradeDefinitions.Add(new MetaUpgradeDefinition(
                 MetaUpgradeId.ExperienceGainPercent,
-                "경험 회수",
-                "영구 XP 획득량 +4%",
-                10,
-                new MetaBonusValues { experienceGainPercent = 4f }));
+                "기본 경험치",
+                "단계당 XP 획득량 +8%",
+                5,
+                new MetaBonusValues { experienceGainPercent = 8f }));
             _upgradeDefinitions.Add(new MetaUpgradeDefinition(
                 MetaUpgradeId.CreditGainPercent,
-                "전리품 정산",
-                "영구 코인 획득량 +5%",
-                10,
-                new MetaBonusValues { creditGainPercent = 5f }));
+                "기본 코인",
+                "단계당 코인 획득량 +10%",
+                5,
+                new MetaBonusValues { creditGainPercent = 10f }));
             EnsureLookups();
         }
 

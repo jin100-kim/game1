@@ -940,7 +940,7 @@ namespace EJR.Game.UI
                     $"{definition.DisplayName} | {SharedGameCatalog.GetWeaponDisplayName(definition.StarterWeaponId)}",
                     $"기본 보너스 {BuildMetaBonusSummary(definition.BaseBonuses)}\n고유 특성 {definition.PassiveDescription}",
                     unlocked ? "해금 완료" : $"비용 {definition.UnlockCost} 코인",
-                    unlocked ? "해금 완료" : canBuy ? $"구매 가능 - {definition.UnlockCost} 코인" : $"코인 부족 - {definition.UnlockCost} 코인",
+                    unlocked ? "해금 완료" : $"구매 ({definition.UnlockCost}코인)",
                     unlocked ? null : () => PromptCharacterPurchase(definition.Id),
                     unlocked || canBuy,
                     definition.Color,
@@ -965,18 +965,95 @@ namespace EJR.Game.UI
                 var maxed = level >= definition.MaxLevel;
                 var cost = maxed ? 0 : MetaProgressionService.Config.GetUpgradeCost(definition.Id, level);
                 var canBuy = CanPurchaseUpgrade(definition.Id);
-                var card = CreateToolkitRowWithAction(
-                    $"{definition.Title}  Lv.{level}/{definition.MaxLevel}",
-                    definition.Description,
-                    maxed ? "최대 단계" : $"다음 비용 {cost} 코인",
-                    maxed ? "최대" : canBuy ? "구매" : $"부족 - {cost}",
-                    maxed ? null : () => TryPurchaseUpgrade(definition.Id),
-                    canBuy,
-                    Color.white,
-                    maxed);
-                card.AddToClassList("title-upgrade-card");
+                var card = CreateToolkitUpgradeCard(definition, level, cost, canBuy, maxed);
                 content.Add(card);
             }
+        }
+
+        private VisualElement CreateToolkitUpgradeCard(
+            MetaUpgradeDefinition definition,
+            int level,
+            int cost,
+            bool canBuy,
+            bool maxed)
+        {
+            var card = new VisualElement();
+            card.AddToClassList("title-list-entry");
+            card.AddToClassList("title-meta-card");
+            card.AddToClassList("title-upgrade-card");
+            card.EnableInClassList("is-completed", maxed);
+
+            var title = new Label(definition.Title);
+            title.AddToClassList("title-entry-title");
+            title.AddToClassList("title-meta-card-title");
+            card.Add(title);
+
+            var subtitle = new Label(definition.Description);
+            subtitle.AddToClassList("title-entry-subtitle");
+            subtitle.AddToClassList("title-meta-card-body");
+            card.Add(subtitle);
+
+            var levelSummary = new Label(BuildUpgradeLevelSummary(definition, level));
+            levelSummary.AddToClassList("title-entry-status");
+            levelSummary.AddToClassList("title-meta-card-status");
+            if (maxed)
+            {
+                levelSummary.AddToClassList("is-completed");
+            }
+
+            card.Add(levelSummary);
+            card.Add(CreateToolkitUpgradePipRow(level, definition.MaxLevel));
+
+            var button = new Button
+            {
+                text = maxed ? "최대" : $"구매 ({cost}코인)"
+            };
+            button.AddToClassList("title-footer-button");
+            button.AddToClassList("title-meta-card-action");
+            button.SetEnabled(!maxed && canBuy);
+            if (!maxed)
+            {
+                button.clicked += () => TryPurchaseUpgrade(definition.Id);
+            }
+
+            card.Add(button);
+            _toolkitDynamicButtons.Add(button);
+            return card;
+        }
+
+        private static VisualElement CreateToolkitUpgradePipRow(int level, int maxLevel)
+        {
+            var row = new VisualElement();
+            row.AddToClassList("title-upgrade-pip-row");
+            var clampedMaxLevel = Mathf.Max(1, maxLevel);
+            var clampedLevel = Mathf.Clamp(level, 0, clampedMaxLevel);
+            for (var i = 0; i < clampedMaxLevel; i++)
+            {
+                var pip = new VisualElement();
+                pip.AddToClassList("title-upgrade-pip");
+                if (i < clampedLevel)
+                {
+                    pip.AddToClassList("is-filled");
+                }
+
+                row.Add(pip);
+            }
+
+            return row;
+        }
+
+        private string BuildUpgradeLevelSummary(MetaUpgradeDefinition definition, int level)
+        {
+            var currentSummary = level > 0
+                ? BuildMetaBonusSummary(definition.StepBonuses * level)
+                : "없음";
+            if (level >= definition.MaxLevel)
+            {
+                return $"{currentSummary} | 최대 단계";
+            }
+
+            var nextSummary = BuildMetaBonusSummary(definition.StepBonuses * (level + 1));
+            return $"{currentSummary} | 다음 {nextSummary}";
         }
 
         private VisualElement CreateToolkitRowWithAction(
