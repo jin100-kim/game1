@@ -392,6 +392,13 @@ namespace EJR.Game.Core
             return !string.IsNullOrWhiteSpace(mapId) && s_profile.clearedMapIds.Contains(mapId);
         }
 
+        public static bool HasCompletedAchievement(string achievementId)
+        {
+            EnsureLoaded();
+            return !string.IsNullOrWhiteSpace(achievementId)
+                && s_profile.completedAchievementIds.Contains(achievementId);
+        }
+
         public static RunRewardSummary BuildRunRewardSummary(
             string modeLabel,
             bool cleared,
@@ -421,7 +428,7 @@ namespace EJR.Game.Core
                 modeLabel = string.IsNullOrWhiteSpace(modeLabel) ? "싱글" : modeLabel,
                 mapId = safeMapId,
                 mapDisplayName = string.IsNullOrWhiteSpace(mapDisplayName) ? safeMapId : mapDisplayName,
-                difficultyLabel = string.IsNullOrWhiteSpace(difficultyLabel) ? "보통" : difficultyLabel,
+                difficultyLabel = string.IsNullOrWhiteSpace(difficultyLabel) ? string.Empty : difficultyLabel,
                 cleared = cleared,
                 bossReached = bossThresholdsReached > 0,
                 finalLevel = Mathf.Max(1, finalLevel),
@@ -451,7 +458,7 @@ namespace EJR.Game.Core
                 bossReached ? 1 : 0,
                 "Gameplay",
                 "Gameplay",
-                "보통",
+                string.Empty,
                 0f);
         }
 
@@ -571,6 +578,29 @@ namespace EJR.Game.Core
         {
             EnsureLoaded();
             s_profile.clearedMapIds.Clear();
+            for (var i = s_profile.completedAchievementIds.Count - 1; i >= 0; i--)
+            {
+                var achievementId = s_profile.completedAchievementIds[i];
+                if (!SharedAchievementCatalog.TryGetDefinition(achievementId, out var definition)
+                    || definition.MetricKind != AchievementMetricKind.MapCleared)
+                {
+                    continue;
+                }
+
+                s_profile.completedAchievementIds.RemoveAt(i);
+            }
+
+            for (var i = s_profile.unseenAchievementIds.Count - 1; i >= 0; i--)
+            {
+                var achievementId = s_profile.unseenAchievementIds[i];
+                if (!SharedAchievementCatalog.TryGetDefinition(achievementId, out var definition)
+                    || definition.MetricKind != AchievementMetricKind.MapCleared)
+                {
+                    continue;
+                }
+
+                s_profile.unseenAchievementIds.RemoveAt(i);
+            }
             SaveNow();
         }
 
@@ -851,6 +881,7 @@ namespace EJR.Game.Core
             return reward.Kind switch
             {
                 AchievementRewardKind.UnlockCharacter => $"캐릭터 해금: {SharedGameCatalog.GetCharacter(reward.CharacterId).DisplayName}",
+                AchievementRewardKind.UnlockMap => $"맵 개방: {SharedRunCatalog.GetMap(reward.MapId).DisplayName}",
                 _ => "보상 없음",
             };
         }

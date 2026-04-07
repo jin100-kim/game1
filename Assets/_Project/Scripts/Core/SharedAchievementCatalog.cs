@@ -6,6 +6,7 @@ namespace EJR.Game.Core
     {
         None,
         UnlockCharacter,
+        UnlockMap,
     }
 
     public enum AchievementMetricKind
@@ -21,14 +22,16 @@ namespace EJR.Game.Core
     {
         public static readonly AchievementRewardDefinition None = new(AchievementRewardKind.None);
 
-        public AchievementRewardDefinition(AchievementRewardKind kind, int characterId = -1)
+        public AchievementRewardDefinition(AchievementRewardKind kind, int characterId = -1, string mapId = null)
         {
             Kind = kind;
             CharacterId = characterId;
+            MapId = mapId ?? string.Empty;
         }
 
         public AchievementRewardKind Kind { get; }
         public int CharacterId { get; }
+        public string MapId { get; }
     }
 
     public sealed class AchievementDefinition
@@ -117,7 +120,8 @@ namespace EJR.Game.Core
                 "숲 맵 클리어",
                 AchievementMetricKind.MapCleared,
                 1,
-                "forest"),
+                "forest",
+                new AchievementRewardDefinition(AchievementRewardKind.UnlockMap, mapId: "desert")),
             new(
                 "desert_clear",
                 "사막 돌파",
@@ -125,15 +129,14 @@ namespace EJR.Game.Core
                 AchievementMetricKind.MapCleared,
                 1,
                 "desert",
-                new AchievementRewardDefinition(AchievementRewardKind.UnlockCharacter, 4)),
+                new AchievementRewardDefinition(AchievementRewardKind.UnlockMap, mapId: "snow")),
             new(
                 "snow_clear",
                 "설원 돌파",
                 "설원 맵 클리어",
                 AchievementMetricKind.MapCleared,
                 1,
-                "snow",
-                new AchievementRewardDefinition(AchievementRewardKind.UnlockCharacter, 5)),
+                "snow"),
             new(
                 "slayer_500",
                 "사냥꾼 I",

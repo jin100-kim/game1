@@ -170,6 +170,39 @@
 .title-character-name {
     color: rgb(242, 246, 252);
     margin-top: 6px;
+    margin-bottom: 4px;
+}
+
+.title-character-detail-status {
+    margin-bottom: 14px;
+    color: rgb(182, 197, 216);
+}
+
+.title-character-detail-status.is-unlocked {
+    color: rgb(114, 224, 142);
+}
+
+.title-character-detail-status.is-selected {
+    color: rgb(242, 196, 53);
+}
+
+.title-detail-block {
+    margin-bottom: 12px;
+    padding-left: 14px;
+    padding-right: 14px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    background-color: rgba(14, 22, 31, 0.9);
+}
+
+.title-detail-block-title {
+    margin-top: 0;
+    margin-bottom: 6px;
+}
+
+.title-detail-block-body {
+    font-size: 14px;
+    color: rgb(226, 234, 244);
 }
 
 .title-inline-note {

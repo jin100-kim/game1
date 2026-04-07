@@ -1944,7 +1944,6 @@ namespace EJR.Game.Gameplay
 
 #endif
             var mapDefinition = _currentMapDefinition ?? RunSelectionService.SingleMapDefinition;
-            var difficultyDefinition = _currentDifficultyDefinition ?? RunSelectionService.SingleDifficultyDefinition;
             var summary = MetaProgressionService.BuildRunRewardSummary(
                 "\uC2F1\uAE00",
                 cleared,
@@ -1955,7 +1954,7 @@ namespace EJR.Game.Gameplay
                 _combatTracker.BossThresholdsReached,
                 mapDefinition.Id,
                 mapDefinition.DisplayName,
-                difficultyDefinition.DisplayName,
+                string.Empty,
                 _playerStats != null ? _playerStats.CreditGainPercent : 0f);
 
             MetaProgressionService.RecordRunSummary(summary);

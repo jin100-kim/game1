@@ -143,7 +143,7 @@ namespace EJR.Game.UI
             _inspectedCharacterId = _selectedCharacterId;
             _selectedStarterWeaponId = MetaProgressionService.GetSingleSelectedStarterWeapon();
             _selectedMapId = RunSelectionService.SingleMapId;
-            _selectedDifficultyId = RunSelectionService.SingleDifficultyId;
+            _selectedDifficultyId = SharedRunCatalog.DefaultDifficultyId;
             _currentRunSetupStep = SingleRunSetupStep.MapSelect;
             InitializeDisplaySettings();
             EnsureCamera();
@@ -810,7 +810,7 @@ namespace EJR.Game.UI
 
             _runSetupHeaderText = CreateText(_runSetupPanel.transform, "RunSetupHeaderV2", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -34f), new Vector2(420f, 34f), "맵 선택", 24, FontStyle.Bold);
             _runSetupHeaderText.color = new Color(0.96f, 0.74f, 0.18f, 1f);
-            _runSetupHintText = CreateText(_runSetupPanel.transform, "RunSetupHintV2", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -72f), new Vector2(640f, 22f), "출격할 맵과 난이도를 먼저 고르세요.", 14, FontStyle.Normal);
+            _runSetupHintText = CreateText(_runSetupPanel.transform, "RunSetupHintV2", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -72f), new Vector2(640f, 22f), "출격할 맵을 먼저 고르세요.", 14, FontStyle.Normal);
             _runSetupHintText.color = new Color(0.78f, 0.84f, 0.92f, 1f);
 
             _runSetupMapStepRoot = CreateStretchRoot(_runSetupPanel.transform, "RunSetupMapStepRootV2");
@@ -1015,11 +1015,11 @@ namespace EJR.Game.UI
             _inspectedCharacterId = _selectedCharacterId;
             _selectedStarterWeaponId = MetaProgressionService.GetSingleSelectedStarterWeapon();
             _selectedMapId = RunSelectionService.SingleMapId;
-            _selectedDifficultyId = RunSelectionService.SingleDifficultyId;
+            _selectedDifficultyId = SharedRunCatalog.DefaultDifficultyId;
             _currentRunSetupStep = SingleRunSetupStep.MapSelect;
             RefreshRunSetupPanelV2();
             ShowPanel(_runSetupPanel, GetRunSetupPreferredSelection());
-            SetStatus("맵과 난이도를 먼저 선택하세요.");
+            SetStatus("맵을 먼저 선택하세요.");
             return;
             SetStatus("캐릭터를 선택하세요. 잠긴 캐릭터는 상점에서 해금합니다.");
         }
@@ -1507,7 +1507,7 @@ namespace EJR.Game.UI
 
         private void SelectSingleDifficulty(string difficultyId)
         {
-            _selectedDifficultyId = SharedRunCatalog.GetDifficulty(difficultyId).Id;
+            _selectedDifficultyId = SharedRunCatalog.DefaultDifficultyId;
             RefreshRunSetupPanelV2();
         }
 
@@ -1538,7 +1538,7 @@ namespace EJR.Game.UI
                 ShowPanel(_runSetupPanel, GetRunSetupPreferredSelection());
             }
 
-            SetStatus("맵과 난이도를 먼저 선택하세요.");
+            SetStatus("맵을 먼저 선택하세요.");
         }
 
         private void SelectSingleStarterWeapon(WeaponUpgradeId weaponId)
@@ -1568,7 +1568,7 @@ namespace EJR.Game.UI
             }
 
             MetaProgressionService.SetSingleSelectedCharacterId(_selectedCharacterId);
-            RunSelectionService.SetSingleSelection(_selectedMapId, _selectedDifficultyId);
+            RunSelectionService.SetSingleSelection(_selectedMapId);
             GameplaySpeedService.ApplyMenuTimeState();
             SceneManager.LoadScene(gameplaySceneName);
         }
@@ -1756,13 +1756,10 @@ namespace EJR.Game.UI
             _selectedMapId = SharedRunCatalog.IsMapUnlocked(_selectedMapId)
                 ? SharedRunCatalog.GetMap(_selectedMapId).Id
                 : GetFirstUnlockedMapId();
-            _selectedDifficultyId = SharedRunCatalog.GetDifficulty(_selectedDifficultyId).Id;
-
             _selectedStarterWeaponId = MetaProgressionService.GetCharacterStarterWeapon(_selectedCharacterId);
             _inspectedCharacterId = _selectedCharacterId;
             var character = SharedGameCatalog.GetCharacter(_selectedCharacterId);
             var selectedMap = SharedRunCatalog.GetMap(_selectedMapId);
-            var selectedDifficulty = SharedRunCatalog.GetDifficulty(_selectedDifficultyId);
             var selectedUnlocked = MetaProgressionService.IsCharacterUnlocked(_selectedCharacterId);
             var selectedMapUnlocked = SharedRunCatalog.IsMapUnlocked(selectedMap.Id);
 
@@ -1771,7 +1768,7 @@ namespace EJR.Game.UI
 
             if (_runSetupSelectionSummaryText != null)
             {
-                _runSetupSelectionSummaryText.text = $"현재 출격: {selectedMap.DisplayName} | {selectedDifficulty.DisplayName}";
+                _runSetupSelectionSummaryText.text = $"현재 출격: {selectedMap.DisplayName}";
             }
 
             if (_runSetupMapLockText != null)
@@ -1899,7 +1896,7 @@ namespace EJR.Game.UI
                 ApplyRunSetupOptionState(button, label, selected, new Color(0.96f, 0.74f, 0.18f, 1f));
                 if (button != null)
                 {
-                    button.interactable = true;
+                    button.gameObject.SetActive(false);
                 }
             }
 
@@ -1967,14 +1964,13 @@ namespace EJR.Game.UI
             _selectedMapId = SharedRunCatalog.IsMapUnlocked(_selectedMapId)
                 ? SharedRunCatalog.GetMap(_selectedMapId).Id
                 : GetFirstUnlockedMapId();
-            _selectedDifficultyId = SharedRunCatalog.GetDifficulty(_selectedDifficultyId).Id;
+            _selectedDifficultyId = SharedRunCatalog.DefaultDifficultyId;
 
             _selectedStarterWeaponId = MetaProgressionService.GetCharacterStarterWeapon(_selectedCharacterId);
             _inspectedCharacterId = _selectedCharacterId;
 
             var character = SharedGameCatalog.GetCharacter(_selectedCharacterId);
             var selectedMap = SharedRunCatalog.GetMap(_selectedMapId);
-            var selectedDifficulty = SharedRunCatalog.GetDifficulty(_selectedDifficultyId);
             var selectedUnlocked = MetaProgressionService.IsCharacterUnlocked(_selectedCharacterId);
             var selectedMapUnlocked = SharedRunCatalog.IsMapUnlocked(selectedMap.Id);
             var isMapStep = _currentRunSetupStep == SingleRunSetupStep.MapSelect;
@@ -1990,7 +1986,7 @@ namespace EJR.Game.UI
             if (_runSetupHintText != null)
             {
                 _runSetupHintText.text = isMapStep
-                    ? "출격할 맵과 난이도를 먼저 고르세요."
+                    ? "출격할 맵을 먼저 고르세요."
                     : "출격할 캐릭터를 선택하세요.";
             }
 
@@ -1998,7 +1994,7 @@ namespace EJR.Game.UI
             {
                 _runSetupMapStepSelectionText.text =
                     $"{selectedMap.DisplayName}\n" +
-                    $"전장 {selectedMap.ArenaBounds.width:0} x {selectedMap.ArenaBounds.height:0} | 난이도 {selectedDifficulty.DisplayName}";
+                    $"전장 {selectedMap.ArenaBounds.width:0} x {selectedMap.ArenaBounds.height:0}";
             }
 
             _runSetupCharacterText.text = character.DisplayName;
@@ -2006,7 +2002,7 @@ namespace EJR.Game.UI
 
             if (_runSetupSelectionSummaryText != null)
             {
-                _runSetupSelectionSummaryText.text = $"현재 출격: {selectedMap.DisplayName} | {selectedDifficulty.DisplayName}";
+                _runSetupSelectionSummaryText.text = $"현재 출격: {selectedMap.DisplayName}";
             }
 
             if (_runSetupMapLockText != null)
@@ -2134,7 +2130,7 @@ namespace EJR.Game.UI
                 ApplyRunSetupOptionState(button, label, selected, new Color(0.96f, 0.74f, 0.18f, 1f));
                 if (button != null)
                 {
-                    button.interactable = true;
+                    button.gameObject.SetActive(false);
                 }
             }
 
@@ -2422,7 +2418,7 @@ namespace EJR.Game.UI
             for (var i = 0; i < SharedGameCatalog.CharacterDefinitions.Count; i++)
             {
                 var definition = SharedGameCatalog.CharacterDefinitions[i];
-                if (definition.UnlockSource == CharacterUnlockSource.Achievement)
+                if (definition.UnlockSource != CharacterUnlockSource.Shop)
                 {
                     continue;
                 }
@@ -2757,7 +2753,7 @@ namespace EJR.Game.UI
             _selectedMapId = SharedRunCatalog.IsMapUnlocked(_selectedMapId)
                 ? SharedRunCatalog.GetMap(_selectedMapId).Id
                 : GetFirstUnlockedMapId();
-            _selectedDifficultyId = SharedRunCatalog.GetDifficulty(_selectedDifficultyId).Id;
+            _selectedDifficultyId = SharedRunCatalog.DefaultDifficultyId;
 
             RefreshRunSetupPanelV2();
             RefreshAchievementPanel();

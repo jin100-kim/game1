@@ -11,10 +11,10 @@ namespace EJR.Game.Core
         public static RunMapDefinition SingleMapDefinition => SharedRunCatalog.GetMap(SingleMapId);
         public static RunDifficultyDefinition SingleDifficultyDefinition => SharedRunCatalog.GetDifficulty(SingleDifficultyId);
 
-        public static void SetSingleSelection(string mapId, string difficultyId)
+        public static void SetSingleSelection(string mapId, string difficultyId = SharedRunCatalog.DefaultDifficultyId)
         {
             s_singleMapId = SharedRunCatalog.GetMap(mapId).Id;
-            s_singleDifficultyId = SharedRunCatalog.GetDifficulty(difficultyId).Id;
+            s_singleDifficultyId = SharedRunCatalog.DefaultDifficultyId;
         }
     }
 }

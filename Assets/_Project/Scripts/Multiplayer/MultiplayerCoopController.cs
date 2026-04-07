@@ -51,7 +51,7 @@ namespace EJR.Game.Multiplayer
             new(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
         private readonly NetworkVariable<int> _selectedDifficultyIndex =
-            new(1, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+            new(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
         private readonly NetworkVariable<int> _activeWaveIndex =
             new(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
@@ -264,12 +264,7 @@ namespace EJR.Game.Multiplayer
 
         public void RequestSelectDifficulty(int difficultyIndex)
         {
-            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening)
-            {
-                return;
-            }
-
-            SetSelectedDifficultyServerRpc(difficultyIndex);
+            return;
         }
 
         public string GetStartBlockReason()
@@ -1383,20 +1378,7 @@ namespace EJR.Game.Multiplayer
         [ServerRpc(RequireOwnership = false)]
         private void SetSelectedDifficultyServerRpc(int difficultyIndex, ServerRpcParams rpcParams = default)
         {
-            var manager = NetworkManager.Singleton;
-            if (manager == null || rpcParams.Receive.SenderClientId != manager.LocalClientId || Phase != MultiplayerRunPhase.Lobby)
-            {
-                return;
-            }
-
-            var normalizedIndex = SharedRunCatalog.GetDifficultyIndex(SharedRunCatalog.GetDifficultyByIndex(difficultyIndex).Id);
-            if (_selectedDifficultyIndex.Value == normalizedIndex)
-            {
-                return;
-            }
-
-            _selectedDifficultyIndex.Value = normalizedIndex;
-            ReturnPlayersToLobby();
+            return;
         }
 
         [ClientRpc]
@@ -1407,7 +1389,6 @@ namespace EJR.Game.Multiplayer
                 ? localPlayer.CurrentCreditGainPercent
                 : MetaProgressionService.GetPurchasedUpgradeBonuses().creditGainPercent;
             var mapDefinition = SharedRunCatalog.GetMap(mapId);
-            var difficultyDefinition = SharedRunCatalog.GetDifficulty(difficultyId);
             var detailedSummary = MetaProgressionService.BuildRunRewardSummary(
                 "협동",
                 cleared,
@@ -1418,7 +1399,7 @@ namespace EJR.Game.Multiplayer
                 bossThresholdsReached,
                 mapId,
                 mapDefinition.DisplayName,
-                difficultyDefinition.DisplayName,
+                string.Empty,
                 creditGainPercent);
             MetaProgressionService.RecordRunSummary(detailedSummary);
             return;

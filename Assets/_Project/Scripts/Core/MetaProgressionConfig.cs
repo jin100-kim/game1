@@ -77,7 +77,7 @@ namespace EJR.Game.Core
     [Serializable]
     public sealed class MetaProgressionConfig : ScriptableObject
     {
-        [SerializeField] private int[] upgradeCostCurve = { 20, 30, 45, 65, 90, 120, 155, 195, 240, 290 };
+        [SerializeField] private int[] upgradeCostCurve = { 60, 120, 220, 350, 500 };
         [SerializeField, Min(0)] private int killsPerCredit = 10;
         [SerializeField, Min(0)] private int creditsPerMinuteSurvived = 5;
         [SerializeField, Min(0)] private int creditsPerBossThreshold = 5;

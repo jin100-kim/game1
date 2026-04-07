@@ -12,7 +12,7 @@ namespace EJR.Game.Core
             Rect arenaBounds,
             Color cameraBackgroundColor,
             Color boundaryColor,
-            string requiredClearMapId,
+            string requiredAchievementId,
             RuntimeSpriteFactory.EnemyVisualKind bossVisualKind = RuntimeSpriteFactory.EnemyVisualKind.Boss,
             BossArchetypeId bossArchetype = BossArchetypeId.Final)
         {
@@ -21,7 +21,7 @@ namespace EJR.Game.Core
             ArenaBounds = arenaBounds;
             CameraBackgroundColor = cameraBackgroundColor;
             BoundaryColor = boundaryColor;
-            RequiredClearMapId = requiredClearMapId ?? string.Empty;
+            RequiredAchievementId = requiredAchievementId ?? string.Empty;
             BossVisualKind = bossVisualKind;
             BossArchetype = bossArchetype;
         }
@@ -31,7 +31,7 @@ namespace EJR.Game.Core
         public Rect ArenaBounds { get; }
         public Color CameraBackgroundColor { get; }
         public Color BoundaryColor { get; }
-        public string RequiredClearMapId { get; }
+        public string RequiredAchievementId { get; }
         public RuntimeSpriteFactory.EnemyVisualKind BossVisualKind { get; }
         public BossArchetypeId BossArchetype { get; }
 
@@ -169,7 +169,7 @@ namespace EJR.Game.Core
                 new Rect(-15f, -9f, 30f, 18f),
                 new Color(0.22f, 0.18f, 0.10f, 1f),
                 new Color(0.82f, 0.66f, 0.32f, 1f),
-                "forest",
+                "forest_clear",
                 RuntimeSpriteFactory.EnemyVisualKind.Warrior,
                 BossArchetypeId.Warrior)
             {
@@ -200,7 +200,7 @@ namespace EJR.Game.Core
                 new Rect(-18f, -11f, 36f, 22f),
                 new Color(0.12f, 0.18f, 0.24f, 1f),
                 new Color(0.72f, 0.86f, 0.95f, 1f),
-                "desert",
+                "desert_clear",
                 RuntimeSpriteFactory.EnemyVisualKind.Boss,
                 BossArchetypeId.Final)
             {
@@ -390,19 +390,20 @@ namespace EJR.Game.Core
         public static bool IsMapUnlocked(string mapId)
         {
             var map = GetMap(mapId);
-            return string.IsNullOrWhiteSpace(map.RequiredClearMapId) || MetaProgressionService.IsMapCleared(map.RequiredClearMapId);
+            return string.IsNullOrWhiteSpace(map.RequiredAchievementId)
+                || MetaProgressionService.HasCompletedAchievement(map.RequiredAchievementId);
         }
 
         public static string GetMapUnlockRequirementText(string mapId)
         {
             var map = GetMap(mapId);
-            if (string.IsNullOrWhiteSpace(map.RequiredClearMapId))
+            if (string.IsNullOrWhiteSpace(map.RequiredAchievementId))
             {
                 return string.Empty;
             }
 
-            var requiredMap = GetMap(map.RequiredClearMapId);
-            return requiredMap.DisplayName + " \uD074\uB9AC\uC5B4 \uD544\uC694";
+            var requiredAchievement = SharedAchievementCatalog.GetDefinition(map.RequiredAchievementId);
+            return requiredAchievement.DisplayName + " 필요";
         }
 
         public static EnemyConfig CreateRuntimeEnemyConfig(EnemyConfig source, string mapId, string difficultyId)

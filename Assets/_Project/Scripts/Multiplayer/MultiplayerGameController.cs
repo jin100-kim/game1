@@ -531,8 +531,8 @@ namespace EJR.Game.Multiplayer
             if (_difficultyButtonText != null)
             {
                 _difficultyButtonText.text = coop != null
-                    ? $"난이도\n{coop.SelectedDifficultyDefinition.DisplayName}"
-                    : "난이도\n-";
+                    ? string.Empty
+                    : string.Empty;
             }
 
             var lobbyHost = manager != null && manager.IsHost;
@@ -540,7 +540,7 @@ namespace EJR.Game.Multiplayer
             _starterButton.interactable = canInteract && lobbyHost;
             if (_difficultyButton != null)
             {
-                _difficultyButton.interactable = canInteract && lobbyHost;
+                _difficultyButton.gameObject.SetActive(false);
             }
 
             _readyButton.interactable = canInteract;
@@ -560,8 +560,8 @@ namespace EJR.Game.Multiplayer
             if (_difficultyButtonText != null)
             {
                 _difficultyButtonText.text = coop != null
-                    ? $"난이도\n{coop.SelectedDifficultyDefinition.DisplayName}"
-                    : "난이도\n-";
+                    ? string.Empty
+                    : string.Empty;
             }
 
             _starterButtonText.text = coop != null
@@ -570,8 +570,8 @@ namespace EJR.Game.Multiplayer
             if (_difficultyButtonText != null)
             {
                 _difficultyButtonText.text = coop != null
-                    ? $"난이도\n{coop.SelectedDifficultyDefinition.DisplayName}"
-                    : "난이도\n-";
+                    ? string.Empty
+                    : string.Empty;
             }
 
             _startButton.gameObject.SetActive(isHost);
@@ -627,7 +627,7 @@ namespace EJR.Game.Multiplayer
                 coop.TeamExperience,
                 coop.TeamRequiredExperience,
                 coop.RemainingSeconds);
-            _gameplayHud.SetModeHint($"{coop.SelectedMapDefinition.DisplayName} | {coop.SelectedDifficultyDefinition.DisplayName}");
+            _gameplayHud.SetModeHint(coop.SelectedMapDefinition.DisplayName);
             _gameplayHud.SetBuildInfo(localPlayer.WeaponSummary, localPlayer.StatSummary);
             if (coop.HasActiveWave)
             {
@@ -761,8 +761,8 @@ namespace EJR.Game.Multiplayer
 
             var sessionCode = MultiplayerSessionController.EnsureInstance().SessionCode;
             var selectionSummary = coop != null
-                ? $"맵 {coop.SelectedMapDefinition.DisplayName} | 난이도 {coop.SelectedDifficultyDefinition.DisplayName}"
-                : "맵 - | 난이도 -";
+                ? $"맵 {coop.SelectedMapDefinition.DisplayName}"
+                : "맵 -";
             var headerText = string.IsNullOrWhiteSpace(sessionCode)
                 ? "멀티플레이 대기실"
                 : $"멀티플레이 대기실  |  코드 {sessionCode}";
@@ -796,8 +796,8 @@ namespace EJR.Game.Multiplayer
                 ? $"맵\n{coop.SelectedMapDefinition.DisplayName}"
                 : "맵\n-";
             var difficultyButtonText = coop != null
-                ? $"난이도\n{coop.SelectedDifficultyDefinition.DisplayName}"
-                : "난이도\n-";
+                ? string.Empty
+                : string.Empty;
 
             if (_lobbyPanel != null)
             {
@@ -809,7 +809,7 @@ namespace EJR.Game.Multiplayer
                 _readyButton.interactable = canInteract;
                 if (_difficultyButton != null)
                 {
-                    _difficultyButton.interactable = canInteract && isHost;
+                    _difficultyButton.gameObject.SetActive(false);
                 }
 
                 _characterButtonText.text = characterButtonText;
@@ -831,13 +831,13 @@ namespace EJR.Game.Multiplayer
                 _toolkitPlayerListText.text = playerListText;
                 _toolkitCharacterButton.text = characterButtonText;
                 _toolkitMapButton.text = mapButtonText;
-                _toolkitDifficultyButton.text = difficultyButtonText;
+                _toolkitDifficultyButton.text = string.Empty;
                 _toolkitReadyButton.text = readyButtonText;
                 _toolkitStartButton.text = "시작";
                 _toolkitStartButton.style.display = isHost ? UnityEngine.UIElements.DisplayStyle.Flex : UnityEngine.UIElements.DisplayStyle.None;
                 _toolkitCharacterButton.SetEnabled(canInteract);
                 _toolkitMapButton.SetEnabled(canInteract && isHost);
-                _toolkitDifficultyButton.SetEnabled(canInteract && isHost);
+                _toolkitDifficultyButton.style.display = UnityEngine.UIElements.DisplayStyle.None;
                 _toolkitReadyButton.SetEnabled(canInteract);
                 _toolkitStartButton.SetEnabled(isHost && coop != null && string.IsNullOrWhiteSpace(coop.GetStartBlockReason()));
                 _toolkitStartHintText.text = startHintText;
@@ -1098,16 +1098,7 @@ namespace EJR.Game.Multiplayer
 
         private void HandleDifficultyClicked()
         {
-            var manager = NetworkManager.Singleton;
-            var coop = MultiplayerCoopController.Instance;
-            if (manager == null || !manager.IsHost || coop == null)
-            {
-                return;
-            }
-
-            var nextIndex = (coop.SelectedDifficultyIndex + 1) % SharedRunCatalog.DifficultyDefinitions.Count;
-            coop.RequestSelectDifficulty(nextIndex);
-            RefreshUi();
+            return;
         }
 
         private void HandleReadyClicked()

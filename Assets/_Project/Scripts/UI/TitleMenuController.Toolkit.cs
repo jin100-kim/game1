@@ -48,7 +48,12 @@ namespace EJR.Game.UI
         private Label _toolkitRunSetupSelectionSummaryLabel;
         private Label _toolkitRunSetupCharacterNameLabel;
         private Label _toolkitRunSetupCharacterDetailLabel;
+        private Label _toolkitRunSetupCharacterStatusLabel;
+        private Label _toolkitRunSetupCharacterWeaponLabel;
+        private Label _toolkitRunSetupCharacterBonusLabel;
+        private Label _toolkitRunSetupCharacterPassiveLabel;
         private ScrollView _toolkitRunSetupCharacterScroll;
+        private ScrollView _toolkitRunSetupCharacterDetailScroll;
         private VisualElement _toolkitRunSetupMapButtonRow;
         private VisualElement _toolkitRunSetupDifficultyButtonRow;
         private ScrollView _toolkitAchievementScroll;
@@ -161,6 +166,7 @@ namespace EJR.Game.UI
             QueryToolkitElements(_toolkitRoot);
             BuildToolkitDevPanelActions();
             ConfigureToolkitScroll(_toolkitRunSetupCharacterScroll);
+            ConfigureToolkitScroll(_toolkitRunSetupCharacterDetailScroll);
             ConfigureToolkitScroll(_toolkitAchievementScroll);
             ConfigureToolkitScroll(_toolkitMetaScroll);
             WireToolkitCallbacks();
@@ -205,7 +211,12 @@ namespace EJR.Game.UI
             _toolkitRunSetupSelectionSummaryLabel = root.Q<Label>("run-setup-selection-summary");
             _toolkitRunSetupCharacterNameLabel = root.Q<Label>("run-setup-character-name");
             _toolkitRunSetupCharacterDetailLabel = root.Q<Label>("run-setup-character-detail");
+            _toolkitRunSetupCharacterStatusLabel = root.Q<Label>("run-setup-character-status");
+            _toolkitRunSetupCharacterWeaponLabel = root.Q<Label>("run-setup-character-weapon");
+            _toolkitRunSetupCharacterBonusLabel = root.Q<Label>("run-setup-character-bonus");
+            _toolkitRunSetupCharacterPassiveLabel = root.Q<Label>("run-setup-character-passive");
             _toolkitRunSetupCharacterScroll = root.Q<ScrollView>("run-setup-character-scroll");
+            _toolkitRunSetupCharacterDetailScroll = root.Q<ScrollView>("run-setup-character-detail-scroll");
             _toolkitRunSetupMapButtonRow = root.Q<VisualElement>("run-setup-map-button-row");
             _toolkitRunSetupDifficultyButtonRow = root.Q<VisualElement>("run-setup-difficulty-button-row");
             _toolkitAchievementSummaryLabel = root.Q<Label>("achievement-summary");
@@ -558,7 +569,7 @@ namespace EJR.Game.UI
             _selectedMapId = SharedRunCatalog.IsMapUnlocked(_selectedMapId)
                 ? SharedRunCatalog.GetMap(_selectedMapId).Id
                 : GetFirstUnlockedMapId();
-            _selectedDifficultyId = SharedRunCatalog.GetDifficulty(_selectedDifficultyId).Id;
+            _selectedDifficultyId = SharedRunCatalog.DefaultDifficultyId;
             _selectedStarterWeaponId = MetaProgressionService.GetCharacterStarterWeapon(_selectedCharacterId);
             _inspectedCharacterId = SharedGameCatalog.NormalizeCharacterId(_inspectedCharacterId);
             if (_inspectedCharacterId == 0 && _selectedCharacterId != 0)
@@ -567,7 +578,6 @@ namespace EJR.Game.UI
             }
 
             var selectedMap = SharedRunCatalog.GetMap(_selectedMapId);
-            var selectedDifficulty = SharedRunCatalog.GetDifficulty(_selectedDifficultyId);
             var selectedCharacter = SharedGameCatalog.GetCharacter(_selectedCharacterId);
             var inspectedCharacter = SharedGameCatalog.GetCharacter(_inspectedCharacterId);
             var inspectedUnlocked = MetaProgressionService.IsCharacterUnlocked(inspectedCharacter.Id);
@@ -583,13 +593,13 @@ namespace EJR.Game.UI
             if (_toolkitRunSetupHint != null)
             {
                 _toolkitRunSetupHint.text = isMapStep
-                    ? "맵과 난이도를 먼저 정하세요."
+                    ? "맵을 먼저 고르세요."
                     : "캐릭터를 선택하고 출격을 시작하세요.";
             }
 
             if (_toolkitRunSetupMapSelectionLabel != null)
             {
-                _toolkitRunSetupMapSelectionLabel.text = $"{selectedMap.DisplayName} | {selectedDifficulty.DisplayName}";
+                _toolkitRunSetupMapSelectionLabel.text = selectedMap.DisplayName;
             }
 
             if (_toolkitRunSetupMapLockLabel != null)
@@ -602,7 +612,7 @@ namespace EJR.Game.UI
             if (_toolkitRunSetupSelectionSummaryLabel != null)
             {
                 _toolkitRunSetupSelectionSummaryLabel.text =
-                    $"{selectedMap.DisplayName} | {selectedDifficulty.DisplayName} | 현재 선택 {selectedCharacter.DisplayName}";
+                    $"{selectedMap.DisplayName} | 현재 선택 {selectedCharacter.DisplayName}";
             }
 
             if (_toolkitRunSetupCharacterNameLabel != null)
@@ -631,10 +641,45 @@ namespace EJR.Game.UI
                     $"고유 특성 {inspectedCharacter.PassiveDescription}";
             }
 
+            var runSetupCharacterStatusText = GetToolkitCharacterStatusText(
+                inspectedCharacter,
+                inspectedUnlocked,
+                inspectedCharacter.Id == _selectedCharacterId);
+
+            if (_toolkitRunSetupCharacterNameLabel != null)
+            {
+                _toolkitRunSetupCharacterNameLabel.text = inspectedCharacter.DisplayName;
+                _toolkitRunSetupCharacterNameLabel.style.color = inspectedCharacter.Color;
+            }
+
+            if (_toolkitRunSetupCharacterStatusLabel != null)
+            {
+                _toolkitRunSetupCharacterStatusLabel.text = runSetupCharacterStatusText;
+                _toolkitRunSetupCharacterStatusLabel.EnableInClassList("is-unlocked", inspectedUnlocked);
+                _toolkitRunSetupCharacterStatusLabel.EnableInClassList(
+                    "is-selected",
+                    inspectedUnlocked && inspectedCharacter.Id == _selectedCharacterId);
+            }
+
+            if (_toolkitRunSetupCharacterWeaponLabel != null)
+            {
+                _toolkitRunSetupCharacterWeaponLabel.text =
+                    SharedGameCatalog.GetWeaponDisplayName(inspectedCharacter.StarterWeaponId);
+            }
+
+            if (_toolkitRunSetupCharacterBonusLabel != null)
+            {
+                _toolkitRunSetupCharacterBonusLabel.text = BuildMetaBonusSummary(inspectedCharacter.BaseBonuses);
+            }
+
+            if (_toolkitRunSetupCharacterPassiveLabel != null)
+            {
+                _toolkitRunSetupCharacterPassiveLabel.text = inspectedCharacter.PassiveDescription;
+            }
+
             SetDisplay(_toolkitRunSetupMapStep, isMapStep);
             SetDisplay(_toolkitRunSetupCharacterStep, !isMapStep);
             RebuildToolkitRunSetupMapButtons();
-            RebuildToolkitRunSetupDifficultyButtons();
             RebuildToolkitRunSetupCharacterButtons();
 
             _toolkitRunSetupMapNextButton?.SetEnabled(interactable && mapUnlocked && isMapStep);
@@ -685,21 +730,7 @@ namespace EJR.Game.UI
             }
 
             _toolkitRunSetupDifficultyButtonRow.Clear();
-
-            var interactable = !MultiplayerSessionController.EnsureInstance().IsBusy;
-            for (var i = 0; i < SharedRunCatalog.DifficultyDefinitions.Count; i++)
-            {
-                var definition = SharedRunCatalog.DifficultyDefinitions[i];
-                var button = new Button(() => SelectSingleDifficulty(definition.Id))
-                {
-                    text = definition.DisplayName
-                };
-                button.AddToClassList("title-chip-button");
-                button.EnableInClassList("is-selected", definition.Id == _selectedDifficultyId);
-                button.SetEnabled(interactable);
-                _toolkitRunSetupDifficultyButtonRow.Add(button);
-                _toolkitDynamicButtons.Add(button);
-            }
+            _toolkitRunSetupDifficultyButtonRow.style.display = DisplayStyle.None;
         }
 
         private void RebuildToolkitRunSetupCharacterButtons()
@@ -884,9 +915,8 @@ namespace EJR.Game.UI
             }
 
             _toolkitMetaHeaderLabel.text =
-                $"코인 {MetaProgressionService.CurrentCredits} | 누적 수익 {MetaProgressionService.TotalCreditsEarned}\n" +
-                $"플레이 {MetaProgressionService.RunsPlayed} | 클리어 {MetaProgressionService.RunsCleared}\n" +
-                $"최고 레벨 {MetaProgressionService.BestLevel} | 최고 시간 {MetaProgressionService.BestTimeSeconds:0.0}초 | 처치 {MetaProgressionService.TotalEnemiesDefeated}";
+                $"코인 {MetaProgressionService.CurrentCredits} | 누적 {MetaProgressionService.TotalCreditsEarned} | 처치 {MetaProgressionService.TotalEnemiesDefeated}\n" +
+                $"플레이 {MetaProgressionService.RunsPlayed} | 클리어 {MetaProgressionService.RunsCleared} | 최고 Lv.{MetaProgressionService.BestLevel} | 최고 {MetaProgressionService.BestTimeSeconds:0.0}초";
 
             ApplyToolkitMetaTabState(_toolkitMetaUnlocksTabButton, _currentMetaTab == MetaTab.Unlocks);
             ApplyToolkitMetaTabState(_toolkitMetaUpgradesTabButton, _currentMetaTab == MetaTab.Upgrades);
@@ -929,7 +959,7 @@ namespace EJR.Game.UI
             for (var i = 0; i < SharedGameCatalog.CharacterDefinitions.Count; i++)
             {
                 var definition = SharedGameCatalog.CharacterDefinitions[i];
-                if (definition.UnlockSource == CharacterUnlockSource.Achievement)
+                if (definition.UnlockSource != CharacterUnlockSource.Shop)
                 {
                     continue;
                 }

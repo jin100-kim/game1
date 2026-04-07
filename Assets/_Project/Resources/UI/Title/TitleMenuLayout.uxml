@@ -86,8 +86,6 @@
                         <ui:Label class="title-subsection-title" text="맵" />
                         <ui:VisualElement name="run-setup-map-button-row" class="title-chip-row" />
                         <ui:Label name="run-setup-map-lock-text" class="title-inline-note" text="" />
-                        <ui:Label class="title-subsection-title" text="난이도" />
-                        <ui:VisualElement name="run-setup-difficulty-button-row" class="title-chip-row" />
                     </ui:VisualElement>
 
                     <ui:VisualElement class="title-footer-row">
@@ -107,8 +105,20 @@
                             <ui:Label class="title-section-title" text="출격 정보" />
                             <ui:Label name="run-setup-selection-summary" class="title-inline-note title-inline-note-strong" text="" />
                             <ui:Label name="run-setup-character-name" class="title-hero-text title-character-name" text="" />
+                            <ui:Label name="run-setup-character-status" class="title-inline-note title-character-detail-status" text="" />
                             <ui:ScrollView name="run-setup-character-detail-scroll" class="title-scroll">
-                                <ui:Label name="run-setup-character-detail" class="title-body-text title-body-text-scroll" text="" />
+                                <ui:VisualElement class="title-card title-detail-block">
+                                    <ui:Label class="title-subsection-title title-detail-block-title" text="시작 무기" />
+                                    <ui:Label name="run-setup-character-weapon" class="title-body-text title-body-text-scroll title-detail-block-body" text="" />
+                                </ui:VisualElement>
+                                <ui:VisualElement class="title-card title-detail-block">
+                                    <ui:Label class="title-subsection-title title-detail-block-title" text="기본 보너스" />
+                                    <ui:Label name="run-setup-character-bonus" class="title-body-text title-body-text-scroll title-detail-block-body" text="" />
+                                </ui:VisualElement>
+                                <ui:VisualElement class="title-card title-detail-block">
+                                    <ui:Label class="title-subsection-title title-detail-block-title" text="고유 특성" />
+                                    <ui:Label name="run-setup-character-passive" class="title-body-text title-body-text-scroll title-detail-block-body" text="" />
+                                </ui:VisualElement>
                             </ui:ScrollView>
                         </ui:VisualElement>
                     </ui:VisualElement>

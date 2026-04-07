@@ -114,24 +114,24 @@ namespace EJR.Game.Core
                 new Color(0.72f, 1f, 0.84f, 1f),
                 100,
                 false,
-                CharacterUnlockSource.Achievement,
+                CharacterUnlockSource.Shop,
                 WeaponUpgradeId.Aura,
                 new MetaBonusValues { attackRangePercent = 10f },
                 CharacterPassiveId.ExorcistLevelRange,
                 "현재 레벨만큼 범위 +1%",
-                "desert_clear"),
+                null),
             new(
                 5,
                 "뇌전술사",
                 new Color(1f, 0.94f, 0.42f, 1f),
                 100,
                 false,
-                CharacterUnlockSource.Achievement,
+                CharacterUnlockSource.Shop,
                 WeaponUpgradeId.ChainAttack,
                 default,
                 CharacterPassiveId.ThunderMageChainMastery,
                 "뇌부 감쇠 제거, 연쇄 수 +2",
-                "snow_clear"),
+                null),
         };
 
         private static readonly SharedWeaponDefinition[] StarterWeapons =
