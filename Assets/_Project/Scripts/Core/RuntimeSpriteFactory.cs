@@ -65,8 +65,11 @@ namespace EJR.Game.Core
             "Aseprite/player001",
             "Assets/_Project/Art/Aseprite/player001.aseprite");
         private static readonly VisualAssetDescriptor Fire1Descriptor = new(
-            "Aseprite/sexyRifle",
-            "Assets/Resources/Aseprite/sexyRifle.ase");
+            "Aseprite/hwasal",
+            "Assets/Resources/Aseprite/hwasal.aseprite");
+        private static readonly VisualAssetDescriptor FireballProjectileDescriptor = new(
+            "Aseprite/hwaboo",
+            "Assets/Resources/Aseprite/hwaboo.aseprite");
         private static readonly VisualAssetDescriptor SexySwordDescriptor = new(
             "Aseprite/sexySword",
             "Assets/Resources/Aseprite/sexySword.aseprite");
@@ -83,12 +86,13 @@ namespace EJR.Game.Core
             "Aseprite/sexyTurret",
             "Assets/Resources/Aseprite/sexyTurret.aseprite");
         private static readonly VisualAssetDescriptor SexySatelliteBeamDescriptor = new(
-            "Aseprite/sexySatelliteBeam",
-            "Assets/Resources/Aseprite/sexySatelliteBeam.aseprite");
+            "Aseprite/fyeongon",
+            "Assets/Resources/Aseprite/fyeongon.aseprite");
 
         private static readonly Dictionary<EnemyVisualKind, Sprite[]> EnemyFramesByKind = new();
         private static Sprite[] _playerFrames;
         private static Sprite[] _weaponFire1Frames;
+        private static Sprite[] _fireballProjectileFrames;
         private static Sprite[] _sexySwordFrames;
         private static Sprite[] _sexySwordAttackFrames;
         private static Sprite[] _sexySwordAttackFlippedFrames;
@@ -182,6 +186,33 @@ namespace EJR.Game.Core
                 WeaponFrameCanvasSize,
                 WeaponFrameCanvasSize);
             return _weaponFire1Frames;
+        }
+
+        public static Sprite GetFireballProjectileSprite()
+        {
+            var frames = GetFireballProjectileAnimationFrames();
+            return frames.Length > 0 ? frames[0] : GetSquareSprite();
+        }
+
+        public static Sprite[] GetFireballProjectileAnimationFrames()
+        {
+            if (_fireballProjectileFrames != null && _fireballProjectileFrames.Length > 0)
+            {
+                return _fireballProjectileFrames;
+            }
+
+            var sourceFrames = LoadSourceFrames(FireballProjectileDescriptor.ResourcePath, FireballProjectileDescriptor.AssetPath);
+            if (sourceFrames.Length == 0)
+            {
+                _fireballProjectileFrames = new[] { GetSquareSprite() };
+                return _fireballProjectileFrames;
+            }
+
+            _fireballProjectileFrames = CreateFixedCanvasCenteredSprites(
+                sourceFrames,
+                WeaponFrameCanvasSize,
+                WeaponFrameCanvasSize);
+            return _fireballProjectileFrames;
         }
 
         public static Sprite[] GetSexySwordAnimationFrames()

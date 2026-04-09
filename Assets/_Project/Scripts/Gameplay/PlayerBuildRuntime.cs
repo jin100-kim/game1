@@ -58,8 +58,13 @@ namespace EJR.Game.Gameplay
         private float _lowHealthMaxThreshold;
         private float _lowEnemyHealthDamagePercent;
         private float _lowEnemyHealthThreshold;
-        private bool _chainAttackIgnoresDecay;
-        private int _chainAttackBonusJumps;
+        private bool _chainLightningIgnoresDecay;
+        private int _chainLightningBonusJumps;
+        private bool _hasCharacterWeaponBonuses;
+        private WeaponUpgradeId _characterBonusWeaponId;
+        private float _characterWeaponDamageBonusPercent;
+        private float _characterWeaponAttackSpeedBonusPercent;
+        private float _characterWeaponRangeBonusPercent;
 
         public IReadOnlyList<WeaponUpgradeId> OwnedWeapons => _weaponOrder;
         public IReadOnlyCollection<RunAugmentId> ActiveAugments => _runAugments;
@@ -108,12 +113,17 @@ namespace EJR.Game.Gameplay
             _lowHealthMaxThreshold = 0f;
             _lowEnemyHealthDamagePercent = 0f;
             _lowEnemyHealthThreshold = 0f;
-            _chainAttackIgnoresDecay = false;
-            _chainAttackBonusJumps = 0;
+            _chainLightningIgnoresDecay = false;
+            _chainLightningBonusJumps = 0;
+            _hasCharacterWeaponBonuses = false;
+            _characterBonusWeaponId = WeaponUpgradeId.Rifle;
+            _characterWeaponDamageBonusPercent = 0f;
+            _characterWeaponAttackSpeedBonusPercent = 0f;
+            _characterWeaponRangeBonusPercent = 0f;
 
             if (grantStarterRifle)
             {
-                AcquireWeaponInternal(WeaponUpgradeId.ShortBow);
+                AcquireWeaponInternal(WeaponUpgradeId.Rifle);
             }
         }
 
@@ -134,8 +144,30 @@ namespace EJR.Game.Gameplay
 
         public void SetChainAttackModifiers(bool ignoreDecay, int bonusJumps)
         {
-            _chainAttackIgnoresDecay = ignoreDecay;
-            _chainAttackBonusJumps = Mathf.Max(0, bonusJumps);
+            _chainLightningIgnoresDecay = ignoreDecay;
+            _chainLightningBonusJumps = Mathf.Max(0, bonusJumps);
+        }
+
+        public void ClearCharacterWeaponBonuses()
+        {
+            _hasCharacterWeaponBonuses = false;
+            _characterBonusWeaponId = WeaponUpgradeId.Rifle;
+            _characterWeaponDamageBonusPercent = 0f;
+            _characterWeaponAttackSpeedBonusPercent = 0f;
+            _characterWeaponRangeBonusPercent = 0f;
+        }
+
+        public void ApplyCharacterWeaponBonuses(
+            WeaponUpgradeId weaponId,
+            float damageBonusPercent,
+            float attackSpeedBonusPercent,
+            float rangeBonusPercent)
+        {
+            _hasCharacterWeaponBonuses = true;
+            _characterBonusWeaponId = weaponId;
+            _characterWeaponDamageBonusPercent = Mathf.Max(0f, damageBonusPercent);
+            _characterWeaponAttackSpeedBonusPercent = attackSpeedBonusPercent;
+            _characterWeaponRangeBonusPercent = rangeBonusPercent;
         }
 
         public void AddRuntimeMaxHealthFlat(float amount)
@@ -150,12 +182,12 @@ namespace EJR.Game.Gameplay
 
         public bool DoesChainAttackIgnoreDecay()
         {
-            return _chainAttackIgnoresDecay;
+            return _chainLightningIgnoresDecay;
         }
 
         public int GetChainAttackBonusJumps()
         {
-            return _chainAttackBonusJumps;
+            return _chainLightningBonusJumps;
         }
 
         public int GetUnlockedWeaponSlots(int playerLevel)
@@ -202,17 +234,35 @@ namespace EJR.Game.Gameplay
 
         public float GetWeaponDamageBonusPercentTotal(WeaponUpgradeId id)
         {
-            return GetWeaponBonuses(id).DamageBonusPercent;
+            var total = GetWeaponBonuses(id).DamageBonusPercent;
+            if (_hasCharacterWeaponBonuses && id == _characterBonusWeaponId)
+            {
+                total += _characterWeaponDamageBonusPercent;
+            }
+
+            return total;
         }
 
         public float GetWeaponAttackSpeedBonusPercentTotal(WeaponUpgradeId id)
         {
-            return GetWeaponBonuses(id).AttackSpeedBonusPercent;
+            var total = GetWeaponBonuses(id).AttackSpeedBonusPercent;
+            if (_hasCharacterWeaponBonuses && id == _characterBonusWeaponId)
+            {
+                total += _characterWeaponAttackSpeedBonusPercent;
+            }
+
+            return total;
         }
 
         public float GetWeaponRangeBonusPercentTotal(WeaponUpgradeId id)
         {
-            return GetWeaponBonuses(id).RangeBonusPercent;
+            var total = GetWeaponBonuses(id).RangeBonusPercent;
+            if (_hasCharacterWeaponBonuses && id == _characterBonusWeaponId)
+            {
+                total += _characterWeaponRangeBonusPercent;
+            }
+
+            return total;
         }
 
         public bool HasWeaponMilestone5(WeaponUpgradeId id)
@@ -247,13 +297,13 @@ namespace EJR.Game.Gameplay
             var milestones = GetWeaponMilestoneCount(id);
             return id switch
             {
-                WeaponUpgradeId.ShortBow => milestones,
-                WeaponUpgradeId.FireCharm => milestones,
+                WeaponUpgradeId.Rifle => milestones,
+                WeaponUpgradeId.Fireball => milestones,
                 WeaponUpgradeId.Bat => milestones,
-                WeaponUpgradeId.Arquebus => milestones * 2,
-                WeaponUpgradeId.Katana => milestones,
-                WeaponUpgradeId.ChainAttack => (milestones * 2) + _chainAttackBonusJumps,
-                WeaponUpgradeId.RifleTurret => milestones,
+                WeaponUpgradeId.Shotgun => milestones * 2,
+                WeaponUpgradeId.Slash => milestones,
+                WeaponUpgradeId.ChainLightning => (milestones * 2) + _chainLightningBonusJumps,
+                WeaponUpgradeId.Turret => milestones,
                 _ => 0,
             };
         }

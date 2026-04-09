@@ -121,7 +121,7 @@ namespace EJR.Game.Gameplay
         private float _nextAutoPlayChoiceAt;
         private AutoPlayAgent _autoPlayAgent;
         private int _selectedSingleCharacterId;
-        private WeaponUpgradeId _selectedSingleStarterWeaponId = WeaponUpgradeId.ShortBow;
+        private WeaponUpgradeId _selectedSingleStarterWeaponId = WeaponUpgradeId.Rifle;
         private int _enemiesDefeated;
         private readonly RunCombatTracker _combatTracker = new();
         private float _lastObservedPlayerMaxHealth = -1f;
@@ -1126,17 +1126,17 @@ namespace EJR.Game.Gameplay
             {
                 var score = options[i].WeaponId switch
                 {
-                    WeaponUpgradeId.ShortBow => 48,
+                    WeaponUpgradeId.Rifle => 48,
                     WeaponUpgradeId.BfSword => 47,
-                    WeaponUpgradeId.FireCharm => 44,
-                    WeaponUpgradeId.Drone => 43,
-                    WeaponUpgradeId.SatelliteBeam => 42,
-                    WeaponUpgradeId.RifleTurret => 41,
-                    WeaponUpgradeId.Arquebus => 40,
+                    WeaponUpgradeId.Fireball => 44,
+                    WeaponUpgradeId.OrbitWeapon => 43,
+                    WeaponUpgradeId.SwingMace => 42,
+                    WeaponUpgradeId.Turret => 41,
+                    WeaponUpgradeId.Shotgun => 40,
                     WeaponUpgradeId.Bat => 39,
                     WeaponUpgradeId.Aura => 38,
-                    WeaponUpgradeId.ChainAttack => 37,
-                    WeaponUpgradeId.Katana => 36,
+                    WeaponUpgradeId.ChainLightning => 37,
+                    WeaponUpgradeId.Slash => 36,
                     _ => 30,
                 };
 
@@ -2138,10 +2138,13 @@ namespace EJR.Game.Gameplay
             }
 
             var passiveId = MetaProgressionService.GetCharacterPassiveId(_selectedSingleCharacterId);
+            var starterWeaponId = MetaProgressionService.GetCharacterStarterWeapon(_selectedSingleCharacterId);
             var currentLevel = _levelUp != null ? Mathf.Max(1, _levelUp.Level) : 1;
             var dynamicBonuses = default(MetaBonusValues);
             var ignoreChainDecay = false;
             var bonusChains = 0;
+            var starterWeaponDamageBonusPercent = 0f;
+            var starterWeaponRangeBonusPercent = 0f;
 
             switch (passiveId)
             {
@@ -2174,11 +2177,25 @@ namespace EJR.Game.Gameplay
                     ignoreChainDecay = true;
                     bonusChains = 2;
                     break;
+                case CharacterPassiveId.StarterWeaponSpecialist:
+                    starterWeaponDamageBonusPercent = 10f;
+                    starterWeaponRangeBonusPercent = 10f;
+                    break;
             }
 
             dynamicBonuses += _buildRuntime.GetLowHealthDynamicBonuses(GetCurrentHealthRatio());
             _buildRuntime.ApplyCharacterDynamicBonuses(dynamicBonuses);
             _buildRuntime.SetChainAttackModifiers(ignoreChainDecay, bonusChains);
+            _buildRuntime.ClearCharacterWeaponBonuses();
+            if (starterWeaponDamageBonusPercent > 0f || starterWeaponRangeBonusPercent > 0f)
+            {
+                _buildRuntime.ApplyCharacterWeaponBonuses(
+                    starterWeaponId,
+                    starterWeaponDamageBonusPercent,
+                    0f,
+                    starterWeaponRangeBonusPercent);
+            }
+
             ApplyBuildToRuntimeSystems();
         }
 

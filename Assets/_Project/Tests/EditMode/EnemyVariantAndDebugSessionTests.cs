@@ -72,7 +72,7 @@ namespace EJR.Game.Tests.EditMode
                     0.3f);
                 enemy.ConfigureVariant(SharedEnemyVariantCatalog.Get(EnemyVariantId.SlimeBomber));
 
-                enemy.ReceiveWeaponDamage(enemy.CurrentHealth + 10f, WeaponUpgradeId.ShortBow);
+                enemy.ReceiveWeaponDamage(enemy.CurrentHealth + 10f, WeaponUpgradeId.Rifle);
 
                 Assert.That(enemy.IsDead, Is.False);
                 Assert.That(enemy.CurrentHealth, Is.EqualTo(1f).Within(0.001f));
@@ -109,8 +109,8 @@ namespace EJR.Game.Tests.EditMode
                     0.3f);
                 enemy.ConfigureVariant(SharedEnemyVariantCatalog.Get(EnemyVariantId.SlimeBomber));
 
-                enemy.ReceiveWeaponDamage(enemy.CurrentHealth + 10f, WeaponUpgradeId.ShortBow);
-                enemy.ReceiveWeaponDamage(999f, WeaponUpgradeId.ShortBow);
+                enemy.ReceiveWeaponDamage(enemy.CurrentHealth + 10f, WeaponUpgradeId.Rifle);
+                enemy.ReceiveWeaponDamage(999f, WeaponUpgradeId.Rifle);
 
                 Assert.That(enemy.IsDead, Is.False);
                 Assert.That(enemy.CurrentHealth, Is.EqualTo(1f).Within(0.001f));

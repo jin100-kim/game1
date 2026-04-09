@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using EJR.Game.Audio;
@@ -557,11 +557,11 @@ namespace EJR.Game.Multiplayer
                 _weaponSystem.Fired -= HandleServerWeaponFired;
                 _weaponSystem.WeaponSoundRequested -= HandleServerWeaponSoundRequested;
                 _weaponSystem.ProjectileVisualRequested -= HandleServerProjectileVisualRequested;
-                _weaponSystem.KatanaSlashFxRequested -= HandleServerKatanaSlashFxRequested;
+                _weaponSystem.SlashFxRequested -= HandleServerSlashFxRequested;
                 _weaponSystem.ChainFxRequested -= HandleServerChainFxRequested;
                 _weaponSystem.AuraPulseFxRequested -= HandleServerAuraPulseFxRequested;
                 _weaponSystem.SatelliteHitFxRequested -= HandleServerSatelliteHitFxRequested;
-                _weaponSystem.SatelliteBeamFxRequested -= HandleServerSatelliteBeamFxRequested;
+                _weaponSystem.SwingMaceFxRequested -= HandleServerSwingMaceFxRequested;
                 _weaponSystem.TurretDeployed -= HandleServerTurretDeployed;
                 _weaponSystem.TurretTracerFxRequested -= HandleServerTurretTracerFxRequested;
             }
@@ -603,7 +603,7 @@ namespace EJR.Game.Multiplayer
 
         private bool IsWeaponUnlockedForThisPlayer(WeaponUpgradeId weaponId)
         {
-            return weaponId != WeaponUpgradeId.Drone;
+            return true;
         }
 
         private bool IsCharacterUnlockedForThisPlayer(int characterId)
@@ -658,22 +658,22 @@ namespace EJR.Game.Multiplayer
             _weaponSystem.Fired -= HandleServerWeaponFired;
             _weaponSystem.WeaponSoundRequested -= HandleServerWeaponSoundRequested;
             _weaponSystem.ProjectileVisualRequested -= HandleServerProjectileVisualRequested;
-            _weaponSystem.KatanaSlashFxRequested -= HandleServerKatanaSlashFxRequested;
+            _weaponSystem.SlashFxRequested -= HandleServerSlashFxRequested;
             _weaponSystem.ChainFxRequested -= HandleServerChainFxRequested;
             _weaponSystem.AuraPulseFxRequested -= HandleServerAuraPulseFxRequested;
             _weaponSystem.SatelliteHitFxRequested -= HandleServerSatelliteHitFxRequested;
-            _weaponSystem.SatelliteBeamFxRequested -= HandleServerSatelliteBeamFxRequested;
+            _weaponSystem.SwingMaceFxRequested -= HandleServerSwingMaceFxRequested;
             _weaponSystem.TurretDeployed -= HandleServerTurretDeployed;
             _weaponSystem.TurretTracerFxRequested -= HandleServerTurretTracerFxRequested;
             _weaponSystem.AimUpdated += HandleServerAimUpdated;
             _weaponSystem.Fired += HandleServerWeaponFired;
             _weaponSystem.WeaponSoundRequested += HandleServerWeaponSoundRequested;
             _weaponSystem.ProjectileVisualRequested += HandleServerProjectileVisualRequested;
-            _weaponSystem.KatanaSlashFxRequested += HandleServerKatanaSlashFxRequested;
+            _weaponSystem.SlashFxRequested += HandleServerSlashFxRequested;
             _weaponSystem.ChainFxRequested += HandleServerChainFxRequested;
             _weaponSystem.AuraPulseFxRequested += HandleServerAuraPulseFxRequested;
             _weaponSystem.SatelliteHitFxRequested += HandleServerSatelliteHitFxRequested;
-            _weaponSystem.SatelliteBeamFxRequested += HandleServerSatelliteBeamFxRequested;
+            _weaponSystem.SwingMaceFxRequested += HandleServerSwingMaceFxRequested;
             _weaponSystem.TurretDeployed += HandleServerTurretDeployed;
             _weaponSystem.TurretTracerFxRequested += HandleServerTurretTracerFxRequested;
         }
@@ -730,10 +730,13 @@ namespace EJR.Game.Multiplayer
             }
 
             var passiveId = MetaProgressionService.GetCharacterPassiveId(_selectedCharacterId.Value);
+            var starterWeaponId = MetaProgressionService.GetCharacterStarterWeapon(_selectedCharacterId.Value);
             var currentLevel = _levelUp != null ? Mathf.Max(1, _levelUp.Level) : 1;
             var dynamicBonuses = default(MetaBonusValues);
             var ignoreChainDecay = false;
             var bonusChains = 0;
+            var starterWeaponDamageBonusPercent = 0f;
+            var starterWeaponRangeBonusPercent = 0f;
 
             switch (passiveId)
             {
@@ -761,11 +764,25 @@ namespace EJR.Game.Multiplayer
                     ignoreChainDecay = true;
                     bonusChains = 2;
                     break;
+                case CharacterPassiveId.StarterWeaponSpecialist:
+                    starterWeaponDamageBonusPercent = 10f;
+                    starterWeaponRangeBonusPercent = 10f;
+                    break;
             }
 
             dynamicBonuses += _buildRuntime.GetLowHealthDynamicBonuses(GetCurrentHealthRatio());
             _buildRuntime.ApplyCharacterDynamicBonuses(dynamicBonuses);
             _buildRuntime.SetChainAttackModifiers(ignoreChainDecay, bonusChains);
+            _buildRuntime.ClearCharacterWeaponBonuses();
+            if (starterWeaponDamageBonusPercent > 0f || starterWeaponRangeBonusPercent > 0f)
+            {
+                _buildRuntime.ApplyCharacterWeaponBonuses(
+                    starterWeaponId,
+                    starterWeaponDamageBonusPercent,
+                    0f,
+                    starterWeaponRangeBonusPercent);
+            }
+
             ApplyBuildToRuntimeSystems();
         }
 
@@ -1283,6 +1300,7 @@ namespace EJR.Game.Multiplayer
 
             var color = request.Color;
             PlayProjectileVisualClientRpc(
+                (int)request.WeaponId,
                 request.SpawnPosition,
                 request.Direction,
                 request.Speed,
@@ -1294,14 +1312,14 @@ namespace EJR.Game.Multiplayer
                 color.a);
         }
 
-        private void HandleServerKatanaSlashFxRequested(Vector2 origin, Vector2 direction, float range, int slashIndex)
+        private void HandleServerSlashFxRequested(Vector2 origin, Vector2 direction, float range, int slashIndex)
         {
             if (!IsServer)
             {
                 return;
             }
 
-            PlayKatanaSlashFxClientRpc(origin, direction, range, slashIndex);
+            PlaySlashFxClientRpc(origin, direction, range, slashIndex);
         }
 
         private void HandleServerChainFxRequested(Vector3[] points)
@@ -1334,14 +1352,14 @@ namespace EJR.Game.Multiplayer
             PlaySatelliteHitFxClientRpc(center, radius);
         }
 
-        private void HandleServerSatelliteBeamFxRequested(Vector3 targetCenter)
+        private void HandleServerSwingMaceFxRequested(Vector3 targetCenter)
         {
             if (!IsServer)
             {
                 return;
             }
 
-            PlaySatelliteBeamFxClientRpc(targetCenter);
+            PlaySwingMaceFxClientRpc(targetCenter);
         }
 
         private void HandleServerTurretDeployed(Vector3 position, float turretRange, float lifetime)
@@ -1557,6 +1575,7 @@ namespace EJR.Game.Multiplayer
 
         [ClientRpc]
         private void PlayProjectileVisualClientRpc(
+            int weaponId,
             Vector3 spawnPosition,
             Vector2 direction,
             float speed,
@@ -1574,6 +1593,7 @@ namespace EJR.Game.Multiplayer
 
             _playerActor ??= GetComponent<MultiplayerPlayerActor>();
             _playerActor?.PlayProjectileVisual(
+                (WeaponUpgradeId)weaponId,
                 spawnPosition,
                 direction,
                 speed,
@@ -1598,7 +1618,7 @@ namespace EJR.Game.Multiplayer
         }
 
         [ClientRpc]
-        private void PlayKatanaSlashFxClientRpc(Vector2 origin, Vector2 direction, float range, int slashIndex)
+        private void PlaySlashFxClientRpc(Vector2 origin, Vector2 direction, float range, int slashIndex)
         {
             if (IsServer)
             {
@@ -1606,7 +1626,7 @@ namespace EJR.Game.Multiplayer
             }
 
             _playerActor ??= GetComponent<MultiplayerPlayerActor>();
-            _playerActor?.PlayKatanaSlashFx(origin, direction, range, slashIndex);
+            _playerActor?.PlaySlashFx(origin, direction, range, slashIndex);
         }
 
         [ClientRpc]
@@ -1646,7 +1666,7 @@ namespace EJR.Game.Multiplayer
         }
 
         [ClientRpc]
-        private void PlaySatelliteBeamFxClientRpc(Vector3 targetCenter)
+        private void PlaySwingMaceFxClientRpc(Vector3 targetCenter)
         {
             if (IsServer)
             {
@@ -1654,7 +1674,7 @@ namespace EJR.Game.Multiplayer
             }
 
             _playerActor ??= GetComponent<MultiplayerPlayerActor>();
-            _playerActor?.PlaySatelliteBeamFx(targetCenter);
+            _playerActor?.PlaySwingMaceFx(targetCenter);
         }
 
         [ClientRpc]
@@ -1699,39 +1719,39 @@ namespace EJR.Game.Multiplayer
                 return 0;
             }
 
-            var droneLevel = buildRuntime.GetWeaponLevel(WeaponUpgradeId.Drone);
+            var droneLevel = buildRuntime.GetWeaponLevel(WeaponUpgradeId.OrbitWeapon);
             if (droneLevel <= 0)
             {
                 return 0;
             }
 
-            var baseCount = _weaponConfig != null ? Mathf.Max(1, _weaponConfig.satelliteBaseCount) : 2;
-            return Mathf.Clamp(baseCount + buildRuntime.GetWeaponExtraCountBonus(WeaponUpgradeId.Drone), 1, 8);
+            var baseCount = _weaponConfig != null ? Mathf.Max(1, _weaponConfig.droneBaseCount) : 2;
+            return Mathf.Clamp(baseCount + buildRuntime.GetWeaponExtraCountBonus(WeaponUpgradeId.OrbitWeapon), 1, 8);
         }
 
         private float GetDroneOrbitRadius(PlayerBuildRuntime buildRuntime, PlayerStatsRuntime stats)
         {
-            if (buildRuntime == null || buildRuntime.GetWeaponLevel(WeaponUpgradeId.Drone) <= 0)
+            if (buildRuntime == null || buildRuntime.GetWeaponLevel(WeaponUpgradeId.OrbitWeapon) <= 0)
             {
                 return 0f;
             }
 
-            var baseRadius = _weaponConfig != null ? Mathf.Max(0.2f, _weaponConfig.satelliteOrbitRadius) : 1.2f;
+            var baseRadius = _weaponConfig != null ? Mathf.Max(0.2f, _weaponConfig.droneOrbitRadius) : 1.2f;
             var attackRangeMultiplier = stats != null ? Mathf.Max(0.1f, stats.AttackRangeMultiplier) : 1f;
-            var weaponRangeMultiplier = 1f + (Mathf.Max(0f, buildRuntime.GetWeaponRangeBonusPercentTotal(WeaponUpgradeId.Drone)) / 100f);
+            var weaponRangeMultiplier = 1f + (Mathf.Max(0f, buildRuntime.GetWeaponRangeBonusPercentTotal(WeaponUpgradeId.OrbitWeapon)) / 100f);
             return baseRadius * weaponRangeMultiplier * attackRangeMultiplier;
         }
 
         private float GetDroneOrbitSpeedDegrees(PlayerBuildRuntime buildRuntime, PlayerStatsRuntime stats)
         {
-            if (buildRuntime == null || buildRuntime.GetWeaponLevel(WeaponUpgradeId.Drone) <= 0)
+            if (buildRuntime == null || buildRuntime.GetWeaponLevel(WeaponUpgradeId.OrbitWeapon) <= 0)
             {
                 return 0f;
             }
 
-            var baseSpeed = _weaponConfig != null ? Mathf.Max(30f, _weaponConfig.satelliteAngularSpeed) : 220f;
+            var baseSpeed = _weaponConfig != null ? Mathf.Max(30f, _weaponConfig.droneAngularSpeed) : 220f;
             var attackSpeedScale = stats != null ? Mathf.Max(0.2f, 1f / stats.AttackIntervalMultiplier) : 1f;
-            var weaponAttackSpeedScale = 1f + (Mathf.Max(0f, buildRuntime.GetWeaponAttackSpeedBonusPercentTotal(WeaponUpgradeId.Drone)) / 100f);
+            var weaponAttackSpeedScale = 1f + (Mathf.Max(0f, buildRuntime.GetWeaponAttackSpeedBonusPercentTotal(WeaponUpgradeId.OrbitWeapon)) / 100f);
             return baseSpeed * weaponAttackSpeedScale * attackSpeedScale;
         }
 

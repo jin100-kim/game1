@@ -9,15 +9,16 @@ namespace EJR.Game.Gameplay
     {
         private static readonly WeaponUpgradeId[] AllWeaponIds =
         {
-            WeaponUpgradeId.ShortBow,
-            WeaponUpgradeId.FireCharm,
+            WeaponUpgradeId.Rifle,
+            WeaponUpgradeId.Fireball,
             WeaponUpgradeId.Bat,
-            WeaponUpgradeId.Arquebus,
-            WeaponUpgradeId.Katana,
+            WeaponUpgradeId.Shotgun,
+            WeaponUpgradeId.Slash,
             WeaponUpgradeId.BfSword,
-            WeaponUpgradeId.ChainAttack,
-            WeaponUpgradeId.SatelliteBeam,
-            WeaponUpgradeId.RifleTurret,
+            WeaponUpgradeId.ChainLightning,
+            WeaponUpgradeId.SwingMace,
+            WeaponUpgradeId.OrbitWeapon,
+            WeaponUpgradeId.Turret,
             WeaponUpgradeId.Aura,
         };
 
@@ -356,16 +357,17 @@ namespace EJR.Game.Gameplay
         {
             return weaponId switch
             {
-                WeaponUpgradeId.ShortBow => WeaponMilestoneKind.ExtraProjectile,
-                WeaponUpgradeId.FireCharm => WeaponMilestoneKind.ExtraProjectile,
+                WeaponUpgradeId.Rifle => WeaponMilestoneKind.ExtraProjectile,
+                WeaponUpgradeId.Fireball => WeaponMilestoneKind.ExtraProjectile,
                 WeaponUpgradeId.Bat => WeaponMilestoneKind.ExtraProjectile,
-                WeaponUpgradeId.Arquebus => WeaponMilestoneKind.ExtraPellets,
-                WeaponUpgradeId.Katana => WeaponMilestoneKind.ExtraSlashes,
+                WeaponUpgradeId.Shotgun => WeaponMilestoneKind.ExtraPellets,
+                WeaponUpgradeId.Slash => WeaponMilestoneKind.ExtraSlashes,
                 WeaponUpgradeId.BfSword when nextLevel == 5 => WeaponMilestoneKind.BfSwordWidth,
                 WeaponUpgradeId.BfSword => WeaponMilestoneKind.BfSwordLength,
-                WeaponUpgradeId.ChainAttack => WeaponMilestoneKind.ExtraChains,
-                WeaponUpgradeId.SatelliteBeam => WeaponMilestoneKind.ExtraSlashes,
-                WeaponUpgradeId.RifleTurret => WeaponMilestoneKind.ExtraTurrets,
+                WeaponUpgradeId.ChainLightning => WeaponMilestoneKind.ExtraChains,
+                WeaponUpgradeId.SwingMace => WeaponMilestoneKind.ExtraSlashes,
+                WeaponUpgradeId.OrbitWeapon => WeaponMilestoneKind.ExtraDrones,
+                WeaponUpgradeId.Turret => WeaponMilestoneKind.ExtraTurrets,
                 WeaponUpgradeId.Aura => WeaponMilestoneKind.AuraRadius,
                 _ => WeaponMilestoneKind.ExtraProjectile,
             };
@@ -375,12 +377,13 @@ namespace EJR.Game.Gameplay
         {
             return weaponId switch
             {
-                WeaponUpgradeId.FireCharm => 1f,
+                WeaponUpgradeId.Fireball => 1f,
                 WeaponUpgradeId.Bat => 1f,
-                WeaponUpgradeId.Arquebus => 2f,
-                WeaponUpgradeId.ChainAttack => 2f,
+                WeaponUpgradeId.Shotgun => 2f,
+                WeaponUpgradeId.ChainLightning => 2f,
                 WeaponUpgradeId.BfSword => 1f,
-                WeaponUpgradeId.SatelliteBeam => 25f,
+                WeaponUpgradeId.SwingMace => 25f,
+                WeaponUpgradeId.OrbitWeapon => 1f,
                 WeaponUpgradeId.Aura => 20f,
                 _ => 1f,
             };
@@ -390,16 +393,16 @@ namespace EJR.Game.Gameplay
         {
             return weaponId switch
             {
-                WeaponUpgradeId.ShortBow => "추가 발사 +1",
-                WeaponUpgradeId.FireCharm => "화부 +1",
+                WeaponUpgradeId.Rifle => "추가 발사 +1",
+                WeaponUpgradeId.Fireball => "화부 +1",
                 WeaponUpgradeId.Bat => "박쥐 수 +1",
-                WeaponUpgradeId.Arquebus => "철포 탄막 +2",
-                WeaponUpgradeId.Katana => "추가 베기 +1",
+                WeaponUpgradeId.Shotgun => "철포 탄막 +2",
+                WeaponUpgradeId.Slash => "추가 베기 +1",
                 WeaponUpgradeId.BfSword when nextLevel == 5 => "검폭 +20%",
                 WeaponUpgradeId.BfSword => "검길이 +25%",
-                WeaponUpgradeId.ChainAttack => "연쇄 수 +2",
-                WeaponUpgradeId.SatelliteBeam => "기절 위력 +25%",
-                WeaponUpgradeId.RifleTurret => "노포 수 +1",
+                WeaponUpgradeId.ChainLightning => "연쇄 수 +2",
+                WeaponUpgradeId.SwingMace => "기절 위력 +25%",
+                WeaponUpgradeId.Turret => "노포 수 +1",
                 WeaponUpgradeId.Aura => "퇴마진 반경 +20%",
                 _ => "특수 강화",
             };

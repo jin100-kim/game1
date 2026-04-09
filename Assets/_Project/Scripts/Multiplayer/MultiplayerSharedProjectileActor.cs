@@ -24,7 +24,7 @@ namespace EJR.Game.Multiplayer
         private float _hitRadius = 0.25f;
         private float _damageFalloffPerHit;
         private int _remainingHits = 1;
-        private WeaponUpgradeId _weaponId = WeaponUpgradeId.ShortBow;
+        private WeaponUpgradeId _weaponId = WeaponUpgradeId.Rifle;
 
         private void Awake()
         {

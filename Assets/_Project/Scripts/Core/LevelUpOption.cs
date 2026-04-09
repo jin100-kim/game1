@@ -2,16 +2,16 @@ namespace EJR.Game.Core
 {
     public enum WeaponUpgradeId
     {
-        ShortBow = 0,
-        FireCharm = 1,
+        Rifle = 0,
+        Fireball = 1,
         Bat = 2,
-        Arquebus = 3,
-        Katana = 4,
+        Shotgun = 3,
+        Slash = 4,
         BfSword = 5,
-        ChainAttack = 6,
-        SatelliteBeam = 7,
-        Drone = 8,
-        RifleTurret = 9,
+        ChainLightning = 6,
+        SwingMace = 7,
+        OrbitWeapon = 8,
+        Turret = 9,
         Aura = 10,
     }
 

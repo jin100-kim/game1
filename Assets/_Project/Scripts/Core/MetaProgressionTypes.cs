@@ -12,6 +12,7 @@ namespace EJR.Game.Core
         TaoistLevelDamage = 4,
         ExorcistLevelRange = 5,
         ThunderMageChainMastery = 6,
+        StarterWeaponSpecialist = 7,
     }
 
     public enum MetaUpgradeId

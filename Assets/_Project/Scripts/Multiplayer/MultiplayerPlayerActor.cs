@@ -29,10 +29,10 @@ namespace EJR.Game.Multiplayer
         [SerializeField] private int weaponFrontSortingOffset = 1;
         [SerializeField] private int weaponBackSortingOffset = -1;
         [SerializeField, Range(0f, 0.2f)] private float weaponLayerSwapDeadZone = 0.02f;
-        [SerializeField, Min(0.01f)] private float katanaSlashFxFps = 18f;
-        [SerializeField, Min(0.05f)] private float katanaSlashFxForwardOffset = 0.72f;
-        [SerializeField] private Vector2 katanaSlashFxLocalOffset = new(-0.22f, -2.0f);
-        [SerializeField, Min(0.05f)] private float katanaSlashFxScale = 6f;
+        [SerializeField, Min(0.01f)] private float slashFxFps = 18f;
+        [SerializeField, Min(0.05f)] private float slashFxForwardOffset = 0.72f;
+        [SerializeField] private Vector2 slashFxLocalOffset = new(-0.22f, -2.0f);
+        [SerializeField, Min(0.05f)] private float slashFxScale = 6f;
         [SerializeField, Min(0.01f)] private float chainFxDuration = 0.25f;
         [SerializeField, Min(0.005f)] private float chainFxWidth = 0.05f;
         [SerializeField] private Color chainFxColor = new(0.45f, 0.85f, 1f, 0.95f);
@@ -49,9 +49,9 @@ namespace EJR.Game.Multiplayer
         [SerializeField, Min(1)] private int satelliteVisualSortOrder = 33;
         [SerializeField, Min(0.1f)] private float turretVisualAnimationFps = 12f;
         [SerializeField, Min(0.05f)] private float turretVisualScale = 3f;
-        [SerializeField, Min(0.1f)] private float satelliteBeamVisualFps = 14f;
-        [SerializeField, Min(0.05f)] private float satelliteBeamVisualScale = 3f;
-        [SerializeField] private float satelliteBeamVisualYOffset = 0f;
+        [SerializeField, Min(0.1f)] private float swingMaceVisualFps = 14f;
+        [SerializeField, Min(0.05f)] private float swingMaceVisualScale = 3f;
+        [SerializeField] private float swingMaceVisualYOffset = 0f;
 
         private const string PlayerVisualObjectName = "Visual";
         private const string WeaponVisualObjectName = "WeaponVisual";
@@ -339,6 +339,7 @@ namespace EJR.Game.Multiplayer
         }
 
         public void PlayProjectileVisual(
+            WeaponUpgradeId weaponId,
             Vector3 spawnPosition,
             Vector2 direction,
             float speed,
@@ -363,7 +364,7 @@ namespace EJR.Game.Multiplayer
             if (renderer != null)
             {
                 renderer.enabled = true;
-                renderer.sprite = RuntimeSpriteFactory.GetSquareSprite();
+                renderer.sprite = GetProjectileVisualSprite(weaponId);
                 renderer.color = color;
                 renderer.sortingLayerID = _spriteRenderer != null ? _spriteRenderer.sortingLayerID : renderer.sortingLayerID;
                 renderer.sortingOrder = 22;
@@ -380,13 +381,23 @@ namespace EJR.Game.Multiplayer
                 1,
                 0f,
                 1f,
-                WeaponUpgradeId.ShortBow,
+                weaponId,
                 ReturnProjectileVisualToPool,
                 useBoundsCulling: true,
                 bounds: arenaBounds);
         }
 
-        public void PlayKatanaSlashFx(Vector2 origin, Vector2 direction, float range, int slashIndex)
+        private static Sprite GetProjectileVisualSprite(WeaponUpgradeId weaponId)
+        {
+            return weaponId switch
+            {
+                WeaponUpgradeId.Rifle => RuntimeSpriteFactory.GetWeaponFire1Sprite(),
+                WeaponUpgradeId.Fireball => RuntimeSpriteFactory.GetFireballProjectileSprite(),
+                _ => RuntimeSpriteFactory.GetSquareSprite(),
+            };
+        }
+
+        public void PlaySlashFx(Vector2 origin, Vector2 direction, float range, int slashIndex)
         {
             if (IsServer)
             {
@@ -401,10 +412,10 @@ namespace EJR.Game.Multiplayer
                 NormalizeDirection(direction, Vector2.right),
                 range,
                 slashIndex,
-                katanaSlashFxForwardOffset,
-                katanaSlashFxLocalOffset,
-                katanaSlashFxScale,
-                katanaSlashFxFps,
+                slashFxForwardOffset,
+                slashFxLocalOffset,
+                slashFxScale,
+                slashFxFps,
                 35);
         }
 
@@ -441,7 +452,7 @@ namespace EJR.Game.Multiplayer
             SpawnRingFx(center, radius, auraFxColor, auraFxWidth, 0.06f, "SatelliteHitFx");
         }
 
-        public void PlaySatelliteBeamFx(Vector3 targetCenter)
+        public void PlaySwingMaceFx(Vector3 targetCenter)
         {
             if (IsServer)
             {
@@ -453,9 +464,9 @@ namespace EJR.Game.Multiplayer
             WeaponFxRenderer.SpawnSatelliteBeamFx(
                 _specialFxRoot,
                 targetCenter,
-                satelliteBeamVisualScale,
-                satelliteBeamVisualYOffset,
-                satelliteBeamVisualFps,
+                swingMaceVisualScale,
+                swingMaceVisualYOffset,
+                swingMaceVisualFps,
                 0.1f,
                 36);
         }
@@ -466,7 +477,7 @@ namespace EJR.Game.Multiplayer
                 null,
                 from,
                 to,
-                satelliteBeamVisualScale,
+                swingMaceVisualScale,
                 chainFxDuration,
                 chainFxColor,
                 chainFxWidth,
@@ -481,7 +492,7 @@ namespace EJR.Game.Multiplayer
                 return;
             }
 
-            var turretObject = new GameObject("RifleTurretRemote");
+            var turretObject = new GameObject("TurretRemote");
             turretObject.transform.SetParent(null, true);
             turretObject.transform.position = new Vector3(position.x, position.y, 0f);
             turretObject.transform.localScale = Vector3.one;
@@ -499,7 +510,7 @@ namespace EJR.Game.Multiplayer
             turretRenderer.sortingOrder = 34;
             visualObject.transform.localScale = Vector3.one * Mathf.Max(0.05f, turretVisualScale);
 
-            var rangeFxObject = new GameObject("RifleTurretRangeFx");
+            var rangeFxObject = new GameObject("TurretRangeFx");
             rangeFxObject.transform.SetParent(turretObject.transform, false);
             rangeFxObject.transform.localPosition = new Vector3(0f, 0f, -0.02f);
             var rangeRenderer = rangeFxObject.AddComponent<LineRenderer>();
