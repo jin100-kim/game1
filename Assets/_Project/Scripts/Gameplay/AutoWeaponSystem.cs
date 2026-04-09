@@ -212,6 +212,7 @@ namespace EJR.Game.Gameplay
         private const float SwingMaceHandleMinorStunDuration = 0.05f;
         private const float SwingMaceLengthRangeBonusShare = 0.7f;
         private const float SwingMaceHeadRangeBonusShare = 0.3f;
+        private const float SwingMaceVisualForwardOffset = 0f;
 
         public event Action<Vector2> AimUpdated;
         public event Action<Vector2> Fired;
@@ -1880,32 +1881,28 @@ namespace EJR.Game.Gameplay
             }
 
             weapon.SwingMaceVisualRoot.gameObject.SetActive(true);
-            weapon.SwingMaceVisualRoot.position = _owner.position;
             var halfArc = Mathf.Max(5f, _config.swingMaceArcAngle) * 0.5f;
             var swingDirection = RotateDirection(weapon.SwingMaceSwingDirection, Mathf.Lerp(-halfArc, halfArc, progress));
-            weapon.SwingMaceVisualRoot.rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(swingDirection.y, swingDirection.x) * Mathf.Rad2Deg - 90f);
+            weapon.SwingMaceVisualRoot.position = _owner.position + new Vector3(swingDirection.x, swingDirection.y, 0f) * SwingMaceVisualForwardOffset;
+            weapon.SwingMaceVisualRoot.rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(swingDirection.y, swingDirection.x) * Mathf.Rad2Deg);
 
             var range = GetSwingMaceLength(weapon);
-            var handle = weapon.SwingMaceVisualRoot.Find("Handle");
             var head = weapon.SwingMaceVisualRoot.Find("Head");
             var headVisualSize = GetSwingMaceVisualHeadSize(weapon);
             var hitRadius = GetSwingMaceHeadHitRadius(weapon);
-            if (handle != null)
-            {
-                handle.localPosition = new Vector3(0f, range * 0.5f, 0f);
-                handle.localScale = new Vector3(Mathf.Max(0.05f, _config.swingMaceVisualHandleWidth), Mathf.Max(0.1f, range), 1f);
-            }
 
             if (head != null)
             {
-                head.localPosition = new Vector3(0f, range, 0f);
-                head.localScale = Vector3.one * headVisualSize;
+                var visualLength = Mathf.Max(0.1f, range + (headVisualSize * 0.45f));
+                var visualWidth = Mathf.Max(0.12f, headVisualSize * 1.15f);
+                head.localPosition = new Vector3(visualLength * 0.5f, 0f, 0f);
+                ApplySwingMaceVisualScale(head, visualLength, visualWidth);
             }
 
-            var headWorldPosition = weapon.SwingMaceVisualRoot.TransformPoint(new Vector3(0f, range, 0f));
+            var headWorldPosition = (Vector2)_owner.position + (swingDirection * range);
             var handleEndDistance = Mathf.Max(0.1f, range - Mathf.Max(headVisualSize, hitRadius));
-            var handleStart = (Vector2)weapon.SwingMaceVisualRoot.position;
-            var handleEnd = (Vector2)weapon.SwingMaceVisualRoot.TransformPoint(new Vector3(0f, handleEndDistance, 0f));
+            var handleStart = (Vector2)_owner.position;
+            var handleEnd = handleStart + (swingDirection * handleEndDistance);
             var handleHitRadius = Mathf.Max(_config.swingMaceVisualHandleWidth * 0.5f, hitRadius * 0.3f);
             var damage = GetWeaponBaseDamage(weapon) * Mathf.Clamp(_config.swingMaceDamageMultiplier, 0.05f, 5f);
             var stunDuration = Mathf.Max(0.05f, _config.swingMaceStunDuration) * (1f + (0.25f * (_build != null ? _build.GetWeaponMilestoneCount(weapon.WeaponId) : 0)));
@@ -1973,22 +1970,41 @@ namespace EJR.Game.Gameplay
             var root = new GameObject("MaceVisual");
             root.transform.SetParent(transform, false);
 
-            var handleObject = new GameObject("Handle");
-            handleObject.transform.SetParent(root.transform, false);
-            var handleRenderer = handleObject.AddComponent<SpriteRenderer>();
-            handleRenderer.sprite = RuntimeSpriteFactory.GetSquareSprite();
-            handleRenderer.color = new Color(0.56f, 0.40f, 0.25f, 1f);
-            handleRenderer.sortingOrder = 34;
-
             var headObject = new GameObject("Head");
             headObject.transform.SetParent(root.transform, false);
             var headRenderer = headObject.AddComponent<SpriteRenderer>();
-            headRenderer.sprite = RuntimeSpriteFactory.GetSquareSprite();
-            headRenderer.color = new Color(0.82f, 0.82f, 0.88f, 1f);
+            var headFrames = RuntimeSpriteFactory.GetSexySatelliteBeamAnimationFrames();
+            headRenderer.sprite = headFrames.Length > 0 ? headFrames[0] : RuntimeSpriteFactory.GetSquareSprite();
+            headRenderer.color = Color.white;
             headRenderer.sortingOrder = 35;
 
             weapon.SwingMaceVisualRoot = root.transform;
             weapon.SwingMaceVisualRoot.gameObject.SetActive(false);
+        }
+
+        private static void ApplySwingMaceVisualScale(Transform visualTransform, float desiredLength, float desiredWidth)
+        {
+            if (visualTransform == null)
+            {
+                return;
+            }
+
+            var renderer = visualTransform.GetComponent<SpriteRenderer>();
+            var sprite = renderer != null ? renderer.sprite : null;
+            if (sprite == null)
+            {
+                visualTransform.localScale = new Vector3(desiredWidth, desiredLength, 1f);
+                return;
+            }
+
+            var ppu = Mathf.Max(0.0001f, sprite.pixelsPerUnit);
+            var spriteWidth = Mathf.Max(0.0001f, sprite.rect.width / ppu);
+            var spriteHeight = Mathf.Max(0.0001f, sprite.rect.height / ppu);
+            var uniformScale = Mathf.Max(
+                0.05f,
+                desiredLength / spriteWidth,
+                desiredWidth / spriteHeight);
+            visualTransform.localScale = new Vector3(uniformScale, uniformScale, 1f);
         }
 
         private void UpdateTurretInstances(WeaponRuntime weapon)
@@ -2634,6 +2650,7 @@ namespace EJR.Game.Gameplay
 
             var spawnPosition = overrideSpawnPosition
                 ?? (_projectileSpawnResolver != null ? _projectileSpawnResolver(normalizedDirection) : _owner.position);
+            var projectileVisualScale = GetProjectileVisualScale(weaponId, _config.projectileVisualScale);
 
             var spawnRequest = new ProjectileSpawnRequest(
                 weaponId,
@@ -2647,7 +2664,7 @@ namespace EJR.Game.Gameplay
                 Mathf.Clamp(minimumDamageMultiplier, 0.05f, 1f),
                 color,
                 spawnPosition,
-                Mathf.Max(0.05f, _config.projectileVisualScale));
+                projectileVisualScale);
 
             if (_projectileSpawnOverride != null && _projectileSpawnOverride.Invoke(spawnRequest))
             {
@@ -2658,16 +2675,15 @@ namespace EJR.Game.Gameplay
 
             var projectile = GetPooledProjectile();
             var projectileTransform = projectile.transform;
-            projectileTransform.SetPositionAndRotation(spawnPosition, Quaternion.identity);
-
-            var visualScale = Mathf.Max(0.05f, _config.projectileVisualScale);
-            projectileTransform.localScale = Vector3.one * visualScale;
+            projectileTransform.SetPositionAndRotation(spawnPosition, GetProjectileVisualRotation(weaponId, normalizedDirection));
+            projectileTransform.localScale = Vector3.one * spawnRequest.VisualScale;
 
             var renderer = projectile.GetComponent<SpriteRenderer>();
             if (renderer != null)
             {
                 renderer.sprite = GetProjectileVisualSprite(weaponId);
-                renderer.color = color;
+                renderer.color = ShouldUseProjectileSourceColor(weaponId) ? Color.white : color;
+                renderer.flipX = GetProjectileVisualFlipX(weaponId, normalizedDirection);
             }
 
             projectile.Initialize(
@@ -2750,6 +2766,63 @@ namespace EJR.Game.Gameplay
                 WeaponUpgradeId.Fireball => RuntimeSpriteFactory.GetFireballProjectileSprite(),
                 _ => RuntimeSpriteFactory.GetSquareSprite(),
             };
+        }
+
+        private static bool ShouldUseProjectileSourceColor(WeaponUpgradeId weaponId)
+        {
+            return weaponId switch
+            {
+                WeaponUpgradeId.Rifle => true,
+                WeaponUpgradeId.Fireball => true,
+                _ => false,
+            };
+        }
+
+        private static float GetProjectileVisualScale(WeaponUpgradeId weaponId, float baseScale)
+        {
+            var visualScale = Mathf.Max(0.05f, baseScale);
+            if (weaponId == WeaponUpgradeId.Fireball || weaponId == WeaponUpgradeId.Rifle)
+            {
+                visualScale *= 4f;
+            }
+
+            return visualScale;
+        }
+
+        private static Quaternion GetProjectileVisualRotation(WeaponUpgradeId weaponId, Vector2 direction)
+        {
+            if (weaponId == WeaponUpgradeId.Rifle)
+            {
+                var normalizedDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : Vector2.right;
+                var directAngle = Mathf.Atan2(normalizedDirection.y, normalizedDirection.x) * Mathf.Rad2Deg;
+                return Quaternion.Euler(0f, 0f, directAngle);
+            }
+
+            if (weaponId != WeaponUpgradeId.Fireball)
+            {
+                return Quaternion.identity;
+            }
+
+            var normalizedFireballDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : Vector2.right;
+            var flipX = normalizedFireballDirection.x < 0f;
+            var signedAngleFromHorizontal = Mathf.Atan2(normalizedFireballDirection.y, Mathf.Abs(normalizedFireballDirection.x)) * Mathf.Rad2Deg;
+            if (flipX)
+            {
+                signedAngleFromHorizontal = -signedAngleFromHorizontal;
+            }
+
+            return Quaternion.Euler(0f, 0f, signedAngleFromHorizontal);
+        }
+
+        private static bool GetProjectileVisualFlipX(WeaponUpgradeId weaponId, Vector2 direction)
+        {
+            if (weaponId != WeaponUpgradeId.Fireball)
+            {
+                return false;
+            }
+
+            var normalizedDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : Vector2.right;
+            return normalizedDirection.x < 0f;
         }
 
         private float GetLightningInterval(WeaponRuntime weapon)

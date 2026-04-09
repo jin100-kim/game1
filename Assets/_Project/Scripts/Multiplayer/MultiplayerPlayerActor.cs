@@ -357,7 +357,8 @@ namespace EJR.Game.Multiplayer
             }
 
             var projectileTransform = projectile.transform;
-            projectileTransform.SetPositionAndRotation(spawnPosition, Quaternion.identity);
+            var normalizedDirection = NormalizeDirection(direction, Vector2.right);
+            projectileTransform.SetPositionAndRotation(spawnPosition, GetProjectileVisualRotation(weaponId, normalizedDirection));
             projectileTransform.localScale = Vector3.one * Mathf.Max(0.05f, visualScale);
 
             var renderer = projectile.GetComponent<SpriteRenderer>();
@@ -365,12 +366,12 @@ namespace EJR.Game.Multiplayer
             {
                 renderer.enabled = true;
                 renderer.sprite = GetProjectileVisualSprite(weaponId);
-                renderer.color = color;
+                renderer.color = ShouldUseProjectileSourceColor(weaponId) ? Color.white : color;
+                renderer.flipX = GetProjectileVisualFlipX(weaponId, normalizedDirection);
                 renderer.sortingLayerID = _spriteRenderer != null ? _spriteRenderer.sortingLayerID : renderer.sortingLayerID;
                 renderer.sortingOrder = 22;
             }
 
-            var normalizedDirection = NormalizeDirection(direction, Vector2.right);
             projectile.Initialize(
                 null,
                 new Vector3(normalizedDirection.x, normalizedDirection.y, 0f),
@@ -395,6 +396,52 @@ namespace EJR.Game.Multiplayer
                 WeaponUpgradeId.Fireball => RuntimeSpriteFactory.GetFireballProjectileSprite(),
                 _ => RuntimeSpriteFactory.GetSquareSprite(),
             };
+        }
+
+        private static bool ShouldUseProjectileSourceColor(WeaponUpgradeId weaponId)
+        {
+            return weaponId switch
+            {
+                WeaponUpgradeId.Rifle => true,
+                WeaponUpgradeId.Fireball => true,
+                _ => false,
+            };
+        }
+
+        private static Quaternion GetProjectileVisualRotation(WeaponUpgradeId weaponId, Vector2 direction)
+        {
+            if (weaponId == WeaponUpgradeId.Rifle)
+            {
+                var rifleDirection = NormalizeDirection(direction, Vector2.right);
+                var directAngle = Mathf.Atan2(rifleDirection.y, rifleDirection.x) * Mathf.Rad2Deg;
+                return Quaternion.Euler(0f, 0f, directAngle);
+            }
+
+            if (weaponId != WeaponUpgradeId.Fireball)
+            {
+                return Quaternion.identity;
+            }
+
+            var normalizedDirection = NormalizeDirection(direction, Vector2.right);
+            var flipX = normalizedDirection.x < 0f;
+            var signedAngleFromHorizontal = Mathf.Atan2(normalizedDirection.y, Mathf.Abs(normalizedDirection.x)) * Mathf.Rad2Deg;
+            if (flipX)
+            {
+                signedAngleFromHorizontal = -signedAngleFromHorizontal;
+            }
+
+            return Quaternion.Euler(0f, 0f, signedAngleFromHorizontal);
+        }
+
+        private static bool GetProjectileVisualFlipX(WeaponUpgradeId weaponId, Vector2 direction)
+        {
+            if (weaponId != WeaponUpgradeId.Fireball)
+            {
+                return false;
+            }
+
+            var normalizedDirection = NormalizeDirection(direction, Vector2.right);
+            return normalizedDirection.x < 0f;
         }
 
         public void PlaySlashFx(Vector2 origin, Vector2 direction, float range, int slashIndex)

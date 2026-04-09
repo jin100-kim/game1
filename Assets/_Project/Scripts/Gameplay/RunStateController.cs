@@ -76,6 +76,7 @@ namespace EJR.Game.Gameplay
         private const string PlayerVisualObjectName = "Visual";
         private const string WeaponVisualObjectName = "WeaponVisual";
         private const float WeaponAimFlipEpsilon = 0.01f;
+        private const float PauseToggleDebounceDuration = 0.15f;
         private PlayerHealth _playerHealth;
         private PlayerStatsRuntime _playerStats;
 
@@ -119,6 +120,7 @@ namespace EJR.Game.Gameplay
         private bool _debugInvincibleEnabled;
         private float _debugPlaySpeedMultiplier = 1f;
         private float _nextAutoPlayChoiceAt;
+        private float _nextPauseToggleAt;
         private AutoPlayAgent _autoPlayAgent;
         private int _selectedSingleCharacterId;
         private WeaponUpgradeId _selectedSingleStarterWeaponId = WeaponUpgradeId.Rifle;
@@ -412,6 +414,11 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
+            if (Time.unscaledTime < _nextPauseToggleAt)
+            {
+                return;
+            }
+
             if (_isPauseMenuOpen)
             {
                 ResumeFromPauseMenu();
@@ -431,6 +438,7 @@ namespace EJR.Game.Gameplay
 
             AudioService.Instance.PlayUi(AudioCueId.UiConfirm);
             _isPauseMenuOpen = true;
+            _nextPauseToggleAt = Time.unscaledTime + PauseToggleDebounceDuration;
             ApplySimulationTimeScale();
             _hud.ShowPauseMenu(ResumeFromPauseMenu, ReturnToLobbyFromPauseMenu);
         }
@@ -444,6 +452,7 @@ namespace EJR.Game.Gameplay
 
             AudioService.Instance.PlayUi(AudioCueId.UiBack);
             _isPauseMenuOpen = false;
+            _nextPauseToggleAt = Time.unscaledTime + PauseToggleDebounceDuration;
             _hud?.HidePauseMenu();
             ApplySimulationTimeScale();
 
@@ -454,6 +463,7 @@ namespace EJR.Game.Gameplay
         {
             AudioService.Instance.PlayUi(AudioCueId.UiBack);
             _isPauseMenuOpen = false;
+            _nextPauseToggleAt = Time.unscaledTime + PauseToggleDebounceDuration;
             _hud?.HidePauseMenu();
             GameplaySpeedService.ApplyMenuTimeState();
             SceneManager.LoadScene(MultiplayerSessionController.TitleSceneName);
