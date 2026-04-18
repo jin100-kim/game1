@@ -596,6 +596,56 @@ namespace McpUnity.Utils
         }
 
         /// <summary>
+        /// Checks if npm is available on the current system.
+        /// </summary>
+        /// <returns>True if npm is available, false otherwise.</returns>
+        public static bool IsNpmAvailable()
+        {
+            try
+            {
+                string npmExecutable = McpUnitySettings.Instance.NpmExecutablePath;
+                bool useCustomNpmPath = !string.IsNullOrWhiteSpace(npmExecutable);
+
+                System.Diagnostics.ProcessStartInfo startInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                if (useCustomNpmPath)
+                {
+                    startInfo.FileName = npmExecutable;
+                    startInfo.Arguments = "--version";
+                }
+                else if (Application.platform == RuntimePlatform.WindowsEditor)
+                {
+                    startInfo.FileName = "cmd.exe";
+                    startInfo.Arguments = "/c npm --version";
+                }
+                else
+                {
+                    // For macOS/Linux, we try to run it via shell to pick up environment variables
+                    string userShell = Environment.GetEnvironmentVariable("SHELL") ?? "/bin/bash";
+                    startInfo.FileName = userShell;
+                    startInfo.Arguments = "-c \"npm --version\"";
+                }
+
+                using (var process = System.Diagnostics.Process.Start(startInfo))
+                {
+                    if (process == null) return false;
+                    process.WaitForExit(2000); // 2 seconds timeout for a simple version check
+                    return process.ExitCode == 0;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Runs an npm command (such as install or build) in the specified working directory.
         /// Handles cross-platform compatibility (Windows/macOS/Linux) for invoking npm.
         /// Logs output and errors to the Unity console.
@@ -604,6 +654,12 @@ namespace McpUnity.Utils
         /// <param name="workingDirectory">The working directory where the npm command should be executed.</param>
         public static void RunNpmCommand(string arguments, string workingDirectory)
         {
+            if (!IsNpmAvailable())
+            {
+                Debug.LogWarning($"[MCP Unity] npm is not available on this system. Cannot run 'npm {arguments}' in {workingDirectory}. Please install Node.js if you want to use MCP tools.");
+                return;
+            }
+
             string npmExecutable = McpUnitySettings.Instance.NpmExecutablePath;
             bool useCustomNpmPath = !string.IsNullOrWhiteSpace(npmExecutable);
 
@@ -671,14 +727,14 @@ namespace McpUnity.Utils
                     }
                     else
                     {
-                        Debug.LogError($"[MCP Unity] npm {arguments} failed in {workingDirectory}. Exit Code: {process.ExitCode}. Error: {error}");
+                        Debug.LogWarning($"[MCP Unity] npm {arguments} failed in {workingDirectory}. Exit Code: {process.ExitCode}. Error: {error}");
                     }
                 }
             }
             catch (Exception ex)
             {
                 // Use commandToLog here
-                Debug.LogError($"[MCP Unity] Exception while running npm {arguments} in {workingDirectory}. Error: {ex.Message}");
+                Debug.LogWarning($"[MCP Unity] Exception while running npm {arguments} in {workingDirectory}. Error: {ex.Message}");
             }
         }
 

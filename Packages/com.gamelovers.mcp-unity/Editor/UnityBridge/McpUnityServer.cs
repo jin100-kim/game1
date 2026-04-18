@@ -1,73 +1,39 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
-using UnityEditor;
-using UnityEngine;
-using McpUnity.Tools;
-using McpUnity.Resources;
-using McpUnity.Services;
-using McpUnity.Utils;
-using WebSocketSharp.Server;
 using System.IO;
 using System.Net.Sockets;
-using UnityEditor.Callbacks;
+using McpUnity.Editor.Services;
+using McpUnity.Editor.Tools;
+using McpUnity.Editor.Resources;
+using McpUnity.Utils;
+using UnityEditor;
+using UnityEngine;
+using WebSocketSharp.Server;
 
 namespace McpUnity.Unity
 {
     /// <summary>
-    /// Custom WebSocket close codes for Unity-specific events.
-    /// Range 4000-4999 is reserved for application use.
+    /// Singleton class that manages the MCP Unity WebSocket server.
+    /// It handles the lifecycle of the server, including starting, stopping, and handling editor events like assembly reloads and play mode changes.
     /// </summary>
-    public static class UnityCloseCode
-    {
-        /// <summary>
-        /// Unity is entering Play mode - clients should use fast polling instead of backoff
-        /// </summary>
-        public const ushort PlayMode = 4001;
-    }
-
-    /// <summary>
-    /// MCP Unity Server to communicate Node.js MCP server.
-    /// Uses WebSockets to communicate with Node.js.
-    /// </summary>
-    [InitializeOnLoad]
     public class McpUnityServer : IDisposable
     {
         private static McpUnityServer _instance;
-
+        private WebSocketServer _webSocketServer;
         private readonly Dictionary<string, McpToolBase> _tools = new Dictionary<string, McpToolBase>();
         private readonly Dictionary<string, McpResourceBase> _resources = new Dictionary<string, McpResourceBase>();
-
-        private WebSocketServer _webSocketServer;
-        private CancellationTokenSource _cts;
+        
+        // Services
         private TestRunnerService _testRunnerService;
         private ConsoleLogsService _consoleLogsService;
-        
+
         /// <summary>
-        /// Called after every domain reload
-        /// </summary>
-        [DidReloadScripts]
-        private static void AfterReload()
-        {
-            // Skip initialization in batch mode (Unity Cloud Build, CI, headless builds)
-            // This prevents npm commands from hanging the build process
-            if (Application.isBatchMode || BuildPipeline.isBuildingPlayer)
-            {
-                return;
-            }
-            
-            // Ensure Instance is created and hooks are set up after initial domain load
-            var currentInstance = Instance;
-        }
-        
-        /// <summary>
-        /// Singleton instance accessor. Returns null in batch mode.
+        /// Singleton instance of the McpUnityServer
         /// </summary>
         public static McpUnityServer Instance
         {
             get
             {
-                // Don't create instance in batch mode to avoid hanging builds
                 if (Application.isBatchMode)
                 {
                     return null;
@@ -287,14 +253,20 @@ namespace McpUnity.Unity
 
             if (string.IsNullOrEmpty(serverPath) || !Directory.Exists(serverPath))
             {
-                McpLogger.LogError($"Server path not found or invalid: {serverPath}. Make sure that MCP Node.js server is installed.");
+                McpLogger.LogInfo("MCP server path not found or invalid. Skipping installation.");
+                return;
+            }
+
+            if (!McpUtils.IsNpmAvailable())
+            {
+                McpLogger.LogInfo("npm is not available. Skipping MCP server installation. This will not affect gameplay.");
                 return;
             }
 
             // Validate server path and warn about potential issues (spaces, special characters)
             if (!McpUtils.ValidateServerPath(serverPath))
             {
-                McpLogger.LogError("Server path validation failed. See previous errors for details.");
+                McpLogger.LogInfo("Server path validation failed. Skipping MCP server installation.");
                 return;
             }
 
@@ -360,17 +332,49 @@ namespace McpUnity.Unity
             DeleteSceneTool deleteSceneTool = new DeleteSceneTool();
             _tools.Add(deleteSceneTool.Name, deleteSceneTool);
 
+            // Register CreateFileTool
+            CreateFileTool createFileTool = new CreateFileTool();
+            _tools.Add(createFileTool.Name, createFileTool);
+
+            // Register ViewFileTool
+            ViewFileTool viewFileTool = new ViewFileTool();
+            _tools.Add(viewFileTool.Name, viewFileTool);
+
+            // Register ListDirectoryTool
+            ListDirectoryTool listDirectoryTool = new ListDirectoryTool();
+            _tools.Add(listDirectoryTool.Name, listDirectoryTool);
+
+            // Register RenameFileTool
+            RenameFileTool renameFileTool = new RenameFileTool();
+            _tools.Add(renameFileTool.Name, renameFileTool);
+
+            // Register DeleteFileTool
+            DeleteFileTool deleteFileTool = new DeleteFileTool();
+            _tools.Add(deleteFileTool.Name, deleteFileTool);
+
+            // Register FindFilesByPatternTool
+            FindFilesByPatternTool findFilesByPatternTool = new FindFilesByPatternTool();
+            _tools.Add(findFilesByPatternTool.Name, findFilesByPatternTool);
+
+            // Register GrepSearchTool
+            GrepSearchTool grepSearchTool = new GrepSearchTool();
+            _tools.Add(grepSearchTool.Name, grepSearchTool);
+
+            // Register GetEditorStateTool
+            GetEditorStateTool getEditorStateTool = new GetEditorStateTool();
+            _tools.Add(getEditorStateTool.Name, getEditorStateTool);
+
+            // Register SetEditorStateTool
+            SetEditorStateTool setEditorStateTool = new SetEditorStateTool();
+            _tools.Add(setEditorStateTool.Name, setEditorStateTool);
+
+            // Register RunCommandTool
+            RunCommandTool runCommandTool = new RunCommandTool();
+            _tools.Add(runCommandTool.Name, runCommandTool);
+
             // Register LoadSceneTool
             LoadSceneTool loadSceneTool = new LoadSceneTool();
             _tools.Add(loadSceneTool.Name, loadSceneTool);
-
-            // Register SaveSceneTool
-            SaveSceneTool saveSceneTool = new SaveSceneTool();
-            _tools.Add(saveSceneTool.Name, saveSceneTool);
-
-            // Register GetSceneInfoTool
-            GetSceneInfoTool getSceneInfoTool = new GetSceneInfoTool();
-            _tools.Add(getSceneInfoTool.Name, getSceneInfoTool);
 
             // Register UnloadSceneTool
             UnloadSceneTool unloadSceneTool = new UnloadSceneTool();
