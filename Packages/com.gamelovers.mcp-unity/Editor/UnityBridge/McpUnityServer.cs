@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
-using McpUnity.Editor.Services;
-using McpUnity.Editor.Tools;
-using McpUnity.Editor.Resources;
+using McpUnity.Services;
+using McpUnity.Tools;
+using McpUnity.Resources;
 using McpUnity.Utils;
 using UnityEditor;
 using UnityEngine;
@@ -26,6 +26,9 @@ namespace McpUnity.Unity
         // Services
         private TestRunnerService _testRunnerService;
         private ConsoleLogsService _consoleLogsService;
+
+        // Custom Close Codes (matching TypeScript server constants)
+        private const ushort CLOSE_CODE_PLAY_MODE = 4001;
 
         /// <summary>
         /// Singleton instance of the McpUnityServer
@@ -300,7 +303,7 @@ namespace McpUnity.Unity
             UpdateGameObjectTool updateGameObjectTool = new UpdateGameObjectTool();
             _tools.Add(updateGameObjectTool.Name, updateGameObjectTool);
             
-            // Register PackageManagerTool
+            // Register PackageManagerTool (AddPackageTool)
             AddPackageTool addPackageTool = new AddPackageTool();
             _tools.Add(addPackageTool.Name, addPackageTool);
             
@@ -332,46 +335,6 @@ namespace McpUnity.Unity
             DeleteSceneTool deleteSceneTool = new DeleteSceneTool();
             _tools.Add(deleteSceneTool.Name, deleteSceneTool);
 
-            // Register CreateFileTool
-            CreateFileTool createFileTool = new CreateFileTool();
-            _tools.Add(createFileTool.Name, createFileTool);
-
-            // Register ViewFileTool
-            ViewFileTool viewFileTool = new ViewFileTool();
-            _tools.Add(viewFileTool.Name, viewFileTool);
-
-            // Register ListDirectoryTool
-            ListDirectoryTool listDirectoryTool = new ListDirectoryTool();
-            _tools.Add(listDirectoryTool.Name, listDirectoryTool);
-
-            // Register RenameFileTool
-            RenameFileTool renameFileTool = new RenameFileTool();
-            _tools.Add(renameFileTool.Name, renameFileTool);
-
-            // Register DeleteFileTool
-            DeleteFileTool deleteFileTool = new DeleteFileTool();
-            _tools.Add(deleteFileTool.Name, deleteFileTool);
-
-            // Register FindFilesByPatternTool
-            FindFilesByPatternTool findFilesByPatternTool = new FindFilesByPatternTool();
-            _tools.Add(findFilesByPatternTool.Name, findFilesByPatternTool);
-
-            // Register GrepSearchTool
-            GrepSearchTool grepSearchTool = new GrepSearchTool();
-            _tools.Add(grepSearchTool.Name, grepSearchTool);
-
-            // Register GetEditorStateTool
-            GetEditorStateTool getEditorStateTool = new GetEditorStateTool();
-            _tools.Add(getEditorStateTool.Name, getEditorStateTool);
-
-            // Register SetEditorStateTool
-            SetEditorStateTool setEditorStateTool = new SetEditorStateTool();
-            _tools.Add(setEditorStateTool.Name, setEditorStateTool);
-
-            // Register RunCommandTool
-            RunCommandTool runCommandTool = new RunCommandTool();
-            _tools.Add(runCommandTool.Name, runCommandTool);
-
             // Register LoadSceneTool
             LoadSceneTool loadSceneTool = new LoadSceneTool();
             _tools.Add(loadSceneTool.Name, loadSceneTool);
@@ -379,6 +342,10 @@ namespace McpUnity.Unity
             // Register UnloadSceneTool
             UnloadSceneTool unloadSceneTool = new UnloadSceneTool();
             _tools.Add(unloadSceneTool.Name, unloadSceneTool);
+
+            // Register SaveSceneTool
+            SaveSceneTool saveSceneTool = new SaveSceneTool();
+            _tools.Add(saveSceneTool.Name, saveSceneTool);
 
             // Register RecompileScriptsTool
             RecompileScriptsTool recompileScriptsTool = new RecompileScriptsTool();
@@ -388,15 +355,17 @@ namespace McpUnity.Unity
             GetGameObjectTool getGameObjectTool = new GetGameObjectTool();
             _tools.Add(getGameObjectTool.Name, getGameObjectTool);
 
-            // Register DuplicateGameObjectTool
+            // Register GetSceneInfoTool
+            GetSceneInfoTool getSceneInfoTool = new GetSceneInfoTool();
+            _tools.Add(getSceneInfoTool.Name, getSceneInfoTool);
+
+            // Register GameObjectTools
             DuplicateGameObjectTool duplicateGameObjectTool = new DuplicateGameObjectTool();
             _tools.Add(duplicateGameObjectTool.Name, duplicateGameObjectTool);
 
-            // Register DeleteGameObjectTool
             DeleteGameObjectTool deleteGameObjectTool = new DeleteGameObjectTool();
             _tools.Add(deleteGameObjectTool.Name, deleteGameObjectTool);
 
-            // Register ReparentGameObjectTool
             ReparentGameObjectTool reparentGameObjectTool = new ReparentGameObjectTool();
             _tools.Add(reparentGameObjectTool.Name, reparentGameObjectTool);
 
@@ -532,7 +501,7 @@ namespace McpUnity.Unity
                     // About to enter Play Mode - use custom close code so clients use fast polling
                     if (_instance.IsListening)
                     {
-                        _instance.StopServer(UnityCloseCode.PlayMode, "Unity entering Play mode");
+                        _instance.StopServer(CLOSE_CODE_PLAY_MODE, "Unity entering Play mode");
                     }
                     break;
                 case PlayModeStateChange.EnteredPlayMode:
