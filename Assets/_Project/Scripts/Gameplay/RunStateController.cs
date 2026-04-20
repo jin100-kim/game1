@@ -183,6 +183,7 @@ namespace EJR.Game.Gameplay
             if (!_isGameOver && IsAnyChoiceAwaiting() && _currentOptions != null)
             {
                 TryHandleAutoPlayChoice();
+                if (_currentOptions == null) return;
 
                 var maxOptions = Mathf.Min(_currentOptions.Length, 10);
                 for (var optionIndex = 0; optionIndex < maxOptions; optionIndex++)

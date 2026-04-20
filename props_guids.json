@@ -1,0 +1,194 @@
+[
+    {
+        "GUID":  "f8c3ce47b9fc4491af0e8ae45356e0ba",
+        "Name":  "TX Props Chest"
+    },
+    {
+        "GUID":  "1605f0d3f514420a89fcbd39d7078283",
+        "Name":  "TX Props Crate"
+    },
+    {
+        "GUID":  "d9a8085a53444cd9838c1c1e18ac208e",
+        "Name":  "TX Props Cube"
+    },
+    {
+        "GUID":  "79803165cdf2441c9f51e5cc6d618480",
+        "Name":  "TX Props Crate Small"
+    },
+    {
+        "GUID":  "bea33185670e410f9c234427b14b171b",
+        "Name":  "TX Props Chest Opened"
+    },
+    {
+        "GUID":  "455d929f5cba44cc90efee773d2d76a4",
+        "Name":  "TX Props Rune Pillar X2"
+    },
+    {
+        "GUID":  "062817c12f044eae9b883b25c3525a23",
+        "Name":  "TX Props Rune Pillar X2 Glow"
+    },
+    {
+        "GUID":  "1b92b4528f8e436988e2516264516800",
+        "Name":  "TX Props Rune Pillar X3"
+    },
+    {
+        "GUID":  "54e8326214f34b289c2cb03cfee2c330",
+        "Name":  "TX Props Rune Pillar Broken"
+    },
+    {
+        "GUID":  "ab6c4fb8765c4313b27b6cc741a7ff39",
+        "Name":  "TX Props Rune Pillar X3 Glow"
+    },
+    {
+        "GUID":  "0288d300b2cf44079cffa978f679dc51",
+        "Name":  "TX Props Rune Pillar Broken Glow"
+    },
+    {
+        "GUID":  "c9dc1aa1186c4bcf8df7e004955b2e7a",
+        "Name":  "TX Props Barrel"
+    },
+    {
+        "GUID":  "be47366a6af04d70a88f6274d675fd4f",
+        "Name":  "TX Props Gravestone A"
+    },
+    {
+        "GUID":  "7c24cc69590f4720be5a91e04fbdea14",
+        "Name":  "TX Props Gravestone B"
+    },
+    {
+        "GUID":  "1346f7bf3d034cfabbf1304498328e58",
+        "Name":  "TX Props Gravestone C"
+    },
+    {
+        "GUID":  "cc37e93950c34d708598160e014d1580",
+        "Name":  "TX Props Stone Coffin V"
+    },
+    {
+        "GUID":  "8e82c62af76a4d2aa84e0e3d3794b22b",
+        "Name":  "TX Props Stone Coffin H"
+    },
+    {
+        "GUID":  "606ae88d96eb498aab8ba20776719ddb",
+        "Name":  "TX Props Road Sign E"
+    },
+    {
+        "GUID":  "a053d6dfebfe4b1ca686512cf3c64ddd",
+        "Name":  "TX Props Road Sign W"
+    },
+    {
+        "GUID":  "251b33a1b9764cfba7ad607c28da8d8f",
+        "Name":  "TX Props Pot A"
+    },
+    {
+        "GUID":  "8e2a4418936541f3b8e0405882c1c0eb",
+        "Name":  "TX Props Pot B"
+    },
+    {
+        "GUID":  "da18ea7225de4c0b92b2cab44bf2efde",
+        "Name":  "TX Props Pot C"
+    },
+    {
+        "GUID":  "a5ea06002250415b9fbacc8630240fe8",
+        "Name":  "TX Props Stone Bench S"
+    },
+    {
+        "GUID":  "6ea867ce50b54c0fbbaffb20e97c93cc",
+        "Name":  "TX Props Stone Bench W"
+    },
+    {
+        "GUID":  "f065681eaf68487cb61f17c057d8e1d4",
+        "Name":  "TX Props Stone Bench E"
+    },
+    {
+        "GUID":  "abc09b065d9349b9adcc551d2652eeb8",
+        "Name":  "TX Props - Stone 01"
+    },
+    {
+        "GUID":  "bdcceb8d3bae4f2180b9f6a1275f9d91",
+        "Name":  "TX Props - Stone 02"
+    },
+    {
+        "GUID":  "12d8acf4d1e84d72b5ed4d549f2e5601",
+        "Name":  "TX Props - Stone 03"
+    },
+    {
+        "GUID":  "aef491b65d7742c3b8d510d82a684e60",
+        "Name":  "TX Props - Stone 04"
+    },
+    {
+        "GUID":  "4194a9ced24644bdbe837e9e1ad1a3f0",
+        "Name":  "TX Props - Stone 05"
+    },
+    {
+        "GUID":  "beddbd54da5b4c81ba00278d95067fa7",
+        "Name":  "TX Props - Stone 06"
+    },
+    {
+        "GUID":  "7b4b2427a408428f925a032f4e7ece36",
+        "Name":  "TX Props Statue"
+    },
+    {
+        "GUID":  "6caaa78c581243efb915e53f9754b815",
+        "Name":  "TX Props Stone Lantern"
+    },
+    {
+        "GUID":  "43d0035c38f141d5bef7d98a095136e4",
+        "Name":  "TX Props Pillar"
+    },
+    {
+        "GUID":  "ce31512bf06e4c81862da2164847d08b",
+        "Name":  "TX Props Pillar Broken"
+    },
+    {
+        "GUID":  "b7e6820ad9294d0192cb4ed9bbaed46f",
+        "Name":  "TX Props Stone Cube"
+    },
+    {
+        "GUID":  "ce2f60031a404a3daba9b2b76d4af573",
+        "Name":  "TX Props Altar"
+    },
+    {
+        "GUID":  "c8658ecf820540138242c3ccf690f6a4",
+        "Name":  "TX Props Altar Rune 1"
+    },
+    {
+        "GUID":  "7bccbb491ea144b1a4a811e689d8dd2e",
+        "Name":  "TX Props Altar Rune 2"
+    },
+    {
+        "GUID":  "d9aaaf7ebff74390a4f00b75eb5f4522",
+        "Name":  "TX Props Altar Rune 3"
+    },
+    {
+        "GUID":  "ac0e74f8961d45aa82372489221b6465",
+        "Name":  "TX Props Altar Rune 4"
+    },
+    {
+        "GUID":  "68ffb06ac8284db6ad23c81e6aa8f90f",
+        "Name":  "TX Props - Brick 01"
+    },
+    {
+        "GUID":  "cf32a761eeb24c42b4be1f0567e208dc",
+        "Name":  "TX Props - Brick 02"
+    },
+    {
+        "GUID":  "d9a5cd50cf9248a2806fafa7b87154fb",
+        "Name":  "TX Props - Brick 03"
+    },
+    {
+        "GUID":  "143efc1c230d44efa871378d92f61416",
+        "Name":  "TX Props Wooden Gate"
+    },
+    {
+        "GUID":  "ee35bd5e941645c28484b2cb98d096f7",
+        "Name":  "TX Props Wooden Gate Opened"
+    },
+    {
+        "GUID":  "68ce20692990470180e6fea311faf5c9",
+        "Name":  "TX Props Stone T7"
+    },
+    {
+        "GUID":  "7cae9e7904cf497e8e8556ccb10ef8ac",
+        "Name":  "TX Props Well"
+    }
+]
