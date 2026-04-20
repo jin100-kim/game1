@@ -14,6 +14,7 @@ namespace EJR.Game.Gameplay
 {
     public sealed class RunStateController : MonoBehaviour
     {
+        [SerializeField] private bool useProceduralArena = true;
         private enum PendingChoiceContext
         {
             None = 0,
@@ -378,6 +379,11 @@ namespace EJR.Game.Gameplay
 
         private void ApplyArenaPresentation()
         {
+            if (!useProceduralArena)
+            {
+                return;
+            }
+
             var mapDefinition = _currentMapDefinition ?? SharedRunCatalog.GetMap(SharedRunCatalog.DefaultMapId);
             ArenaVisualPresenter.Apply(arenaBounds, mapDefinition.CameraBackgroundColor, mapDefinition.BoundaryColor, Camera.main);
         }
