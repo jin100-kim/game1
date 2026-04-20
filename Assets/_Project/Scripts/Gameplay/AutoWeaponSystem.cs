@@ -1787,8 +1787,8 @@ namespace EJR.Game.Gameplay
                 firstTarget ??= target;
                 DealDirectWeaponDamage(target, damage, weapon.WeaponId);
                 var targetCenter = ResolveTargetCenter(target);
-                SpawnSwingMaceSpriteFx(targetCenter);
-                SwingMaceFxRequested?.Invoke(targetCenter);
+                // Trigger proper lightning visual instead of mace
+                AuraPulseFxRequested?.Invoke(targetCenter, 0.5f); 
             }
 
             if (firstTarget == null)
@@ -1959,7 +1959,7 @@ namespace EJR.Game.Gameplay
             var headObject = new GameObject("Head");
             headObject.transform.SetParent(root.transform, false);
             var headRenderer = headObject.AddComponent<SpriteRenderer>();
-            var headFrames = RuntimeSpriteFactory.GetSexySatelliteBeamAnimationFrames();
+            var headFrames = RuntimeSpriteFactory.GetSexyMaceAnimationFrames();
             headRenderer.sprite = headFrames.Length > 0 ? headFrames[0] : RuntimeSpriteFactory.GetSquareSprite();
             headRenderer.color = Color.white;
             headRenderer.sortingOrder = 35;
@@ -2792,7 +2792,7 @@ namespace EJR.Game.Gameplay
                 null,
                 from,
                 to,
-                swingMaceVisualScale,
+                1.0f,
                 chainFxDuration,
                 chainFxColor,
                 chainFxWidth,
