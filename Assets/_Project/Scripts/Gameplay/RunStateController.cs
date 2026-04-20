@@ -375,6 +375,19 @@ namespace EJR.Game.Gameplay
                 _currentMapDefinition.Id,
                 _currentDifficultyDefinition.Id);
             arenaBounds = _currentMapDefinition.ArenaBounds;
+
+            // Try to find all Tilemaps in the scene to calculate combined bounds
+            var allTilemaps = GameObject.FindObjectsOfType<UnityEngine.Tilemaps.Tilemap>();
+            if (allTilemaps != null && allTilemaps.Length > 0)
+            {
+                Bounds combinedBounds = allTilemaps[0].localBounds;
+                for (int i = 1; i < allTilemaps.Length; i++)
+                {
+                    combinedBounds.Encapsulate(allTilemaps[i].localBounds);
+                }
+                arenaBounds = new Rect(combinedBounds.min.x, combinedBounds.min.y, combinedBounds.size.x, combinedBounds.size.y);
+            }
+
             ApplyArenaPresentation();
         }
 

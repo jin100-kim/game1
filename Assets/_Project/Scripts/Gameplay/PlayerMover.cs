@@ -88,6 +88,28 @@ namespace EJR.Game.Gameplay
             }
         }
 
+        private UnityEngine.Tilemaps.Tilemap _groundTilemap;
+
+        private void Start()
+        {
+            // Try to find the ground tilemap in the scene
+            if (_groundTilemap == null)
+            {
+                var allTilemaps = GameObject.FindObjectsOfType<UnityEngine.Tilemaps.Tilemap>();
+                foreach (var tm in allTilemaps)
+                {
+                    if (tm.name.Contains("Ground") || tm.name.Contains("Floor") || tm.name.Contains("Grass"))
+                    {
+                        _groundTilemap = tm;
+                        break;
+                    }
+                }
+                
+                // Fallback to any tilemap if named ones not found
+                if (_groundTilemap == null && allTilemaps.Length > 0) _groundTilemap = allTilemaps[0];
+            }
+        }
+
         private void Update()
         {
             if (_stats != null)
@@ -123,8 +145,28 @@ namespace EJR.Game.Gameplay
                 + ((Vector3)externalVelocity * Time.deltaTime);
             var next = previous + delta;
 
-            if (clampToBounds)
+            // --- TILE-BASED MOVEMENT RESTRICTION ---
+            if (_groundTilemap != null)
             {
+                Vector3Int cellPos = _groundTilemap.WorldToCell(next);
+                // If there's no tile at the next position, stick to the current position
+                if (!_groundTilemap.HasTile(cellPos))
+                {
+                    // Try to at least allow moving in one axis (sliding)
+                    Vector3 nextX = previous + new Vector3(delta.x, 0, 0);
+                    Vector3 nextY = previous + new Vector3(0, delta.y, 0);
+                    
+                    bool canMoveX = _groundTilemap.HasTile(_groundTilemap.WorldToCell(nextX));
+                    bool canMoveY = _groundTilemap.HasTile(_groundTilemap.WorldToCell(nextY));
+
+                    if (canMoveX) next = nextX;
+                    else if (canMoveY) next = nextY;
+                    else next = previous;
+                }
+            }
+            else if (clampToBounds)
+            {
+                // Fallback to rectangle bounds if no tilemap is found
                 next.x = Mathf.Clamp(next.x, movementBounds.xMin, movementBounds.xMax);
                 next.y = Mathf.Clamp(next.y, movementBounds.yMin, movementBounds.yMax);
             }
