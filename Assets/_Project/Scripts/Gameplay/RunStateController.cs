@@ -53,6 +53,10 @@ namespace EJR.Game.Gameplay
 
         [SerializeField, Min(0.02f)] private float hudRefreshInterval = 0.1f;
 
+        [Header("Maps")]
+        [SerializeField] private GameObject[] mapPrefabs;
+        private GameObject _instantiatedMap;
+
         [Header("Debug Hotkeys")]
         [SerializeField] private bool enableDebugTimeSkip = true;
         [SerializeField, Min(1)] private int debugGrantLevelsPerPress = 1;
@@ -374,6 +378,45 @@ namespace EJR.Game.Gameplay
                 enemyConfig,
                 _currentMapDefinition.Id,
                 _currentDifficultyDefinition.Id);
+            
+            // --- EXPLICIT MAP MAPPING (Forest=1, Desert=2, Snow=3) ---
+            if (_instantiatedMap != null) Destroy(_instantiatedMap);
+            
+            // Clean up ANY existing map objects in the scene to avoid overlap
+            var existingGrids = GameObject.FindObjectsOfType<Grid>();
+            foreach (var grid in existingGrids)
+            {
+                // Don't destroy the player if they have a grid (unlikely, but safe)
+                if (grid.gameObject.GetComponent<PlayerMover>() == null)
+                {
+                    Destroy(grid.gameObject);
+                }
+            }
+
+            string mapId = _currentMapDefinition.Id;
+            string prefabName = "";
+
+            if (mapId == "forest") prefabName = "Map1";
+            else if (mapId == "desert") prefabName = "Map2";
+            else if (mapId == "snow") prefabName = "Map3";
+
+            if (!string.IsNullOrEmpty(prefabName))
+            {
+#if UNITY_EDITOR
+                string path = "Assets/_Project/Prefabs/Maps/" + prefabName + ".prefab";
+                GameObject prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                if (prefab != null)
+                {
+                    _instantiatedMap = Instantiate(prefab);
+                    _instantiatedMap.name = "CurrentMap_" + prefabName;
+                }
+                else
+                {
+                    Debug.LogError($"Could not find map prefab at {path}");
+                }
+#endif
+            }
+
             arenaBounds = _currentMapDefinition.ArenaBounds;
 
             // Try to find all Tilemaps in the scene to calculate combined bounds

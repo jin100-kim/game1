@@ -89,25 +89,27 @@ namespace EJR.Game.Gameplay
         }
 
         private UnityEngine.Tilemaps.Tilemap _groundTilemap;
+        private UnityEngine.Tilemaps.Tilemap _wallTilemap;
 
         private void Start()
         {
-            // Try to find the ground tilemap in the scene
-            if (_groundTilemap == null)
+            // Try to find the ground and wall tilemaps in the scene
+            var allTilemaps = GameObject.FindObjectsOfType<UnityEngine.Tilemaps.Tilemap>();
+            foreach (var tm in allTilemaps)
             {
-                var allTilemaps = GameObject.FindObjectsOfType<UnityEngine.Tilemaps.Tilemap>();
-                foreach (var tm in allTilemaps)
+                string lowerName = tm.name.ToLower();
+                if (lowerName.Contains("ground") || lowerName.Contains("floor") || lowerName.Contains("grass"))
                 {
-                    if (tm.name.Contains("Ground") || tm.name.Contains("Floor") || tm.name.Contains("Grass"))
-                    {
-                        _groundTilemap = tm;
-                        break;
-                    }
+                    _groundTilemap = tm;
                 }
-                
-                // Fallback to any tilemap if named ones not found
-                if (_groundTilemap == null && allTilemaps.Length > 0) _groundTilemap = allTilemaps[0];
+                else if (lowerName.Contains("wall") || lowerName.Contains("object") || lowerName.Contains("obstacle"))
+                {
+                    _wallTilemap = tm;
+                }
             }
+            
+            // Fallback for ground if not found by name
+            if (_groundTilemap == null && allTilemaps.Length > 0) _groundTilemap = allTilemaps[0];
         }
 
         private void Update()
@@ -149,15 +151,22 @@ namespace EJR.Game.Gameplay
             if (_groundTilemap != null)
             {
                 Vector3Int cellPos = _groundTilemap.WorldToCell(next);
-                // If there's no tile at the next position, stick to the current position
-                if (!_groundTilemap.HasTile(cellPos))
+                
+                // 1. MUST have a ground tile
+                bool hasGround = _groundTilemap.HasTile(cellPos);
+                // 2. MUST NOT have a wall tile
+                bool hasWall = _wallTilemap != null && _wallTilemap.HasTile(_wallTilemap.WorldToCell(next));
+
+                if (!hasGround || hasWall)
                 {
                     // Try to at least allow moving in one axis (sliding)
                     Vector3 nextX = previous + new Vector3(delta.x, 0, 0);
                     Vector3 nextY = previous + new Vector3(0, delta.y, 0);
                     
-                    bool canMoveX = _groundTilemap.HasTile(_groundTilemap.WorldToCell(nextX));
-                    bool canMoveY = _groundTilemap.HasTile(_groundTilemap.WorldToCell(nextY));
+                    bool canMoveX = _groundTilemap.HasTile(_groundTilemap.WorldToCell(nextX)) && 
+                                   (_wallTilemap == null || !_wallTilemap.HasTile(_wallTilemap.WorldToCell(nextX)));
+                    bool canMoveY = _groundTilemap.HasTile(_groundTilemap.WorldToCell(nextY)) && 
+                                   (_wallTilemap == null || !_wallTilemap.HasTile(_wallTilemap.WorldToCell(nextY)));
 
                     if (canMoveX) next = nextX;
                     else if (canMoveY) next = nextY;
