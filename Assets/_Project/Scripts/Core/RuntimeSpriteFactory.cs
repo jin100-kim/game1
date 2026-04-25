@@ -85,9 +85,12 @@ namespace EJR.Game.Core
         private static readonly VisualAssetDescriptor SexyTurretDescriptor = new(
             "Aseprite/sexyTurret",
             "Assets/Resources/Aseprite/sexyTurret.aseprite");
-        private static readonly VisualAssetDescriptor SexySatelliteBeamDescriptor = new(
+        private static readonly VisualAssetDescriptor SexyMaceDescriptor = new(
             "Aseprite/fyeongon",
             "Assets/Resources/Aseprite/fyeongon.aseprite");
+        private static readonly VisualAssetDescriptor SexySatelliteBeamDescriptor = new(
+            "Aseprite/sexySatelliteBeam",
+            "Assets/Resources/Aseprite/sexySatelliteBeam.aseprite");
 
         private static readonly Dictionary<EnemyVisualKind, Sprite[]> EnemyFramesByKind = new();
         private static Sprite[] _playerFrames;
@@ -102,6 +105,7 @@ namespace EJR.Game.Core
         private static Sprite[] _sexyFireBoomFrames;
         private static Sprite[] _sexyDroneFrames;
         private static Sprite[] _sexyTurretFrames;
+        private static Sprite[] _sexyMaceFrames;
         private static Sprite[] _sexySatelliteBeamFrames;
         private static Sprite[] _sexySatelliteBeamCoreFrames;
 
@@ -299,6 +303,43 @@ namespace EJR.Game.Core
             return _sexyBfSwordFrames;
         }
 
+
+        public static Sprite[] GetSexySatelliteBeamCoreAnimationFrames()
+        {
+            if (_sexySatelliteBeamCoreFrames != null && _sexySatelliteBeamCoreFrames.Length > 0)
+            {
+                return _sexySatelliteBeamCoreFrames;
+            }
+
+            var beamFrames = GetSexySatelliteBeamAnimationFrames();
+            _sexySatelliteBeamCoreFrames = SliceFramesInclusive(
+                beamFrames,
+                SexySatelliteBeamCoreStartFrame,
+                SexySatelliteBeamCoreEndFrame);
+            return _sexySatelliteBeamCoreFrames;
+        }
+
+        public static Sprite[] GetSexyMaceAnimationFrames()
+        {
+            if (_sexyMaceFrames != null && _sexyMaceFrames.Length > 0)
+            {
+                return _sexyMaceFrames;
+            }
+
+            var sourceFrames = LoadSourceFrames(SexyMaceDescriptor.ResourcePath, SexyMaceDescriptor.AssetPath);
+            if (sourceFrames.Length <= 0)
+            {
+                _sexyMaceFrames = Array.Empty<Sprite>();
+                return _sexyMaceFrames;
+            }
+
+            _sexyMaceFrames = CreateFixedCanvasCenteredSprites(
+                sourceFrames,
+                WeaponFrameCanvasSize,
+                WeaponFrameCanvasSize);
+            return _sexyMaceFrames;
+        }
+
         public static Sprite[] GetSexyFireAnimationFrames()
         {
             if (_sexyFireFrames != null && _sexyFireFrames.Length > 0)
@@ -397,20 +438,6 @@ namespace EJR.Game.Core
             return _sexySatelliteBeamFrames;
         }
 
-        public static Sprite[] GetSexySatelliteBeamCoreAnimationFrames()
-        {
-            if (_sexySatelliteBeamCoreFrames != null && _sexySatelliteBeamCoreFrames.Length > 0)
-            {
-                return _sexySatelliteBeamCoreFrames;
-            }
-
-            var beamFrames = GetSexySatelliteBeamAnimationFrames();
-            _sexySatelliteBeamCoreFrames = SliceFramesInclusive(
-                beamFrames,
-                SexySatelliteBeamCoreStartFrame,
-                SexySatelliteBeamCoreEndFrame);
-            return _sexySatelliteBeamCoreFrames;
-        }
 
         public static Sprite GetEnemySprite(EnemyVisualKind kind)
         {
