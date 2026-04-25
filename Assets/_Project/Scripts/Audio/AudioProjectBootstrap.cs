@@ -74,12 +74,12 @@ namespace EJR.Game.Audio
                 return existingMixer;
             }
 
-            TryCreateMixerViaMenu();
+            TryCreateMixerViaReflection();
 
             var mixer = AssetDatabase.LoadAssetAtPath<AudioMixer>(MixerAssetPath);
             if (mixer == null)
             {
-                TryCreateMixerViaReflection();
+                TryCreateMixerViaMenu();
                 mixer = AssetDatabase.LoadAssetAtPath<AudioMixer>(MixerAssetPath);
             }
 

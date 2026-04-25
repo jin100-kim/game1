@@ -64,7 +64,6 @@ namespace EJR.Game.Gameplay
 
             if (_loadout.Count <= 0)
             {
-                SetPersistentAuraVisible(false);
                 return;
             }
 
@@ -75,15 +74,11 @@ namespace EJR.Game.Gameplay
                 var weapon = _loadout[i];
                 UpdateWeapon(weapon);
             }
-
-            UpdatePersistentAuraVisual();
         }
 
         private void OnDisable()
         {
             CleanupLoadoutRuntimeState();
-            ClearTurrets();
-            SetPersistentAuraVisible(false);
             _batOverflowMaxHealthProgress = 0f;
             _nextLifestealAt = -999f;
         }
@@ -96,134 +91,20 @@ namespace EJR.Game.Gameplay
             }
 
             weapon.Cooldown -= Time.deltaTime;
-
-            switch (weapon.WeaponId)
+            weapon.Strategy?.Update(weapon, this);
+            
+            if (weapon.Cooldown <= 0f)
             {
-                case WeaponUpgradeId.Bat:
-                    UpdateBatWeapon(weapon);
-                    return;
-                case WeaponUpgradeId.BfSword:
-                    UpdateBfSword(weapon);
-                    return;
-                case WeaponUpgradeId.SwingMace:
-                    UpdateSwingMace(weapon);
-                    return;
-                case WeaponUpgradeId.OrbitWeapon:
-                    UpdateSatellite(weapon);
-                    return;
-                case WeaponUpgradeId.Turret:
-                    UpdateTurret(weapon);
-                    return;
-                case WeaponUpgradeId.Aura:
-                    UpdateAura(weapon);
-                    return;
-            }
-
-            if (weapon.WeaponId == WeaponUpgradeId.Fireball && weapon.BurstShotsRemaining > 0)
-            {
-                weapon.BurstShotCooldown -= Time.deltaTime;
-                if (weapon.BurstShotCooldown <= 0f)
-                {
-                    if (TryResolveFireDirection(weapon, out var burstDirection))
-                    {
-                        FireFireballBurstShot(weapon, burstDirection);
-                    }
-
-                    weapon.BurstShotsRemaining--;
-                    weapon.BurstShotCooldown = Mathf.Max(0.01f, Mathf.Max(0.01f, _config.fireballBurstShotInterval) * GetCombinedAttackIntervalMultiplier(weapon));
-                    if (weapon.BurstShotsRemaining <= 0)
-                    {
-                        weapon.Cooldown = GetAttackInterval(weapon);
-                    }
-                }
-
-                return;
-            }
-
-            if (weapon.WeaponId == WeaponUpgradeId.Rifle && weapon.BurstShotsRemaining > 0)
-            {
-                weapon.BurstShotCooldown -= Time.deltaTime;
-                if (weapon.BurstShotCooldown <= 0f)
-                {
-                    FireRifleBurstShot(weapon);
-                    weapon.BurstShotsRemaining--;
-                    if (weapon.BurstShotsRemaining <= 0)
-                    {
-                        weapon.BurstTotalShots = 0;
-                        weapon.Cooldown = GetAttackInterval(weapon);
-                    }
-                    else
-                    {
-                        weapon.BurstShotCooldown = Mathf.Max(
-                            0.01f,
-                            GetRifleBurstShotInterval() * GetCombinedAttackIntervalMultiplier(weapon));
-                    }
-                }
-
-                return;
-            }
-
-            if (weapon.WeaponId == WeaponUpgradeId.Slash && weapon.BurstShotsRemaining > 0)
-            {
-                weapon.BurstShotCooldown -= Time.deltaTime;
-                if (weapon.BurstShotCooldown <= 0f)
-                {
-                    var slashIndex = Mathf.Max(0, weapon.BurstTotalShots - weapon.BurstShotsRemaining);
-                    ExecuteSlash(weapon, weapon.BurstDirection, slashIndex, Mathf.Max(1, weapon.BurstTotalShots));
-                    weapon.BurstShotsRemaining--;
-                    weapon.BurstShotCooldown = Mathf.Max(
-                        0.01f,
-                        GetSlashComboInterval() * GetCombinedAttackIntervalMultiplier(weapon));
-
-                    if (weapon.BurstShotsRemaining <= 0)
-                    {
-                        weapon.BurstTotalShots = 0;
-                        weapon.BurstOrigin = Vector2.zero;
-                        weapon.Cooldown = GetAttackInterval(weapon);
-                    }
-                }
-
-                return;
-            }
-
-            if (weapon.Cooldown > 0f)
-            {
-                return;
-            }
-
-            if (!TryResolveFireDirection(weapon, out var fireDirection))
-            {
-                return;
-            }
-
-            switch (weapon.WeaponId)
-            {
-                case WeaponUpgradeId.Rifle:
-                    FireRifle(weapon, fireDirection);
-                    break;
-                case WeaponUpgradeId.Fireball:
-                    FireFireball(weapon, fireDirection);
-                    weapon.Cooldown = GetAttackInterval(weapon);
-                    break;
-                case WeaponUpgradeId.Bat:
-                    FireBat(weapon, fireDirection);
-                    weapon.Cooldown = GetAttackInterval(weapon);
-                    break;
-                case WeaponUpgradeId.Shotgun:
-                    FireShotgun(weapon, fireDirection);
-                    weapon.Cooldown = GetAttackInterval(weapon);
-                    break;
-                case WeaponUpgradeId.Slash:
-                    FireSlash(weapon, fireDirection);
-                    break;
-                case WeaponUpgradeId.ChainLightning:
-                    FireChainAttack(weapon, fireDirection);
-                    weapon.Cooldown = GetAttackInterval(weapon);
-                    break;
-                default:
-                    break;
+                FireWeapon(weapon);
             }
         }
+
+        private void FireWeapon(WeaponRuntime weapon)
+        {
+            if (weapon == null || !TryResolveFireDirection(weapon, out var fireDirection)) return;
+            weapon.Strategy?.OnFire(weapon, this, fireDirection);
+        }
+
 
         private void CleanupLoadoutRuntimeState()
         {
@@ -285,6 +166,16 @@ namespace EJR.Game.Gameplay
 
             weapon.BatInstances.Clear();
 
+            for (var turretIndex = weapon.TurretInstances.Count - 1; turretIndex >= 0; turretIndex--)
+            {
+                var turret = weapon.TurretInstances[turretIndex];
+                if (turret?.Root != null)
+                {
+                    Destroy(turret.Root.gameObject);
+                }
+            }
+            weapon.TurretInstances.Clear();
+
             if (weapon.SwingMaceVisualRoot != null)
             {
                 Destroy(weapon.SwingMaceVisualRoot.gameObject);
@@ -335,89 +226,14 @@ namespace EJR.Game.Gameplay
         [SerializeField] private bool showSatelliteHitGizmos = true;
         [SerializeField] private Color satelliteHitGizmoColor = new(0.35f, 1f, 0.95f, 0.95f);
 
-        private readonly struct BfSwordBladeSnapshot
-        {
-            public BfSwordBladeSnapshot(Vector2 start, Vector2 end, float bladeRadius, float recordedAt)
-            {
-                Start = start;
-                End = end;
-                BladeRadius = bladeRadius;
-                RecordedAt = recordedAt;
-            }
+        public WeaponConfig Config => _config;
+        public Transform Owner => _owner;
+        public EnemyRegistry Registry => _registry;
+        public PlayerStatsRuntime Stats => _stats;
+        public PlayerBuildRuntime Build => _build;
+        public Transform ProjectilePoolRoot => _projectilePoolRoot;
+        public PlayerHealth PlayerHealth => _playerHealth;
 
-            public Vector2 Start { get; }
-            public Vector2 End { get; }
-            public float BladeRadius { get; }
-            public float RecordedAt { get; }
-        }
-
-        private sealed class WeaponRuntime
-        {
-            public WeaponRuntime(WeaponUpgradeId id, int level)
-            {
-                WeaponId = id;
-                Level = Mathf.Max(1, level);
-                Cooldown = 0f;
-                BurstShotsRemaining = 0;
-                BurstShotCooldown = 0f;
-                BurstDirection = Vector2.right;
-                BurstTotalShots = 0;
-                BurstOrigin = Vector2.zero;
-                OrbitAngleDegrees = UnityEngine.Random.Range(0f, 360f);
-            }
-
-            public WeaponUpgradeId WeaponId { get; }
-            public int Level { get; set; }
-            public float Cooldown { get; set; }
-            public int BurstShotsRemaining { get; set; }
-            public float BurstShotCooldown { get; set; }
-            public Vector2 BurstDirection { get; set; }
-            public int BurstTotalShots { get; set; }
-            public Vector2 BurstOrigin { get; set; }
-            public float OrbitAngleDegrees { get; set; }
-            public List<Transform> SatelliteVisuals { get; } = new(3);
-            public Dictionary<EnemyController, float> SatelliteHitCooldownUntil { get; } = new();
-            public HashSet<EnemyController> BfSwordInsideEnemies { get; } = new();
-            public List<BfSwordBladeSnapshot> BfSwordBladeHistory { get; } = new(24);
-            public Dictionary<EnemyController, float> BfSwordAfterimageHitCooldownUntil { get; } = new();
-            public List<SpriteRenderer> BfSwordAfterimageRenderers { get; } = new(2);
-            public List<BatRuntime> BatInstances { get; } = new(4);
-            public HashSet<EnemyController> SwingMaceHitEnemies { get; } = new();
-            public HashSet<EnemyController> SwingMaceStunnedEnemies { get; } = new();
-            public Coroutine ActiveChainCoroutine { get; set; }
-            public Transform SwingMaceVisualRoot { get; set; }
-            public bool IsSwingMaceSwingActive { get; set; }
-            public float SwingMaceSwingElapsed { get; set; }
-            public Vector2 SwingMaceSwingDirection { get; set; }
-            public float NextBfSwordSoundAt { get; set; }
-        }
-
-        private sealed class TurretRuntime
-        {
-            public Transform Root;
-            public Vector2 Position;
-            public float ExpiresAt;
-            public float ShotCooldown;
-            public SpriteRenderer Renderer;
-            public Sprite IdleFrame;
-            public Sprite[] FireFrames;
-            public Coroutine FireAnimationCoroutine;
-        }
-
-        private sealed class BatRuntime
-        {
-            public Transform Root;
-            public SpriteRenderer Renderer;
-            public EnemyController LatchedTarget;
-            public float SpawnedAt;
-            public float SeekAt;
-            public float HitCooldown;
-            public float OrbitSeedDegrees;
-            public Vector2 LaunchDirection;
-            public float PendingHealAmount;
-            public int HitsLanded;
-            public bool ReturningToOwner;
-        }
 
         private WeaponConfig _config;
         private Transform _owner;
@@ -434,6 +250,8 @@ namespace EJR.Game.Gameplay
 
         private EnemyController _currentTarget;
         private Vector2 _lastAimDirection = Vector2.right;
+        public Vector2 LastAimDirection => _lastAimDirection;
+
         private float _targetScanCooldown;
 
         private readonly List<WeaponRuntime> _loadout = new(4);
@@ -524,8 +342,6 @@ namespace EJR.Game.Gameplay
             if (build == null || build.OwnedWeapons.Count <= 0)
             {
                 CleanupLoadoutRuntimeState();
-                ClearTurrets();
-                SetPersistentAuraVisible(false);
                 _loadout.Clear();
                 return;
             }
@@ -544,6 +360,8 @@ namespace EJR.Game.Gameplay
                     runtime.Level = level;
                 }
 
+                runtime.Strategy = WeaponStrategyFactory.GetStrategy(id);
+                runtime.Strategy?.OnInitialize(runtime, this);
                 nextLoadout.Add(runtime);
                 if (id == WeaponUpgradeId.Turret)
                 {
@@ -556,2116 +374,8 @@ namespace EJR.Game.Gameplay
                 CleanupWeaponRuntimeState(pair.Value);
             }
 
-            if (!hasTurretInNextLoadout)
-            {
-                ClearTurrets();
-            }
-
             _loadout.Clear();
             _loadout.AddRange(nextLoadout);
-            if (FindLoadoutWeapon(WeaponUpgradeId.Aura) == null)
-            {
-                SetPersistentAuraVisible(false);
-            }
-        }
-
-        #region Weapon: Rifle
-        private void FireRifle(WeaponRuntime weapon, Vector2 direction)
-        {
-            var normalizedDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : _lastAimDirection;
-            var baseShotCount = _config != null ? Mathf.Max(1, _config.rifleBaseShotCount) : 2;
-            var totalShots = Mathf.Max(1, baseShotCount + GetWeaponExtraCount(weapon));
-            weapon.BurstDirection = normalizedDirection;
-            weapon.BurstTotalShots = totalShots;
-            weapon.BurstShotsRemaining = totalShots;
-            weapon.BurstShotCooldown = 0f;
-
-            FireRifleBurstShot(weapon);
-            weapon.BurstShotsRemaining--;
-            if (weapon.BurstShotsRemaining <= 0)
-            {
-                weapon.BurstTotalShots = 0;
-                weapon.Cooldown = GetAttackInterval(weapon);
-                return;
-            }
-
-            weapon.BurstShotCooldown = Mathf.Max(
-                0.01f,
-                GetRifleBurstShotInterval() * GetCombinedAttackIntervalMultiplier(weapon));
-        }
-
-        private void FireRifleBurstShot(WeaponRuntime weapon)
-        {
-            if (weapon == null)
-            {
-                return;
-            }
-
-            var direction = weapon.BurstDirection.sqrMagnitude > 0.000001f ? weapon.BurstDirection.normalized : _lastAimDirection;
-            var damage = GetWeaponBaseDamage(weapon);
-            var projectileSpeed = Mathf.Max(0.1f, _config.projectileSpeed);
-            var projectileLifetime = GetLifetimeCappedByRange(weapon, projectileSpeed, Mathf.Max(0.1f, _config.projectileLifetime));
-            var spawnCenter = _projectileSpawnResolver != null
-                ? _projectileSpawnResolver(direction)
-                : (_owner != null ? _owner.position : Vector3.zero);
-
-            SpawnProjectile(
-                weapon.WeaponId,
-                direction,
-                damage,
-                projectileSpeed,
-                projectileLifetime,
-                _config.projectileHitRadius,
-                1,
-                0f,
-                1f,
-                new Color(1f, 0.95f, 0.35f),
-                spawnCenter);
-            RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Primary, spawnCenter);
-            Fired?.Invoke(direction);
-        }
-
-        private float GetRifleBurstShotInterval()
-        {
-            var configured = _config != null ? _config.rifleBurstShotInterval : 0.08f;
-            return Mathf.Max(0.01f, configured);
-        }
-        #endregion
-
-        #region Weapon: Fireball
-        private void FireFireball(WeaponRuntime weapon, Vector2 direction)
-        {
-            var projectileCount = Mathf.Max(1, 1 + GetWeaponExtraCount(weapon));
-            var damage = GetWeaponBaseDamage(weapon);
-            var projectileSpeed = Mathf.Max(0.1f, _config.fireballProjectileSpeed);
-            var projectileLifetime = GetLifetimeCappedByRange(
-                weapon,
-                projectileSpeed,
-                Mathf.Max(0.1f, _config.fireballProjectileLifetime),
-                rangePaddingMultiplier: 1.2f);
-            var hitRadius = Mathf.Max(0.05f, _config.fireballProjectileHitRadius);
-            var baseDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : _lastAimDirection;
-            var soundPosition = _projectileSpawnResolver != null
-                ? _projectileSpawnResolver(baseDirection)
-                : GetOwnerSoundPosition();
-            var ownerPosition = _owner != null ? (Vector2)_owner.position : (Vector2)soundPosition;
-            var range = GetWeaponRange(weapon);
-            List<EnemyController> reservedTargets = null;
-            if (projectileCount > 1)
-            {
-                reservedTargets = new List<EnemyController>(projectileCount);
-                var primaryTarget = FindPreferredAdditionalFireballTarget(ownerPosition, range, baseDirection, reservedTargets);
-                if (primaryTarget != null)
-                {
-                    reservedTargets.Add(primaryTarget);
-                }
-            }
-
-            for (var i = 0; i < projectileCount; i++)
-            {
-                var shotDirection = baseDirection;
-                if (i > 0)
-                {
-                    var alternateTarget = FindPreferredAdditionalFireballTarget(ownerPosition, range, baseDirection, reservedTargets);
-                    if (alternateTarget != null)
-                    {
-                        reservedTargets?.Add(alternateTarget);
-                        var toTarget = (Vector2)alternateTarget.transform.position - ownerPosition;
-                        if (toTarget.sqrMagnitude > 0.000001f)
-                        {
-                            shotDirection = toTarget.normalized;
-                        }
-                    }
-                }
-
-                SpawnProjectile(
-                    weapon.WeaponId,
-                    shotDirection,
-                    damage,
-                    projectileSpeed,
-                    projectileLifetime,
-                    hitRadius,
-                    1,
-                    0f,
-                    1f,
-                    new Color(1f, 0.42f, 0.08f));
-            }
-
-            RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Primary, soundPosition);
-        }
-
-        private void FireFireballBurstShot(WeaponRuntime weapon, Vector2 direction)
-        {
-            var spread = UnityEngine.Random.Range(-_config.fireballBurstSpreadAngle, _config.fireballBurstSpreadAngle);
-            var spreadDirection = RotateDirection(direction, spread);
-            var damage = GetWeaponBaseDamage(weapon) * Mathf.Clamp(_config.fireballBurstDamageMultiplier, 0.05f, 2f);
-            var projectileSpeed = _config.projectileSpeed * 1.1f;
-            var projectileLifetime = GetLifetimeCappedByRange(weapon, projectileSpeed, _config.projectileLifetime * 0.8f);
-            SpawnProjectile(
-                weapon.WeaponId,
-                spreadDirection,
-                damage,
-                projectileSpeed,
-                projectileLifetime,
-                _config.projectileHitRadius * 0.85f,
-                1,
-                0f,
-                1f,
-                new Color(1f, 0.82f, 0.2f));
-        }
-
-        private void StartFireballBurst(WeaponRuntime weapon, Vector2 direction)
-        {
-            var count = Mathf.Max(1, _config.fireballBurstCount + GetWeaponExtraCount(weapon));
-            weapon.BurstShotsRemaining = count;
-            weapon.BurstShotCooldown = 0f;
-            FireFireballBurstShot(weapon, direction);
-            weapon.BurstShotsRemaining--;
-            weapon.BurstShotCooldown = Mathf.Max(0.01f, Mathf.Max(0.01f, _config.fireballBurstShotInterval) * GetCombinedAttackIntervalMultiplier(weapon));
-            if (weapon.BurstShotsRemaining <= 0)
-            {
-                weapon.Cooldown = GetAttackInterval(weapon);
-            }
-        }
-
-        private EnemyController FindPreferredAdditionalFireballTarget(
-            Vector2 origin,
-            float range,
-            Vector2 primaryDirection,
-            List<EnemyController> excludeList)
-        {
-            _candidateEnemies.Clear();
-            _registry.GetNearby(origin, range, _candidateEnemies);
-
-            if (_candidateEnemies.Count <= 0)
-            {
-                return null;
-            }
-
-            EnemyController best = null;
-            var bestScore = -999999f;
-
-            for (var i = 0; i < _candidateEnemies.Count; i++)
-            {
-                var enemy = _candidateEnemies[i];
-                if (enemy == null || enemy.IsDead)
-                {
-                    continue;
-                }
-
-                var excluded = false;
-                if (excludeList != null)
-                {
-                    for (var j = 0; j < excludeList.Count; j++)
-                    {
-                        if (excludeList[j] == enemy)
-                        {
-                            excluded = true;
-                            break;
-                        }
-                    }
-                }
-
-                if (excluded)
-                {
-                    continue;
-                }
-
-                var toEnemy = (Vector2)enemy.transform.position - origin;
-                var distSq = toEnemy.sqrMagnitude;
-                var dot = Vector2.Dot(toEnemy.normalized, primaryDirection);
-
-                var score = dot * 100f - (distSq * 0.5f);
-                if (score > bestScore)
-                {
-                    bestScore = score;
-                    best = enemy;
-                }
-            }
-
-            return best;
-        }
-
-        #endregion
-
-        #region Weapon: Bat
-        private void FireBat(WeaponRuntime weapon, Vector2 direction)
-        {
-            var damage = GetWeaponBaseDamage(weapon) * 2f;
-            var projectileSpeed = _config.projectileSpeed * 1.6f;
-            var projectileLifetime = GetLifetimeCappedByRange(weapon, projectileSpeed, _config.projectileLifetime * 1.25f);
-            var maxHits = Mathf.Max(1, _config.batMaxHits + GetWeaponExtraCount(weapon));
-            SpawnProjectile(
-                weapon.WeaponId,
-                direction,
-                damage,
-                projectileSpeed,
-                projectileLifetime,
-                _config.projectileHitRadius * 0.95f,
-                maxHits,
-                Mathf.Clamp(_config.batDamageFalloffPerHit, 0f, 0.9f),
-                Mathf.Clamp(_config.batMinimumDamageMultiplier, 0.05f, 1f),
-                new Color(0.6f, 0.95f, 1f));
-        }
-        private void BeginBatReturn(WeaponRuntime weapon, BatRuntime bat)
-        {
-            if (bat == null || bat.ReturningToOwner)
-            {
-                return;
-            }
-
-            bat.ReturningToOwner = true;
-            bat.LatchedTarget = null;
-            RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Return, bat.Root != null ? bat.Root.position : GetOwnerSoundPosition());
-            if (bat.Renderer != null)
-            {
-                bat.Renderer.color = new Color(0.52f, 1f, 0.72f, 0.95f);
-            }
-        }
-
-        private void UpdateBatWeapon(WeaponRuntime weapon)
-        {
-            var hadBatInstances = weapon.BatInstances.Count > 0;
-            UpdateBatInstances(weapon);
-
-            if (hadBatInstances && weapon.BatInstances.Count <= 0)
-            {
-                weapon.Cooldown = GetAttackInterval(weapon);
-            }
-
-            if (weapon.BatInstances.Count > 0)
-            {
-                return;
-            }
-
-            if (weapon.Cooldown > 0f)
-            {
-                return;
-            }
-
-            var batCount = Mathf.Max(1, 1 + GetWeaponExtraCount(weapon));
-            var spawnedAny = false;
-            for (var i = 0; i < batCount; i++)
-            {
-                SpawnBatInstance(weapon);
-                spawnedAny = true;
-            }
-
-            weapon.Cooldown = spawnedAny
-                ? GetAttackInterval(weapon)
-                : Mathf.Max(0.15f, GetAttackInterval(weapon) * 0.25f);
-
-            if (spawnedAny)
-            {
-                Fired?.Invoke(_lastAimDirection);
-            }
-        }
-
-        private void UpdateBatInstances(WeaponRuntime weapon)
-        {
-            if (_owner == null || weapon == null || weapon.BatInstances.Count <= 0)
-            {
-                return;
-            }
-
-            var attackIntervalMultiplier = Mathf.Max(0.05f, GetCombinedAttackIntervalMultiplier(weapon));
-            var attackSpeedFactor = 1f / attackIntervalMultiplier;
-            var moveSpeed = Mathf.Max(0.1f, _config.batMoveSpeed * attackSpeedFactor);
-            var orbitRadius = Mathf.Max(0.1f, _config.batOrbitRadius);
-            var launchDuration = Mathf.Max(0f, _config.batOrbitDuration);
-            var latchRange = GetWeaponRange(weapon);
-            var hitInterval = Mathf.Max(0.05f, _config.batHitInterval * attackIntervalMultiplier);
-            var damage = GetWeaponBaseDamage(weapon) * Mathf.Clamp(_config.batDamageMultiplier, 0.05f, 5f);
-            var hitsBeforeReturn = Mathf.Max(1, _config.batHitsBeforeReturn);
-
-            for (var i = weapon.BatInstances.Count - 1; i >= 0; i--)
-            {
-                var bat = weapon.BatInstances[i];
-                if (bat?.Root == null)
-                {
-                    weapon.BatInstances.RemoveAt(i);
-                    continue;
-                }
-
-                if (bat.ReturningToOwner)
-                {
-                    var toOwner = (Vector2)_owner.position - (Vector2)bat.Root.position;
-                    var distance = toOwner.magnitude;
-                    if (distance <= 0.18f)
-                    {
-                        if (bat.PendingHealAmount > 0.001f)
-                        {
-                            ApplyBatHealing(bat.PendingHealAmount);
-                        }
-
-                        Destroy(bat.Root.gameObject);
-                        weapon.BatInstances.RemoveAt(i);
-                        continue;
-                    }
-
-                    bat.Root.position += (Vector3)(toOwner / Mathf.Max(0.0001f, distance)) * (moveSpeed * 1.35f * Time.deltaTime);
-                    continue;
-                }
-
-                if (bat.HitsLanded >= hitsBeforeReturn)
-                {
-                    BeginBatReturn(weapon, bat);
-                    continue;
-                }
-
-                if (bat.LatchedTarget == null || !IsEnemyUsable(bat.LatchedTarget))
-                {
-                    var previousTarget = bat.LatchedTarget;
-                    bat.LatchedTarget = Time.time >= bat.SeekAt
-                        ? FindNearestUsableFrom((Vector2)bat.Root.position, latchRange)
-                        : null;
-                    if (previousTarget == null && bat.LatchedTarget != null)
-                    {
-                        bat.HitCooldown = Mathf.Max(bat.HitCooldown, Time.time + hitInterval);
-                        RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Latch, bat.Root.position);
-                    }
-                }
-
-                if (bat.LatchedTarget == null)
-                {
-                    if (Time.time < bat.SpawnedAt + launchDuration)
-                    {
-                        bat.Root.position += (Vector3)(bat.LaunchDirection * moveSpeed * Time.deltaTime);
-                    }
-                    else
-                    {
-                        var orbitAngle = (bat.OrbitSeedDegrees + ((Time.time - bat.SeekAt) * 180f)) * Mathf.Deg2Rad;
-                        var orbitTarget = (Vector2)_owner.position + (new Vector2(Mathf.Cos(orbitAngle), Mathf.Sin(orbitAngle)) * orbitRadius);
-                        var toOrbit = orbitTarget - (Vector2)bat.Root.position;
-                        var orbitDistance = toOrbit.magnitude;
-                        if (orbitDistance > 0.02f)
-                        {
-                            bat.Root.position += (Vector3)(toOrbit / Mathf.Max(0.0001f, orbitDistance)) * (moveSpeed * Time.deltaTime);
-                        }
-                    }
-
-                    continue;
-                }
-
-                var latchTargetPosition = (Vector2)bat.LatchedTarget.transform.position;
-                var toTarget = latchTargetPosition - (Vector2)bat.Root.position;
-                var targetDistance = toTarget.magnitude;
-                if (targetDistance > 0.18f)
-                {
-                    bat.Root.position += (Vector3)(toTarget / Mathf.Max(0.0001f, targetDistance)) * (moveSpeed * Time.deltaTime);
-                    continue;
-                }
-
-                bat.Root.position = new Vector3(latchTargetPosition.x, latchTargetPosition.y, 0f);
-                if (Time.time >= bat.HitCooldown)
-                {
-                    DealDirectWeaponDamage(bat.LatchedTarget, damage, weapon.WeaponId);
-                    bat.PendingHealAmount += Mathf.Max(_config.batMinimumHealPerHit, damage * Mathf.Clamp01(_config.batHealPerDamageMultiplier));
-                    bat.HitsLanded++;
-                    bat.HitCooldown = Time.time + hitInterval;
-                    bat.LatchedTarget = null;
-                    if (bat.HitsLanded >= hitsBeforeReturn)
-                    {
-                        BeginBatReturn(weapon, bat);
-                    }
-                }
-            }
-        }
-
-        private void SpawnBatInstance(WeaponRuntime weapon)
-        {
-            var batObject = new GameObject("Bat");
-            batObject.transform.SetParent(transform, false);
-            batObject.transform.position = _owner != null ? _owner.position : Vector3.zero;
-            batObject.transform.localScale = Vector3.one * Mathf.Max(0.05f, _config.batVisualScale);
-
-            var renderer = batObject.AddComponent<SpriteRenderer>();
-            renderer.sprite = RuntimeSpriteFactory.GetSquareSprite();
-            renderer.color = new Color(0.88f, 0.24f, 0.72f, 0.95f);
-            renderer.sortingOrder = 35;
-
-            weapon.BatInstances.Add(new BatRuntime
-            {
-                Root = batObject.transform,
-                Renderer = renderer,
-                LatchedTarget = null,
-                SpawnedAt = Time.time,
-                SeekAt = Time.time + Mathf.Max(0f, _config.batOrbitDuration),
-                HitCooldown = Time.time,
-                OrbitSeedDegrees = UnityEngine.Random.Range(0f, 360f),
-                LaunchDirection = RotateDirection(Vector2.right, UnityEngine.Random.Range(0f, 360f)).normalized,
-                PendingHealAmount = 0f,
-                HitsLanded = 0,
-                ReturningToOwner = false,
-            });
-            RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Spawn, batObject.transform.position);
-        }
-
-        private void ApplyBatHealing(float healAmount)
-        {
-            if (_playerHealth == null || healAmount <= 0f)
-            {
-                return;
-            }
-
-            var missingHealth = Mathf.Max(0f, _playerHealth.MaxHealth - _playerHealth.CurrentHealth);
-            _playerHealth.Heal(healAmount);
-            var overflow = Mathf.Max(0f, healAmount - missingHealth);
-
-            if (overflow <= 0.0001f)
-            {
-                return;
-            }
-
-            _batOverflowMaxHealthProgress += overflow;
-            while (_batOverflowMaxHealthProgress >= 20f)
-            {
-                _build?.AddRuntimeMaxHealthFlat(1f);
-                _playerHealth.SetMaxHealth(_playerHealth.MaxHealth + 1f, healDelta: true);
-                _batOverflowMaxHealthProgress -= 20f;
-            }
-        }
-
-        #endregion
-
-        #region Weapon: Shotgun
-        private void FireShotgun(WeaponRuntime weapon, Vector2 direction)
-        {
-            var pelletCount = Mathf.Max(2, _config.shotgunPelletCount + GetWeaponExtraCount(weapon));
-            var spread = Mathf.Max(1f, _config.shotgunSpreadAngle);
-            var halfSpread = spread * 0.5f;
-            var damagePerPellet = GetWeaponBaseDamage(weapon) * Mathf.Clamp(_config.shotgunPelletDamageMultiplier, 0.05f, 2f);
-            var pelletSpeed = _config.projectileSpeed * 0.95f;
-            var pelletLifetime = GetLifetimeCappedByRange(weapon, pelletSpeed, _config.projectileLifetime * 0.75f, rangePaddingMultiplier: 1.25f);
-            var soundPosition = _projectileSpawnResolver != null
-                ? _projectileSpawnResolver(direction)
-                : GetOwnerSoundPosition();
-
-            if (pelletCount == 1)
-            {
-                SpawnProjectile(
-                    weapon.WeaponId,
-                    direction,
-                    damagePerPellet,
-                    pelletSpeed,
-                    pelletLifetime,
-                    _config.projectileHitRadius * 0.9f,
-                    1,
-                    0f,
-                    1f,
-                    new Color(1f, 0.65f, 0.2f));
-                RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Primary, soundPosition);
-                return;
-            }
-
-            for (var i = 0; i < pelletCount; i++)
-            {
-                var t = pelletCount <= 1 ? 0.5f : i / (float)(pelletCount - 1);
-                var angle = Mathf.Lerp(-halfSpread, halfSpread, t);
-                var pelletDirection = RotateDirection(direction, angle);
-                SpawnProjectile(
-                    weapon.WeaponId,
-                    pelletDirection,
-                    damagePerPellet,
-                    pelletSpeed,
-                    pelletLifetime,
-                    _config.projectileHitRadius * 0.9f,
-                    1,
-                    0f,
-                    1f,
-                    new Color(1f, 0.65f, 0.2f));
-            }
-
-            RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Primary, soundPosition);
-        }
-        #endregion
-
-        #region Weapon: Slash
-        private void FireSlash(WeaponRuntime weapon, Vector2 direction)
-        {
-            var baseSlashCount = _config != null ? Mathf.Max(1, _config.slashBaseCount) : 2;
-            var totalSlashes = Mathf.Max(1, baseSlashCount + GetWeaponExtraCount(weapon));
-            weapon.BurstDirection = direction.sqrMagnitude > 0.000001f
-                ? direction.normalized
-                : _lastAimDirection;
-            weapon.BurstTotalShots = totalSlashes;
-            weapon.BurstOrigin = _owner != null ? (Vector2)_owner.position : Vector2.zero;
-            weapon.BurstShotsRemaining = totalSlashes;
-            weapon.BurstShotCooldown = 0f;
-
-            ExecuteSlash(weapon, weapon.BurstDirection, 0, totalSlashes);
-            weapon.BurstShotsRemaining--;
-
-            if (weapon.BurstShotsRemaining <= 0)
-            {
-                weapon.BurstTotalShots = 0;
-                weapon.BurstOrigin = Vector2.zero;
-                weapon.Cooldown = GetAttackInterval(weapon);
-                return;
-            }
-
-            weapon.BurstShotCooldown = Mathf.Max(
-                0.01f,
-                GetSlashComboInterval() * GetCombinedAttackIntervalMultiplier(weapon));
-        }
-
-        private void ExecuteSlash(WeaponRuntime weapon, Vector2 direction, int slashIndex, int totalSlashes)
-        {
-            if (_registry == null || _owner == null || weapon == null)
-            {
-                return;
-            }
-
-            var range = GetWeaponRange(weapon);
-            var coneHalfAngle = Mathf.Max(2f, _config.slashConeAngle) * 0.5f;
-            var damage = GetWeaponBaseDamage(weapon) * Mathf.Clamp(_config.slashDamageMultiplier, 0.05f, 3f);
-            var slashSpreadHalfAngle = totalSlashes <= 1 ? 0f : 10f;
-            var origin = weapon.BurstTotalShots > 0 ? weapon.BurstOrigin : (Vector2)_owner.position;
-            var t = totalSlashes <= 1 ? 0.5f : slashIndex / (float)(totalSlashes - 1);
-            var angleOffset = Mathf.Lerp(-slashSpreadHalfAngle, slashSpreadHalfAngle, t);
-            var slashDirection = RotateDirection(direction, angleOffset);
-            var searchRadius = range + _registry.GetMaxCollisionRadius();
-
-            SpawnSlashSpriteFx(origin, slashDirection, range, slashIndex);
-            SlashFxRequested?.Invoke(origin, slashDirection, range, slashIndex);
-            RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Primary, origin);
-            Fired?.Invoke(slashDirection);
-
-            _registry.GetNearby(origin, searchRadius, _nearbyEnemies);
-            for (var i = 0; i < _nearbyEnemies.Count; i++)
-            {
-                var enemy = _nearbyEnemies[i];
-                if (enemy == null)
-                {
-                    continue;
-                }
-
-                var toEnemy = (Vector2)enemy.transform.position - origin;
-                var centerDistance = toEnemy.magnitude;
-                if (centerDistance <= 0.0001f)
-                {
-                    DealDirectWeaponDamage(enemy, damage, weapon.WeaponId);
-                    continue;
-                }
-
-                var surfaceDistance = Mathf.Max(0f, centerDistance - enemy.CollisionRadius);
-                if (surfaceDistance > range)
-                {
-                    continue;
-                }
-
-                var angle = Vector2.Angle(slashDirection, toEnemy / centerDistance);
-                if (angle <= coneHalfAngle)
-                {
-                    DealDirectWeaponDamage(enemy, damage, weapon.WeaponId);
-                }
-            }
-        }
-
-        private float GetSlashComboInterval()
-        {
-            var configured = _config != null ? _config.slashComboInterval : 0.1f;
-            return Mathf.Max(0.01f, configured);
-        }
-
-        private void SpawnKatanaRangeEffect(Vector2 origin, Vector2 direction, float range, float coneHalfAngle)
-        {
-            if (!isActiveAndEnabled)
-            {
-                return;
-            }
-
-            var normalizedDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : Vector2.right;
-            var segments = Mathf.Clamp(slashRangeEffectSegments, 4, 40);
-            var fxObject = new GameObject("KatanaRangeFx");
-            fxObject.transform.SetParent(transform, false);
-
-            var lineRenderer = fxObject.AddComponent<LineRenderer>();
-            WeaponFxRenderer.ConfigureLineRenderer(lineRenderer, slashRangeEffectColor, slashRangeEffectWidth, false, true);
-
-            var totalPoints = segments + 3;
-            lineRenderer.positionCount = totalPoints;
-            lineRenderer.SetPosition(0, new Vector3(origin.x, origin.y, -0.02f));
-
-            for (var i = 0; i <= segments; i++)
-            {
-                var t = i / (float)segments;
-                var angle = Mathf.Lerp(-coneHalfAngle, coneHalfAngle, t);
-                var rayDirection = RotateDirection(normalizedDirection, angle);
-                var point = origin + (rayDirection * range);
-                lineRenderer.SetPosition(i + 1, new Vector3(point.x, point.y, -0.02f));
-            }
-
-            lineRenderer.SetPosition(totalPoints - 1, new Vector3(origin.x, origin.y, -0.02f));
-            Destroy(fxObject, Mathf.Max(0.02f, slashRangeEffectDuration));
-        }
-
-        private void SpawnSlashSpriteFx(Vector2 origin, Vector2 direction, float range, int slashIndex)
-        {
-            WeaponFxRenderer.SpawnKatanaSlashFx(
-                transform,
-                origin,
-                direction,
-                range,
-                slashIndex,
-                slashFxForwardOffset,
-                slashFxLocalOffset,
-                slashFxScale,
-                slashFxFps,
-                510);
-        }
-
-        #endregion
-
-        #region Weapon: BfSword
-        private void UpdateBfSword(WeaponRuntime weapon)
-        {
-            if (_registry == null || _owner == null || weapon == null || _config == null)
-            {
-                return;
-            }
-
-            GetBfSwordBladeSegment(weapon, out var start, out var end, out var bladeRadius);
-            var bladeLength = Vector2.Distance(start, end);
-            var searchCenter = (start + end) * 0.5f;
-            var searchRadius = (bladeLength * 0.5f) + bladeRadius + _registry.GetMaxCollisionRadius();
-            var damage = GetWeaponBaseDamage(weapon);
-            var currentTime = Time.time;
-
-            _chainHitEnemies.Clear();
-            _registry.GetNearby(searchCenter, searchRadius, _nearbyEnemies);
-            for (var i = 0; i < _nearbyEnemies.Count; i++)
-            {
-                var enemy = _nearbyEnemies[i];
-                if (!IsEnemyUsable(enemy))
-                {
-                    continue;
-                }
-
-                if (!IsInsideBfSwordHitbox(enemy, start, end, bladeRadius))
-                {
-                    continue;
-                }
-
-                _chainHitEnemies.Add(enemy);
-                if (weapon.BfSwordInsideEnemies.Contains(enemy))
-                {
-                    continue;
-                }
-
-                weapon.BfSwordInsideEnemies.Add(enemy);
-                DealDirectWeaponDamage(enemy, damage, WeaponUpgradeId.BfSword);
-                enemy.ApplyStun(Mathf.Max(0.02f, _config.bfSwordStunDuration));
-                if (currentTime >= weapon.NextBfSwordSoundAt)
-                {
-                    RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Primary, enemy.transform.position);
-                    weapon.NextBfSwordSoundAt = currentTime + BfSwordHitSoundCooldown;
-                }
-            }
-
-            _cleanupEnemies.Clear();
-            foreach (var enemy in weapon.BfSwordInsideEnemies)
-            {
-                if (enemy == null || !ContainsEnemy(_chainHitEnemies, enemy))
-                {
-                    _cleanupEnemies.Add(enemy);
-                }
-            }
-
-            for (var i = 0; i < _cleanupEnemies.Count; i++)
-            {
-                weapon.BfSwordInsideEnemies.Remove(_cleanupEnemies[i]);
-            }
-
-            _cleanupEnemies.Clear();
-            UpdateBfSwordAfterimages(weapon, start, end, bladeRadius, damage, currentTime);
-            RecordBfSwordBladeSnapshot(weapon, start, end, bladeRadius, currentTime);
-        }
-
-        private void UpdateBfSwordAfterimages(
-            WeaponRuntime weapon,
-            Vector2 currentStart,
-            Vector2 currentEnd,
-            float currentBladeRadius,
-            float mainDamage,
-            float currentTime)
-        {
-            var afterimageCount = _build != null ? Mathf.Clamp(_build.GetBfSwordAfterimageCount(), 0, 2) : 0;
-            if (afterimageCount <= 0)
-            {
-                for (var i = 0; i < weapon.BfSwordAfterimageRenderers.Count; i++)
-                {
-                    if (weapon.BfSwordAfterimageRenderers[i] != null)
-                    {
-                        weapon.BfSwordAfterimageRenderers[i].enabled = false;
-                    }
-                }
-
-                weapon.BfSwordBladeHistory.Clear();
-                weapon.BfSwordAfterimageHitCooldownUntil.Clear();
-                return;
-            }
-
-            EnsureBfSwordAfterimageRenderers(weapon, afterimageCount);
-            CleanupExpiredBfSwordAfterimageHitCooldowns(weapon, currentTime);
-
-            for (var afterimageIndex = 0; afterimageIndex < weapon.BfSwordAfterimageRenderers.Count; afterimageIndex++)
-            {
-                var renderer = weapon.BfSwordAfterimageRenderers[afterimageIndex];
-                if (renderer == null)
-                {
-                    continue;
-                }
-
-                if (afterimageIndex >= afterimageCount ||
-                    !TryGetBfSwordAfterimageSnapshot(weapon, currentTime - (BfSwordAfterimageDelayStep * (afterimageIndex + 1)), out var snapshot))
-                {
-                    renderer.enabled = false;
-                    continue;
-                }
-
-                UpdateBfSwordAfterimageRenderer(renderer, snapshot, afterimageIndex);
-
-                var bladeLength = Vector2.Distance(snapshot.Start, snapshot.End);
-                var searchCenter = (snapshot.Start + snapshot.End) * 0.5f;
-                var searchRadius = (bladeLength * 0.5f) + snapshot.BladeRadius + _registry.GetMaxCollisionRadius();
-                _registry.GetNearby(searchCenter, searchRadius, _nearbyEnemies);
-
-                for (var enemyIndex = 0; enemyIndex < _nearbyEnemies.Count; enemyIndex++)
-                {
-                    var enemy = _nearbyEnemies[enemyIndex];
-                    if (!IsEnemyUsable(enemy))
-                    {
-                        continue;
-                    }
-
-                    if (IsInsideBfSwordHitbox(enemy, currentStart, currentEnd, currentBladeRadius))
-                    {
-                        continue;
-                    }
-
-                    if (!IsInsideBfSwordHitbox(enemy, snapshot.Start, snapshot.End, snapshot.BladeRadius))
-                    {
-                        continue;
-                    }
-
-                    if (weapon.BfSwordAfterimageHitCooldownUntil.TryGetValue(enemy, out var cooldownUntil) &&
-                        cooldownUntil > currentTime)
-                    {
-                        continue;
-                    }
-
-                    weapon.BfSwordAfterimageHitCooldownUntil[enemy] = currentTime + BfSwordAfterimageHitCooldown;
-                    DealDirectWeaponDamage(enemy, mainDamage * BfSwordAfterimageDamageMultiplier, WeaponUpgradeId.BfSword);
-                    enemy.ApplyMinorStun(BfSwordAfterimageMinorStunDuration);
-                }
-            }
-        }
-
-        private void RecordBfSwordBladeSnapshot(WeaponRuntime weapon, Vector2 start, Vector2 end, float bladeRadius, float currentTime)
-        {
-            weapon.BfSwordBladeHistory.Add(new BfSwordBladeSnapshot(start, end, bladeRadius, currentTime));
-            var cutoffTime = currentTime - BfSwordAfterimageSnapshotLifetime;
-            var history = weapon.BfSwordBladeHistory;
-            var removeCount = 0;
-            while (removeCount < history.Count && history[removeCount].RecordedAt < cutoffTime)
-            {
-                removeCount++;
-            }
-
-            if (removeCount > 0)
-            {
-                history.RemoveRange(0, removeCount);
-            }
-        }
-
-        private static bool TryGetBfSwordAfterimageSnapshot(WeaponRuntime weapon, float targetTime, out BfSwordBladeSnapshot snapshot)
-        {
-            var history = weapon.BfSwordBladeHistory;
-            for (var i = history.Count - 1; i >= 0; i--)
-            {
-                if (history[i].RecordedAt <= targetTime)
-                {
-                    snapshot = history[i];
-                    return true;
-                }
-            }
-
-            snapshot = default;
-            return false;
-        }
-
-        private void CleanupExpiredBfSwordAfterimageHitCooldowns(WeaponRuntime weapon, float currentTime)
-        {
-            _cleanupEnemies.Clear();
-            foreach (var pair in weapon.BfSwordAfterimageHitCooldownUntil)
-            {
-                if (pair.Key == null || pair.Value <= currentTime)
-                {
-                    _cleanupEnemies.Add(pair.Key);
-                }
-            }
-
-            for (var i = 0; i < _cleanupEnemies.Count; i++)
-            {
-                weapon.BfSwordAfterimageHitCooldownUntil.Remove(_cleanupEnemies[i]);
-            }
-
-            _cleanupEnemies.Clear();
-        }
-
-        private void EnsureBfSwordAfterimageRenderers(WeaponRuntime weapon, int activeCount)
-        {
-            while (weapon.BfSwordAfterimageRenderers.Count < 2)
-            {
-                var afterimageObject = new GameObject($"BfSwordAfterimageFx{weapon.BfSwordAfterimageRenderers.Count + 1}");
-                afterimageObject.transform.SetParent(transform, false);
-                var renderer = afterimageObject.AddComponent<SpriteRenderer>();
-                renderer.sprite = GetBfSwordAfterimageSprite();
-                renderer.enabled = false;
-                ApplyBfSwordAfterimageSorting(renderer, weapon.BfSwordAfterimageRenderers.Count);
-                weapon.BfSwordAfterimageRenderers.Add(renderer);
-            }
-
-            for (var i = 0; i < weapon.BfSwordAfterimageRenderers.Count; i++)
-            {
-                var renderer = weapon.BfSwordAfterimageRenderers[i];
-                if (renderer != null && i >= activeCount)
-                {
-                    renderer.enabled = false;
-                }
-            }
-        }
-
-        private void UpdateBfSwordAfterimageRenderer(SpriteRenderer renderer, BfSwordBladeSnapshot snapshot, int afterimageIndex)
-        {
-            if (renderer == null)
-            {
-                return;
-            }
-
-            var alpha = afterimageIndex == 0 ? 0.34f : 0.2f;
-            var widthMultiplier = afterimageIndex == 0 ? 0.9f : 0.76f;
-            var sprite = GetBfSwordAfterimageSprite();
-            renderer.sprite = sprite;
-            renderer.color = new Color(0.9f, 0.94f, 1f, alpha);
-            ApplyBfSwordAfterimageSorting(renderer, afterimageIndex);
-
-            var direction = snapshot.End - snapshot.Start;
-            var bladeLength = Mathf.Max(0.05f, direction.magnitude);
-            var normalizedDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : Vector2.right;
-            var flipX = normalizedDirection.x < 0f;
-            var signedAngleFromHorizontal = Mathf.Atan2(normalizedDirection.y, Mathf.Abs(normalizedDirection.x)) * Mathf.Rad2Deg;
-            if (flipX)
-            {
-                signedAngleFromHorizontal = -signedAngleFromHorizontal;
-            }
-
-            var visualWorldPosition = ResolveBfSwordAfterimageWorldPosition(normalizedDirection, flipX, signedAngleFromHorizontal, sprite);
-            var baseBladeLength = _config != null ? Mathf.Max(0.2f, _config.bfSwordLength) : 1f;
-            var desiredWorldSize = (_config != null ? Mathf.Max(0.05f, _config.bfSwordVisualScale) : 0.95f) * (bladeLength / baseBladeLength);
-            var spriteBounds = sprite != null ? sprite.bounds.size : Vector3.one;
-            var spriteSize = Mathf.Max(0.0001f, Mathf.Max(spriteBounds.x, spriteBounds.y));
-            var uniformScale = desiredWorldSize / spriteSize;
-            var widthScale = (_config != null ? Mathf.Max(0.05f, _config.bfSwordVisualWidthMultiplier) : 0.5f) * widthMultiplier;
-
-            renderer.flipX = flipX;
-            renderer.transform.position = visualWorldPosition;
-            renderer.transform.rotation = Quaternion.Euler(0f, 0f, signedAngleFromHorizontal);
-            renderer.transform.localScale = new Vector3(uniformScale, uniformScale * widthScale, 1f);
-            renderer.enabled = true;
-        }
-
-        private static Sprite GetBfSwordAfterimageSprite()
-        {
-            var frames = RuntimeSpriteFactory.GetSexyBfSwordAnimationFrames();
-            return frames != null && frames.Length > 0 ? frames[0] : RuntimeSpriteFactory.GetSquareSprite();
-        }
-
-        private Vector3 ResolveBfSwordAfterimageWorldPosition(Vector2 normalizedDirection, bool flipX, float rotationDegrees, Sprite sprite)
-        {
-            if (_owner == null)
-            {
-                return Vector3.zero;
-            }
-
-            var orbitCenterLocal = ResolveWeaponOrbitCenterLocal();
-            var localPosition = WeaponVisualLayoutUtility.CalculateWeaponLocalPosition(
-                orbitCenterLocal,
-                normalizedDirection,
-                _config != null ? Mathf.Max(0f, _config.bfSwordForwardOffset) : 0.48f,
-                _config != null ? _config.bfSwordVisualLocalOffset : new Vector2(0f, -0.08f),
-                flipX,
-                rotationDegrees,
-                sprite);
-            return _owner.TransformPoint(new Vector3(localPosition.x, localPosition.y, 0f));
-        }
-
-        private Vector2 ResolveWeaponOrbitCenterLocal()
-        {
-            if (_owner == null)
-            {
-                return Vector2.zero;
-            }
-
-            var visual = _owner.Find("Visual");
-            if (visual != null)
-            {
-                var visualRenderer = visual.GetComponent<SpriteRenderer>();
-                if (visualRenderer != null)
-                {
-                    var worldCenter = visualRenderer.bounds.center;
-                    var localCenter = _owner.InverseTransformPoint(worldCenter);
-                    return new Vector2(localCenter.x, localCenter.y);
-                }
-            }
-
-            return Vector2.zero;
-        }
-
-        private void ApplyBfSwordAfterimageSorting(SpriteRenderer renderer, int afterimageIndex)
-        {
-            if (renderer == null)
-            {
-                return;
-            }
-
-            renderer.sortingOrder = -2 - afterimageIndex;
-            if (_owner == null)
-            {
-                return;
-            }
-
-            var ownerRenderers = _owner.GetComponentsInChildren<SpriteRenderer>();
-            if (ownerRenderers == null || ownerRenderers.Length <= 0)
-            {
-                return;
-            }
-
-            var sortingLayerId = ownerRenderers[0].sortingLayerID;
-            var lowestSortingOrder = ownerRenderers[0].sortingOrder;
-            for (var i = 1; i < ownerRenderers.Length; i++)
-            {
-                var ownerRenderer = ownerRenderers[i];
-                if (ownerRenderer == null || ownerRenderer.sortingOrder >= lowestSortingOrder)
-                {
-                    continue;
-                }
-
-                sortingLayerId = ownerRenderer.sortingLayerID;
-                lowestSortingOrder = ownerRenderer.sortingOrder;
-            }
-
-            renderer.sortingLayerID = sortingLayerId;
-            renderer.sortingOrder = lowestSortingOrder - 1 - afterimageIndex;
-        }
-
-        private float GetBfSwordLength(WeaponRuntime weapon)
-        {
-            return GetWeaponRange(weapon);
-        }
-
-        private float GetBfSwordThickness(WeaponRuntime weapon)
-        {
-            var thickness = _config != null ? Mathf.Max(0.05f, _config.bfSwordThickness) : 0.55f;
-            return thickness * GetBfSwordWidthMultiplier();
-        }
-
-        private void GetBfSwordBladeSegment(WeaponRuntime weapon, out Vector2 start, out Vector2 end, out float bladeRadius)
-        {
-            var facingDirection = ResolveFacingDirection();
-            var bladeCenter = GetBfSwordBladeCenter(facingDirection);
-            var bladeLength = GetBfSwordLength(weapon);
-            bladeRadius = GetBfSwordThickness(weapon) * 0.5f;
-
-            var halfSegment = facingDirection * (bladeLength * 0.5f);
-            start = bladeCenter - halfSegment;
-            end = bladeCenter + halfSegment;
-        }
-
-        private Vector2 GetBfSwordBladeCenter(Vector2 facingDirection)
-        {
-            var normalizedDirection = facingDirection.sqrMagnitude > 0.000001f ? facingDirection.normalized : Vector2.right;
-            var origin = _owner != null ? (Vector2)_owner.position : Vector2.zero;
-            var forwardOffset = _config != null ? Mathf.Max(0f, _config.bfSwordForwardOffset) : 0.48f;
-            var visualOffset = _config != null ? _config.bfSwordVisualLocalOffset : new Vector2(0f, -0.08f);
-            return origin + (normalizedDirection * forwardOffset) + visualOffset;
-        }
-
-        private static bool IsInsideBfSwordHitbox(EnemyController enemy, Vector2 start, Vector2 end, float bladeRadius)
-        {
-            if (enemy == null)
-            {
-                return false;
-            }
-
-            var totalRadius = Mathf.Max(0.01f, bladeRadius + enemy.CollisionRadius);
-            return DistancePointToSegment((Vector2)enemy.transform.position, start, end) <= totalRadius;
-        }
-
-        private float GetBfSwordWidthMultiplier()
-        {
-            if (_build == null)
-            {
-                return 1f;
-            }
-
-            return Mathf.Max(1f, _build.GetBfSwordWidthMultiplier());
-        }
-
-        private float GetBfSwordLengthMultiplier()
-        {
-            if (_build == null)
-            {
-                return 1f;
-            }
-
-            return Mathf.Max(1f, _build.GetBfSwordLengthMultiplier());
-        }
-
-        #endregion
-
-        #region Weapon: Chain Lightning
-        private void FireChainAttack(WeaponRuntime weapon, Vector2 direction)
-        {
-            var range = GetWeaponRange(weapon);
-            var firstTarget = FindNearestUsable(range);
-            if (firstTarget == null)
-            {
-                return;
-            }
-
-            if (weapon.ActiveChainCoroutine != null)
-            {
-                StopCoroutine(weapon.ActiveChainCoroutine);
-            }
-
-            RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Primary, GetOwnerSoundPosition());
-            weapon.ActiveChainCoroutine = StartCoroutine(ExecuteChainAttackRoutine(weapon, firstTarget, direction));
-        }
-
-        private System.Collections.IEnumerator ExecuteChainAttackRoutine(WeaponRuntime weapon, EnemyController firstTarget, Vector2 fallbackDirection)
-        {
-            var hitHistory = new List<EnemyController>(8);
-            var currentDamage = GetWeaponBaseDamage(weapon);
-            var decay = _build != null && _build.DoesChainAttackIgnoreDecay()
-                ? 0f
-                : Mathf.Clamp(_config.chainLightningDamageDecayPerJump, 0f, 0.9f);
-            var range = GetWeaponRange(weapon);
-            var jumpRange = GetChainJumpRange(weapon, range);
-            var maxHits = Mathf.Max(1, _config.chainLightningBaseJumps + GetWeaponExtraCount(weapon));
-            var hopDelay = Mathf.Max(0.02f, _config.chainLightningHopDelay);
-            var previousPoint = _owner != null ? (Vector2)_owner.position : Vector2.zero;
-            var currentTarget = firstTarget;
-
-            for (var hop = 0; hop < maxHits && currentTarget != null; hop++)
-            {
-                if (!IsEnemyUsable(currentTarget))
-                {
-                    currentTarget = FindNearestChainTarget(previousPoint, jumpRange, hitHistory, null);
-                    if (currentTarget == null)
-                    {
-                        break;
-                    }
-                }
-
-                var currentPoint = (Vector2)currentTarget.transform.position;
-                SpawnChainBeamFx(previousPoint, currentPoint);
-                ChainFxRequested?.Invoke(new[] { (Vector3)previousPoint, (Vector3)currentPoint });
-                DealDirectWeaponDamage(currentTarget, currentDamage, weapon.WeaponId);
-                if (!ContainsEnemy(hitHistory, currentTarget))
-                {
-                    hitHistory.Add(currentTarget);
-                }
-
-                if (hop == 0)
-                {
-                    var firedDirection = (currentPoint - previousPoint).sqrMagnitude > 0.000001f
-                        ? (currentPoint - previousPoint).normalized
-                        : fallbackDirection;
-                    Fired?.Invoke(firedDirection);
-                }
-
-                previousPoint = currentPoint;
-                currentDamage = Mathf.Max(0.1f, currentDamage * (1f - decay));
-                if (hop >= maxHits - 1)
-                {
-                    break;
-                }
-
-                yield return new WaitForSeconds(hopDelay);
-                currentTarget = FindNearestChainTarget(previousPoint, jumpRange, hitHistory, currentTarget);
-            }
-
-            weapon.ActiveChainCoroutine = null;
-        }
-
-        private EnemyController FindNearestChainTarget(Vector2 from, float jumpRange, List<EnemyController> hitHistory, EnemyController lastTarget)
-        {
-            _candidateEnemies.Clear();
-            _registry.GetNearby(from, jumpRange, _candidateEnemies);
-
-            EnemyController nearest = null;
-            var minDistanceSq = float.MaxValue;
-
-            for (var i = 0; i < _candidateEnemies.Count; i++)
-            {
-                var enemy = _candidateEnemies[i];
-                if (enemy == null || enemy.IsDead || enemy == lastTarget)
-                {
-                    continue;
-                }
-
-                if (ContainsEnemy(hitHistory, enemy))
-                {
-                    continue;
-                }
-
-                var distanceSq = ((Vector2)enemy.transform.position - from).sqrMagnitude;
-                if (distanceSq < minDistanceSq)
-                {
-                    minDistanceSq = distanceSq;
-                    nearest = enemy;
-                }
-            }
-
-            return nearest;
-        }
-
-        private float GetChainJumpRange(WeaponRuntime weapon, float effectiveChainRange)
-        {
-            var baseJumpRange = Mathf.Max(0.1f, _config.chainLightningJumpRange);
-            return Mathf.Max(0.1f, baseJumpRange * GetAuraRangeMultiplier());
-        }
-
-        private bool FireLightning(WeaponRuntime weapon, out Vector2 firedDirection)
-        {
-            firedDirection = _lastAimDirection;
-            var range = GetWeaponRange(weapon);
-            var origin = (Vector2)_owner.position;
-            _candidateEnemies.Clear();
-            var limitSq = Mathf.Max(0.01f, range) * Mathf.Max(0.01f, range);
-            var enemies = _registry.Enemies;
-            for (var i = 0; i < enemies.Count; i++)
-            {
-                var enemy = enemies[i];
-                if (!IsEnemyUsable(enemy))
-                {
-                    continue;
-                }
-
-                if (((Vector2)enemy.transform.position - origin).sqrMagnitude > limitSq)
-                {
-                    continue;
-                }
-
-                _candidateEnemies.Add(enemy);
-            }
-
-            if (_candidateEnemies.Count <= 0)
-            {
-                return false;
-            }
-
-            var targetCount = Mathf.Max(1, 1 + GetWeaponExtraCount(weapon));
-            var hitCount = Mathf.Min(targetCount, _candidateEnemies.Count);
-            var damage = GetWeaponBaseDamage(weapon) * Mathf.Clamp(_config.nearbyLightningDamageMultiplier, 0.1f, 5f);
-            EnemyController firstTarget = null;
-            for (var shot = 0; shot < hitCount; shot++)
-            {
-                var randomIndex = UnityEngine.Random.Range(0, _candidateEnemies.Count);
-                var target = _candidateEnemies[randomIndex];
-                var lastIndex = _candidateEnemies.Count - 1;
-                _candidateEnemies[randomIndex] = _candidateEnemies[lastIndex];
-                _candidateEnemies.RemoveAt(lastIndex);
-
-                if (target == null)
-                {
-                    continue;
-                }
-
-                firstTarget ??= target;
-                DealDirectWeaponDamage(target, damage, weapon.WeaponId);
-                var targetCenter = ResolveTargetCenter(target);
-                // Trigger proper lightning visual instead of mace
-                AuraPulseFxRequested?.Invoke(targetCenter, 0.5f); 
-            }
-
-            if (firstTarget == null)
-            {
-                return false;
-            }
-
-            var toTarget = (Vector2)(firstTarget.transform.position - _owner.position);
-            firedDirection = toTarget.sqrMagnitude > 0.000001f ? toTarget.normalized : _lastAimDirection;
-            Fired?.Invoke(firedDirection);
-            return true;
-        }
-
-        private float GetLightningInterval(WeaponRuntime weapon)
-        {
-            return Mathf.Max(0.05f, GetAttackInterval(weapon) * Mathf.Clamp(_config.nearbyLightningIntervalMultiplier, 0.1f, 5f));
-        }
-
-        #endregion
-
-        #region Weapon: SwingMace
-        private void UpdateSwingMace(WeaponRuntime weapon)
-        {
-            if (weapon.IsSwingMaceSwingActive)
-            {
-                weapon.SwingMaceSwingElapsed += Time.deltaTime;
-                var duration = Mathf.Max(0.05f, _config.swingMaceSwingDuration * GetCombinedAttackIntervalMultiplier(weapon));
-                var progress = Mathf.Clamp01(weapon.SwingMaceSwingElapsed / duration);
-                UpdateSwingMaceState(weapon, progress);
-                if (progress >= 1f)
-                {
-                    weapon.IsSwingMaceSwingActive = false;
-                    weapon.SwingMaceSwingElapsed = 0f;
-                    weapon.SwingMaceHitEnemies.Clear();
-                    weapon.SwingMaceStunnedEnemies.Clear();
-                    if (weapon.SwingMaceVisualRoot != null)
-                    {
-                        weapon.SwingMaceVisualRoot.gameObject.SetActive(false);
-                    }
-                }
-
-                return;
-            }
-
-            if (weapon.Cooldown > 0f)
-            {
-                return;
-            }
-
-            if (!TryResolveFireDirection(weapon, out var targetDirection))
-            {
-                return;
-            }
-
-            weapon.SwingMaceSwingDirection = targetDirection.sqrMagnitude > 0.000001f ? targetDirection.normalized : Vector2.right;
-            weapon.IsSwingMaceSwingActive = true;
-            weapon.SwingMaceSwingElapsed = 0f;
-            weapon.SwingMaceHitEnemies.Clear();
-            weapon.SwingMaceStunnedEnemies.Clear();
-            UpdateSwingMaceState(weapon, 0f);
-            weapon.Cooldown = GetAttackInterval(weapon);
-            Fired?.Invoke(weapon.SwingMaceSwingDirection);
-        }
-
-        private void UpdateSwingMaceState(WeaponRuntime weapon, float progress)
-        {
-            if (_owner == null || weapon == null)
-            {
-                return;
-            }
-
-            EnsureSwingMaceVisual(weapon);
-            if (weapon.SwingMaceVisualRoot == null)
-            {
-                return;
-            }
-
-            weapon.SwingMaceVisualRoot.gameObject.SetActive(true);
-            var halfArc = Mathf.Max(5f, _config.swingMaceArcAngle) * 0.5f;
-            var swingDirection = RotateDirection(weapon.SwingMaceSwingDirection, Mathf.Lerp(-halfArc, halfArc, progress));
-            weapon.SwingMaceVisualRoot.position = _owner.position + new Vector3(swingDirection.x, swingDirection.y, 0f) * SwingMaceVisualForwardOffset;
-            weapon.SwingMaceVisualRoot.rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(swingDirection.y, swingDirection.x) * Mathf.Rad2Deg);
-
-            var range = GetSwingMaceLength(weapon);
-            var head = weapon.SwingMaceVisualRoot.Find("Head");
-            var headVisualSize = GetSwingMaceVisualHeadSize(weapon);
-            var hitRadius = GetSwingMaceHeadHitRadius(weapon);
-
-            if (head != null)
-            {
-                var visualLength = Mathf.Max(0.1f, range + (headVisualSize * 0.45f));
-                var visualWidth = Mathf.Max(0.12f, headVisualSize * 1.15f);
-                head.localPosition = new Vector3(visualLength * 0.5f, 0f, 0f);
-                ApplySwingMaceVisualScale(head, visualLength, visualWidth);
-            }
-
-            var headWorldPosition = (Vector2)_owner.position + (swingDirection * range);
-            var handleEndDistance = Mathf.Max(0.1f, range - Mathf.Max(headVisualSize, hitRadius));
-            var handleStart = (Vector2)_owner.position;
-            var handleEnd = handleStart + (swingDirection * handleEndDistance);
-            var handleHitRadius = Mathf.Max(_config.swingMaceVisualHandleWidth * 0.5f, hitRadius * 0.3f);
-            var damage = GetWeaponBaseDamage(weapon) * Mathf.Clamp(_config.swingMaceDamageMultiplier, 0.05f, 5f);
-            var stunDuration = Mathf.Max(0.05f, _config.swingMaceStunDuration) * (1f + (0.25f * (_build != null ? _build.GetWeaponMilestoneCount(weapon.WeaponId) : 0)));
-
-            var handleMidpoint = (handleStart + handleEnd) * 0.5f;
-            var handleSearchRadius = Vector2.Distance(handleStart, handleEnd) * 0.5f + handleHitRadius;
-            _registry.GetNearby(handleMidpoint, handleSearchRadius + _registry.GetMaxCollisionRadius(), _nearbyEnemies);
-            for (var i = 0; i < _nearbyEnemies.Count; i++)
-            {
-                var enemy = _nearbyEnemies[i];
-                if (!IsEnemyUsable(enemy) || weapon.SwingMaceHitEnemies.Contains(enemy))
-                {
-                    continue;
-                }
-
-                var totalRadius = handleHitRadius + enemy.CollisionRadius;
-                if (DistancePointToSegment((Vector2)enemy.transform.position, handleStart, handleEnd) > totalRadius)
-                {
-                    continue;
-                }
-
-                weapon.SwingMaceHitEnemies.Add(enemy);
-                DealDirectWeaponDamage(enemy, damage, weapon.WeaponId);
-                enemy.ApplyMinorStun(SwingMaceHandleMinorStunDuration);
-            }
-
-            _registry.GetNearby(headWorldPosition, hitRadius + _registry.GetMaxCollisionRadius(), _nearbyEnemies);
-            for (var i = 0; i < _nearbyEnemies.Count; i++)
-            {
-                var enemy = _nearbyEnemies[i];
-                if (!IsEnemyUsable(enemy))
-                {
-                    continue;
-                }
-
-                var limit = hitRadius + enemy.CollisionRadius;
-                if (((Vector2)enemy.transform.position - (Vector2)headWorldPosition).sqrMagnitude > limit * limit)
-                {
-                    continue;
-                }
-
-                if (!weapon.SwingMaceHitEnemies.Contains(enemy))
-                {
-                    weapon.SwingMaceHitEnemies.Add(enemy);
-                    DealDirectWeaponDamage(enemy, damage, weapon.WeaponId);
-                }
-
-                if (weapon.SwingMaceStunnedEnemies.Contains(enemy))
-                {
-                    continue;
-                }
-
-                weapon.SwingMaceStunnedEnemies.Add(enemy);
-                enemy.ApplyStun(stunDuration);
-            }
-        }
-
-        private void EnsureSwingMaceVisual(WeaponRuntime weapon)
-        {
-            if (weapon == null || weapon.SwingMaceVisualRoot != null)
-            {
-                return;
-            }
-
-            var root = new GameObject("MaceVisual");
-            root.transform.SetParent(transform, false);
-
-            var headObject = new GameObject("Head");
-            headObject.transform.SetParent(root.transform, false);
-            var headRenderer = headObject.AddComponent<SpriteRenderer>();
-            var headFrames = RuntimeSpriteFactory.GetSexyMaceAnimationFrames();
-            headRenderer.sprite = headFrames.Length > 0 ? headFrames[0] : RuntimeSpriteFactory.GetSquareSprite();
-            headRenderer.color = Color.white;
-            headRenderer.sortingOrder = 35;
-
-            weapon.SwingMaceVisualRoot = root.transform;
-            weapon.SwingMaceVisualRoot.gameObject.SetActive(false);
-        }
-
-        private static void ApplySwingMaceVisualScale(Transform visualTransform, float desiredLength, float desiredWidth)
-        {
-            if (visualTransform == null)
-            {
-                return;
-            }
-
-            var renderer = visualTransform.GetComponent<SpriteRenderer>();
-            var sprite = renderer != null ? renderer.sprite : null;
-            if (sprite == null)
-            {
-                visualTransform.localScale = new Vector3(desiredWidth, desiredLength, 1f);
-                return;
-            }
-
-            var ppu = Mathf.Max(0.0001f, sprite.pixelsPerUnit);
-            var spriteWidth = Mathf.Max(0.0001f, sprite.rect.width / ppu);
-            var spriteHeight = Mathf.Max(0.0001f, sprite.rect.height / ppu);
-            var uniformScale = Mathf.Max(
-                0.05f,
-                desiredLength / spriteWidth,
-                desiredWidth / spriteHeight);
-            visualTransform.localScale = new Vector3(uniformScale, uniformScale, 1f);
-        }
-
-        private void SpawnSwingMaceSpriteFx(Vector3 targetCenter)
-        {
-            WeaponFxRenderer.SpawnSatelliteBeamFx(
-                transform,
-                targetCenter,
-                swingMaceVisualScale,
-                swingMaceVisualYOffset,
-                swingMaceVisualFps,
-                lightningFxDuration,
-                510);
-        }
-
-        private float GetSwingMaceLength(WeaponRuntime weapon)
-        {
-            var baseLength = _config != null ? Mathf.Max(0.25f, _config.swingMaceMeleeRange) : 1f;
-            var scale = GetSwingMaceRangeComponentScale(weapon, SwingMaceLengthRangeBonusShare);
-            return Mathf.Max(0.25f, baseLength * scale);
-        }
-
-        private float GetSwingMaceHeadHitRadius(WeaponRuntime weapon)
-        {
-            var baseRadius = _config != null ? Mathf.Max(0.05f, _config.swingMaceHitRadius) : 0.5f;
-            var scale = GetSwingMaceRangeComponentScale(weapon, SwingMaceHeadRangeBonusShare);
-            return Mathf.Max(0.05f, baseRadius * scale);
-        }
-
-        private float GetSwingMaceVisualHeadSize(WeaponRuntime weapon)
-        {
-            var baseSize = _config != null ? Mathf.Max(0.05f, _config.swingMaceVisualHeadSize) : 0.38f;
-            var scale = GetSwingMaceRangeComponentScale(weapon, SwingMaceHeadRangeBonusShare);
-            return Mathf.Max(0.05f, baseSize * scale);
-        }
-
-        private float GetSwingMaceRangeComponentScale(WeaponRuntime weapon, float bonusShare)
-        {
-            var attackRangeMultiplier = _stats != null ? Mathf.Max(0.1f, _stats.AttackRangeMultiplier) : 1f;
-            var weaponRangeMultiplier = 1f + GetWeaponRangeBonusPercent(weapon);
-            var totalScale = Mathf.Max(0.1f, attackRangeMultiplier * weaponRangeMultiplier);
-            var delta = totalScale - 1f;
-            return Mathf.Max(0.1f, 1f + (delta * Mathf.Clamp01(bonusShare)));
-        }
-
-        #endregion
-
-        #region Weapon: Orbit (Satellite)
-        private void UpdateSatellite(WeaponRuntime weapon)
-        {
-            var satelliteCount = GetSatelliteCount(weapon);
-            EnsureSatelliteVisuals(weapon, satelliteCount);
-            if (weapon.SatelliteVisuals.Count <= 0)
-            {
-                return;
-            }
-
-            var attackSpeedScale = _stats != null ? Mathf.Max(0.2f, 1f / _stats.AttackIntervalMultiplier) : 1f;
-            var weaponAttackSpeedScale = 1f + GetWeaponAttackSpeedBonusPercent(weapon);
-            var orbitSpeed = Mathf.Max(30f, _config.droneAngularSpeed) * attackSpeedScale * weaponAttackSpeedScale;
-            weapon.OrbitAngleDegrees += orbitSpeed * Time.deltaTime;
-            if (weapon.OrbitAngleDegrees > 360f)
-            {
-                weapon.OrbitAngleDegrees -= 360f;
-            }
-
-            var attackRangeMultiplier = _stats != null ? Mathf.Max(0.1f, _stats.AttackRangeMultiplier) : 1f;
-            var weaponRangeScale = 1f + GetWeaponRangeBonusPercent(weapon);
-            var orbitRadius = Mathf.Max(0.2f, _config.droneOrbitRadius) * weaponRangeScale * attackRangeMultiplier;
-            var hitRadius = Mathf.Max(0.05f, _config.droneHitRadius);
-            var damage = GetWeaponBaseDamage(weapon) * Mathf.Clamp(_config.droneDamageMultiplier, 0.05f, 5f);
-            var hitCooldown = GetSatelliteHitCooldown(weapon);
-
-            PruneEnemyCooldownMap(weapon.SatelliteHitCooldownUntil);
-
-            for (var satelliteIndex = 0; satelliteIndex < weapon.SatelliteVisuals.Count; satelliteIndex++)
-            {
-                var satelliteVisual = weapon.SatelliteVisuals[satelliteIndex];
-                if (satelliteVisual == null)
-                {
-                    continue;
-                }
-
-                var phase = (360f / Mathf.Max(1, satelliteCount)) * satelliteIndex;
-                var angle = (weapon.OrbitAngleDegrees + phase) * Mathf.Deg2Rad;
-                var offset = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * orbitRadius;
-                var worldPos = (Vector2)_owner.position + offset;
-                satelliteVisual.position = new Vector3(worldPos.x, worldPos.y, 0f);
-
-                _registry.GetNearby(worldPos, hitRadius + _registry.GetMaxCollisionRadius(), _nearbyEnemies);
-                for (var i = 0; i < _nearbyEnemies.Count; i++)
-                {
-                    var enemy = _nearbyEnemies[i];
-                    if (!IsEnemyUsable(enemy))
-                    {
-                        continue;
-                    }
-
-                    var limit = hitRadius + enemy.CollisionRadius;
-                    if (((Vector2)enemy.transform.position - worldPos).sqrMagnitude > limit * limit)
-                    {
-                        continue;
-                    }
-
-                    if (weapon.SatelliteHitCooldownUntil.TryGetValue(enemy, out var nextHitAt) && Time.time < nextHitAt)
-                    {
-                        continue;
-                    }
-
-                    weapon.SatelliteHitCooldownUntil[enemy] = Time.time + hitCooldown;
-                    DealDirectWeaponDamage(enemy, damage, weapon.WeaponId);
-                    SpawnRingFx((Vector2)enemy.transform.position, hitRadius * 0.9f, auraFxColor, auraFxWidth, 0.06f, "SatelliteHitFx");
-                    SatelliteHitFxRequested?.Invoke(enemy.transform.position, hitRadius * 0.9f);
-                }
-            }
-        }
-
-        private void EnsureSatelliteVisuals(WeaponRuntime weapon, int desiredCount)
-        {
-            if (weapon == null)
-            {
-                return;
-            }
-
-            var clampedCount = Mathf.Clamp(desiredCount, 1, 6);
-            while (weapon.SatelliteVisuals.Count < clampedCount)
-            {
-                weapon.SatelliteVisuals.Add(CreateSatelliteVisual());
-            }
-
-            while (weapon.SatelliteVisuals.Count > clampedCount)
-            {
-                var lastIndex = weapon.SatelliteVisuals.Count - 1;
-                var visual = weapon.SatelliteVisuals[lastIndex];
-                if (visual != null)
-                {
-                    Destroy(visual.gameObject);
-                }
-
-                weapon.SatelliteVisuals.RemoveAt(lastIndex);
-            }
-        }
-
-        private Transform CreateSatelliteVisual()
-        {
-            var satelliteRoot = new GameObject("SatelliteVisual");
-            satelliteRoot.transform.SetParent(transform, false);
-
-            var visualObject = new GameObject("Visual");
-            visualObject.transform.SetParent(satelliteRoot.transform, false);
-
-            var renderer = visualObject.AddComponent<SpriteRenderer>();
-            var frames = RuntimeSpriteFactory.GetSexyDroneAnimationFrames();
-            var hasAnimation = frames != null && frames.Length > 0;
-            renderer.sprite = hasAnimation ? frames[0] : RuntimeSpriteFactory.GetSquareSprite();
-            renderer.color = Color.white;
-            renderer.sortingOrder = satelliteVisualSortOrder;
-            var visualScale = 1.5f;
-            visualObject.transform.localScale = Vector3.one * visualScale;
-            visualObject.transform.localPosition = GetSpriteCenterAlignOffset(renderer.sprite, visualScale);
-
-            if (hasAnimation && frames.Length > 1)
-            {
-                var animator = visualObject.AddComponent<SpriteFxAnimator>();
-                animator.Initialize(renderer, frames, satelliteVisualAnimationFps, loop: true, destroyOnComplete: false);
-            }
-
-            return satelliteRoot.transform;
-        }
-
-        private int GetSatelliteCount(WeaponRuntime weapon)
-        {
-            var baseCount = _config != null ? _config.droneBaseCount : 1;
-            return Mathf.Max(1, baseCount + GetWeaponExtraCount(weapon));
-        }
-
-        private float GetSatelliteHitCooldown(WeaponRuntime weapon)
-        {
-            var configured = _config != null ? _config.droneHitCooldownPerEnemy : 0.5f;
-            return Mathf.Max(0.01f, configured * GetCombinedAttackIntervalMultiplier(weapon));
-        }
-
-        private float GetSatelliteHitCooldownPerEnemy(WeaponRuntime weapon)
-        {
-            return Mathf.Max(0.03f, Mathf.Max(0.01f, _config.droneHitCooldownPerEnemy) * GetCombinedAttackIntervalMultiplier(weapon));
-        }
-        #endregion
-
-        #region Weapon: Turret
-        private void UpdateTurret(WeaponRuntime weapon)
-        {
-            UpdateTurretInstances(weapon);
-
-            if (weapon.Cooldown > 0f)
-            {
-                return;
-            }
-
-            DeployTurret((Vector2)_owner.position, GetTurretRange(weapon));
-            weapon.Cooldown = GetTurretDeployInterval(weapon);
-        }
-
-        private void UpdateTurretInstances(WeaponRuntime weapon)
-        {
-            if (_turrets.Count <= 0)
-            {
-                return;
-            }
-
-            var turretRange = GetTurretRange(weapon);
-            var turretDamage = GetWeaponBaseDamage(weapon) * Mathf.Clamp(_config.turretDamageMultiplier, 0.05f, 5f);
-            var shotInterval = GetTurretShotInterval(weapon);
-            var projectileSpeed = Mathf.Max(0.1f, _config.turretProjectileSpeed);
-            var projectileLifetime = GetLifetimeCappedByRange(turretRange, projectileSpeed, Mathf.Max(0.1f, _config.turretProjectileLifetime), rangePaddingMultiplier: 1.1f);
-            var projectileHitRadius = Mathf.Max(0.05f, _config.projectileHitRadius * 0.9f);
-
-            for (var i = _turrets.Count - 1; i >= 0; i--)
-            {
-                var turret = _turrets[i];
-                if (turret == null || turret.Root == null || Time.time >= turret.ExpiresAt)
-                {
-                    DestroyTurretAt(i);
-                    continue;
-                }
-
-                turret.ShotCooldown -= Time.deltaTime;
-                if (turret.ShotCooldown > 0f)
-                {
-                    continue;
-                }
-
-                var target = FindNearestUsableFrom(turret.Position, turretRange);
-                if (target == null)
-                {
-                    SetTurretIdle(turret);
-                    turret.ShotCooldown = shotInterval * 0.6f;
-                    continue;
-                }
-
-                var fireDirection = (Vector2)(target.transform.position - turret.Root.position);
-                if (fireDirection.sqrMagnitude <= 0.000001f)
-                {
-                    SetTurretIdle(turret);
-                    turret.ShotCooldown = shotInterval;
-                    continue;
-                }
-
-                if (turret.Renderer != null && Mathf.Abs(fireDirection.x) > 0.0001f)
-                {
-                    turret.Renderer.flipX = fireDirection.x < 0f;
-                }
-                PlayTurretFireAnimation(turret);
-
-                SpawnProjectile(
-                    weapon.WeaponId,
-                    fireDirection.normalized,
-                    turretDamage,
-                    projectileSpeed,
-                    projectileLifetime,
-                    projectileHitRadius,
-                    1,
-                    0f,
-                    1f,
-                    new Color(0.95f, 0.95f, 0.75f),
-                    turret.Root.position);
-
-                SpawnTracerFx(turret.Root.position, target.transform.position);
-                RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Primary, turret.Root.position);
-                turret.ShotCooldown = shotInterval;
-            }
-        }
-
-        private void DeployTurret(Vector2 position, float turretRange)
-        {
-            var turretWeapon = FindLoadoutWeapon(WeaponUpgradeId.Turret);
-            var maxCount = Mathf.Clamp(_config.turretMaxCount + (turretWeapon != null ? GetWeaponExtraCount(turretWeapon) : 0), 1, 8);
-            while (_turrets.Count >= maxCount)
-            {
-                DestroyTurretAt(0);
-            }
-
-            var turretObject = new GameObject("Turret");
-            turretObject.transform.SetParent(null, true);
-            turretObject.transform.position = new Vector3(position.x, position.y, 0f);
-            turretObject.transform.localScale = Vector3.one;
-
-            var visualObject = new GameObject("Visual");
-            visualObject.transform.SetParent(turretObject.transform, false);
-
-            var turretRenderer = visualObject.AddComponent<SpriteRenderer>();
-            var turretFrames = RuntimeSpriteFactory.GetSexyTurretAnimationFrames();
-            var hasTurretAnimation = turretFrames != null && turretFrames.Length > 0;
-            var idleFrame = hasTurretAnimation ? turretFrames[0] : RuntimeSpriteFactory.GetSquareSprite();
-            var fireFrames = ExtractFireFrames(turretFrames);
-            turretRenderer.sprite = idleFrame;
-            turretRenderer.color = Color.white;
-            turretRenderer.sortingOrder = 34;
-            visualObject.transform.localScale = Vector3.one * Mathf.Max(0.05f, turretVisualScale);
-
-            var rangeFxObject = new GameObject("TurretRangeFx");
-            rangeFxObject.transform.SetParent(turretObject.transform, false);
-            rangeFxObject.transform.localPosition = new Vector3(0f, 0f, -0.02f);
-
-            var rangeRenderer = rangeFxObject.AddComponent<LineRenderer>();
-            WeaponFxRenderer.ConfigureLineRenderer(rangeRenderer, turretRangeFxColor, 0.03f, true, false);
-            WeaponFxRenderer.SetCircleLinePositions(rangeRenderer, Vector3.zero, turretRange, ringFxSegments, 0f);
-
-            _turrets.Add(new TurretRuntime
-            {
-                Root = turretObject.transform,
-                Position = position,
-                ExpiresAt = Time.time + Mathf.Max(0.1f, _config.turretLifetime),
-                ShotCooldown = 0f,
-                Renderer = turretRenderer,
-                IdleFrame = idleFrame,
-                FireFrames = fireFrames,
-                FireAnimationCoroutine = null,
-            });
-
-            RequestWeaponSound(WeaponUpgradeId.Turret, WeaponSoundKind.Deploy, turretObject.transform.position);
-            TurretDeployed?.Invoke(
-                turretObject.transform.position,
-                turretRange,
-                Mathf.Max(0.1f, _config.turretLifetime));
-        }
-
-        private static Sprite[] ExtractFireFrames(Sprite[] allFrames)
-        {
-            if (allFrames == null || allFrames.Length <= 1)
-            {
-                return Array.Empty<Sprite>();
-            }
-
-            var fireFrames = new Sprite[allFrames.Length - 1];
-            Array.Copy(allFrames, 1, fireFrames, 0, fireFrames.Length);
-            return fireFrames;
-        }
-
-        private void SetTurretIdle(TurretRuntime turret)
-        {
-            if (turret == null || turret.Renderer == null || turret.IdleFrame == null)
-            {
-                return;
-            }
-
-            if (turret.FireAnimationCoroutine == null)
-            {
-                turret.Renderer.sprite = turret.IdleFrame;
-            }
-        }
-
-        private void PlayTurretFireAnimation(TurretRuntime turret)
-        {
-            if (turret == null || turret.Renderer == null)
-            {
-                return;
-            }
-
-            if (turret.FireFrames == null || turret.FireFrames.Length <= 0)
-            {
-                SetTurretIdle(turret);
-                return;
-            }
-
-            if (turret.FireAnimationCoroutine != null)
-            {
-                StopCoroutine(turret.FireAnimationCoroutine);
-            }
-
-            turret.FireAnimationCoroutine = StartCoroutine(PlayTurretFireAnimationRoutine(turret));
-        }
-
-        private System.Collections.IEnumerator PlayTurretFireAnimationRoutine(TurretRuntime turret)
-        {
-            if (turret == null || turret.Renderer == null)
-            {
-                yield break;
-            }
-
-            var frameDuration = 1f / Mathf.Max(0.1f, turretVisualAnimationFps);
-            for (var i = 0; i < turret.FireFrames.Length; i++)
-            {
-                if (turret.Renderer == null)
-                {
-                    yield break;
-                }
-
-                turret.Renderer.sprite = turret.FireFrames[i];
-                yield return new WaitForSeconds(frameDuration);
-            }
-
-            if (turret.Renderer != null && turret.IdleFrame != null)
-            {
-                turret.Renderer.sprite = turret.IdleFrame;
-            }
-
-            turret.FireAnimationCoroutine = null;
-        }
-
-        private void DestroyTurretAt(int index)
-        {
-            if (index < 0 || index >= _turrets.Count)
-            {
-                return;
-            }
-
-            var turret = _turrets[index];
-            if (turret != null && turret.Root != null)
-            {
-                if (turret.FireAnimationCoroutine != null)
-                {
-                    StopCoroutine(turret.FireAnimationCoroutine);
-                    turret.FireAnimationCoroutine = null;
-                }
-
-                Destroy(turret.Root.gameObject);
-            }
-
-            _turrets.RemoveAt(index);
-        }
-
-        private void ClearTurrets()
-        {
-            for (var i = _turrets.Count - 1; i >= 0; i--)
-            {
-                DestroyTurretAt(i);
-            }
-
-            _turrets.Clear();
-        }
-
-        private float GetTurretDeployInterval(WeaponRuntime weapon)
-        {
-            return Mathf.Max(0.1f, Mathf.Max(0.1f, _config.turretDeployInterval) * GetCombinedAttackIntervalMultiplier(weapon));
-        }
-
-        private float GetTurretShotInterval(WeaponRuntime weapon)
-        {
-            return Mathf.Max(0.08f, GetAttackInterval(weapon) * 0.75f);
-        }
-
-        private float GetTurretRange(WeaponRuntime weapon)
-        {
-            var baseRange = GetWeaponRange(weapon) * Mathf.Clamp(_config.turretRangeMultiplier, 0.1f, 3f);
-            return Mathf.Max(0.4f, baseRange * (2f / 3f));
-        }
-        #endregion
-
-        #region Weapon: Aura
-        private void UpdateAura(WeaponRuntime weapon)
-        {
-            if (weapon.Cooldown > 0f)
-            {
-                return;
-            }
-
-            weapon.Cooldown = GetAuraTickInterval(weapon);
-
-            var center = (Vector2)_owner.position;
-            var range = GetAuraRange(weapon);
-            var damage = GetWeaponBaseDamage(weapon) * Mathf.Clamp(_config.auraDamageMultiplier, 0.01f, 5f);
-
-            _registry.GetNearby(center, range + _registry.GetMaxCollisionRadius(), _nearbyEnemies);
-
-            for (var i = 0; i < _nearbyEnemies.Count; i++)
-            {
-                var enemy = _nearbyEnemies[i];
-                if (!IsEnemyUsable(enemy))
-                {
-                    continue;
-                }
-
-                var toEnemy = (Vector2)enemy.transform.position - center;
-                var centerDistance = toEnemy.magnitude;
-                var surfaceDistance = Mathf.Max(0f, centerDistance - enemy.CollisionRadius);
-                if (surfaceDistance > range)
-                {
-                    continue;
-                }
-
-                DealDirectWeaponDamage(enemy, damage, weapon.WeaponId);
-            }
-        }
-
-        private void UpdatePersistentAuraVisual()
-        {
-            if (_ownerUsesExternalAuraPresentation || _owner == null)
-            {
-                SetPersistentAuraVisible(false);
-                return;
-            }
-
-            var auraWeapon = FindLoadoutWeapon(WeaponUpgradeId.Aura);
-            if (auraWeapon == null)
-            {
-                SetPersistentAuraVisible(false);
-                return;
-            }
-
-            EnsurePersistentAuraLine();
-            if (_persistentAuraLine == null)
-            {
-                return;
-            }
-
-            var color = auraFxColor;
-            color.a = Mathf.Clamp01(color.a * 0.55f);
-            WeaponFxRenderer.ConfigureLineRenderer(
-                _persistentAuraLine,
-                color,
-                auraIdleWidth,
-                loop: true,
-                useWorldSpace: true);
-            WeaponFxRenderer.SetCircleLinePositions(
-                _persistentAuraLine,
-                _owner.position,
-                GetAuraRange(auraWeapon),
-                ringFxSegments,
-                -0.02f);
-            _persistentAuraLine.enabled = true;
-        }
-
-        private void EnsurePersistentAuraLine()
-        {
-            if (_persistentAuraLine != null)
-            {
-                return;
-            }
-
-            var auraObject = new GameObject("AuraIdleFx");
-            auraObject.transform.SetParent(transform, false);
-            _persistentAuraLine = auraObject.AddComponent<LineRenderer>();
-            _persistentAuraLine.enabled = false;
-        }
-
-        private void SetPersistentAuraVisible(bool isVisible)
-        {
-            if (_persistentAuraLine == null)
-            {
-                return;
-            }
-
-            _persistentAuraLine.enabled = isVisible;
-        }
-
-        private float GetAuraRange(WeaponRuntime weapon)
-        {
-            return GetWeaponRange(weapon);
-        }
-
-        private float GetAuraTickInterval(WeaponRuntime weapon)
-        {
-            return Mathf.Max(0.03f, Mathf.Max(0.01f, _config.auraTickInterval) * GetCombinedAttackIntervalMultiplier(weapon));
-        }
-
-        private float GetAuraRangeMultiplier()
-        {
-            if (_build == null)
-            {
-                return 1f;
-            }
-
-            return Mathf.Max(1f, _build.GetAuraMilestoneRangeMultiplier());
-        }
-
-        #endregion
-
-
-
-        public void ClearActiveProjectiles()
-        {
-            if (_projectilePoolRoot == null)
-            {
-                return;
-            }
-
-            var activeProjectiles = _projectilePoolRoot.GetComponentsInChildren<Projectile>(includeInactive: false);
-            for (var i = 0; i < activeProjectiles.Length; i++)
-            {
-                var projectile = activeProjectiles[i];
-                if (projectile == null || !projectile.gameObject.activeSelf)
-                {
-                    continue;
-                }
-
-                ReturnProjectileToPool(projectile);
-            }
-        }
-
-        #region System: Combat (Damage & FX)
-
-        private void SpawnLineFx(Vector3 from, Vector3 to, Color color, float width, float duration, string name)
-        {
-            WeaponFxRenderer.SpawnLineFx(transform, from, to, color, width, duration, name);
-        }
-
-        private void SpawnPolylineFx(List<Vector3> points, Color color, float width, float duration, bool loop, string name)
-        {
-            WeaponFxRenderer.SpawnPolylineFx(transform, points, color, width, duration, loop, name);
-        }
-
-        private void ConfigureLineRenderer(LineRenderer lineRenderer, Color color, float width, bool loop, bool useWorldSpace)
-        {
-            WeaponFxRenderer.ConfigureLineRenderer(lineRenderer, color, width, loop, useWorldSpace);
-        }
-
-        private void SetCircleLinePositions(LineRenderer lineRenderer, Vector2 center, float radius, int segments, float z)
-        {
-            WeaponFxRenderer.SetCircleLinePositions(lineRenderer, center, radius, segments, z);
-        }
-
-        private static Sprite GetProjectileVisualSprite(WeaponUpgradeId weaponId)
-        {
-            return weaponId switch
-            {
-                WeaponUpgradeId.Rifle => RuntimeSpriteFactory.GetWeaponFire1Sprite(),
-                WeaponUpgradeId.Fireball => RuntimeSpriteFactory.GetFireballProjectileSprite(),
-                _ => RuntimeSpriteFactory.GetSquareSprite(),
-            };
-        }
-
-        private static bool ShouldUseProjectileSourceColor(WeaponUpgradeId weaponId)
-        {
-            return weaponId switch
-            {
-                WeaponUpgradeId.Rifle => true,
-                WeaponUpgradeId.Fireball => true,
-                _ => false,
-            };
-        }
-
-        private static float GetProjectileVisualScale(WeaponUpgradeId weaponId, float baseScale)
-        {
-            var visualScale = Mathf.Max(0.05f, baseScale);
-            if (weaponId == WeaponUpgradeId.Fireball || weaponId == WeaponUpgradeId.Rifle)
-            {
-                visualScale *= 4f;
-            }
-
-            return visualScale;
-        }
-
-        private static Quaternion GetProjectileVisualRotation(WeaponUpgradeId weaponId, Vector2 direction)
-        {
-            if (weaponId == WeaponUpgradeId.Rifle)
-            {
-                var normalizedDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : Vector2.right;
-                var directAngle = Mathf.Atan2(normalizedDirection.y, normalizedDirection.x) * Mathf.Rad2Deg;
-                return Quaternion.Euler(0f, 0f, directAngle);
-            }
-
-            if (weaponId != WeaponUpgradeId.Fireball)
-            {
-                return Quaternion.identity;
-            }
-
-            var normalizedFireballDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : Vector2.right;
-            var flipX = normalizedFireballDirection.x < 0f;
-            var signedAngleFromHorizontal = Mathf.Atan2(normalizedFireballDirection.y, Mathf.Abs(normalizedFireballDirection.x)) * Mathf.Rad2Deg;
-            if (flipX)
-            {
-                signedAngleFromHorizontal = -signedAngleFromHorizontal;
-            }
-
-            return Quaternion.Euler(0f, 0f, signedAngleFromHorizontal);
-        }
-
-        private static bool GetProjectileVisualFlipX(WeaponUpgradeId weaponId, Vector2 direction)
-        {
-            if (weaponId != WeaponUpgradeId.Fireball)
-            {
-                return false;
-            }
-
-            var normalizedDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : Vector2.right;
-            return normalizedDirection.x < 0f;
         }
 
         private void EnsureProjectilePool()
@@ -2724,6 +434,13 @@ namespace EJR.Game.Gameplay
             }
 
             var projectileObject = projectile.gameObject;
+
+            // ?곕떽?????쑴竊???袁ⓥ봺??FireballVfx ??????덈뼄筌??????몃빍??
+            for (var i = projectileObject.transform.childCount - 1; i >= 0; i--)
+            {
+                UnityEngine.Object.Destroy(projectileObject.transform.GetChild(i).gameObject);
+            }
+
             projectileObject.SetActive(false);
             projectileObject.transform.SetParent(_projectilePoolRoot, false);
             _projectilePool.Enqueue(projectile);
@@ -2786,7 +503,7 @@ namespace EJR.Game.Gameplay
             _playerHealth.Heal(clampedHeal);
         }
 
-        private void SpawnChainBeamFx(Vector3 from, Vector3 to)
+        public void SpawnChainBeamFx(Vector3 from, Vector3 to)
         {
             WeaponFxRenderer.SpawnStretchBeamFx(
                 null,
@@ -2799,18 +516,62 @@ namespace EJR.Game.Gameplay
                 "ChainFx");
         }
 
-        private void SpawnTracerFx(Vector3 from, Vector3 to)
+        public void SpawnTracerFx(Vector3 from, Vector3 to)
         {
-            SpawnLineFx(from, to, turretTracerFxColor, turretTracerFxWidth, turretTracerFxDuration, "TurretTracerFx");
+            WeaponFxRenderer.SpawnLineFx(transform, from, to, turretTracerFxColor, turretTracerFxWidth, turretTracerFxDuration, "TurretTracerFx");
             TurretTracerFxRequested?.Invoke(from, to);
         }
 
-        private void SpawnRingFx(Vector2 center, float radius, Color color, float width, float duration, string name)
+        public void SpawnRingFx(Vector2 center, float radius, Color color, float width, float duration, string name)
         {
             WeaponFxRenderer.SpawnRingFx(transform, center, radius, ringFxSegments, color, width, duration, name);
         }
 
-        private void SpawnProjectile(
+        private float GetProjectileVisualScale(WeaponUpgradeId weaponId, float baseScale)
+        {
+            return weaponId switch
+            {
+                WeaponUpgradeId.Rifle => baseScale,
+                WeaponUpgradeId.Fireball => 1.0f,
+                WeaponUpgradeId.Bat => Mathf.Max(0.01f, _config.batVisualScale),
+                WeaponUpgradeId.Shotgun => baseScale * 0.85f,
+                _ => baseScale,
+            };
+        }
+
+        private Quaternion GetProjectileVisualRotation(WeaponUpgradeId weaponId, Vector2 direction)
+        {
+            var angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+            return weaponId switch
+            {
+                WeaponUpgradeId.Bat => Quaternion.identity,
+                _ => Quaternion.Euler(0f, 0f, angle),
+            };
+        }
+
+        private Sprite GetProjectileVisualSprite(WeaponUpgradeId weaponId)
+        {
+            return weaponId switch
+            {
+                WeaponUpgradeId.Rifle => RuntimeSpriteFactory.GetWeaponFire1Sprite(),
+                WeaponUpgradeId.Fireball => RuntimeSpriteFactory.GetFireballProjectileSprite(),
+                WeaponUpgradeId.Bat => RuntimeSpriteFactory.GetSlimeSprite(),
+                WeaponUpgradeId.Shotgun => RuntimeSpriteFactory.GetWeaponFire1Sprite(),
+                _ => null,
+            };
+        }
+
+        private bool ShouldUseProjectileSourceColor(WeaponUpgradeId weaponId)
+        {
+            return weaponId == WeaponUpgradeId.Fireball || weaponId == WeaponUpgradeId.Bat;
+        }
+
+        private bool GetProjectileVisualFlipX(WeaponUpgradeId weaponId, Vector2 direction)
+        {
+            return weaponId == WeaponUpgradeId.Bat && direction.x < 0;
+        }
+
+        public Projectile SpawnProjectile(
             WeaponUpgradeId weaponId,
             Vector2 direction,
             float damage,
@@ -2848,7 +609,7 @@ namespace EJR.Game.Gameplay
             {
                 ProjectileVisualRequested?.Invoke(spawnRequest);
                 Fired?.Invoke(normalizedDirection);
-                return;
+                return null;
             }
 
             var projectile = GetPooledProjectile();
@@ -2859,6 +620,7 @@ namespace EJR.Game.Gameplay
             var renderer = projectile.GetComponent<SpriteRenderer>();
             if (renderer != null)
             {
+                renderer.enabled = true;
                 renderer.sprite = GetProjectileVisualSprite(weaponId);
                 renderer.color = ShouldUseProjectileSourceColor(weaponId) ? Color.white : color;
                 renderer.flipX = GetProjectileVisualFlipX(weaponId, normalizedDirection);
@@ -2884,9 +646,10 @@ namespace EJR.Game.Gameplay
 
             ProjectileVisualRequested?.Invoke(spawnRequest);
             Fired?.Invoke(normalizedDirection);
+            return projectile;
         }
 
-        private void DealDirectWeaponDamage(EnemyController enemy, float damage, WeaponUpgradeId weaponId)
+        public void DealDirectWeaponDamage(EnemyController enemy, float damage, WeaponUpgradeId weaponId)
         {
             if (enemy == null)
             {
@@ -2897,8 +660,6 @@ namespace EJR.Game.Gameplay
             enemy.ReceiveWeaponDamage(appliedDamage, weaponId);
             TryApplyDirectHitLifesteal(appliedDamage, enemy);
         }
-
-        #endregion
 
         #region System: Targeting & Utilities
 
@@ -3015,12 +776,12 @@ namespace EJR.Game.Gameplay
             return ((Vector2)(target.transform.position - _owner.position)).sqrMagnitude <= limit * limit;
         }
 
-        private void RequestWeaponSound(WeaponUpgradeId weaponId, WeaponSoundKind kind, Vector3 worldPosition)
+        public void RequestWeaponSound(WeaponUpgradeId weaponId, WeaponSoundKind kind, Vector3 worldPosition)
         {
             WeaponSoundRequested?.Invoke(new WeaponSoundRequest(weaponId, kind, worldPosition));
         }
 
-        private Vector3 GetOwnerSoundPosition()
+        public Vector3 GetOwnerSoundPosition()
         {
             return _owner != null ? _owner.position : Vector3.zero;
         }
@@ -3079,7 +840,7 @@ namespace EJR.Game.Gameplay
                 0f);
         }
 
-        private EnemyController FindNearestUsableFrom(Vector2 origin, float maxDistance)
+        public EnemyController FindNearestUsableFrom(Vector2 origin, float maxDistance)
         {
             var enemies = _registry.Enemies;
             EnemyController best = null;
@@ -3119,12 +880,12 @@ namespace EJR.Game.Gameplay
             return false;
         }
 
-        private bool IsEnemyUsable(EnemyController enemy)
+        public bool IsEnemyUsable(EnemyController enemy)
         {
             return enemy != null && IsInsideAimBounds(enemy.transform.position);
         }
 
-        private void PruneEnemyCooldownMap(Dictionary<EnemyController, float> cooldownMap)
+        public void PruneEnemyCooldownMap(Dictionary<EnemyController, float> cooldownMap)
         {
             if (cooldownMap == null || cooldownMap.Count <= 0)
             {
@@ -3196,7 +957,7 @@ namespace EJR.Game.Gameplay
             return best;
         }
 
-        private static Vector2 RotateDirection(Vector2 direction, float degrees)
+        public static Vector2 RotateDirection(Vector2 direction, float degrees)
         {
             var radians = degrees * Mathf.Deg2Rad;
             var cosine = Mathf.Cos(radians);
@@ -3240,7 +1001,7 @@ namespace EJR.Game.Gameplay
             return maxRange;
         }
 
-        private float GetLifetimeCappedByRange(float effectiveRange, float projectileSpeed, float requestedLifetime, float rangePaddingMultiplier = 1f)
+        public float GetLifetimeCappedByRange(float effectiveRange, float projectileSpeed, float requestedLifetime, float rangePaddingMultiplier = 1f)
         {
             var clampedSpeed = Mathf.Max(0.1f, projectileSpeed);
             var clampedRequestedLifetime = Mathf.Max(0.05f, requestedLifetime);
@@ -3250,108 +1011,40 @@ namespace EJR.Game.Gameplay
             return Mathf.Max(0.05f, Mathf.Min(clampedRequestedLifetime, lifetimeByRange));
         }
 
-        private float GetLifetimeCappedByRange(WeaponRuntime weapon, float projectileSpeed, float requestedLifetime, float rangePaddingMultiplier = 1f)
+        public float GetLifetimeCappedByRange(WeaponRuntime weapon, float projectileSpeed, float requestedLifetime, float rangePaddingMultiplier = 1f)
         {
             return GetLifetimeCappedByRange(GetWeaponRange(weapon), projectileSpeed, requestedLifetime, rangePaddingMultiplier);
         }
 
-        private float GetAttackInterval(WeaponRuntime weapon)
+        public float GetAttackInterval(WeaponRuntime weapon)
         {
-            var intervalMultiplier = GetCombinedAttackIntervalMultiplier(weapon);
-
-            var baseInterval = weapon.WeaponId switch
-            {
-                WeaponUpgradeId.Rifle => Mathf.Max(0.05f, _config.rifleAttackInterval),
-                WeaponUpgradeId.Fireball => Mathf.Max(0.05f, _config.fireballAttackInterval),
-                WeaponUpgradeId.Bat => Mathf.Max(0.05f, _config.batAttackInterval),
-                WeaponUpgradeId.BfSword => Mathf.Max(0.01f, _config.bfSwordHitInterval),
-                WeaponUpgradeId.SwingMace => Mathf.Max(0.05f, _config.swingMaceAttackInterval),
-                _ => Mathf.Max(0.05f, _config.attackInterval),
-            };
-
-            if (weapon.WeaponId == WeaponUpgradeId.Shotgun)
-            {
-                baseInterval *= 1.08f;
-            }
-            else if (weapon.WeaponId == WeaponUpgradeId.Slash)
-            {
-                baseInterval *= 0.85f;
-            }
-            else if (weapon.WeaponId == WeaponUpgradeId.ChainLightning)
-            {
-                baseInterval *= 1.05f;
-            }
-
-            return Mathf.Max(0.05f, baseInterval * intervalMultiplier);
+            if (weapon == null) return 1f;
+            if (weapon.Strategy != null) return weapon.Strategy.GetAttackInterval(weapon, this);
+            return 1f;
         }
 
-        private float GetWeaponBaseDamage(WeaponRuntime weapon)
+        public float GetWeaponBaseDamage(WeaponRuntime weapon)
         {
-            var statDamageMultiplier = _stats != null ? Mathf.Max(0.1f, _stats.DamageMultiplier) : 1f;
-            var weaponDamageMultiplier = 1f + GetWeaponDamageBonusPercent(weapon);
-            var weaponBaseDamage = weapon.WeaponId switch
-            {
-                WeaponUpgradeId.Rifle => Mathf.Max(0.1f, _config.rifleBaseDamage),
-                WeaponUpgradeId.Fireball => Mathf.Max(0.1f, _config.fireballBaseDamage),
-                WeaponUpgradeId.Bat => Mathf.Max(0.1f, _config.batBaseDamage),
-                WeaponUpgradeId.Shotgun => Mathf.Max(0.1f, _config.shotgunBaseDamage),
-                WeaponUpgradeId.Slash => Mathf.Max(0.1f, _config.slashBaseDamage),
-                WeaponUpgradeId.BfSword => Mathf.Max(0.1f, _config.bfSwordBaseDamage),
-                WeaponUpgradeId.ChainLightning => Mathf.Max(0.1f, _config.chainLightningBaseDamage),
-                WeaponUpgradeId.SwingMace => Mathf.Max(0.1f, _config.swingMaceBaseDamage),
-                WeaponUpgradeId.OrbitWeapon => Mathf.Max(0.1f, _config.droneBaseDamage),
-                WeaponUpgradeId.Turret => Mathf.Max(0.1f, _config.turretBaseDamage),
-                WeaponUpgradeId.Aura => Mathf.Max(0.1f, _config.auraBaseDamage),
-                _ => Mathf.Max(0.1f, _config.projectileDamage),
-            };
-            return Mathf.Max(0.1f, weaponBaseDamage * statDamageMultiplier * weaponDamageMultiplier);
+            if (weapon == null) return 0f;
+            if (weapon.Strategy != null) return weapon.Strategy.GetBaseDamage(weapon, this);
+            return 0f;
         }
 
-        private float GetWeaponRange(WeaponRuntime weapon)
+        public float GetWeaponRange(WeaponRuntime weapon)
         {
-            var attackRangeMultiplier = _stats != null ? Mathf.Max(0.1f, _stats.AttackRangeMultiplier) : 1f;
-            var weaponRangeMultiplier = 1f + GetWeaponRangeBonusPercent(weapon);
-
-            var baseRange = weapon.WeaponId switch
-            {
-                WeaponUpgradeId.Rifle => Mathf.Max(0.5f, _config.rifleRange),
-                WeaponUpgradeId.Fireball => Mathf.Max(0.5f, _config.fireballRange),
-                WeaponUpgradeId.Bat => Mathf.Max(0.5f, _config.batLatchRange),
-                WeaponUpgradeId.Shotgun => Mathf.Max(0.5f, _config.shotgunRange),
-                WeaponUpgradeId.Slash => Mathf.Max(0.25f, _config.slashRange),
-                WeaponUpgradeId.BfSword => Mathf.Max(0.2f, _config.bfSwordLength),
-                WeaponUpgradeId.ChainLightning => Mathf.Max(0.5f, _config.chainLightningRange),
-                WeaponUpgradeId.SwingMace => Mathf.Max(0.25f, _config.swingMaceMeleeRange),
-                WeaponUpgradeId.Aura => Mathf.Max(0.2f, _config.auraRadius),
-                WeaponUpgradeId.OrbitWeapon => Mathf.Max(0.2f, _config.droneRange),
-                WeaponUpgradeId.Turret => Mathf.Max(0.2f, _config.turretRange / Mathf.Clamp(_config.turretRangeMultiplier, 0.1f, 3f)),
-                _ => Mathf.Max(0.5f, _config.attackRange),
-            };
-
-            if (weapon != null && weapon.WeaponId == WeaponUpgradeId.BfSword)
-            {
-                weaponRangeMultiplier *= GetBfSwordLengthMultiplier();
-            }
-            else if (weapon != null && weapon.WeaponId == WeaponUpgradeId.SwingMace)
-            {
-                return Mathf.Max(0.25f, GetSwingMaceLength(weapon) + GetSwingMaceHeadHitRadius(weapon));
-            }
-            else if (weapon != null && weapon.WeaponId == WeaponUpgradeId.Aura)
-            {
-                weaponRangeMultiplier *= GetAuraRangeMultiplier();
-            }
-
-            return Mathf.Max(0.25f, baseRange * attackRangeMultiplier * weaponRangeMultiplier);
+            if (weapon == null) return 0f;
+            if (weapon.Strategy != null) return weapon.Strategy.GetRange(weapon, this);
+            return 0f;
         }
 
-        private float GetCombinedAttackIntervalMultiplier(WeaponRuntime weapon)
+        public float GetCombinedAttackIntervalMultiplier(WeaponRuntime weapon)
         {
             var statAttackSpeedMultiplier = _stats != null ? Mathf.Max(0.2f, _stats.AttackIntervalMultiplier) : 1f;
             var weaponAttackSpeedMultiplier = 1f / (1f + GetWeaponAttackSpeedBonusPercent(weapon));
             return statAttackSpeedMultiplier * weaponAttackSpeedMultiplier;
         }
 
-        private int GetWeaponExtraCount(WeaponRuntime weapon)
+        public int GetWeaponExtraCount(WeaponRuntime weapon)
         {
             if (weapon == null || _build == null)
             {
@@ -3381,7 +1074,7 @@ namespace EJR.Game.Gameplay
             return Mathf.Max(0f, _build.GetWeaponAttackSpeedBonusPercentTotal(weapon.WeaponId)) / 100f;
         }
 
-        private float GetWeaponRangeBonusPercent(WeaponRuntime weapon)
+        public float GetWeaponRangeBonusPercent(WeaponRuntime weapon)
         {
             if (weapon == null || _build == null)
             {
@@ -3417,280 +1110,29 @@ namespace EJR.Game.Gameplay
 
         private void DrawWeaponCollisionGizmo(WeaponRuntime weapon, Vector2 aimDirection)
         {
+            if (weapon?.Strategy == null) return;
             var color = GetWeaponCollisionGizmoColor(weapon.WeaponId);
-            switch (weapon.WeaponId)
-            {
-                case WeaponUpgradeId.Rifle:
-                    DrawRifleCollisionGizmo(weapon, aimDirection, color);
-                    break;
-                case WeaponUpgradeId.Fireball:
-                    DrawSmgCollisionGizmo(weapon, aimDirection, color);
-                    break;
-                case WeaponUpgradeId.Bat:
-                    DrawSingleProjectileCollisionGizmo(weapon, aimDirection, color, _config.projectileHitRadius * 0.95f);
-                    break;
-                case WeaponUpgradeId.Shotgun:
-                    DrawShotgunCollisionGizmo(weapon, aimDirection, color);
-                    break;
-                case WeaponUpgradeId.Slash:
-                    DrawSlashCollisionGizmo(weapon, aimDirection, color);
-                    break;
-                case WeaponUpgradeId.BfSword:
-                    DrawBfSwordCollisionGizmo(weapon, color);
-                    break;
-                case WeaponUpgradeId.ChainLightning:
-                    DrawChainCollisionGizmo(weapon, color);
-                    break;
-                case WeaponUpgradeId.SwingMace:
-                    DrawCircleCollisionGizmo(_owner.position, GetWeaponRange(weapon), color);
-                    break;
-                case WeaponUpgradeId.OrbitWeapon:
-                    DrawDroneCollisionGizmo(weapon, color);
-                    break;
-                case WeaponUpgradeId.Turret:
-                    DrawTurretCollisionGizmo(weapon, color);
-                    break;
-                case WeaponUpgradeId.Aura:
-                    DrawCircleCollisionGizmo(_owner.position, GetAuraRange(weapon), color);
-                    break;
-            }
+            weapon.Strategy.OnDrawGizmos(weapon, this, color);
         }
 
-        private void DrawRifleCollisionGizmo(WeaponRuntime weapon, Vector2 aimDirection, Color color)
-        {
-            var range = GetWeaponRange(weapon);
-            var hitRadius = Mathf.Max(0.02f, _config.projectileHitRadius);
-            var spawnCenter = ResolveProjectileGizmoSpawnCenter(aimDirection);
-            DrawProjectilePathGizmo(spawnCenter, aimDirection, range, hitRadius, color);
-        }
-
-        private void DrawSmgCollisionGizmo(WeaponRuntime weapon, Vector2 aimDirection, Color color)
-        {
-            var range = GetWeaponRange(weapon);
-            var hitRadius = Mathf.Max(0.02f, _config.fireballProjectileHitRadius);
-            var projectileCount = Mathf.Max(1, 1 + GetWeaponExtraCount(weapon));
-            var spawnCenter = ResolveProjectileGizmoSpawnCenter(aimDirection);
-            var ownerPosition = _owner != null ? (Vector2)_owner.position : (Vector2)spawnCenter;
-            List<EnemyController> reservedTargets = null;
-            if (projectileCount > 1)
-            {
-                reservedTargets = new List<EnemyController>(projectileCount);
-                var primaryTarget = FindPreferredAdditionalFireballTarget(ownerPosition, range, aimDirection, reservedTargets);
-                if (primaryTarget != null)
-                {
-                    reservedTargets.Add(primaryTarget);
-                }
-            }
-
-            DrawProjectilePathGizmo(spawnCenter, aimDirection, range, hitRadius, color);
-            for (var i = 1; i < projectileCount; i++)
-            {
-                var shotDirection = aimDirection;
-                var alternateTarget = FindPreferredAdditionalFireballTarget(ownerPosition, range, aimDirection, reservedTargets);
-                if (alternateTarget != null)
-                {
-                    reservedTargets?.Add(alternateTarget);
-                    var toTarget = (Vector2)alternateTarget.transform.position - ownerPosition;
-                    if (toTarget.sqrMagnitude > 0.000001f)
-                    {
-                        shotDirection = toTarget.normalized;
-                    }
-                }
-
-                DrawProjectilePathGizmo(spawnCenter, shotDirection, range, hitRadius, color);
-            }
-        }
-
-        private void DrawSingleProjectileCollisionGizmo(WeaponRuntime weapon, Vector2 aimDirection, Color color, float hitRadius)
-        {
-            DrawProjectilePathGizmo(
-                ResolveProjectileGizmoSpawnCenter(aimDirection),
-                aimDirection,
-                GetWeaponRange(weapon),
-                Mathf.Max(0.02f, hitRadius),
-                color);
-        }
-
-        private void DrawShotgunCollisionGizmo(WeaponRuntime weapon, Vector2 aimDirection, Color color)
-        {
-            var pelletCount = Mathf.Max(2, _config.shotgunPelletCount + GetWeaponExtraCount(weapon));
-            var spread = Mathf.Max(1f, _config.shotgunSpreadAngle);
-            var halfSpread = spread * 0.5f;
-            var hitRadius = Mathf.Max(0.02f, _config.projectileHitRadius * 0.9f);
-            var spawnCenter = ResolveProjectileGizmoSpawnCenter(aimDirection);
-            var range = GetWeaponRange(weapon);
-
-            if (pelletCount == 1)
-            {
-                DrawProjectilePathGizmo(spawnCenter, aimDirection, range, hitRadius, color);
-                return;
-            }
-
-            for (var i = 0; i < pelletCount; i++)
-            {
-                var t = pelletCount <= 1 ? 0.5f : i / (float)(pelletCount - 1);
-                var angle = Mathf.Lerp(-halfSpread, halfSpread, t);
-                DrawProjectilePathGizmo(spawnCenter, RotateDirection(aimDirection, angle), range, hitRadius, color);
-            }
-        }
-
-        private void DrawSlashCollisionGizmo(WeaponRuntime weapon, Vector2 aimDirection, Color color)
-        {
-            var range = GetWeaponRange(weapon);
-            var halfAngle = Mathf.Max(2f, _config.slashConeAngle) * 0.5f;
-            var origin = weapon != null && weapon.BurstTotalShots > 0 ? weapon.BurstOrigin : (Vector2)_owner.position;
-            DrawConeCollisionGizmo(origin, aimDirection, range, halfAngle, color);
-        }
-
-        private static float GetSpreadAngle(int projectileCount, int projectileIndex, float totalSpreadAngle)
-        {
-            if (projectileCount <= 1 || totalSpreadAngle <= 0.01f)
-            {
-                return 0f;
-            }
-
-            var halfSpread = totalSpreadAngle * 0.5f;
-            var t = projectileCount <= 1 ? 0.5f : projectileIndex / (float)(projectileCount - 1);
-            return Mathf.Lerp(-halfSpread, halfSpread, t);
-        }
-
-        private void DrawBfSwordCollisionGizmo(WeaponRuntime weapon, Color color)
-        {
-            GetBfSwordBladeSegment(weapon, out var start, out var end, out var radius);
-            DrawCapsuleCollisionGizmo(start, end, radius, color);
-        }
-
-        private void DrawChainCollisionGizmo(WeaponRuntime weapon, Color color)
-        {
-            var range = GetWeaponRange(weapon);
-            DrawCircleCollisionGizmo(_owner.position, range, color);
-            DrawCircleCollisionGizmo(_owner.position, GetChainJumpRange(weapon, range), new Color(color.r, color.g, color.b, 0.55f));
-        }
-
-        private void DrawDroneCollisionGizmo(WeaponRuntime weapon, Color color)
-        {
-            var orbitRadius = _config != null ? Mathf.Max(0.2f, _config.droneOrbitRadius) : 1.2f;
-            var hitRadius = Mathf.Max(0.05f, _config.droneHitRadius);
-            DrawCircleCollisionGizmo(_owner.position, orbitRadius, new Color(color.r, color.g, color.b, 0.4f));
-
-            if (showSatelliteHitGizmos)
-            {
-                Gizmos.color = satelliteHitGizmoColor;
-                for (var visualIndex = 0; visualIndex < weapon.SatelliteVisuals.Count; visualIndex++)
-                {
-                    var visual = weapon.SatelliteVisuals[visualIndex];
-                    if (visual == null)
-                    {
-                        continue;
-                    }
-
-                    Gizmos.DrawWireSphere(visual.position, hitRadius);
-                }
-            }
-        }
-
-        private void DrawTurretCollisionGizmo(WeaponRuntime weapon, Color color)
-        {
-            var turretRange = GetTurretRange(weapon);
-            for (var i = 0; i < _turrets.Count; i++)
-            {
-                var turret = _turrets[i];
-                if (turret == null || turret.Root == null)
-                {
-                    continue;
-                }
-
-                DrawCircleCollisionGizmo(turret.Root.position, turretRange, color);
-            }
-        }
-
-        private void DrawProjectilePathGizmo(Vector2 start, Vector2 direction, float range, float hitRadius, Color color)
-        {
-            var normalizedDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : Vector2.right;
-            var end = start + (normalizedDirection * Mathf.Max(0.1f, range));
-            Gizmos.color = color;
-            Gizmos.DrawLine(start, end);
-            Gizmos.DrawWireSphere(start, hitRadius);
-            Gizmos.DrawWireSphere(end, hitRadius);
-        }
-
-        private void DrawConeCollisionGizmo(Vector2 origin, Vector2 direction, float range, float halfAngle, Color color)
-        {
-            var clampedRange = Mathf.Max(0.05f, range);
-            var clampedHalfAngle = Mathf.Clamp(halfAngle, 1f, 179f);
-            var left = RotateDirection(direction, -clampedHalfAngle);
-            var right = RotateDirection(direction, clampedHalfAngle);
-
-            Gizmos.color = color;
-            Gizmos.DrawLine(origin, origin + (left * clampedRange));
-            Gizmos.DrawLine(origin, origin + (right * clampedRange));
-
-            var previousPoint = origin + (left * clampedRange);
-            for (var segmentIndex = 1; segmentIndex <= CollisionGizmoSegments; segmentIndex++)
-            {
-                var t = segmentIndex / (float)CollisionGizmoSegments;
-                var angle = Mathf.Lerp(-clampedHalfAngle, clampedHalfAngle, t);
-                var nextPoint = origin + (RotateDirection(direction, angle) * clampedRange);
-                Gizmos.DrawLine(previousPoint, nextPoint);
-                previousPoint = nextPoint;
-            }
-        }
-
-        private void DrawCapsuleCollisionGizmo(Vector2 start, Vector2 end, float radius, Color color)
-        {
-            var clampedRadius = Mathf.Max(0.01f, radius);
-            var axis = end - start;
-            var normalizedAxis = axis.sqrMagnitude > 0.000001f ? axis.normalized : Vector2.right;
-            var normal = new Vector2(-normalizedAxis.y, normalizedAxis.x) * clampedRadius;
-
-            var p0 = start + normal;
-            var p1 = end + normal;
-            var p2 = end - normal;
-            var p3 = start - normal;
-
-            Gizmos.color = color;
-            Gizmos.DrawLine(p0, p1);
-            Gizmos.DrawLine(p3, p2);
-            Gizmos.DrawWireSphere(start, clampedRadius);
-            Gizmos.DrawWireSphere(end, clampedRadius);
-        }
-
-        private static void DrawCircleCollisionGizmo(Vector3 center, float radius, Color color)
-        {
-            Gizmos.color = color;
-            Gizmos.DrawWireSphere(center, Mathf.Max(0.01f, radius));
-        }
-
-        private Vector3 ResolveProjectileGizmoSpawnCenter(Vector2 direction)
-        {
-            var normalizedDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : Vector2.right;
-            if (_projectileSpawnResolver != null)
-            {
-                return _projectileSpawnResolver(normalizedDirection);
-            }
-
-            return _owner != null ? _owner.position : Vector3.zero;
-        }
-
-        private static Color GetWeaponCollisionGizmoColor(WeaponUpgradeId weaponId)
+        private Color GetWeaponCollisionGizmoColor(WeaponUpgradeId weaponId)
         {
             return weaponId switch
             {
-                WeaponUpgradeId.Rifle => new Color(0.45f, 1f, 0.95f, 0.95f),
-                WeaponUpgradeId.Fireball => new Color(0.9f, 0.95f, 0.35f, 0.95f),
-                WeaponUpgradeId.Bat => new Color(1f, 0.65f, 0.35f, 0.95f),
-                WeaponUpgradeId.Shotgun => new Color(1f, 0.5f, 0.2f, 0.95f),
-                WeaponUpgradeId.Slash => new Color(1f, 0.9f, 0.95f, 0.95f),
-                WeaponUpgradeId.BfSword => new Color(0.3f, 1f, 0.3f, 0.95f),
-                WeaponUpgradeId.ChainLightning => new Color(0.55f, 0.85f, 1f, 0.95f),
-                WeaponUpgradeId.SwingMace => new Color(0.95f, 0.95f, 0.45f, 0.95f),
-                WeaponUpgradeId.OrbitWeapon => new Color(0.45f, 1f, 0.9f, 0.95f),
-                WeaponUpgradeId.Turret => new Color(1f, 0.86f, 0.28f, 0.95f),
-                WeaponUpgradeId.Aura => new Color(0.45f, 1f, 0.75f, 0.95f),
-                _ => new Color(1f, 1f, 1f, 0.95f),
+                WeaponUpgradeId.Rifle => new Color(0.9f, 0.9f, 0.9f, 0.45f),
+                WeaponUpgradeId.Fireball => new Color(1f, 0.45f, 0.15f, 0.45f),
+                WeaponUpgradeId.Bat => new Color(0.15f, 0.85f, 0.45f, 0.45f),
+                WeaponUpgradeId.Shotgun => new Color(0.85f, 0.85f, 0.15f, 0.45f),
+                WeaponUpgradeId.Slash => new Color(1f, 0.15f, 0.45f, 0.45f),
+                WeaponUpgradeId.BfSword => new Color(1f, 1f, 1f, 0.65f),
+                WeaponUpgradeId.ChainLightning => new Color(0.45f, 1f, 1f, 0.45f),
+                WeaponUpgradeId.SwingMace => new Color(0.7f, 0.7f, 0.7f, 0.45f),
+                WeaponUpgradeId.OrbitWeapon => new Color(0.45f, 1f, 0.75f, 0.45f),
+                WeaponUpgradeId.Turret => new Color(1f, 0.86f, 0.28f, 0.45f),
+                WeaponUpgradeId.Aura => new Color(0.45f, 1f, 0.75f, 0.35f),
+                _ => new Color(1f, 1f, 1f, 0.45f),
             };
         }
         #endregion
     }
-
 }

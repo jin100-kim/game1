@@ -113,6 +113,13 @@ namespace EJR.Game.Gameplay
             int sortingOrder,
             string name = "FireBurstFx")
         {
+            // 새로운 화염 폭발 프리팹을 시도합니다.
+            if (SpawnPrefabFx("VFX/Fireball/VFX_2D_Projectile_Fire_Impact_01_Color_Static", center, Quaternion.identity, Vector3.one * scale, duration, sortingOrder))
+            {
+                return;
+            }
+
+            // 실패 시 기존 방식으로 폴백
             var frames = RuntimeSpriteFactory.GetSexyFireBoomAnimationFrames();
             if (frames == null || frames.Length <= 0)
             {
@@ -129,6 +136,31 @@ namespace EJR.Game.Gameplay
                 sortingOrder,
                 name,
                 centerBySpriteBounds: true);
+        }
+
+        public static bool SpawnPrefabFx(
+            string resourcePath,
+            Vector3 position,
+            Quaternion rotation,
+            Vector3 scale,
+            float duration,
+            int sortingOrder)
+        {
+            var prefab = Resources.Load<GameObject>(resourcePath);
+            if (prefab == null) return false;
+
+            var fxObject = Object.Instantiate(prefab, position, rotation);
+            fxObject.transform.localScale = scale;
+
+            // 정렬 순서 적용 (SpriteRenderer나 ParticleSystemRenderer가 있는 경우)
+            var renderers = fxObject.GetComponentsInChildren<Renderer>(true);
+            foreach (var r in renderers)
+            {
+                r.sortingOrder = sortingOrder;
+            }
+
+            Object.Destroy(fxObject, Mathf.Max(0.1f, duration));
+            return true;
         }
 
         public static void SpawnStretchBeamFx(

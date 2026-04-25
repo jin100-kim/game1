@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using EJR.Game.Audio;
 using EJR.Game.Core;
-using EJR.Game.Multiplayer;
+using EJR.Game.Core;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
@@ -164,13 +164,11 @@ namespace EJR.Game.UI
 
         private void OnEnable()
         {
-            MultiplayerSessionController.StatusChanged += HandleStatusChanged;
             DebugSessionService.Changed += HandleDebugSessionChanged;
         }
 
         private void OnDisable()
         {
-            MultiplayerSessionController.StatusChanged -= HandleStatusChanged;
             DebugSessionService.Changed -= HandleDebugSessionChanged;
         }
 
@@ -189,16 +187,8 @@ namespace EJR.Game.UI
             RefreshAchievementButtonState();
             RefreshMetaPanel();
             ShowMainMenu();
-            UpdateMultiplayerInteractivity();
 
-            if (MultiplayerSessionController.TryConsumePendingStatus(out var pendingStatus))
-            {
-                SetStatus(pendingStatus);
-            }
-            else
-            {
-                SetStatus("모드를 선택하세요.");
-            }
+            SetStatus("모드를 선택하세요.");
         }
 
         private void Update()
@@ -302,23 +292,8 @@ namespace EJR.Game.UI
             _subtitleText.alignment = TextAnchor.UpperLeft;
             _subtitleText.color = new Color(0.72f, 0.79f, 0.89f, 1f);
 
-            if (SupportsToolkitTitleUi())
-            {
-                BuildToolkitStateReferences(root.transform);
-                BuildToolkitMainMenu();
-                return;
-            }
-
-            BuildMainMenuPanelReference(root.transform);
-            BuildMultiplayerPanelReference(root.transform);
-            BuildOptionsPanelReference(root.transform);
-            BuildRunSetupPanelReference(root.transform);
-            BuildMetaPanelReference(root.transform);
-            BuildAchievementPanelReference(root.transform);
-            BuildSummaryModalReference(root.transform);
-            BuildConfirmModalReference(root.transform);
+            BuildToolkitStateReferences(root.transform);
             BuildToolkitMainMenu();
-
         }
 
         private void BuildToolkitStateReferences(Transform parent)
@@ -1067,50 +1042,10 @@ namespace EJR.Game.UI
             SetStatus("릴레이 세션을 만들거나 코드로 참가하세요.");
         }
 
-        private async void OnHostClicked()
-        {
-            var session = MultiplayerSessionController.EnsureInstance();
-            if (session.IsBusy)
-            {
-                return;
-            }
+        private void OnHostClicked() { }
+        private void OnJoinClicked() { }
 
-            UpdateMultiplayerInteractivity();
-            await session.StartHostAsync();
-            if (!this)
-            {
-                return;
-            }
 
-            UpdateMultiplayerInteractivity();
-            SetStatus(session.CurrentStatus);
-        }
-
-        private async void OnJoinClicked()
-        {
-            var joinCode = _joinCodeInput != null ? _joinCodeInput.text : GetToolkitJoinCode();
-            if (string.IsNullOrWhiteSpace(joinCode))
-            {
-                SetStatus("참가 코드를 입력하세요.");
-                return;
-            }
-
-            var session = MultiplayerSessionController.EnsureInstance();
-            if (session.IsBusy)
-            {
-                return;
-            }
-
-            UpdateMultiplayerInteractivity();
-            await session.JoinByCodeAsync(joinCode);
-            if (!this)
-            {
-                return;
-            }
-
-            UpdateMultiplayerInteractivity();
-            SetStatus(session.CurrentStatus);
-        }
 
 #if false
         private void OnCycleSingleCharacter()
@@ -2868,18 +2803,6 @@ namespace EJR.Game.UI
         private void UpdateMultiplayerInteractivity()
         {
             var interactable = true;
-            try
-            {
-                var instance = MultiplayerSessionController.EnsureInstance();
-                if (instance != null)
-                {
-                    interactable = !instance.IsBusy;
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogException(ex);
-            }
 
             try
             {
@@ -3025,11 +2948,6 @@ namespace EJR.Game.UI
 #endif
         }
 
-        private void HandleStatusChanged(string message)
-        {
-            SetStatus(message);
-            UpdateMultiplayerInteractivity();
-        }
 
         private void HandleDebugSessionChanged(bool unlocked)
         {

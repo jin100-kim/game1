@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using EJR.Game.Audio;
 using EJR.Game.Core;
-using EJR.Game.Multiplayer;
+
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -22,7 +22,7 @@ namespace EJR.Game.UI
         private PanelSettings _toolkitPanelSettings;
         private VisualElement _toolkitRoot;
         private VisualElement _toolkitMainScreen;
-        private VisualElement _toolkitMultiplayerEntryScreen;
+
         private VisualElement _toolkitOptionsScreen;
         private VisualElement _toolkitRunSetupScreen;
         private VisualElement _toolkitRunSetupMapStep;
@@ -77,9 +77,7 @@ namespace EJR.Game.UI
         private Button _toolkitOptionsButton;
         private Button _toolkitDevButton;
         private Button _toolkitQuitButton;
-        private Button _toolkitMultiplayerHostButton;
-        private Button _toolkitMultiplayerJoinButton;
-        private Button _toolkitMultiplayerBackButton;
+
         private Button _toolkitRunSetupMapNextButton;
         private Button _toolkitRunSetupMapBackButton;
         private Button _toolkitRunSetupStartButton;
@@ -101,13 +99,12 @@ namespace EJR.Game.UI
 
         private bool SupportsToolkitTitleUi()
         {
-            // UI Toolkit 관련 리소스가 있어도 강제로 false를 반환하여 안정적인 uGUI 방식을 사용하게 합니다.
-            return false;
+            return true;
         }
 
         private bool SupportsToolkitOptionsPanel()
         {
-            return SupportsToolkitTitleUi();
+            return true;
         }
 
         private void BuildToolkitMainMenu()
@@ -176,7 +173,7 @@ namespace EJR.Game.UI
             RefreshToolkitAchievementPanel();
             RefreshToolkitMetaPanel();
             UpdateToolkitStatus(string.Empty);
-            UpdateToolkitInteractivity(!MultiplayerSessionController.EnsureInstance().IsBusy);
+            UpdateToolkitInteractivity(true);
             UpdateToolkitScreenVisibility(_mainMenuPanel);
             RefreshToolkitModalLayerVisibility();
         }
@@ -184,7 +181,7 @@ namespace EJR.Game.UI
         private void QueryToolkitElements(VisualElement root)
         {
             _toolkitMainScreen = root.Q<VisualElement>("main-screen");
-            _toolkitMultiplayerEntryScreen = root.Q<VisualElement>("multiplayer-entry-screen");
+
             _toolkitOptionsScreen = root.Q<VisualElement>("settings-screen");
             _toolkitRunSetupScreen = root.Q<VisualElement>("run-setup-screen");
             _toolkitRunSetupMapStep = root.Q<VisualElement>("run-setup-map-step");
@@ -203,7 +200,7 @@ namespace EJR.Game.UI
             _toolkitDevPanelContextLabel = root.Q<Label>("dev-panel-context");
             _toolkitProfileLabel = root.Q<Label>("profile-summary");
             _toolkitRecentRunLabel = root.Q<Label>("recent-run-summary");
-            _toolkitJoinCodeField = root.Q<TextField>("multiplayer-join-code-field");
+
             _toolkitRunSetupHeader = root.Q<Label>("run-setup-header");
             _toolkitRunSetupHint = root.Q<Label>("run-setup-hint");
             _toolkitRunSetupMapSelectionLabel = root.Q<Label>("run-setup-map-selection");
@@ -234,14 +231,16 @@ namespace EJR.Game.UI
             _toolkitOptionsSfxVolumeValueLabel = root.Q<Label>("sfx-volume-value");
             _toolkitSinglePlayButton = root.Q<Button>("single-play-button");
             _toolkitMultiPlayButton = root.Q<Button>("multi-play-button");
+            if (_toolkitMultiPlayButton != null)
+            {
+                _toolkitMultiPlayButton.style.display = DisplayStyle.None;
+            }
             _toolkitAchievementButton = root.Q<Button>("achievement-button");
             _toolkitMetaButton = root.Q<Button>("meta-button");
             _toolkitOptionsButton = root.Q<Button>("options-button");
             _toolkitDevButton = root.Q<Button>("dev-button");
             _toolkitQuitButton = root.Q<Button>("quit-button");
-            _toolkitMultiplayerHostButton = root.Q<Button>("multiplayer-host-button");
-            _toolkitMultiplayerJoinButton = root.Q<Button>("multiplayer-join-button");
-            _toolkitMultiplayerBackButton = root.Q<Button>("multiplayer-back-button");
+
             _toolkitRunSetupMapNextButton = root.Q<Button>("run-setup-map-next-button");
             _toolkitRunSetupMapBackButton = root.Q<Button>("run-setup-map-back-button");
             _toolkitRunSetupStartButton = root.Q<Button>("run-setup-start-button");
@@ -267,9 +266,7 @@ namespace EJR.Game.UI
             if (_toolkitOptionsButton != null) _toolkitOptionsButton.clicked += OnOptionsClicked;
             if (_toolkitDevButton != null) _toolkitDevButton.clicked += OnDevClicked;
             if (_toolkitQuitButton != null) _toolkitQuitButton.clicked += OnQuitClicked;
-            if (_toolkitMultiplayerHostButton != null) _toolkitMultiplayerHostButton.clicked += OnHostClicked;
-            if (_toolkitMultiplayerJoinButton != null) _toolkitMultiplayerJoinButton.clicked += OnJoinClicked;
-            if (_toolkitMultiplayerBackButton != null) _toolkitMultiplayerBackButton.clicked += ShowMainMenu;
+
             if (_toolkitRunSetupMapNextButton != null) _toolkitRunSetupMapNextButton.clicked += GoToRunSetupCharacterStep;
             if (_toolkitRunSetupMapBackButton != null) _toolkitRunSetupMapBackButton.clicked += ShowMainMenu;
             if (_toolkitRunSetupStartButton != null) _toolkitRunSetupStartButton.clicked += StartSinglePlay;
@@ -311,7 +308,7 @@ namespace EJR.Game.UI
             }
 
             SetDisplay(_toolkitMainScreen, activePanel == _mainMenuPanel);
-            SetDisplay(_toolkitMultiplayerEntryScreen, activePanel == _multiplayerPanel);
+
             SetDisplay(_toolkitOptionsScreen, activePanel == _optionsPanel);
             SetDisplay(_toolkitRunSetupScreen, activePanel == _runSetupPanel);
             SetDisplay(_toolkitAchievementScreen, activePanel == _achievementPanel);
@@ -422,9 +419,7 @@ namespace EJR.Game.UI
             _toolkitOptionsButton?.SetEnabled(interactable);
             _toolkitDevButton?.SetEnabled(interactable);
             _toolkitQuitButton?.SetEnabled(interactable);
-            _toolkitMultiplayerHostButton?.SetEnabled(interactable);
-            _toolkitMultiplayerJoinButton?.SetEnabled(interactable);
-            _toolkitMultiplayerBackButton?.SetEnabled(interactable);
+
             _toolkitAchievementBackButton?.SetEnabled(interactable);
             _toolkitMetaBackButton?.SetEnabled(interactable);
             _toolkitMetaUnlocksTabButton?.SetEnabled(interactable);
@@ -583,19 +578,6 @@ namespace EJR.Game.UI
             var inspectedUnlocked = MetaProgressionService.IsCharacterUnlocked(inspectedCharacter.Id);
             var mapUnlocked = SharedRunCatalog.IsMapUnlocked(_selectedMapId);
             var interactable = true;
-            try
-            {
-                var instance = MultiplayerSessionController.EnsureInstance();
-                if (instance != null)
-                {
-                    interactable = !instance.IsBusy;
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogException(ex);
-                interactable = true;
-            }
             var isMapStep = _currentRunSetupStep == SingleRunSetupStep.MapSelect;
 
             if (_toolkitRunSetupHeader != null)
@@ -718,19 +700,6 @@ namespace EJR.Game.UI
             _toolkitDynamicButtons.Clear();
 
             var interactable = true;
-            try
-            {
-                var instance = MultiplayerSessionController.EnsureInstance();
-                if (instance != null)
-                {
-                    interactable = !instance.IsBusy;
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogException(ex);
-                interactable = true;
-            }
             for (var i = 0; i < SharedRunCatalog.MapDefinitions.Count; i++)
             {
                 var definition = SharedRunCatalog.MapDefinitions[i];
@@ -777,19 +746,6 @@ namespace EJR.Game.UI
             _toolkitRunSetupCharacterScroll.contentContainer.style.justifyContent = Justify.FlexStart;
 
             var interactable = true;
-            try
-            {
-                var instance = MultiplayerSessionController.EnsureInstance();
-                if (instance != null)
-                {
-                    interactable = !instance.IsBusy;
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogException(ex);
-                interactable = true;
-            }
             for (var i = 0; i < SharedGameCatalog.CharacterDefinitions.Count; i++)
             {
                 var definition = SharedGameCatalog.CharacterDefinitions[i];
@@ -1267,14 +1223,12 @@ namespace EJR.Game.UI
             if (_toolkitDocument != null)
             {
                 if (_toolkitSinglePlayButton != null) _toolkitSinglePlayButton.clicked -= OnSinglePlayClicked;
-                if (_toolkitMultiPlayButton != null) _toolkitMultiPlayButton.clicked -= OnMultiPlayClicked;
+
                 if (_toolkitAchievementButton != null) _toolkitAchievementButton.clicked -= OnAchievementsClicked;
                 if (_toolkitMetaButton != null) _toolkitMetaButton.clicked -= OnMetaClicked;
                 if (_toolkitOptionsButton != null) _toolkitOptionsButton.clicked -= OnOptionsClicked;
                 if (_toolkitQuitButton != null) _toolkitQuitButton.clicked -= OnQuitClicked;
-                if (_toolkitMultiplayerHostButton != null) _toolkitMultiplayerHostButton.clicked -= OnHostClicked;
-                if (_toolkitMultiplayerJoinButton != null) _toolkitMultiplayerJoinButton.clicked -= OnJoinClicked;
-                if (_toolkitMultiplayerBackButton != null) _toolkitMultiplayerBackButton.clicked -= ShowMainMenu;
+
                 if (_toolkitRunSetupMapNextButton != null) _toolkitRunSetupMapNextButton.clicked -= GoToRunSetupCharacterStep;
                 if (_toolkitRunSetupMapBackButton != null) _toolkitRunSetupMapBackButton.clicked -= ShowMainMenu;
                 if (_toolkitRunSetupStartButton != null) _toolkitRunSetupStartButton.clicked -= StartSinglePlay;

@@ -1,6 +1,6 @@
 using System;
 using EJR.Game.Core;
-using Unity.Netcode;
+
 using UnityEngine;
 
 namespace EJR.Game.Gameplay
@@ -121,7 +121,7 @@ namespace EJR.Game.Gameplay
         private bool _isBossBehavior;
         private BossArchetypeId _bossArchetype = BossArchetypeId.Final;
         private RunDifficultyDefinition _bossDifficulty;
-        private NetworkObject _networkObject;
+
 
         private float _health;
         private float _maxHealth;
@@ -350,7 +350,7 @@ namespace EJR.Game.Gameplay
             _playerHealth = playerHealth;
             _registry = registry;
             _experienceSystem = experienceSystem;
-            _networkObject = GetComponent<NetworkObject>();
+
             _playerCollisionRadius = Mathf.Max(0.05f, playerCollisionRadius);
             _collisionRadius = Mathf.Max(0.05f, collisionRadius);
             _hasArenaBounds = hasArenaBounds;
@@ -440,18 +440,7 @@ namespace EJR.Game.Gameplay
 
         private void Update()
         {
-            if (_networkObject == null)
-            {
-                _networkObject = GetComponent<NetworkObject>();
-            }
 
-            if (_networkObject != null &&
-                _networkObject.IsSpawned &&
-                NetworkManager.Singleton != null &&
-                !NetworkManager.Singleton.IsServer)
-            {
-                return;
-            }
 
             RefreshResolvedTarget();
 
@@ -1232,16 +1221,7 @@ namespace EJR.Game.Gameplay
 
             Defeated?.Invoke(this);
 
-            if (_networkObject == null)
-            {
-                _networkObject = GetComponent<NetworkObject>();
-            }
 
-            if (_networkObject != null && _networkObject.IsSpawned)
-            {
-                _networkObject.Despawn(true);
-                return;
-            }
 
             var destroyDelay = _spriteAnimator != null ? _spriteAnimator.PlayDie() : 0f;
             if (destroyDelay > 0f)

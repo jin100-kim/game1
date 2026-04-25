@@ -11,6 +11,8 @@ namespace EJR.Game.Audio
         Spawn = 3,
         Latch = 4,
         Return = 5,
+        Secondary = 6,
+        Hit = 7,
     }
 
     public readonly struct WeaponSoundRequest

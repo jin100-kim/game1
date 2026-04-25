@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using EJR.Game.Audio;
 using EJR.Game.Core;
-using EJR.Game.Multiplayer;
+
 using EJR.Game.UI;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -120,7 +121,7 @@ namespace EJR.Game.Gameplay
         private bool _bossWaveTriggered;
         private bool _lastRunCleared;
         private float _nextHudRefreshAt;
-        private bool _usingOwnedMultiplayerPlayer;
+
         private bool _autoPlayEnabled;
         private bool _debugInvincibleEnabled;
         private float _debugPlaySpeedMultiplier = 1f;
@@ -138,8 +139,21 @@ namespace EJR.Game.Gameplay
 #if UNITY_EDITOR
         private void OnValidate()
         {
-            // 리스트가 비어있으면 자동으로 찾아서 채워줍니다. (사용자님의 수고를 덜어드리는 마법의 코드!)
-            if (mapPrefabs == null || mapPrefabs.Length == 0)
+            // 리스트가 비어있거나 Missing(null) 요소가 있으면 자동으로 다시 채워줍니다.
+            bool needsRefresh = mapPrefabs == null || mapPrefabs.Length == 0;
+            if (!needsRefresh && mapPrefabs != null)
+            {
+                for (int i = 0; i < mapPrefabs.Length; i++)
+                {
+                    if (mapPrefabs[i] == null)
+                    {
+                        needsRefresh = true;
+                        break;
+                    }
+                }
+            }
+
+            if (needsRefresh)
             {
                 var guids = UnityEditor.AssetDatabase.FindAssets("Map t:GameObject");
                 var foundPrefabs = new List<GameObject>();
@@ -149,15 +163,15 @@ namespace EJR.Game.Gameplay
                     var go = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path);
                     if (go != null && (go.name == "Map1" || go.name == "Map2" || go.name == "Map3"))
                     {
-                        foundPrefabs.Add(go);
+                        if (!foundPrefabs.Contains(go)) foundPrefabs.Add(go);
                     }
                 }
                 
                 if (foundPrefabs.Count > 0)
                 {
-                    mapPrefabs = foundPrefabs.ToArray();
+                    mapPrefabs = foundPrefabs.OrderBy(m => m.name).ToArray();
                     UnityEditor.EditorUtility.SetDirty(this);
-                    Debug.Log($"[EJR] MapPrefabs list automatically populated with {mapPrefabs.Length} maps!");
+                    Debug.Log($"[EJR] MapPrefabs list automatically REFRESHED with {mapPrefabs.Length} maps!");
                 }
             }
         }
@@ -189,10 +203,7 @@ namespace EJR.Game.Gameplay
         {
             CaptureDebugRevealInput();
 
-            if (!_usingOwnedMultiplayerPlayer)
-            {
-                HandlePauseMenuInput();
-            }
+            HandlePauseMenuInput();
 
             if (_isPauseMenuOpen)
             {
@@ -572,7 +583,7 @@ namespace EJR.Game.Gameplay
             _nextPauseToggleAt = Time.unscaledTime + PauseToggleDebounceDuration;
             _hud?.HidePauseMenu();
             GameplaySpeedService.ApplyMenuTimeState();
-            SceneManager.LoadScene(MultiplayerSessionController.TitleSceneName);
+            SceneManager.LoadScene("TitleScene");
         }
 
         private void ToggleDebugPlaySpeed()
@@ -873,56 +884,33 @@ namespace EJR.Game.Gameplay
             _hud.SetDebugInvincibleState(_debugInvincibleEnabled);
             _hud.SetDebugPlaySpeedState(_debugPlaySpeedMultiplier);
 
-            var ownedMultiplayerPlayer = MultiplayerPlayerActor.FindOwnedLocalPlayer();
-            _usingOwnedMultiplayerPlayer = ownedMultiplayerPlayer != null;
-
-            var player = _usingOwnedMultiplayerPlayer
-                ? ownedMultiplayerPlayer.gameObject
-                : GameObject.Find("Player");
-
-            if (!_usingOwnedMultiplayerPlayer && player == null)
+            var player = GameObject.Find("Player");
+            if (player == null)
             {
                 player = new GameObject("Player");
                 player.transform.position = Vector3.zero;
             }
 
             var rootRenderer = player.GetComponent<SpriteRenderer>();
-
-            Transform visualTransform;
-            SpriteRenderer playerRenderer;
-            if (_usingOwnedMultiplayerPlayer)
+            if (rootRenderer != null)
             {
-                if (rootRenderer == null)
-                {
-                    rootRenderer = player.AddComponent<SpriteRenderer>();
-                }
-
-                visualTransform = player.transform;
-                playerRenderer = rootRenderer;
-                _weaponOrbitCenterLocal = new Vector2(0f, playerConfig.visualYOffset);
+                Destroy(rootRenderer);
             }
-            else
+
+            var visualTransform = player.transform.Find(PlayerVisualObjectName);
+            if (visualTransform == null)
             {
-                if (rootRenderer != null)
-                {
-                    Destroy(rootRenderer);
-                }
+                visualTransform = new GameObject(PlayerVisualObjectName).transform;
+                visualTransform.SetParent(player.transform, false);
+            }
 
-                visualTransform = player.transform.Find(PlayerVisualObjectName);
-                if (visualTransform == null)
-                {
-                    visualTransform = new GameObject(PlayerVisualObjectName).transform;
-                    visualTransform.SetParent(player.transform, false);
-                }
+            visualTransform.localPosition = new Vector3(0f, playerConfig.visualYOffset, 0f);
+            _weaponOrbitCenterLocal = new Vector2(visualTransform.localPosition.x, visualTransform.localPosition.y);
 
-                visualTransform.localPosition = new Vector3(0f, playerConfig.visualYOffset, 0f);
-                _weaponOrbitCenterLocal = new Vector2(visualTransform.localPosition.x, visualTransform.localPosition.y);
-
-                playerRenderer = visualTransform.GetComponent<SpriteRenderer>();
-                if (playerRenderer == null)
-                {
-                    playerRenderer = visualTransform.gameObject.AddComponent<SpriteRenderer>();
-                }
+            var playerRenderer = visualTransform.GetComponent<SpriteRenderer>();
+            if (playerRenderer == null)
+            {
+                playerRenderer = visualTransform.gameObject.AddComponent<SpriteRenderer>();
             }
 
             var squareSprite = RuntimeSpriteFactory.GetSquareSprite();
@@ -2103,7 +2091,7 @@ namespace EJR.Game.Gameplay
         private void ReturnToLobby()
         {
             GameplaySpeedService.ApplyMenuTimeState();
-            SceneManager.LoadScene(MultiplayerSessionController.TitleSceneName);
+            SceneManager.LoadScene("TitleScene");
         }
 
         private void UpdateHud()

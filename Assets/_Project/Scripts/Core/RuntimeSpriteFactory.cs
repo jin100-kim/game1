@@ -237,6 +237,12 @@ namespace EJR.Game.Core
             return _sexySwordFrames;
         }
 
+        public static Sprite GetSexySwordSprite()
+        {
+            var frames = GetSexySwordAnimationFrames();
+            return frames.Length > 0 ? frames[0] : GetSquareSprite();
+        }
+
         public static Sprite[] GetSexySwordAttackAnimationFrames()
         {
             if (_sexySwordAttackFrames != null && _sexySwordAttackFrames.Length > 0)
@@ -301,6 +307,12 @@ namespace EJR.Game.Core
                 WeaponFrameCanvasSize,
                 WeaponFrameCanvasSize);
             return _sexyBfSwordFrames;
+        }
+
+        public static Sprite GetSexyBfSwordSprite()
+        {
+            var frames = GetSexyBfSwordAnimationFrames();
+            return frames.Length > 0 ? frames[0] : GetSquareSprite();
         }
 
 

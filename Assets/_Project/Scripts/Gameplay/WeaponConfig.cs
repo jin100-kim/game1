@@ -67,6 +67,7 @@ namespace EJR.Game.Gameplay
         [Min(0.1f)] public float fireballBurnDuration = 2.5f;
         [Min(0.05f)] public float fireballBurnTickInterval = 0.5f;
         [Range(0.01f, 3f)] public float fireballBurnDamageMultiplier = 0.32f;
+        [Range(0f, 1f)] public float fireballBurstChance = 0.35f;
 
         [Header("Bat")]
         [Min(1)] public int batMaxHits = 4;
@@ -91,12 +92,14 @@ namespace EJR.Game.Gameplay
         [Min(2)] public int shotgunPelletCount = 4;
         [Range(1f, 120f)] public float shotgunSpreadAngle = 36f;
         [Range(0.05f, 2f)] public float shotgunPelletDamageMultiplier = 0.5f;
+        [Min(0.05f)] public float shotgunAttackInterval = 0.95f;
 
         [Header("Slash (Melee Cone)")]
         [Range(5f, 180f)] public float slashConeAngle = 80f;
         [Min(0.1f)] public float slashBaseDamage = 12f;
         [Range(0.05f, 3f)] public float slashDamageMultiplier = 1f;
         [Min(1)] public int slashBaseCount = 2;
+        [Min(0.05f)] public float slashAttackInterval = 1.05f;
         [Min(0.01f)] public float slashComboInterval = 0.2f;
 
         [Header("BF Sword")]
@@ -116,6 +119,7 @@ namespace EJR.Game.Gameplay
         [Min(0.1f)] public float chainLightningJumpRange = 3f;
         [Min(0.01f)] public float chainLightningHopDelay = 0.12f;
         [Range(0f, 0.9f)] public float chainLightningDamageDecayPerJump = 0.15f;
+        [Min(0.05f)] public float chainLightningAttackInterval = 1.25f;
 
         [Header("Swing Mace")]
         [Min(0.1f)] public float nearbyLightningBaseDamage = 12f;
@@ -148,8 +152,12 @@ namespace EJR.Game.Gameplay
         [Min(1)] public int turretMaxCount = 2;
         [Range(0.1f, 3f)] public float turretRangeMultiplier = 0.85f;
         [Range(0.05f, 5f)] public float turretDamageMultiplier = 0.65f;
-        [Min(0.5f)] public float turretProjectileSpeed = 11f;
+        [Min(0.1f)] public float turretProjectileSpeed = 11f;
         [Min(0.1f)] public float turretProjectileLifetime = 1.8f;
+        [Min(0.01f)] public float turretShotInterval = 0.5f;
+        [Min(0.01f)] public float turretProjectileHitRadius = 0.22f;
+        [Min(0.05f)] public float turretVisualScale = 3f;
+        [Min(1f)] public float turretVisualAnimationFps = 12f;
 
         [Header("Aura")]
         [Min(0.1f)] public float auraBaseDamage = 12f;
