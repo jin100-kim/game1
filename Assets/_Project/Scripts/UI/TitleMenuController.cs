@@ -136,19 +136,30 @@ namespace EJR.Game.UI
 
         private void Awake()
         {
+            Debug.Log("[EJR] 1: Awake Start");
             GameplaySpeedService.ApplyMenuTimeState();
+            Debug.Log("[EJR] 2: Speed Service Applied");
             _font = RuntimeFontProvider.GetDefaultFont();
+            Debug.Log("[EJR] 3: Font Loaded: " + (_font != null ? _font.name : "NULL"));
             MetaProgressionService.EnsureLoaded();
+            Debug.Log("[EJR] 4: MetaProgression Loaded");
             _selectedCharacterId = MetaProgressionService.GetSingleSelectedCharacterId();
             _inspectedCharacterId = _selectedCharacterId;
             _selectedStarterWeaponId = MetaProgressionService.GetSingleSelectedStarterWeapon();
             _selectedMapId = RunSelectionService.SingleMapId;
             _selectedDifficultyId = SharedRunCatalog.DefaultDifficultyId;
             _currentRunSetupStep = SingleRunSetupStep.MapSelect;
+            Debug.Log("[EJR] 5: Selections Initialized");
             InitializeDisplaySettings();
+            Debug.Log("[EJR] 6: Display Settings Initialized");
             EnsureCamera();
+            Debug.Log("[EJR] 7: Camera Ensured");
             EnsureEventSystem();
-            BuildMenu();
+            Debug.Log("[EJR] 8: Event System Ensured");
+            
+            // UI Toolkit을 강제로 끄고 기존 uGUI 방식으로 빌드합니다.
+            BuildMenu(); 
+            Debug.Log("[EJR] 9: Menu Built (uGUI Forced) - Awake End");
         }
 
         private void OnEnable()

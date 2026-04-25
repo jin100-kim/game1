@@ -101,9 +101,8 @@ namespace EJR.Game.UI
 
         private bool SupportsToolkitTitleUi()
         {
-            return Resources.Load<VisualTreeAsset>(ToolkitLayoutResourcePath) != null
-                && Resources.Load<VisualTreeAsset>(ToolkitOptionsLayoutResourcePath) != null
-                && Resources.Load<PanelSettings>(ToolkitPanelSettingsResourcePath) != null;
+            // UI Toolkit 관련 리소스가 있어도 강제로 false를 반환하여 안정적인 uGUI 방식을 사용하게 합니다.
+            return false;
         }
 
         private bool SupportsToolkitOptionsPanel()

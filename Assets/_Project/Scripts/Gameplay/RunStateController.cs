@@ -135,6 +135,34 @@ namespace EJR.Game.Gameplay
         private RunMapDefinition _currentMapDefinition;
         private RunDifficultyDefinition _currentDifficultyDefinition;
 
+#if UNITY_EDITOR
+        private void OnValidate()
+        {
+            // 리스트가 비어있으면 자동으로 찾아서 채워줍니다. (사용자님의 수고를 덜어드리는 마법의 코드!)
+            if (mapPrefabs == null || mapPrefabs.Length == 0)
+            {
+                var guids = UnityEditor.AssetDatabase.FindAssets("Map t:GameObject");
+                var foundPrefabs = new List<GameObject>();
+                foreach (var guid in guids)
+                {
+                    var path = UnityEditor.AssetDatabase.GUIDToAssetPath(guid);
+                    var go = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                    if (go != null && (go.name == "Map1" || go.name == "Map2" || go.name == "Map3"))
+                    {
+                        foundPrefabs.Add(go);
+                    }
+                }
+                
+                if (foundPrefabs.Count > 0)
+                {
+                    mapPrefabs = foundPrefabs.ToArray();
+                    UnityEditor.EditorUtility.SetDirty(this);
+                    Debug.Log($"[EJR] MapPrefabs list automatically populated with {mapPrefabs.Length} maps!");
+                }
+            }
+        }
+#endif
+
         private void Awake()
         {
             // Keep simulation running even when the game window loses focus.
@@ -402,49 +430,33 @@ namespace EJR.Game.Gameplay
 
             if (!string.IsNullOrEmpty(prefabName))
             {
-                // 1. Try to find in the pre-assigned array (Best for builds)
+                Debug.Log($"[EJR] Attempting to load map: {prefabName}");
+                
+                // 1. Try to find in the inspector-assigned array
                 if (mapPrefabs != null)
                 {
+                    Debug.Log($"[EJR] mapPrefabs array size: {mapPrefabs.Length}");
                     foreach (var p in mapPrefabs)
                     {
+                        if (p != null) Debug.Log($"[EJR] Checking prefab in list: {p.name}");
                         if (p != null && p.name == prefabName)
                         {
                             _instantiatedMap = Instantiate(p);
+                            Debug.Log($"[EJR] Map successfully instantiated from inspector: {prefabName} at position {_instantiatedMap.transform.position}");
                             break;
                         }
                     }
                 }
 
-                // 2. Fallback to Resources (If moved to Resources/Maps folder)
-                if (_instantiatedMap == null)
-                {
-                    var resPrefab = Resources.Load<GameObject>("Maps/" + prefabName) ?? 
-                                   Resources.Load<GameObject>("Prefabs/Maps/" + prefabName);
-                    if (resPrefab != null)
-                    {
-                        _instantiatedMap = Instantiate(resPrefab);
-                    }
-                }
-
-                // 3. Fallback to Editor only loading (For local development ease)
-#if UNITY_EDITOR
-                if (_instantiatedMap == null)
-                {
-                    string path = "Assets/_Project/Prefabs/Maps/" + prefabName + ".prefab";
-                    GameObject prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path);
-                    if (prefab != null)
-                    {
-                        _instantiatedMap = Instantiate(prefab);
-                    }
-                }
-#endif
                 if (_instantiatedMap != null)
                 {
                     _instantiatedMap.name = "CurrentMap_" + prefabName;
+                    // Ensure the map is active and on a visible layer
+                    _instantiatedMap.SetActive(true);
                 }
                 else
                 {
-                    Debug.LogError($"Could not find map prefab '{prefabName}' in mapPrefabs array, Resources, or AssetDatabase.");
+                    Debug.LogError($"[MAP ERROR] FAILED to find map '{prefabName}' in the MapPrefabs list. Current list contents: " + (mapPrefabs == null ? "NULL" : mapPrefabs.Length.ToString() + " items"));
                 }
             }
 
