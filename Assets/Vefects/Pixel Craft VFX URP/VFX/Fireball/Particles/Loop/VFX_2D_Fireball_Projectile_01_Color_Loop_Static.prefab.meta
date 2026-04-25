@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 264d9a3d0434aff46bf61733357a4659
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 308259
+  packageName: Pixel Craft VFX - URP
+  packageVersion: 1.0.02
+  assetPath: Assets/Vefects/Pixel Craft VFX URP/VFX/Fireball/Particles/Loop/VFX_Fireball_Projectile_01_Color_Loop_Static.prefab
+  uploadId: 771196

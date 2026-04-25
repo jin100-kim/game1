@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: bf1b2353e2e6f804d9b9115ef1a5a1f7
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 308259
+  packageName: Pixel Craft VFX - URP
+  packageVersion: 1.0.02
+  assetPath: Assets/Vefects/Pixel Craft VFX URP/VFX/Projectile Ice Impact/Particles/VFX_Projectile_Ice_Impact_01_Color_Static.prefab
+  uploadId: 771196

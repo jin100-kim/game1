@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 90ad2975a2b88a74ebf2ac36062b1f8c
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 308259
+  packageName: Pixel Craft VFX - URP
+  packageVersion: 1.0.02
+  assetPath: Assets/Vefects/Pixel Craft VFX URP/VFX/Explosion Small/Particles/VFX_Explosion_Small_03_Mask_Static.prefab
+  uploadId: 771196

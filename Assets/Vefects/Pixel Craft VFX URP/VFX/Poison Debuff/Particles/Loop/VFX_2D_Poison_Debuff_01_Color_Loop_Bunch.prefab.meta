@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: d33a81c84f712e74dac93f1c46be4282
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 308259
+  packageName: Pixel Craft VFX - URP
+  packageVersion: 1.0.02
+  assetPath: Assets/Vefects/Pixel Craft VFX URP/VFX/Poison Debuff/Particles/Loop/VFX_Poison_Debuff_01_Color_Loop_Bunch.prefab
+  uploadId: 771196

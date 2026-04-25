@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: ea222e4619ff5814a895b66842f9d867
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 308259
+  packageName: Pixel Craft VFX - URP
+  packageVersion: 1.0.02
+  assetPath: Assets/Vefects/Pixel Craft VFX URP/VFX/Factory Smoke/Particles/VFX_Factory_Smoke_01_Color_Static.prefab
+  uploadId: 771196

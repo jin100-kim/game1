@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 901f4e14ea6e2c843b7cbafe8cb5b45f
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 308259
+  packageName: Pixel Craft VFX - URP
+  packageVersion: 1.0.02
+  assetPath: Assets/Vefects/Pixel Craft VFX URP/VFX/Vanish/Particles/Loop/VFX_Vanish_01_Mask_Loop_Static.prefab
+  uploadId: 771196
