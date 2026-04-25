@@ -21,6 +21,7 @@ namespace EJR.Game.Gameplay
         private Func<Vector2> _externalVelocityReader;
         private EJR.Game.Core.PlayerStatsRuntime _stats;
         private Vector2 _externalVelocity;
+        private Rigidbody2D _rb;
 
         public Vector2 CurrentVelocity { get; private set; }
         public Vector2 LastFacingDirection { get; private set; } = Vector2.right;
@@ -86,34 +87,55 @@ namespace EJR.Game.Gameplay
             {
                 _facingTurnSpeedDegreesPerSecond = 1080f;
             }
+
+            _rb = GetComponent<Rigidbody2D>();
         }
 
         private UnityEngine.Tilemaps.Tilemap _groundTilemap;
-        private UnityEngine.Tilemaps.Tilemap _wallTilemap;
+        private UnityEngine.Tilemaps.Tilemap _propsTilemap;
+        private bool _tilemapsResolved = false;
 
-        private void Start()
+        public void SetColliders(Collider2D ground, Collider2D props) { } // 미사용, 호환용
+
+        public void SetTilemaps(UnityEngine.Tilemaps.Tilemap ground, UnityEngine.Tilemaps.Tilemap props)
         {
-            // Try to find the ground and wall tilemaps in the scene
-            var allTilemaps = GameObject.FindObjectsByType<UnityEngine.Tilemaps.Tilemap>(FindObjectsSortMode.None);
-            foreach (var tm in allTilemaps)
-            {
-                string lowerName = tm.name.ToLower();
-                if (lowerName.Contains("ground") || lowerName.Contains("floor") || lowerName.Contains("grass"))
-                {
-                    _groundTilemap = tm;
-                }
-                else if (lowerName.Contains("wall") || lowerName.Contains("object") || lowerName.Contains("obstacle"))
-                {
-                    _wallTilemap = tm;
-                }
-            }
-            
-            // Fallback for ground if not found by name
-            if (_groundTilemap == null && allTilemaps.Length > 0) _groundTilemap = allTilemaps[0];
+            _groundTilemap = ground;
+            _propsTilemap  = props;
+            _tilemapsResolved = ground != null;
         }
 
-        private void Update()
+        private void TryResolveTilemaps()
         {
+            if (_tilemapsResolved) return;
+
+            var groundObj = GameObject.Find("Tilemap_Ground");
+            var propsObj  = GameObject.Find("Tilemap_Props");
+
+            if (groundObj != null) _groundTilemap = groundObj.GetComponent<UnityEngine.Tilemaps.Tilemap>();
+            if (propsObj  != null) _propsTilemap  = propsObj.GetComponent<UnityEngine.Tilemaps.Tilemap>();
+
+            if (_groundTilemap != null)
+                _tilemapsResolved = true;
+        }
+
+        private bool IsWalkable(Vector3 position)
+        {
+            // Ground 타일이 없으면 이동 불가
+            if (_groundTilemap != null && !_groundTilemap.HasTile(_groundTilemap.WorldToCell(position)))
+                return false;
+            // Props 타일이 있으면 이동 불가
+            if (_propsTilemap != null && _propsTilemap.HasTile(_propsTilemap.WorldToCell(position)))
+                return false;
+            return true;
+        }
+
+        private void FixedUpdate()
+        {
+            // Rigidbody2D가 Awake 이후에 붙는 경우 재탐색
+            if (_rb == null) _rb = GetComponent<Rigidbody2D>();
+
+            TryResolveTilemaps();
+
             if (_stats != null)
             {
                 _speedMultiplier = Mathf.Max(0.1f, _stats.MoveSpeedMultiplier);
@@ -142,47 +164,23 @@ namespace EJR.Game.Gameplay
                 LastFacingDirection,
                 _facingTurnSpeedDegreesPerSecond * Time.deltaTime);
 
-            var previous = transform.position;
-            var delta = ((Vector3)move * (moveSpeed * _speedMultiplier * Time.deltaTime))
-                + ((Vector3)externalVelocity * Time.deltaTime);
-            var next = previous + delta;
+            var previous = (Vector2)transform.position;
+            var velocity = (move * (moveSpeed * _speedMultiplier)) + externalVelocity;
+            var next = previous + velocity * Time.fixedDeltaTime;
 
-            // --- TILE-BASED MOVEMENT RESTRICTION ---
-            if (_groundTilemap != null)
+            if (_rb != null)
             {
-                Vector3Int cellPos = _groundTilemap.WorldToCell(next);
-                
-                // 1. MUST have a ground tile
-                bool hasGround = _groundTilemap.HasTile(cellPos);
-                // 2. MUST NOT have a wall tile
-                bool hasWall = _wallTilemap != null && _wallTilemap.HasTile(_wallTilemap.WorldToCell(next));
-
-                if (!hasGround || hasWall)
-                {
-                    // Try to at least allow moving in one axis (sliding)
-                    Vector3 nextX = previous + new Vector3(delta.x, 0, 0);
-                    Vector3 nextY = previous + new Vector3(0, delta.y, 0);
-                    
-                    bool canMoveX = _groundTilemap.HasTile(_groundTilemap.WorldToCell(nextX)) && 
-                                   (_wallTilemap == null || !_wallTilemap.HasTile(_wallTilemap.WorldToCell(nextX)));
-                    bool canMoveY = _groundTilemap.HasTile(_groundTilemap.WorldToCell(nextY)) && 
-                                   (_wallTilemap == null || !_wallTilemap.HasTile(_wallTilemap.WorldToCell(nextY)));
-
-                    if (canMoveX) next = nextX;
-                    else if (canMoveY) next = nextY;
-                    else next = previous;
-                }
+                _rb.MovePosition(next); // 물리 엔진이 TilemapCollider2D 충돌 자동 처리
+                CurrentVelocity = velocity;
             }
-            else if (clampToBounds)
+            else
             {
-                // Fallback to rectangle bounds if no tilemap is found
+                // Rigidbody2D 없으면 기존 방식 폴백
                 next.x = Mathf.Clamp(next.x, movementBounds.xMin, movementBounds.xMax);
                 next.y = Mathf.Clamp(next.y, movementBounds.yMin, movementBounds.yMax);
+                transform.position = new Vector3(next.x, next.y, 0f);
+                CurrentVelocity = (next - previous) / Mathf.Max(0.0001f, Time.deltaTime);
             }
-
-            next.z = 0f;
-            transform.position = next;
-            CurrentVelocity = ((Vector2)(next - previous)) / Mathf.Max(0.0001f, Time.deltaTime);
         }
 
         private void OnDisable()

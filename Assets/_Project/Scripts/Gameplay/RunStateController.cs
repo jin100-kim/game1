@@ -7,6 +7,7 @@ using EJR.Game.Core;
 using EJR.Game.UI;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.Tilemaps;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
@@ -447,6 +448,9 @@ namespace EJR.Game.Gameplay
                     _instantiatedMap.name = "CurrentMap_" + prefabName;
                     _instantiatedMap.SetActive(true);
                     Debug.Log($"[EJR] Map successfully instantiated from Resources: {prefabName}");
+
+                    // 맵 로드 직후 타일맵을 PlayerMover에 직접 주입
+                    InjectTilemapsToPlayerMover(_instantiatedMap);
                 }
                 else
                 {
@@ -963,8 +967,25 @@ namespace EJR.Game.Gameplay
 
             _playerMover = playerMover;
 
+            // 타일맵 콜라이더(TilemapCollider2D) 주황색 라인 기준 충돌 위해 Rigidbody2D + Collider2D 자동 추가
+            var rb = player.GetComponent<Rigidbody2D>();
+            if (rb == null) rb = player.AddComponent<Rigidbody2D>();
+            rb.bodyType = RigidbodyType2D.Dynamic;
+            rb.gravityScale = 0f;
+            rb.freezeRotation = true;
+            rb.interpolation = RigidbodyInterpolation2D.Interpolate;
+            rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+
+            var circle = player.GetComponent<CircleCollider2D>();
+            if (circle == null) circle = player.AddComponent<CircleCollider2D>();
+            circle.radius = Mathf.Max(0.05f, playerConfig != null ? playerConfig.collisionRadius : 0.25f);
+
             playerMover.Initialize(playerConfig, _playerStats, arenaBounds);
             playerMover.SetExternalVelocityReader(ReadBossPullVelocity);
+
+            // 맵이 이미 로드되어 있으면 타일맵 즉시 주입
+            if (_instantiatedMap != null)
+                InjectTilemapsToPlayerMover(_instantiatedMap);
             SetAutoPlayEnabled(startWithAutoPlayEnabled);
             _cameraFollow?.Initialize(player.transform, cameraOffset, cameraFollowSmoothTime);
             ApplyArenaPresentation();
@@ -2444,6 +2465,24 @@ namespace EJR.Game.Gameplay
                 RefreshHeldWeaponVisualScale();
                 ApplyHeldWeaponFacing(_playerMover != null ? _playerMover.CurrentFacingDirection : Vector2.right);
             }
+        }
+
+        private void InjectTilemapsToPlayerMover(GameObject mapRoot)
+        {
+            if (_playerMover == null || mapRoot == null) return;
+
+            var allTilemaps = mapRoot.GetComponentsInChildren<Tilemap>();
+            Tilemap ground = null;
+            Tilemap props  = null;
+
+            foreach (var tm in allTilemaps)
+            {
+                if (tm.name == "Tilemap_Ground") ground = tm;
+                else if (tm.name == "Tilemap_Props") props = tm;
+            }
+
+            _playerMover.SetTilemaps(ground, props);
+            Debug.Log($"[EJR] Tilemaps injected → Ground: {(ground != null ? "OK" : "NULL")}, Props: {(props != null ? "OK" : "NULL")}");
         }
     }
 }
