@@ -60,9 +60,10 @@ namespace EJR.Game.Gameplay
 
                 satelliteVisual.position = new Vector3(worldPos.x + offset.x, worldPos.y + offset.y, 0f);
 
-                // ??Šë“ƒ ?ë¨? ™
-                foreach (var enemy in system.Registry.Enemies)
+                // ??ë”…ë±œ ?ç™’?ì Ÿ
+                for (int i = system.Registry.Enemies.Count - 1; i >= 0; i--)
                 {
+                    var enemy = system.Registry.Enemies[i];
                     if (enemy == null || !system.IsEnemyUsable(enemy)) continue;
 
                     var enemyPos = (Vector2)enemy.transform.position;

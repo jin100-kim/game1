@@ -28,21 +28,22 @@ namespace EJR.Game.Gameplay
 
         private void UpdateBfSword(WeaponRuntime weapon, AutoWeaponSystem system)
         {
-            var currentTime = Time.time;
             GetBfSwordBladeSegment(weapon, system, out var start, out var end, out var bladeRadius);
-            RecordBfSwordSnapshot(weapon, start, end, bladeRadius, currentTime);
             
-            CleanupExpiredBfSwordAfterimageHitCooldowns(weapon, currentTime);
-
             var damage = system.GetWeaponBaseDamage(weapon);
-            var hitInterval = system.GetAttackInterval(weapon);
+            var currentTime = Time.time;
 
-            foreach (var enemy in system.Registry.Enemies)
+            _cleanupEnemies.Clear();
+
+            for (int i = system.Registry.Enemies.Count - 1; i >= 0; i--)
             {
+                var enemy = system.Registry.Enemies[i];
                 if (enemy == null || !system.IsEnemyUsable(enemy)) continue;
 
                 if (IsInsideBfSwordHitbox(enemy, start, end, bladeRadius))
                 {
+                    _cleanupEnemies.Add(enemy); // We use _cleanupEnemies to track who is currently inside
+
                     if (!weapon.BfSwordInsideEnemies.Contains(enemy))
                     {
                         weapon.BfSwordInsideEnemies.Add(enemy);
@@ -55,108 +56,50 @@ namespace EJR.Game.Gameplay
                         }
                     }
                 }
-                else
-                {
-                    weapon.BfSwordInsideEnemies.Remove(enemy);
-                }
+            }
 
-                if (currentTime >= weapon.BfSwordAfterimageHitCooldownUntil.GetValueOrDefault(enemy, 0f))
+            // Remove enemies from the 'Inside' list if they are no longer in the hitbox or are dead
+            var toRemove = new List<EnemyController>();
+            foreach (var enemy in weapon.BfSwordInsideEnemies)
+            {
+                if (enemy == null || !_cleanupEnemies.Contains(enemy))
                 {
-                    if (TryGetBfSwordAfterimageSnapshot(weapon, currentTime - 0.05f, out var snapshot1))
-                    {
-                        if (IsInsideBfSwordHitbox(enemy, snapshot1.Start, snapshot1.End, snapshot1.BladeRadius))
-                        {
-                            system.DealDirectWeaponDamage(enemy, damage * 0.4f, weapon.WeaponId);
-                            weapon.BfSwordAfterimageHitCooldownUntil[enemy] = currentTime + hitInterval;
-                            continue;
-                        }
-                    }
-
-                    if (TryGetBfSwordAfterimageSnapshot(weapon, currentTime - 0.10f, out var snapshot2))
-                    {
-                        if (IsInsideBfSwordHitbox(enemy, snapshot2.Start, snapshot2.End, snapshot2.BladeRadius))
-                        {
-                            system.DealDirectWeaponDamage(enemy, damage * 0.25f, weapon.WeaponId);
-                            weapon.BfSwordAfterimageHitCooldownUntil[enemy] = currentTime + hitInterval;
-                        }
-                    }
+                    toRemove.Add(enemy);
                 }
             }
 
-            UpdateBfSwordVisuals(weapon, system, currentTime);
-        }
-
-        private void UpdateBfSwordVisuals(WeaponRuntime weapon, AutoWeaponSystem system, float currentTime)
-        {
-            EnsureBfSwordAfterimageRenderers(weapon, system, 2);
-            if (TryGetBfSwordAfterimageSnapshot(weapon, currentTime - 0.05f, out var snapshot1))
+            foreach (var enemy in toRemove)
             {
-                ApplySnapshotToRenderer(weapon.BfSwordAfterimageRenderers[0], snapshot1, 0.45f);
+                weapon.BfSwordInsideEnemies.Remove(enemy);
             }
-            if (TryGetBfSwordAfterimageSnapshot(weapon, currentTime - 0.10f, out var snapshot2))
-            {
-                ApplySnapshotToRenderer(weapon.BfSwordAfterimageRenderers[1], snapshot2, 0.22f);
-            }
-        }
-
-        private void EnsureBfSwordAfterimageRenderers(WeaponRuntime weapon, AutoWeaponSystem system, int count)
-        {
-            while (weapon.BfSwordAfterimageRenderers.Count < count)
-            {
-                var obj = new GameObject($"BfSwordAfterimage_{weapon.BfSwordAfterimageRenderers.Count}");
-                obj.transform.SetParent(system.transform, false);
-                var renderer = obj.AddComponent<SpriteRenderer>();
-                renderer.sprite = RuntimeSpriteFactory.GetSexySwordSprite();
-                renderer.sortingOrder = 28;
-                weapon.BfSwordAfterimageRenderers.Add(renderer);
-            }
-        }
-
-        private void ApplySnapshotToRenderer(SpriteRenderer renderer, BfSwordBladeSnapshot snapshot, float alpha)
-        {
-            if (renderer == null) return;
-            renderer.gameObject.SetActive(true);
-            var direction = snapshot.End - snapshot.Start;
-            var angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
-            renderer.transform.position = (Vector3)snapshot.Start;
-            renderer.transform.rotation = Quaternion.Euler(0f, 0f, angle);
-            renderer.color = new Color(1f, 1f, 1f, alpha);
         }
 
         private void GetBfSwordBladeSegment(WeaponRuntime weapon, AutoWeaponSystem system, out Vector2 start, out Vector2 end, out float radius)
         {
-            var ownerPos = (Vector2)system.Owner.position;
-            var direction = system.LastAimDirection;
-            var length = system.Config.bfSwordLength;
-            var offset = system.Config.bfSwordForwardOffset;
-            start = ownerPos + (direction * offset);
-            end = start + (direction * length);
-            radius = system.Config.bfSwordThickness;
-        }
-
-        private void RecordBfSwordSnapshot(WeaponRuntime weapon, Vector2 start, Vector2 end, float radius, float time)
-        {
-            weapon.BfSwordBladeHistory.Add(new BfSwordBladeSnapshot(start, end, radius, time));
-            if (weapon.BfSwordBladeHistory.Count > 30)
-            {
-                weapon.BfSwordBladeHistory.RemoveAt(0);
-            }
-        }
-
-        private bool TryGetBfSwordAfterimageSnapshot(WeaponRuntime weapon, float targetTime, out BfSwordBladeSnapshot snapshot)
-        {
-            snapshot = default;
-            if (weapon.BfSwordBladeHistory.Count == 0) return false;
+            var facingDirection = system.FacingDirection;
+            var normalizedDirection = facingDirection.sqrMagnitude > 0.000001f ? facingDirection.normalized : Vector2.right;
+            var origin = system.Owner != null ? (Vector2)system.Owner.position : Vector2.zero;
+            var forwardOffset = system.Config != null ? Mathf.Max(0f, system.Config.bfSwordForwardOffset) : 0.48f;
+            var visualOffset = system.Config != null ? system.Config.bfSwordVisualLocalOffset : new Vector2(0f, -0.08f);
             
-            for (var i = weapon.BfSwordBladeHistory.Count - 1; i >= 0; i--)
+            var bladeCenter = origin + (normalizedDirection * forwardOffset) + visualOffset;
+            
+            var baseLength = system.Config != null ? Mathf.Max(0.2f, system.Config.bfSwordLength) : 1.75f;
+            var lengthMultiplier = system.Stats != null ? Mathf.Max(0.1f, system.Stats.AttackRangeMultiplier) : 1f;
+            if (system.Build != null)
             {
-                if (weapon.BfSwordBladeHistory[i].RecordedAt <= targetTime)
-                {
-                    snapshot = weapon.BfSwordBladeHistory[i];
-                    return true;
-                }
+                lengthMultiplier *= 1f + (Mathf.Max(0f, system.Build.GetWeaponRangeBonusPercentTotal(weapon.WeaponId)) / 100f);
+                lengthMultiplier *= Mathf.Max(1f, system.Build.GetBfSwordLengthMultiplier());
             }
-            return false;
+            var bladeLength = baseLength * lengthMultiplier;
+            
+            var baseThickness = system.Config != null ? Mathf.Max(0.05f, system.Config.bfSwordThickness) : 0.55f;
+            var widthMultiplier = system.Build != null ? Mathf.Max(1f, system.Build.GetBfSwordWidthMultiplier()) : 1f;
+            radius = (baseThickness * widthMultiplier) * 0.5f;
+
+            var halfSegment = normalizedDirection * (bladeLength * 0.5f);
+            start = bladeCenter - halfSegment;
+            end = bladeCenter + halfSegment;
         }
 
         private bool IsInsideBfSwordHitbox(EnemyController enemy, Vector2 start, Vector2 end, float radius)
@@ -171,15 +114,7 @@ namespace EJR.Game.Gameplay
             return (point - projection).sqrMagnitude <= radius * radius;
         }
 
-        private void CleanupExpiredBfSwordAfterimageHitCooldowns(WeaponRuntime weapon, float currentTime)
-        {
-            _cleanupEnemies.Clear();
-            foreach (var kvp in weapon.BfSwordAfterimageHitCooldownUntil)
-            {
-                if (currentTime > kvp.Value) _cleanupEnemies.Add(kvp.Key);
-            }
-            foreach (var enemy in _cleanupEnemies) weapon.BfSwordAfterimageHitCooldownUntil.Remove(enemy);
-        }
+
 
         public void OnDrawGizmos(WeaponRuntime weapon, AutoWeaponSystem system, Color color)
         {

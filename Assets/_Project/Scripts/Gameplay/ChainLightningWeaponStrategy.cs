@@ -70,8 +70,9 @@ namespace EJR.Game.Gameplay
         {
             EnemyController best = null;
             var bestDistSq = range * range;
-            foreach (var enemy in system.Registry.Enemies)
+            for (int i = system.Registry.Enemies.Count - 1; i >= 0; i--)
             {
+                var enemy = system.Registry.Enemies[i];
                 if (enemy == null || hitEnemies.Contains(enemy) || !system.IsEnemyUsable(enemy)) continue;
                 var distSq = ((Vector2)enemy.transform.position - position).sqrMagnitude;
                 if (distSq < bestDistSq)

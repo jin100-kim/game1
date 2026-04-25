@@ -16,20 +16,12 @@ namespace EJR.Game.Gameplay
 
         public void Update(WeaponRuntime weapon, AutoWeaponSystem system)
         {
-            if (weapon.BurstShotsRemaining > 0)
-            {
-                weapon.BurstShotCooldown -= Time.deltaTime;
-                if (weapon.BurstShotCooldown <= 0f)
-                {
-                    FireFireballBurstShot(weapon, system, weapon.BurstDirection);
-                }
-            }
         }
 
         public void OnFire(WeaponRuntime weapon, AutoWeaponSystem system, Vector2 direction)
         {
-            var projectileSpeed = system.Config.projectileSpeed;
-            var projectileLifetime = system.GetLifetimeCappedByRange(weapon, projectileSpeed, system.Config.projectileLifetime);
+            var projectileSpeed = system.Config.fireballProjectileSpeed;
+            var projectileLifetime = system.GetLifetimeCappedByRange(weapon, projectileSpeed, system.Config.fireballProjectileLifetime);
             var hitRadius = Mathf.Max(0.05f, system.Config.fireballProjectileHitRadius);
             var damage = system.GetWeaponBaseDamage(weapon);
             var range = system.GetWeaponRange(weapon);
@@ -54,60 +46,17 @@ namespace EJR.Game.Gameplay
                 }
                 else
                 {
-                    var randomAngle = UnityEngine.Random.Range(-30f, 30f);
-                    var randomDir = AutoWeaponSystem.RotateDirection(baseDirection, randomAngle);
-                    var extraProjectile = system.SpawnProjectile(weapon.WeaponId, randomDir, damage, projectileSpeed, projectileLifetime, hitRadius, 1, 0f, 1f, GetSourceColor(weapon, system));
+                    // Fixed fan spread instead of random
+                    var sign = (i % 2 == 0) ? 1f : -1f;
+                    var spreadStep = 15f;
+                    var angle = sign * spreadStep * ((i / 2) + 1);
+                    var spreadDir = AutoWeaponSystem.RotateDirection(baseDirection, angle);
+                    var extraProjectile = system.SpawnProjectile(weapon.WeaponId, spreadDir, damage, projectileSpeed, projectileLifetime, hitRadius, 1, 0f, 1f, GetSourceColor(weapon, system));
                     ApplyFireballVisual(extraProjectile);
                 }
             }
 
-            if (UnityEngine.Random.value <= system.Config.fireballBurstChance)
-            {
-                StartFireballBurst(weapon, system, baseDirection);
-            }
-            else
-            {
-                weapon.Cooldown = GetAttackInterval(weapon, system);
-            }
-        }
-
-        private void StartFireballBurst(WeaponRuntime weapon, AutoWeaponSystem system, Vector2 direction)
-        {
-            var count = Mathf.Max(1, system.Config.fireballBurstCount + system.GetWeaponExtraCount(weapon));
-            weapon.BurstShotsRemaining = count;
-            weapon.BurstDirection = direction;
-            FireFireballBurstShot(weapon, system, direction);
-        }
-
-        private void FireFireballBurstShot(WeaponRuntime weapon, AutoWeaponSystem system, Vector2 direction)
-        {
-            var spread = UnityEngine.Random.Range(-system.Config.fireballBurstSpreadAngle, system.Config.fireballBurstSpreadAngle);
-            var burstDirection = AutoWeaponSystem.RotateDirection(direction, spread);
-            var damage = system.GetWeaponBaseDamage(weapon) * Mathf.Clamp(system.Config.fireballBurstDamageMultiplier, 0.05f, 2f);
-            var projectileSpeed = system.Config.projectileSpeed * 1.35f;
-            var projectileLifetime = system.GetLifetimeCappedByRange(weapon, projectileSpeed, system.Config.projectileLifetime * 0.85f);
-
-            var projectile = system.SpawnProjectile(
-                weapon.WeaponId,
-                burstDirection,
-                damage,
-                projectileSpeed,
-                projectileLifetime,
-                system.Config.projectileHitRadius * 0.9f,
-                1,
-                0f,
-                1f,
-                GetSourceColor(weapon, system));
-            
-            ApplyFireballVisual(projectile);
-            system.RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Secondary, projectile != null ? projectile.transform.position : system.GetOwnerSoundPosition());
-
-            weapon.BurstShotsRemaining--;
-            weapon.BurstShotCooldown = Mathf.Max(0.01f, Mathf.Max(0.01f, system.Config.fireballBurstShotInterval) * system.GetCombinedAttackIntervalMultiplier(weapon));
-            if (weapon.BurstShotsRemaining <= 0)
-            {
-                weapon.Cooldown = GetAttackInterval(weapon, system);
-            }
+            weapon.Cooldown = GetAttackInterval(weapon, system);
         }
 
         private void ApplyFireballVisual(Projectile projectile)
@@ -125,6 +74,13 @@ namespace EJR.Game.Gameplay
                     vfx.transform.localPosition = Vector3.zero;
                     vfx.transform.localRotation = Quaternion.identity;
                     vfx.transform.localScale = Vector3.one;
+
+                    // 파티클이 부모(투사체)의 회전을 무시하지 않고 똑같이 따라 돌도록 강제 설정
+                    var particleRenderers = vfx.GetComponentsInChildren<ParticleSystemRenderer>();
+                    foreach (var psr in particleRenderers)
+                    {
+                        psr.alignment = ParticleSystemRenderSpace.Local;
+                    }
                 }
             }
         }
@@ -140,8 +96,9 @@ namespace EJR.Game.Gameplay
             EnemyController best = null;
             var bestScore = float.MinValue;
 
-            foreach (var enemy in enemies)
+            for (int i = enemies.Count - 1; i >= 0; i--)
             {
+                var enemy = enemies[i];
                 if (enemy == null || reservedTargets.Contains(enemy) || !system.IsEnemyUsable(enemy)) continue;
 
                 var toEnemy = (Vector2)enemy.transform.position - ownerPosition;

@@ -79,7 +79,6 @@ namespace EJR.Game.Gameplay
         private void OnDisable()
         {
             CleanupLoadoutRuntimeState();
-            _batOverflowMaxHealthProgress = 0f;
             _nextLifestealAt = -999f;
         }
 
@@ -193,38 +192,17 @@ namespace EJR.Game.Gameplay
         [SerializeField, Min(0)] private int projectilePoolPrewarmCount = 40;
         [SerializeField, Min(0.01f)] private float targetScanInterval = 0.08f;
         [SerializeField, Min(0.5f)] private float projectileTravelRangeFactor = 1.35f;
-        [SerializeField, Min(0.02f)] private float slashRangeEffectDuration = 0.12f;
-        [SerializeField, Min(0.01f)] private float slashRangeEffectWidth = 0.05f;
-        [SerializeField, Range(4, 40)] private int slashRangeEffectSegments = 14;
-        [SerializeField] private Color slashRangeEffectColor = new(0.2f, 1f, 0.9f, 0.9f);
-        [SerializeField, Min(0.01f)] private float slashFxFps = 18f;
-        [SerializeField, Min(0.05f)] private float slashFxForwardOffset = 0.72f;
-        [SerializeField] private Vector2 slashFxLocalOffset = new(-0.22f, -2.0f);
-        [SerializeField, Min(0.05f)] private float slashFxScale = 6f;
+        [Header("Debug Gizmos")]
+        [SerializeField] private bool showWeaponCollisionGizmos = true;
+        [SerializeField] private Color satelliteHitGizmoColor = new(0.35f, 1f, 0.95f, 0.95f);
+        
         [SerializeField, Min(0.01f)] private float chainFxDuration = 0.25f;
         [SerializeField, Min(0.005f)] private float chainFxWidth = 0.05f;
         [SerializeField] private Color chainFxColor = new(0.45f, 0.85f, 1f, 0.95f);
-        [SerializeField, Min(0.01f)] private float lightningFxDuration = 0.1f;
-        [SerializeField, Min(0.01f)] private float auraFxDuration = 0.08f;
-        [SerializeField, Min(0.005f)] private float auraFxWidth = 0.032f;
-        [SerializeField, Min(0.005f)] private float auraIdleWidth = 0.018f;
-        [SerializeField] private Color auraFxColor = new(0.45f, 1f, 0.75f, 0.75f);
         [SerializeField, Min(0.01f)] private float turretTracerFxDuration = 0.06f;
         [SerializeField, Min(0.005f)] private float turretTracerFxWidth = 0.03f;
         [SerializeField] private Color turretTracerFxColor = new(1f, 0.86f, 0.28f, 0.95f);
-        [SerializeField] private Color turretRangeFxColor = new(0.55f, 0.9f, 1f, 0.28f);
         [SerializeField, Range(8, 96)] private int ringFxSegments = 28;
-        [SerializeField, Min(0.1f)] private float satelliteVisualAnimationFps = 12f;
-        [SerializeField, Min(1)] private int satelliteVisualSortOrder = 33;
-        [SerializeField, Min(0.1f)] private float turretVisualAnimationFps = 12f;
-        [SerializeField, Min(0.05f)] private float turretVisualScale = 3f;
-        [SerializeField, Min(0.1f)] private float swingMaceVisualFps = 14f;
-        [SerializeField, Min(0.05f)] private float swingMaceVisualScale = 3f;
-        [SerializeField] private float swingMaceVisualYOffset = 0f;
-        [Header("Debug Gizmos")]
-        [SerializeField] private bool showWeaponCollisionGizmos = true;
-        [SerializeField] private bool showSatelliteHitGizmos = true;
-        [SerializeField] private Color satelliteHitGizmoColor = new(0.35f, 1f, 0.95f, 0.95f);
 
         public WeaponConfig Config => _config;
         public Transform Owner => _owner;
@@ -246,12 +224,10 @@ namespace EJR.Game.Gameplay
         private Func<Vector2> _facingDirectionResolver;
         private bool _useProjectileBoundsCulling;
         private Rect _projectileCullBounds;
-        private float _batOverflowMaxHealthProgress;
-
         private EnemyController _currentTarget;
         private Vector2 _lastAimDirection = Vector2.right;
         public Vector2 LastAimDirection => _lastAimDirection;
-
+        public Vector2 FacingDirection => _facingDirectionResolver != null ? _facingDirectionResolver() : Vector2.right;
         private float _targetScanCooldown;
 
         private readonly List<WeaponRuntime> _loadout = new(4);
@@ -264,7 +240,6 @@ namespace EJR.Game.Gameplay
         private readonly Queue<Projectile> _projectilePool = new();
         private Transform _projectilePoolRoot;
         private LineRenderer _persistentAuraLine;
-        private bool _ownerUsesExternalAuraPresentation;
         private float _nextLifestealAt = -999f;
         private const int CollisionGizmoSegments = 24;
         private const float BfSwordHitSoundCooldown = 0.12f;
@@ -281,12 +256,6 @@ namespace EJR.Game.Gameplay
         public event Action<Vector2> AimUpdated;
         public event Action<Vector2> Fired;
         public event Action<ProjectileSpawnRequest> ProjectileVisualRequested;
-        public event Action<Vector2, Vector2, float, int> SlashFxRequested;
-        public event Action<Vector3[]> ChainFxRequested;
-        public event Action<Vector3, float> AuraPulseFxRequested;
-        public event Action<Vector3, float> SatelliteHitFxRequested;
-        public event Action<Vector3> SwingMaceFxRequested;
-        public event Action<Vector3, float, float> TurretDeployed;
         public event Action<Vector3, Vector3> TurretTracerFxRequested;
         public event Action<WeaponSoundRequest> WeaponSoundRequested;
 
@@ -311,8 +280,6 @@ namespace EJR.Game.Gameplay
             _facingDirectionResolver = facingDirectionResolver;
             _useProjectileBoundsCulling = projectileCullBounds.HasValue;
             _projectileCullBounds = projectileCullBounds.GetValueOrDefault();
-            _ownerUsesExternalAuraPresentation = false;
-            _batOverflowMaxHealthProgress = 0f;
             _nextLifestealAt = -999f;
             _currentTarget = null;
             _lastAimDirection = Vector2.right;
@@ -337,7 +304,6 @@ namespace EJR.Game.Gameplay
             }
 
             var nextLoadout = new List<WeaponRuntime>(Mathf.Max(1, build != null ? build.OwnedWeapons.Count : 0));
-            var hasTurretInNextLoadout = false;
 
             if (build == null || build.OwnedWeapons.Count <= 0)
             {
@@ -363,10 +329,6 @@ namespace EJR.Game.Gameplay
                 runtime.Strategy = WeaponStrategyFactory.GetStrategy(id);
                 runtime.Strategy?.OnInitialize(runtime, this);
                 nextLoadout.Add(runtime);
-                if (id == WeaponUpgradeId.Turret)
-                {
-                    hasTurretInNextLoadout = true;
-                }
             }
 
             foreach (var pair in existingById)

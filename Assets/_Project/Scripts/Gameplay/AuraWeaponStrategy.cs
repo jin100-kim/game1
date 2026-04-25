@@ -36,8 +36,9 @@ namespace EJR.Game.Gameplay
             var damage = system.GetWeaponBaseDamage(weapon) * Mathf.Clamp(system.Config.auraDamageMultiplier, 0.01f, 5f);
             var ownerPos = (Vector2)system.Owner.position;
 
-            foreach (var enemy in system.Registry.Enemies)
+            for (int i = system.Registry.Enemies.Count - 1; i >= 0; i--)
             {
+                var enemy = system.Registry.Enemies[i];
                 if (enemy == null || !system.IsEnemyUsable(enemy)) continue;
 
                 var enemyPos = (Vector2)enemy.transform.position;

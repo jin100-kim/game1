@@ -94,7 +94,7 @@ namespace EJR.Game.Gameplay
         private void Start()
         {
             // Try to find the ground and wall tilemaps in the scene
-            var allTilemaps = GameObject.FindObjectsOfType<UnityEngine.Tilemaps.Tilemap>();
+            var allTilemaps = GameObject.FindObjectsByType<UnityEngine.Tilemaps.Tilemap>(FindObjectsSortMode.None);
             foreach (var tm in allTilemaps)
             {
                 string lowerName = tm.name.ToLower();

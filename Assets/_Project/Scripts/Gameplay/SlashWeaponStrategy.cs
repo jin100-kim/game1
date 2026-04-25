@@ -59,8 +59,9 @@ namespace EJR.Game.Gameplay
             SpawnSlashSpriteFx(system, origin, slashDirection, range, slashIndex);
             system.RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Primary, origin);
 
-            foreach (var enemy in system.Registry.Enemies)
+            for (int i = system.Registry.Enemies.Count - 1; i >= 0; i--)
             {
+                var enemy = system.Registry.Enemies[i];
                 if (enemy == null || !system.IsEnemyUsable(enemy)) continue;
 
                 var toEnemy = (Vector2)enemy.transform.position - origin;

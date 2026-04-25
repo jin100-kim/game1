@@ -58,7 +58,7 @@ namespace EJR.Game.Gameplay
         [Range(0f, 25f)] public float fireballBurstSpreadAngle = 6f;
         [Min(0.1f)] public float fireballBaseDamage = 12f;
         [Min(0.1f)] public float fireballAttackInterval = 0.95f;
-        [Min(0.1f)] public float fireballProjectileSpeed = 8f;
+        [Min(0.1f)] public float fireballProjectileSpeed = 4f;
         [Min(0.1f)] public float fireballProjectileLifetime = 1.5f;
         [Min(0.05f)] public float fireballProjectileHitRadius = 0.28f;
         [Range(0f, 120f)] public float fireballSpreadAngle = 20f;

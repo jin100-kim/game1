@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Text;
 using EJR.Game.Audio;
 using EJR.Game.Core;
-using EJR.Game.Core;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
@@ -1007,7 +1006,6 @@ namespace EJR.Game.UI
             ShowPanel(_runSetupPanel, GetRunSetupPreferredSelection());
             SetStatus("맵을 먼저 선택하세요.");
             return;
-            SetStatus("캐릭터를 선택하세요. 잠긴 캐릭터는 상점에서 해금합니다.");
         }
 
         private void OnAchievementsClicked()

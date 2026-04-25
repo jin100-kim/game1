@@ -60,9 +60,6 @@ namespace EJR.Game.Gameplay
 
         [Header("Debug Hotkeys")]
         [SerializeField] private bool enableDebugTimeSkip = true;
-        [SerializeField, Min(1)] private int debugGrantLevelsPerPress = 1;
-        [SerializeField, Min(1f)] private float debugAdvanceSeconds = 60f;
-        [SerializeField, Min(1)] private int debugSkipBossTargetLevel = 40;
 
         [Header("Debug Auto Play")]
         [SerializeField] private bool enableDebugAutoPlay = true;
@@ -422,7 +419,7 @@ namespace EJR.Game.Gameplay
             if (_instantiatedMap != null) Destroy(_instantiatedMap);
             
             // Clean up ANY existing map objects in the scene to avoid overlap
-            var existingGrids = GameObject.FindObjectsOfType<Grid>();
+            var existingGrids = GameObject.FindObjectsByType<Grid>(FindObjectsSortMode.None);
             foreach (var grid in existingGrids)
             {
                 // Don't destroy the player if they have a grid (unlikely, but safe)
@@ -441,40 +438,26 @@ namespace EJR.Game.Gameplay
 
             if (!string.IsNullOrEmpty(prefabName))
             {
-                Debug.Log($"[EJR] Attempting to load map: {prefabName}");
+                Debug.Log($"[EJR] Attempting to load map: {prefabName} from Resources");
                 
-                // 1. Try to find in the inspector-assigned array
-                if (mapPrefabs != null)
+                var mapPrefab = Resources.Load<GameObject>($"Maps/{prefabName}");
+                if (mapPrefab != null)
                 {
-                    Debug.Log($"[EJR] mapPrefabs array size: {mapPrefabs.Length}");
-                    foreach (var p in mapPrefabs)
-                    {
-                        if (p != null) Debug.Log($"[EJR] Checking prefab in list: {p.name}");
-                        if (p != null && p.name == prefabName)
-                        {
-                            _instantiatedMap = Instantiate(p);
-                            Debug.Log($"[EJR] Map successfully instantiated from inspector: {prefabName} at position {_instantiatedMap.transform.position}");
-                            break;
-                        }
-                    }
-                }
-
-                if (_instantiatedMap != null)
-                {
+                    _instantiatedMap = Instantiate(mapPrefab);
                     _instantiatedMap.name = "CurrentMap_" + prefabName;
-                    // Ensure the map is active and on a visible layer
                     _instantiatedMap.SetActive(true);
+                    Debug.Log($"[EJR] Map successfully instantiated from Resources: {prefabName}");
                 }
                 else
                 {
-                    Debug.LogError($"[MAP ERROR] FAILED to find map '{prefabName}' in the MapPrefabs list. Current list contents: " + (mapPrefabs == null ? "NULL" : mapPrefabs.Length.ToString() + " items"));
+                    Debug.LogError($"[MAP ERROR] FAILED to load map '{prefabName}' from Resources/Maps/! Please check if the prefab exists.");
                 }
             }
 
             arenaBounds = _currentMapDefinition.ArenaBounds;
 
             // Try to find all Tilemaps in the scene to calculate combined bounds
-            var allTilemaps = GameObject.FindObjectsOfType<UnityEngine.Tilemaps.Tilemap>();
+            var allTilemaps = GameObject.FindObjectsByType<UnityEngine.Tilemaps.Tilemap>(FindObjectsSortMode.None);
             if (allTilemaps != null && allTilemaps.Length > 0)
             {
                 Bounds combinedBounds = allTilemaps[0].localBounds;
@@ -1354,53 +1337,18 @@ namespace EJR.Game.Gameplay
 
         private void EnsureWeaponVisual(Transform playerTransform, SpriteRenderer playerRenderer)
         {
-            if (playerTransform == null || playerRenderer == null)
+            if (playerTransform != null)
             {
-                _weaponSpriteAnimator = null;
-                _weaponVisualTransform = null;
-                _weaponVisualRenderer = null;
-                return;
-            }
-
-            var weaponTransform = playerTransform.Find(WeaponVisualObjectName);
-            if (weaponTransform == null)
-            {
-                weaponTransform = new GameObject(WeaponVisualObjectName).transform;
-                weaponTransform.SetParent(playerTransform, false);
-            }
-
-            var weaponRenderer = weaponTransform.GetComponent<SpriteRenderer>();
-            if (weaponRenderer == null)
-            {
-                weaponRenderer = weaponTransform.gameObject.AddComponent<SpriteRenderer>();
-            }
-
-            _weaponVisualTransform = weaponTransform;
-            _weaponVisualRenderer = weaponRenderer;
-            _weaponDrawBehind = false;
-
-            weaponRenderer.sortingLayerID = playerRenderer.sortingLayerID;
-            weaponRenderer.sortingOrder = playerRenderer.sortingOrder + weaponFrontSortingOffset;
-
-            var squareSprite = RuntimeSpriteFactory.GetSquareSprite();
-            var weaponFrames = RuntimeSpriteFactory.GetSexyBfSwordAnimationFrames();
-            var weaponSprite = weaponFrames.Length > 0 ? weaponFrames[0] : squareSprite;
-
-            weaponRenderer.sprite = weaponSprite;
-            weaponRenderer.color = Color.white;
-
-            var weaponVisualSize = weaponConfig != null ? Mathf.Max(0.05f, weaponConfig.bfSwordVisualScale) : 0.95f;
-            ApplyVisualScale(weaponTransform, weaponSprite, weaponVisualSize);
-            RefreshHeldWeaponVisualScale();
-            ApplyHeldWeaponFacing(_playerMover != null ? _playerMover.CurrentFacingDirection : Vector2.right);
-
-            var weaponAnimator = playerTransform.GetComponent<WeaponSpriteAnimator>();
-            if (weaponAnimator != null)
-            {
-                weaponAnimator.enabled = false;
+                var weaponTransform = playerTransform.Find(WeaponVisualObjectName);
+                if (weaponTransform != null)
+                {
+                    Destroy(weaponTransform.gameObject);
+                }
             }
 
             _weaponSpriteAnimator = null;
+            _weaponVisualTransform = null;
+            _weaponVisualRenderer = null;
         }
 
         private void EnsureArenaBoundaryVisual()

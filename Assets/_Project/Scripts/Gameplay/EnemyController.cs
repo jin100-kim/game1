@@ -1045,7 +1045,7 @@ namespace EJR.Game.Gameplay
             }
 
             var basePopupPosition = transform.position + new Vector3(0f, 0.8f, 0f);
-            CombatTextSpawner.SpawnDamage(basePopupPosition, appliedDamage, CombatTextSpawner.EnemyDamagedColor);
+            CombatTextSpawner.SpawnDamage(basePopupPosition, baseDamage, CombatTextSpawner.EnemyDamagedColor);
             ApplyMinorStunForWeapon(sourceWeaponId);
             Damaged?.Invoke(this, sourceWeaponId, appliedDamage);
             Changed?.Invoke(_health, MaxHealth);

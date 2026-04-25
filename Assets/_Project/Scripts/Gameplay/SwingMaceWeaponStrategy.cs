@@ -97,8 +97,9 @@ namespace EJR.Game.Gameplay
             var handleEnd = (Vector2)system.Owner.position + (currentSwingDir * range);
             var headPos = handleEnd;
 
-            foreach (var enemy in system.Registry.Enemies)
+            for (int i = system.Registry.Enemies.Count - 1; i >= 0; i--)
             {
+                var enemy = system.Registry.Enemies[i];
                 if (enemy == null || !system.IsEnemyUsable(enemy) || weapon.SwingMaceHitEnemies.Contains(enemy)) continue;
 
                 var enemyPos = (Vector2)enemy.transform.position;
@@ -108,18 +109,11 @@ namespace EJR.Game.Gameplay
                 {
                     weapon.SwingMaceHitEnemies.Add(enemy);
                     system.DealDirectWeaponDamage(enemy, damage, weapon.WeaponId);
-                    
-                    if (!weapon.SwingMaceStunnedEnemies.Contains(enemy))
-                    {
-                        enemy.ApplyStun(stunDuration);
-                        weapon.SwingMaceStunnedEnemies.Add(enemy);
-                    }
-                    
                     system.RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Hit, enemy.transform.position);
                     continue;
                 }
 
-                // Handle Hit (Minor Stun)
+                // Handle Hit
                 var line = handleEnd - handleStart;
                 var lenSq = line.sqrMagnitude;
                 var t = Mathf.Clamp01(Vector2.Dot(enemyPos - handleStart, line) / Mathf.Max(0.0001f, lenSq));
@@ -127,8 +121,7 @@ namespace EJR.Game.Gameplay
                 if ((enemyPos - projection).sqrMagnitude <= (handleHitRadius + 0.15f) * (handleHitRadius + 0.15f))
                 {
                     weapon.SwingMaceHitEnemies.Add(enemy);
-                    system.DealDirectWeaponDamage(enemy, damage * 0.3f, weapon.WeaponId);
-                    enemy.ApplyMinorStun(SwingMaceHandleMinorStunDuration);
+                    system.DealDirectWeaponDamage(enemy, damage, weapon.WeaponId);
                 }
             }
         }

@@ -7,13 +7,13 @@ namespace EJR.Game.Gameplay
 {
     public sealed class Projectile : MonoBehaviour
     {
-        private const float FireballExplosionRadius = 1.05f;
+        private const float FireballExplosionRadius = 0.8f;
         private const float FireballExplosionDamageMultiplier = 0.4f;
         private const float FireballBurnDuration = 2.5f;
         private const float FireballBurnTickInterval = 0.5f;
         private const float FireballBurnDamageMultiplier = 0.32f;
         private const float FireballExplosionMinorStunDuration = 0.04f;
-        private const float FireballExplosionFxScaleMultiplier = 6f;
+        private const float FireballExplosionFxScaleMultiplier = 3.0f;
         private const float FireballExplosionFxDuration = 0.4f;
         private EnemyRegistry _registry;
         private Vector3 _direction;
@@ -74,6 +74,19 @@ namespace EJR.Game.Gameplay
             _build = build;
             _isActive = true;
             _hitEnemies.Clear();
+
+            if (_direction.sqrMagnitude > 0.0001f)
+            {
+                var angle = Mathf.Atan2(_direction.y, _direction.x) * Mathf.Rad2Deg;
+                
+                // 파이어볼의 경우 애매한 각도로 꺾이지 않고 4방향(90도 단위)으로만 스냅되도록 처리
+                if (_sourceWeaponId == WeaponUpgradeId.Fireball)
+                {
+                    angle = Mathf.Round(angle / 90f) * 90f;
+                }
+
+                transform.rotation = Quaternion.Euler(0f, 0f, angle);
+            }
         }
 
         private void Update()
@@ -123,7 +136,10 @@ namespace EJR.Game.Gameplay
                 {
                     if (_sourceWeaponId == WeaponUpgradeId.Fireball)
                     {
-                        TriggerFireballExplosion(transform.position);
+                        var appliedDamage = ApplyContextualDamageModifiers(_currentDamage, enemy);
+                        enemy.ReceiveWeaponDamage(appliedDamage, _sourceWeaponId);
+                        _directHitCallback?.Invoke(appliedDamage, enemy);
+                        TriggerFireballExplosion(transform.position, enemy);
                     }
                     else
                     {
@@ -185,7 +201,7 @@ namespace EJR.Game.Gameplay
             _hitEnemies.Clear();
         }
 
-        private void TriggerFireballExplosion(Vector3 center)
+        private void TriggerFireballExplosion(Vector3 center, EnemyController directTarget)
         {
             var fxParent = transform.parent != null ? transform.parent : transform;
             WeaponFxRenderer.SpawnFireBurstFx(
@@ -208,7 +224,7 @@ namespace EJR.Game.Gameplay
             for (var i = 0; i < _nearbyEnemies.Count; i++)
             {
                 var enemy = _nearbyEnemies[i];
-                if (enemy == null)
+                if (enemy == null || enemy == directTarget)
                 {
                     continue;
                 }
@@ -220,8 +236,6 @@ namespace EJR.Game.Gameplay
                 }
 
                 enemy.ReceiveWeaponDamage(ApplyContextualDamageModifiers(explosionDamage, enemy), _sourceWeaponId);
-                enemy.ApplyMinorStun(FireballExplosionMinorStunDuration);
-                enemy.ApplyBurn(burnDamage, FireballBurnDuration, FireballBurnTickInterval);
             }
         }
 
@@ -256,5 +270,23 @@ namespace EJR.Game.Gameplay
                 || worldPosition.y < _bounds.yMin - BoundsCullMargin
                 || worldPosition.y > _bounds.yMax + BoundsCullMargin;
         }
+
+#if UNITY_EDITOR
+        private void OnDrawGizmos()
+        {
+            if (!Application.isPlaying || !_isActive) return;
+
+            // Draw direct hit radius (Orange)
+            Gizmos.color = new Color(1f, 0.5f, 0f, 0.5f);
+            Gizmos.DrawWireSphere(transform.position, _hitRadius);
+
+            // Draw explosion radius for Fireball (Red)
+            if (_sourceWeaponId == WeaponUpgradeId.Fireball)
+            {
+                Gizmos.color = new Color(1f, 0.1f, 0.1f, 0.3f);
+                Gizmos.DrawWireSphere(transform.position, FireballExplosionRadius);
+            }
+        }
+#endif
     }
 }
