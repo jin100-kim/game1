@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using EJR.Game.Audio;
 using EJR.Game.Core;
@@ -130,7 +131,7 @@ namespace EJR.Game.UI
             documentObject.transform.SetParent(transform, false);
 
             _toolkitDocument = documentObject.AddComponent<UIDocument>();
-            _toolkitPanelSettings = Object.Instantiate(panelTemplate);
+            _toolkitPanelSettings = UnityEngine.Object.Instantiate(panelTemplate);
             _toolkitPanelSettings.name = "RuntimeTitleMenuPanelSettings";
             _toolkitPanelSettings.referenceResolution = new Vector2Int(1920, 1080);
             _toolkitPanelSettings.scaleMode = PanelScaleMode.ScaleWithScreenSize;
@@ -582,7 +583,20 @@ namespace EJR.Game.UI
             var inspectedCharacter = SharedGameCatalog.GetCharacter(_inspectedCharacterId);
             var inspectedUnlocked = MetaProgressionService.IsCharacterUnlocked(inspectedCharacter.Id);
             var mapUnlocked = SharedRunCatalog.IsMapUnlocked(_selectedMapId);
-            var interactable = !MultiplayerSessionController.EnsureInstance().IsBusy;
+            var interactable = true;
+            try
+            {
+                var instance = MultiplayerSessionController.EnsureInstance();
+                if (instance != null)
+                {
+                    interactable = !instance.IsBusy;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogException(ex);
+                interactable = true;
+            }
             var isMapStep = _currentRunSetupStep == SingleRunSetupStep.MapSelect;
 
             if (_toolkitRunSetupHeader != null)
@@ -704,7 +718,20 @@ namespace EJR.Game.UI
             _toolkitRunSetupMapButtonRow.Clear();
             _toolkitDynamicButtons.Clear();
 
-            var interactable = !MultiplayerSessionController.EnsureInstance().IsBusy;
+            var interactable = true;
+            try
+            {
+                var instance = MultiplayerSessionController.EnsureInstance();
+                if (instance != null)
+                {
+                    interactable = !instance.IsBusy;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogException(ex);
+                interactable = true;
+            }
             for (var i = 0; i < SharedRunCatalog.MapDefinitions.Count; i++)
             {
                 var definition = SharedRunCatalog.MapDefinitions[i];
@@ -750,7 +777,20 @@ namespace EJR.Game.UI
             _toolkitRunSetupCharacterScroll.contentContainer.style.alignItems = Align.FlexStart;
             _toolkitRunSetupCharacterScroll.contentContainer.style.justifyContent = Justify.FlexStart;
 
-            var interactable = !MultiplayerSessionController.EnsureInstance().IsBusy;
+            var interactable = true;
+            try
+            {
+                var instance = MultiplayerSessionController.EnsureInstance();
+                if (instance != null)
+                {
+                    interactable = !instance.IsBusy;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogException(ex);
+                interactable = true;
+            }
             for (var i = 0; i < SharedGameCatalog.CharacterDefinitions.Count; i++)
             {
                 var definition = SharedGameCatalog.CharacterDefinitions[i];

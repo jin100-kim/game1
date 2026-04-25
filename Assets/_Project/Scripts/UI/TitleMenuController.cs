@@ -2867,10 +2867,12 @@ namespace EJR.Game.UI
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"[TitleMenu] Multiplayer controller not ready: {ex.Message}");
+                Debug.LogException(ex);
             }
 
-            SetInteractable(_singlePlayButton, interactable);
+            try
+            {
+                SetInteractable(_singlePlayButton, interactable);
             SetInteractable(_multiPlayButton, interactable);
             SetInteractable(_achievementButton, interactable);
             SetInteractable(_metaButton, interactable);
@@ -2986,7 +2988,12 @@ namespace EJR.Game.UI
             if (_masterVolumeSlider != null) _masterVolumeSlider.interactable = interactable;
             if (_bgmVolumeSlider != null) _bgmVolumeSlider.interactable = interactable;
             if (_sfxVolumeSlider != null) _sfxVolumeSlider.interactable = interactable;
-            UpdateToolkitInteractivity(interactable);
+                UpdateToolkitInteractivity(interactable);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogException(ex);
+            }
         }
 
         private static void SetInteractable(Selectable selectable, bool interactable)

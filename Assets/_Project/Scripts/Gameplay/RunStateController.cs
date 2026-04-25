@@ -402,19 +402,50 @@ namespace EJR.Game.Gameplay
 
             if (!string.IsNullOrEmpty(prefabName))
             {
-#if UNITY_EDITOR
-                string path = "Assets/_Project/Prefabs/Maps/" + prefabName + ".prefab";
-                GameObject prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path);
-                if (prefab != null)
+                // 1. Try to find in the pre-assigned array (Best for builds)
+                if (mapPrefabs != null)
                 {
-                    _instantiatedMap = Instantiate(prefab);
+                    foreach (var p in mapPrefabs)
+                    {
+                        if (p != null && p.name == prefabName)
+                        {
+                            _instantiatedMap = Instantiate(p);
+                            break;
+                        }
+                    }
+                }
+
+                // 2. Fallback to Resources (If moved to Resources/Maps folder)
+                if (_instantiatedMap == null)
+                {
+                    var resPrefab = Resources.Load<GameObject>("Maps/" + prefabName) ?? 
+                                   Resources.Load<GameObject>("Prefabs/Maps/" + prefabName);
+                    if (resPrefab != null)
+                    {
+                        _instantiatedMap = Instantiate(resPrefab);
+                    }
+                }
+
+                // 3. Fallback to Editor only loading (For local development ease)
+#if UNITY_EDITOR
+                if (_instantiatedMap == null)
+                {
+                    string path = "Assets/_Project/Prefabs/Maps/" + prefabName + ".prefab";
+                    GameObject prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                    if (prefab != null)
+                    {
+                        _instantiatedMap = Instantiate(prefab);
+                    }
+                }
+#endif
+                if (_instantiatedMap != null)
+                {
                     _instantiatedMap.name = "CurrentMap_" + prefabName;
                 }
                 else
                 {
-                    Debug.LogError($"Could not find map prefab at {path}");
+                    Debug.LogError($"Could not find map prefab '{prefabName}' in mapPrefabs array, Resources, or AssetDatabase.");
                 }
-#endif
             }
 
             arenaBounds = _currentMapDefinition.ArenaBounds;
