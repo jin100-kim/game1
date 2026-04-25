@@ -2856,7 +2856,20 @@ namespace EJR.Game.UI
 
         private void UpdateMultiplayerInteractivity()
         {
-            var interactable = !MultiplayerSessionController.EnsureInstance().IsBusy;
+            var interactable = true;
+            try
+            {
+                var instance = MultiplayerSessionController.EnsureInstance();
+                if (instance != null)
+                {
+                    interactable = !instance.IsBusy;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[TitleMenu] Multiplayer controller not ready: {ex.Message}");
+            }
+
             SetInteractable(_singlePlayButton, interactable);
             SetInteractable(_multiPlayButton, interactable);
             SetInteractable(_achievementButton, interactable);
