@@ -127,7 +127,7 @@ namespace EJR.Game.Gameplay
         private float _nextPauseToggleAt;
         private AutoPlayAgent _autoPlayAgent;
         private int _selectedSingleCharacterId;
-        private WeaponUpgradeId _selectedSingleStarterWeaponId = WeaponUpgradeId.Rifle;
+        private WeaponUpgradeId _selectedSingleStarterWeaponId = WeaponUpgradeId.Fireball;
         private int _enemiesDefeated;
         private readonly RunCombatTracker _combatTracker = new();
         private float _lastObservedPlayerMaxHealth = -1f;
@@ -1419,17 +1419,9 @@ namespace EJR.Game.Gameplay
 
         private void ApplyBfSwordVisualWidthScale(Transform targetTransform)
         {
-            if (targetTransform == null)
-            {
-                return;
-            }
+            if (targetTransform == null) return;
 
-            var widthMultiplier = weaponConfig != null ? Mathf.Max(0.05f, weaponConfig.bfSwordVisualWidthMultiplier) : 0.5f;
-            if (_buildRuntime != null)
-            {
-                widthMultiplier *= Mathf.Max(1f, _buildRuntime.GetBfSwordWidthMultiplier());
-            }
-
+            var widthMultiplier = 1.0f;
             var localScale = targetTransform.localScale;
             targetTransform.localScale = new Vector3(localScale.x, localScale.y * widthMultiplier, localScale.z);
         }
@@ -1441,13 +1433,8 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            var visualScale = weaponConfig != null ? Mathf.Max(0.05f, weaponConfig.bfSwordVisualScale) : 0.95f;
+            var visualScale = 0.95f;
             var lengthMultiplier = _playerStats != null ? Mathf.Max(0.1f, _playerStats.AttackRangeMultiplier) : 1f;
-            if (_buildRuntime != null)
-            {
-                lengthMultiplier *= 1f + (Mathf.Max(0f, _buildRuntime.GetWeaponRangeBonusPercentTotal(WeaponUpgradeId.BfSword)) / 100f);
-                lengthMultiplier *= Mathf.Max(1f, _buildRuntime.GetBfSwordLengthMultiplier());
-            }
 
             ApplyVisualScale(_weaponVisualTransform, _weaponVisualRenderer.sprite, visualScale * lengthMultiplier);
             ApplyBfSwordVisualWidthScale(_weaponVisualTransform);
@@ -1509,8 +1496,8 @@ namespace EJR.Game.Gameplay
 
         private Vector2 CalculateHeldWeaponLocalPosition(Transform playerRoot, Vector2 normalizedDirection, bool flipX, float rotationDegrees)
         {
-            var weaponOffset = weaponConfig != null ? weaponConfig.bfSwordVisualLocalOffset : new Vector2(0f, -0.08f);
-            var aimDistance = weaponConfig != null ? Mathf.Max(0f, weaponConfig.bfSwordForwardOffset) : 0.48f;
+            var weaponOffset = new Vector2(0f, -0.08f);
+            var aimDistance = 0.48f;
             var orbitCenterLocal = ResolveWeaponOrbitCenterLocal(playerRoot);
             var sprite = _weaponVisualRenderer != null ? _weaponVisualRenderer.sprite : null;
             return WeaponVisualLayoutUtility.CalculateWeaponLocalPosition(

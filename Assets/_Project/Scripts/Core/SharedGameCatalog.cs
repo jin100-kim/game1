@@ -66,29 +66,18 @@ namespace EJR.Game.Core
         {
             new(
                 0,
-                "연발 투사체 캐릭터",
-                new Color(0.92f, 0.92f, 0.82f, 1f),
+                "화염술사",
+                new Color(0.96f, 0.74f, 0.38f, 1f),
                 0,
                 true,
                 CharacterUnlockSource.Default,
-                WeaponUpgradeId.Rifle,
-                new MetaBonusValues { attackSpeedPercent = 10f },
-                CharacterPassiveId.ArcherLevelAttackSpeed,
-                "현재 레벨만큼 공속 +1%"),
+                WeaponUpgradeId.Fireball,
+                new MetaBonusValues { attackPowerPercent = 10f },
+                CharacterPassiveId.TaoistLevelDamage,
+                "현재 레벨만큼 피해 +1%"),
             new(
                 1,
-                "흡혈 박쥐 캐릭터",
-                new Color(0.94f, 0.42f, 0.56f, 1f),
-                100,
-                false,
-                CharacterUnlockSource.Shop,
-                WeaponUpgradeId.Bat,
-                new MetaBonusValues { healthRegenPerSecond = 1f },
-                CharacterPassiveId.VampireMaxHealthDamage,
-                "추가 체력 3당 피해 +1%"),
-            new(
-                2,
-                "부채꼴 연속베기 캐릭터",
+                "검사",
                 new Color(0.76f, 0.90f, 1f, 1f),
                 100,
                 false,
@@ -97,109 +86,12 @@ namespace EJR.Game.Core
                 new MetaBonusValues { moveSpeedPercent = 10f },
                 CharacterPassiveId.SwordsmanLevelMoveSpeed,
                 "현재 레벨만큼 이동속도 +1%"),
-            new(
-                3,
-                "폭발 화염탄 캐릭터",
-                new Color(0.96f, 0.74f, 0.38f, 1f),
-                100,
-                false,
-                CharacterUnlockSource.Shop,
-                WeaponUpgradeId.Fireball,
-                new MetaBonusValues { attackPowerPercent = 10f },
-                CharacterPassiveId.TaoistLevelDamage,
-                "현재 레벨만큼 피해 +1%"),
-            new(
-                4,
-                "근접 장판 캐릭터",
-                new Color(0.72f, 1f, 0.84f, 1f),
-                100,
-                false,
-                CharacterUnlockSource.Shop,
-                WeaponUpgradeId.Aura,
-                new MetaBonusValues { attackRangePercent = 10f },
-                CharacterPassiveId.ExorcistLevelRange,
-                "현재 레벨만큼 범위 +1%"),
-            new(
-                5,
-                "연쇄 번개 캐릭터",
-                new Color(1f, 0.94f, 0.42f, 1f),
-                100,
-                false,
-                CharacterUnlockSource.Shop,
-                WeaponUpgradeId.ChainLightning,
-                default,
-                CharacterPassiveId.ThunderMageChainMastery,
-                "연쇄 감쇠 제거, 연쇄 수 +2"),
-            new(
-                6,
-                "근거리 산탄 캐릭터",
-                new Color(0.98f, 0.72f, 0.42f, 1f),
-                100,
-                false,
-                CharacterUnlockSource.Shop,
-                WeaponUpgradeId.Shotgun,
-                new MetaBonusValues { maxHealthFlat = 20f },
-                CharacterPassiveId.StarterWeaponSpecialist,
-                "근거리 산탄 피해량 +10%, 근거리 산탄 범위 +10%"),
-            new(
-                7,
-                "방향 대검 캐릭터",
-                new Color(0.82f, 0.87f, 0.96f, 1f),
-                100,
-                false,
-                CharacterUnlockSource.Shop,
-                WeaponUpgradeId.BfSword,
-                new MetaBonusValues { maxHealthFlat = 20f },
-                CharacterPassiveId.StarterWeaponSpecialist,
-                "방향 대검 피해량 +10%, 방향 대검 범위 +10%"),
-            new(
-                8,
-                "철퇴 캐릭터",
-                new Color(0.94f, 0.82f, 0.50f, 1f),
-                100,
-                false,
-                CharacterUnlockSource.Shop,
-                WeaponUpgradeId.SwingMace,
-                new MetaBonusValues { maxHealthFlat = 20f },
-                CharacterPassiveId.StarterWeaponSpecialist,
-                "철퇴 피해량 +10%, 철퇴 범위 +10%"),
-            new(
-                9,
-                "회전 위성 캐릭터",
-                new Color(0.70f, 0.96f, 0.90f, 1f),
-                100,
-                false,
-                CharacterUnlockSource.Shop,
-                WeaponUpgradeId.OrbitWeapon,
-                new MetaBonusValues { maxHealthFlat = 20f },
-                CharacterPassiveId.StarterWeaponSpecialist,
-                "회전 위성 피해량 +10%, 회전 위성 범위 +10%"),
-            new(
-                10,
-                "설치 포탑 캐릭터",
-                new Color(0.84f, 0.74f, 0.60f, 1f),
-                100,
-                false,
-                CharacterUnlockSource.Shop,
-                WeaponUpgradeId.Turret,
-                new MetaBonusValues { maxHealthFlat = 20f },
-                CharacterPassiveId.StarterWeaponSpecialist,
-                "설치 포탑 피해량 +10%, 설치 포탑 범위 +10%"),
         };
 
         private static readonly SharedWeaponDefinition[] StarterWeapons =
         {
-            new(WeaponUpgradeId.Rifle, "연발 투사체(Rifle)"),
             new(WeaponUpgradeId.Fireball, "폭발 화염탄(Fireball)"),
-            new(WeaponUpgradeId.Bat, "흡혈 박쥐(Bat)"),
-            new(WeaponUpgradeId.Shotgun, "근거리 산탄(Shotgun)"),
-            new(WeaponUpgradeId.BfSword, "방향 대검(BfSword)"),
             new(WeaponUpgradeId.Slash, "부채꼴 연속베기(Slash)"),
-            new(WeaponUpgradeId.ChainLightning, "연쇄 번개(ChainLightning)"),
-            new(WeaponUpgradeId.SwingMace, "철퇴(SwingMace)"),
-            new(WeaponUpgradeId.OrbitWeapon, "회전 위성(OrbitWeapon)"),
-            new(WeaponUpgradeId.Turret, "설치 포탑(Turret)"),
-            new(WeaponUpgradeId.Aura, "근접 장판(Aura)"),
         };
 
         public static int CharacterCount => Characters.Length;
@@ -209,11 +101,7 @@ namespace EJR.Game.Core
 
         public static int NormalizeCharacterId(int characterId)
         {
-            if (Characters.Length <= 0)
-            {
-                return 0;
-            }
-
+            if (Characters.Length <= 0) return 0;
             var normalized = characterId % Characters.Length;
             return normalized < 0 ? normalized + Characters.Length : normalized;
         }
@@ -227,12 +115,8 @@ namespace EJR.Game.Core
         {
             for (var i = 0; i < Characters.Length; i++)
             {
-                if (Characters[i].DefaultUnlocked)
-                {
-                    return Characters[i].Id;
-                }
+                if (Characters[i].DefaultUnlocked) return Characters[i].Id;
             }
-
             return 0;
         }
 
@@ -243,11 +127,7 @@ namespace EJR.Game.Core
 
         public static int NormalizeStarterWeaponIndex(int index)
         {
-            if (StarterWeapons.Length <= 0)
-            {
-                return 0;
-            }
-
+            if (StarterWeapons.Length <= 0) return 0;
             var normalized = index % StarterWeapons.Length;
             return normalized < 0 ? normalized + StarterWeapons.Length : normalized;
         }
@@ -271,12 +151,8 @@ namespace EJR.Game.Core
         {
             for (var i = 0; i < StarterWeapons.Length; i++)
             {
-                if (StarterWeapons[i].Id == weaponId)
-                {
-                    return i;
-                }
+                if (StarterWeapons[i].Id == weaponId) return i;
             }
-
             return 0;
         }
 
@@ -289,12 +165,8 @@ namespace EJR.Game.Core
         {
             for (var i = 0; i < StarterWeapons.Length; i++)
             {
-                if (StarterWeapons[i].Id == weaponId)
-                {
-                    return StarterWeapons[i].IsSelectable;
-                }
+                if (StarterWeapons[i].Id == weaponId) return StarterWeapons[i].IsSelectable;
             }
-
             return false;
         }
 
@@ -302,13 +174,9 @@ namespace EJR.Game.Core
         {
             for (var i = 0; i < StarterWeapons.Length; i++)
             {
-                if (StarterWeapons[i].Id == weaponId)
-                {
-                    return StarterWeapons[i].DisplayName;
-                }
+                if (StarterWeapons[i].Id == weaponId) return StarterWeapons[i].DisplayName;
             }
-
-            return "연발 투사체(Rifle)";
+            return "폭발 화염탄(Fireball)";
         }
 
         public static string GetStatDisplayName(StatUpgradeId statId)

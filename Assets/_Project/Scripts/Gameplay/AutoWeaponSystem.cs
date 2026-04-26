@@ -117,10 +117,7 @@ namespace EJR.Game.Gameplay
 
         private void CleanupWeaponRuntimeState(WeaponRuntime weapon)
         {
-            if (weapon == null)
-            {
-                return;
-            }
+            if (weapon == null) return;
 
             if (weapon.ActiveChainCoroutine != null)
             {
@@ -128,63 +125,6 @@ namespace EJR.Game.Gameplay
                 weapon.ActiveChainCoroutine = null;
             }
 
-            for (var visualIndex = 0; visualIndex < weapon.SatelliteVisuals.Count; visualIndex++)
-            {
-                var visual = weapon.SatelliteVisuals[visualIndex];
-                if (visual != null)
-                {
-                    Destroy(visual.gameObject);
-                }
-            }
-
-            weapon.SatelliteVisuals.Clear();
-            weapon.SatelliteHitCooldownUntil.Clear();
-            weapon.BfSwordInsideEnemies.Clear();
-            weapon.BfSwordBladeHistory.Clear();
-            weapon.BfSwordAfterimageHitCooldownUntil.Clear();
-            weapon.SwingMaceHitEnemies.Clear();
-            weapon.SwingMaceStunnedEnemies.Clear();
-
-            for (var afterimageIndex = 0; afterimageIndex < weapon.BfSwordAfterimageRenderers.Count; afterimageIndex++)
-            {
-                var afterimageRenderer = weapon.BfSwordAfterimageRenderers[afterimageIndex];
-                if (afterimageRenderer != null)
-                {
-                    Destroy(afterimageRenderer.gameObject);
-                }
-            }
-
-            weapon.BfSwordAfterimageRenderers.Clear();
-
-            for (var batIndex = weapon.BatInstances.Count - 1; batIndex >= 0; batIndex--)
-            {
-                var bat = weapon.BatInstances[batIndex];
-                if (bat?.Root != null)
-                {
-                    Destroy(bat.Root.gameObject);
-                }
-            }
-
-            weapon.BatInstances.Clear();
-
-            for (var turretIndex = weapon.TurretInstances.Count - 1; turretIndex >= 0; turretIndex--)
-            {
-                var turret = weapon.TurretInstances[turretIndex];
-                if (turret?.Root != null)
-                {
-                    Destroy(turret.Root.gameObject);
-                }
-            }
-            weapon.TurretInstances.Clear();
-
-            if (weapon.SwingMaceVisualRoot != null)
-            {
-                Destroy(weapon.SwingMaceVisualRoot.gameObject);
-                weapon.SwingMaceVisualRoot = null;
-            }
-
-            weapon.IsSwingMaceSwingActive = false;
-            weapon.SwingMaceSwingElapsed = 0f;
             weapon.BurstTotalShots = 0;
             weapon.BurstOrigin = Vector2.zero;
         }
@@ -231,29 +171,14 @@ namespace EJR.Game.Gameplay
         public Vector2 LastAimDirection => _lastAimDirection;
         public Vector2 FacingDirection => _facingDirectionResolver != null ? _facingDirectionResolver() : Vector2.right;
         private float _targetScanCooldown;
+        private float _nextLifestealAt = -999f;
+        private Transform _projectilePoolRoot;
+        private readonly Queue<Projectile> _projectilePool = new();
+        private readonly List<EnemyController> _cleanupEnemies = new(16);
 
         private readonly List<WeaponRuntime> _loadout = new(4);
         private readonly List<EnemyController> _nearbyEnemies = new(32);
         private readonly List<EnemyController> _candidateEnemies = new(64);
-        private readonly List<EnemyController> _chainHitEnemies = new(16);
-        private readonly List<EnemyController> _cleanupEnemies = new(16);
-        private readonly List<Vector3> _fxPoints = new(32);
-        private readonly List<TurretRuntime> _turrets = new(4);
-        private readonly Queue<Projectile> _projectilePool = new();
-        private Transform _projectilePoolRoot;
-        private LineRenderer _persistentAuraLine;
-        private float _nextLifestealAt = -999f;
-        private const int CollisionGizmoSegments = 24;
-        private const float BfSwordHitSoundCooldown = 0.12f;
-        private const float BfSwordAfterimageDamageMultiplier = 0.5f;
-        private const float BfSwordAfterimageMinorStunDuration = 0.05f;
-        private const float BfSwordAfterimageHitCooldown = 0.15f;
-        private const float BfSwordAfterimageDelayStep = 0.08f;
-        private const float BfSwordAfterimageSnapshotLifetime = 0.35f;
-        private const float SwingMaceHandleMinorStunDuration = 0.05f;
-        private const float SwingMaceLengthRangeBonusShare = 0.7f;
-        private const float SwingMaceHeadRangeBonusShare = 0.3f;
-        private const float SwingMaceVisualForwardOffset = 0f;
 
         public event Action<Vector2> AimUpdated;
         public event Action<Vector2> Fired;
@@ -467,38 +392,12 @@ namespace EJR.Game.Gameplay
             _playerHealth.Heal(clampedHeal);
         }
 
-        public void SpawnChainBeamFx(Vector3 from, Vector3 to)
-        {
-            WeaponFxRenderer.SpawnStretchBeamFx(
-                null,
-                from,
-                to,
-                1.0f,
-                chainFxDuration,
-                chainFxColor,
-                chainFxWidth,
-                "ChainFx");
-        }
-
-        public void SpawnTracerFx(Vector3 from, Vector3 to)
-        {
-            WeaponFxRenderer.SpawnLineFx(transform, from, to, turretTracerFxColor, turretTracerFxWidth, turretTracerFxDuration, "TurretTracerFx");
-            TurretTracerFxRequested?.Invoke(from, to);
-        }
-
-        public void SpawnRingFx(Vector2 center, float radius, Color color, float width, float duration, string name)
-        {
-            WeaponFxRenderer.SpawnRingFx(transform, center, radius, ringFxSegments, color, width, duration, name);
-        }
 
         private float GetProjectileVisualScale(WeaponUpgradeId weaponId, float baseScale)
         {
             return weaponId switch
             {
-                WeaponUpgradeId.Rifle => baseScale,
                 WeaponUpgradeId.Fireball => 1.0f,
-                WeaponUpgradeId.Bat => Mathf.Max(0.01f, _config.batVisualScale),
-                WeaponUpgradeId.Shotgun => baseScale * 0.85f,
                 _ => baseScale,
             };
         }
@@ -506,33 +405,26 @@ namespace EJR.Game.Gameplay
         private Quaternion GetProjectileVisualRotation(WeaponUpgradeId weaponId, Vector2 direction)
         {
             var angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
-            return weaponId switch
-            {
-                WeaponUpgradeId.Bat => Quaternion.identity,
-                _ => Quaternion.Euler(0f, 0f, angle),
-            };
+            return Quaternion.Euler(0f, 0f, angle);
         }
 
         private Sprite GetProjectileVisualSprite(WeaponUpgradeId weaponId)
         {
             return weaponId switch
             {
-                WeaponUpgradeId.Rifle => RuntimeSpriteFactory.GetWeaponFire1Sprite(),
                 WeaponUpgradeId.Fireball => RuntimeSpriteFactory.GetFireballProjectileSprite(),
-                WeaponUpgradeId.Bat => RuntimeSpriteFactory.GetSlimeSprite(),
-                WeaponUpgradeId.Shotgun => RuntimeSpriteFactory.GetWeaponFire1Sprite(),
                 _ => null,
             };
         }
 
         private bool ShouldUseProjectileSourceColor(WeaponUpgradeId weaponId)
         {
-            return weaponId == WeaponUpgradeId.Fireball || weaponId == WeaponUpgradeId.Bat;
+            return weaponId == WeaponUpgradeId.Fireball;
         }
 
         private bool GetProjectileVisualFlipX(WeaponUpgradeId weaponId, Vector2 direction)
         {
-            return weaponId == WeaponUpgradeId.Bat && direction.x < 0;
+            return false;
         }
 
         public Projectile SpawnProjectile(
@@ -666,10 +558,7 @@ namespace EJR.Game.Gameplay
             if (_config == null) return null;
             return weaponId switch
             {
-                WeaponUpgradeId.Rifle => _config.rifleProjectilePrefab ?? _config.projectilePrefab,
                 WeaponUpgradeId.Fireball => ResolveFireballPrefab(direction),
-                WeaponUpgradeId.Shotgun => _config.shotgunProjectilePrefab ?? _config.projectilePrefab,
-                WeaponUpgradeId.Turret => _config.turretProjectilePrefab ?? _config.projectilePrefab,
                 _ => _config.projectilePrefab,
             };
         }
@@ -688,11 +577,7 @@ namespace EJR.Game.Gameplay
             if (_config == null) return null;
             return weaponId switch
             {
-                WeaponUpgradeId.Rifle => _config.rifleImpactVfxPrefab ?? _config.impactVfxPrefab,
                 WeaponUpgradeId.Fireball => _config.fireballImpactVfxPrefab ?? _config.impactVfxPrefab,
-                WeaponUpgradeId.Shotgun => _config.shotgunImpactVfxPrefab ?? _config.impactVfxPrefab,
-                WeaponUpgradeId.ChainLightning => _config.chainLightningImpactVfxPrefab ?? _config.impactVfxPrefab,
-                WeaponUpgradeId.Turret => _config.turretImpactVfxPrefab ?? _config.impactVfxPrefab,
                 _ => _config.impactVfxPrefab,
             };
         }
@@ -1167,17 +1052,8 @@ namespace EJR.Game.Gameplay
         {
             return weaponId switch
             {
-                WeaponUpgradeId.Rifle => new Color(0.9f, 0.9f, 0.9f, 0.45f),
                 WeaponUpgradeId.Fireball => new Color(1f, 0.45f, 0.15f, 0.45f),
-                WeaponUpgradeId.Bat => new Color(0.15f, 0.85f, 0.45f, 0.45f),
-                WeaponUpgradeId.Shotgun => new Color(0.85f, 0.85f, 0.15f, 0.45f),
                 WeaponUpgradeId.Slash => new Color(1f, 0.15f, 0.45f, 0.45f),
-                WeaponUpgradeId.BfSword => new Color(1f, 1f, 1f, 0.65f),
-                WeaponUpgradeId.ChainLightning => new Color(0.45f, 1f, 1f, 0.45f),
-                WeaponUpgradeId.SwingMace => new Color(0.7f, 0.7f, 0.7f, 0.45f),
-                WeaponUpgradeId.OrbitWeapon => new Color(0.45f, 1f, 0.75f, 0.45f),
-                WeaponUpgradeId.Turret => new Color(1f, 0.86f, 0.28f, 0.45f),
-                WeaponUpgradeId.Aura => new Color(0.45f, 1f, 0.75f, 0.35f),
                 _ => new Color(1f, 1f, 1f, 0.45f),
             };
         }

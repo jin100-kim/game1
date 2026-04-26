@@ -163,6 +163,89 @@ namespace EJR.Game.Gameplay
             return true;
         }
 
+        public static void SpawnChainSegmentedFx(
+            Transform parent,
+            Vector3 from,
+            Vector3 to,
+            GameObject prefab,
+            float segmentLength,
+            float duration,
+            int sortingOrder = 600)
+        {
+            if (prefab == null) return;
+
+            var fullSegment = to - from;
+            fullSegment.z = 0f;
+            var totalLength = fullSegment.magnitude;
+            if (totalLength <= 0.05f) return;
+
+            var direction = fullSegment / totalLength;
+            var angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+            
+            // 거리에 맞춰 마디가 몇 개 필요한지 계산합니다.
+            var count = Mathf.CeilToInt(totalLength / Mathf.Max(0.1f, segmentLength));
+            var step = fullSegment / count;
+
+            for (int i = 0; i < count; i++)
+            {
+                var pos = from + (step * (i + 0.5f));
+                var fx = Object.Instantiate(prefab, pos, Quaternion.Euler(0, 0, angle));
+                if (parent != null) fx.transform.SetParent(parent);
+
+                // 각 마디마다 약간의 무작위성을 주어 "지지직"거리는 느낌을 줍니다.
+                var randomScale = Random.Range(0.8f, 1.2f);
+                var flip = (Random.value > 0.5f) ? 1 : -1;
+                fx.transform.localScale = new Vector3(segmentLength * randomScale, 1.0f * flip, 1.0f);
+
+                // 정렬 순서 적용
+                var renderers = fx.GetComponentsInChildren<Renderer>(true);
+                foreach (var r in renderers) r.sortingOrder = sortingOrder;
+
+                Object.Destroy(fx, duration);
+            }
+        }
+
+        public static void SpawnStretchedPrefabFx(
+            Transform parent,
+            Vector3 from,
+            Vector3 to,
+            GameObject prefab,
+            float duration,
+            int sortingOrder = 500,
+            float widthScale = 1.0f)
+        {
+            if (prefab == null) return;
+
+            var segment = to - from;
+            segment.z = 0f;
+            var length = segment.magnitude;
+            if (length <= 0.0001f) return;
+
+            // 픽셀 아트 에셋들의 기본 방향은 보통 위(Up)를 향하고 있습니다.
+            // 하지만 번개 에셋들은 오른쪽(Right)을 향하고 있을 수도 있으므로, 
+            // 에셋의 기본 방향이 오른쪽이라고 가정하고 회전을 계산합니다.
+            var direction = segment / length;
+            var midpoint = from + (segment * 0.5f);
+            var rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg);
+            
+            // 번개 프리팹의 길이를 두 점 사이의 거리에 맞춥니다.
+            // 기본 길이가 1유닛이라고 가정할 때 거리에 맞춰 X축 스케일을 조정합니다.
+            var scale = new Vector3(length, widthScale, 1f);
+
+            var fxObject = Object.Instantiate(prefab, midpoint, rotation);
+            if (parent != null) fxObject.transform.SetParent(parent);
+            fxObject.transform.localScale = scale;
+
+            // 정렬 순서 적용
+            var renderers = fxObject.GetComponentsInChildren<Renderer>(true);
+            foreach (var r in renderers)
+            {
+                r.sortingOrder = sortingOrder;
+            }
+
+            Object.Destroy(fxObject, Mathf.Max(0.1f, duration));
+        }
+
         public static void SpawnStretchBeamFx(
             Transform parent,
             Vector3 from,
@@ -433,13 +516,52 @@ namespace EJR.Game.Gameplay
             return copiedFrames;
         }
 
+        public static void SpawnProceduralLightningFx(
+            Transform parent,
+            Vector3 from,
+            Vector3 to,
+            Color color,
+            float width,
+            float duration,
+            int segments = 10,
+            float jitterAmount = 0.2f,
+            int sortingOrder = 600)
+        {
+            var fxObject = new GameObject("ProceduralLightningFx");
+            if (parent != null) fxObject.transform.SetParent(parent, false);
+
+            var lineRenderer = fxObject.AddComponent<LineRenderer>();
+            ConfigureLineRenderer(lineRenderer, color, width, false, true, sortingOrder);
+
+            // 지그재그 포인트를 생성합니다.
+            lineRenderer.positionCount = segments + 1;
+            var direction = to - from;
+            var length = direction.magnitude;
+            var normalizedDir = direction / length;
+            var rightAxis = new Vector3(-normalizedDir.y, normalizedDir.x, 0);
+
+            lineRenderer.SetPosition(0, from);
+            for (int i = 1; i < segments; i++)
+            {
+                float t = i / (float)segments;
+                var basePos = from + (direction * t);
+                var jitter = rightAxis * Random.Range(-jitterAmount, jitterAmount);
+                lineRenderer.SetPosition(i, basePos + jitter + Vector3.back * 0.1f);
+            }
+            lineRenderer.SetPosition(segments, to);
+
+            // 번쩍이는 애니메이션을 위해 아주 잠깐 뒤에 사라지게 합니다.
+            Object.Destroy(fxObject, duration);
+        }
+
         public static void ConfigureLineRenderer(
             LineRenderer lineRenderer,
             Color color,
             float width,
             bool loop,
             bool useWorldSpace,
-            int sortingOrder = 500)
+            int sortingOrder = 500,
+            Material customMaterial = null)
         {
             if (lineRenderer == null)
             {
@@ -451,12 +573,33 @@ namespace EJR.Game.Gameplay
             lineRenderer.numCapVertices = 2;
             lineRenderer.numCornerVertices = 2;
             lineRenderer.alignment = LineAlignment.View;
+            lineRenderer.textureMode = LineTextureMode.Tile; // 텍스처를 타일링하여 깨짐 방지
             lineRenderer.startWidth = Mathf.Max(0.001f, width);
             lineRenderer.endWidth = Mathf.Max(0.001f, width);
             lineRenderer.startColor = color;
             lineRenderer.endColor = color;
             lineRenderer.sortingOrder = sortingOrder;
-            lineRenderer.sharedMaterial = GetOrCreateSharedFxMaterial();
+            lineRenderer.sharedMaterial = customMaterial != null ? customMaterial : GetOrCreateSharedFxMaterial();
+        }
+
+        public static void SpawnTexturedLineFx(
+            Transform parent,
+            Vector3 from,
+            Vector3 to,
+            Material material,
+            float width,
+            float duration,
+            int sortingOrder = 600)
+        {
+            var fxObject = new GameObject("TexturedLineFx");
+            if (parent != null) fxObject.transform.SetParent(parent, false);
+
+            var lineRenderer = fxObject.AddComponent<LineRenderer>();
+            ConfigureLineRenderer(lineRenderer, Color.white, width, false, true, sortingOrder, material);
+            lineRenderer.SetPosition(0, from);
+            lineRenderer.SetPosition(1, to);
+
+            Object.Destroy(fxObject, duration);
         }
 
         public static void SetCircleLinePositions(LineRenderer lineRenderer, Vector3 center, float radius, int segments, float z)

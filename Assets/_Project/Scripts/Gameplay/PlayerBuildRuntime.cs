@@ -116,14 +116,14 @@ namespace EJR.Game.Gameplay
             _chainLightningIgnoresDecay = false;
             _chainLightningBonusJumps = 0;
             _hasCharacterWeaponBonuses = false;
-            _characterBonusWeaponId = WeaponUpgradeId.Rifle;
+            _characterBonusWeaponId = WeaponUpgradeId.Fireball;
             _characterWeaponDamageBonusPercent = 0f;
             _characterWeaponAttackSpeedBonusPercent = 0f;
             _characterWeaponRangeBonusPercent = 0f;
 
             if (grantStarterRifle)
             {
-                AcquireWeaponInternal(WeaponUpgradeId.Rifle);
+                AcquireWeaponInternal(WeaponUpgradeId.Fireball);
             }
         }
 
@@ -151,7 +151,7 @@ namespace EJR.Game.Gameplay
         public void ClearCharacterWeaponBonuses()
         {
             _hasCharacterWeaponBonuses = false;
-            _characterBonusWeaponId = WeaponUpgradeId.Rifle;
+            _characterBonusWeaponId = WeaponUpgradeId.Fireball;
             _characterWeaponDamageBonusPercent = 0f;
             _characterWeaponAttackSpeedBonusPercent = 0f;
             _characterWeaponRangeBonusPercent = 0f;
