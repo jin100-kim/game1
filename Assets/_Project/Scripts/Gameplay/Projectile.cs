@@ -35,7 +35,11 @@ namespace EJR.Game.Gameplay
         private PlayerBuildRuntime _build;
         private readonly List<EnemyController> _nearbyEnemies = new(16);
         private readonly List<EnemyController> _hitEnemies = new(8);
-        private const float BoundsCullMargin = 8.0f; // 맵 밖으로 나가도 한참 더 허용 (사거리 끝까지 비행 보장)
+        private const float BoundsCullMargin = 8.0f;
+
+        // Homing properties
+        private EnemyController _homingTarget;
+        private float _homingTurnSpeed;
 
         public void Initialize(
             EnemyRegistry registry,
@@ -74,12 +78,16 @@ namespace EJR.Game.Gameplay
             _build = build;
             _isActive = true;
             _hitEnemies.Clear();
+            _homingTarget = null;
+            _homingTurnSpeed = 0f;
 
-            if (_direction.sqrMagnitude > 0.0001f)
-            {
-                var angle = Mathf.Atan2(_direction.y, _direction.x) * Mathf.Rad2Deg;
-                transform.rotation = Quaternion.Euler(0f, 0f, angle);
-            }
+            UpdateRotation();
+        }
+
+        public void SetHoming(EnemyController target, float turnSpeed)
+        {
+            _homingTarget = target;
+            _homingTurnSpeed = turnSpeed;
         }
 
         private void Update()
@@ -87,6 +95,19 @@ namespace EJR.Game.Gameplay
             if (!_isActive)
             {
                 return;
+            }
+
+            // Apply homing rotation
+            if (_homingTarget != null && _homingTarget.isActiveAndEnabled && !_homingTarget.IsDead)
+            {
+                Vector3 targetPos = _homingTarget.transform.position;
+                Vector3 targetDir = (targetPos - transform.position).normalized;
+                
+                if (targetDir.sqrMagnitude > 0.001f)
+                {
+                    _direction = Vector3.RotateTowards(_direction, targetDir, _homingTurnSpeed * Mathf.Deg2Rad * Time.deltaTime, 0f).normalized;
+                    UpdateRotation();
+                }
             }
 
             transform.position += _direction * _speed * Time.deltaTime;
@@ -101,7 +122,6 @@ namespace EJR.Game.Gameplay
             _lifetime -= dt;
             if (_lifetime <= 0f)
             {
-                // 소멸 시점의 오차 보정: 남은 수명만큼 위치를 더 이동시켜 정확한 사거리에서 사라지게 함
                 float overshoot = -_lifetime;
                 float correction = Mathf.Max(0f, dt - overshoot);
                 if (correction > 0)
@@ -217,8 +237,16 @@ namespace EJR.Game.Gameplay
                     return;
                 }
 
-                // Limit to one target per frame so piercing progresses over travel.
                 return;
+            }
+        }
+
+        private void UpdateRotation()
+        {
+            if (_direction.sqrMagnitude > 0.0001f)
+            {
+                var angle = Mathf.Atan2(_direction.y, _direction.x) * Mathf.Rad2Deg;
+                transform.rotation = Quaternion.Euler(0f, 0f, angle);
             }
         }
 
@@ -239,6 +267,7 @@ namespace EJR.Game.Gameplay
         {
             _isActive = false;
             _hitEnemies.Clear();
+            _homingTarget = null;
         }
 
         private void TriggerFireballExplosion(Vector3 center, EnemyController directTarget)
@@ -259,7 +288,6 @@ namespace EJR.Game.Gameplay
 
             var searchRadius = FireballExplosionRadius + _registry.GetMaxCollisionRadius();
             _registry.GetNearby(center, searchRadius, _nearbyEnemies);
-            var burnDamage = _baseDamage * FireballBurnDamageMultiplier;
             var explosionDamage = _baseDamage * FireballExplosionDamageMultiplier;
             for (var i = 0; i < _nearbyEnemies.Count; i++)
             {
@@ -316,11 +344,9 @@ namespace EJR.Game.Gameplay
         {
             if (!Application.isPlaying || !_isActive) return;
 
-            // Draw direct hit radius (Orange)
             Gizmos.color = new Color(1f, 0.5f, 0f, 0.5f);
             Gizmos.DrawWireSphere(transform.position, _hitRadius);
 
-            // Draw explosion radius for Fireball (Red)
             if (_sourceWeaponId == WeaponUpgradeId.Fireball)
             {
                 Gizmos.color = new Color(1f, 0.1f, 0.1f, 0.3f);

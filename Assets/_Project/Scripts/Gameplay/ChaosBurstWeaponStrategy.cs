@@ -1,5 +1,6 @@
 using UnityEngine;
 using EJR.Game.Core;
+using System.Collections.Generic;
 
 namespace EJR.Game.Gameplay
 {
@@ -36,9 +37,38 @@ namespace EJR.Game.Gameplay
                 1f,
                 GetSourceColor(weapon, system));
 
+            // Find nearest target for homing
+            EnemyController target = FindNearestTarget(system);
+            if (target != null)
+            {
+                projectile.SetHoming(target, 180f); // 180 degrees per second turn speed
+            }
+
             ApplyVisual(projectile);
 
             weapon.Cooldown = GetAttackInterval(weapon, system);
+        }
+
+        private EnemyController FindNearestTarget(AutoWeaponSystem system)
+        {
+            var enemies = system.Registry.Enemies;
+            Vector2 ownerPos = system.Owner.position;
+            EnemyController nearest = null;
+            float minDistanceSq = float.MaxValue;
+
+            for (int i = 0; i < enemies.Count; i++)
+            {
+                var enemy = enemies[i];
+                if (enemy == null || !system.IsEnemyUsable(enemy)) continue;
+
+                float distSq = ((Vector2)enemy.transform.position - ownerPos).sqrMagnitude;
+                if (distSq < minDistanceSq)
+                {
+                    minDistanceSq = distSq;
+                    nearest = enemy;
+                }
+            }
+            return nearest;
         }
 
         public void OnDrawGizmos(WeaponRuntime weapon, AutoWeaponSystem system, Color baseColor)
@@ -79,7 +109,7 @@ namespace EJR.Game.Gameplay
                     vfx.name = "ChaosBurstVfx";
                     vfx.transform.localPosition = Vector3.zero;
                     vfx.transform.localRotation = Quaternion.identity;
-                    vfx.transform.localScale = Vector3.one * 1.5f; // 약간 더 크게 묵직한 느낌 부여
+                    vfx.transform.localScale = Vector3.one * 1.5f;
 
                     var particleRenderers = vfx.GetComponentsInChildren<ParticleSystemRenderer>();
                     foreach (var psr in particleRenderers)

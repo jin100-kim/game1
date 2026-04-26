@@ -65,25 +65,25 @@ namespace EJR.Game.Gameplay
         public float lightningBoltBaseDamage = 10f;
         public float lightningBoltAttackInterval = 0.8f;
         public float lightningBoltProjectileSpeed = 12f;
-        public float lightningBoltProjectileLifetime = 1.5f;
+        public float lightningBoltProjectileLifetime = 0.5f;
         public float lightningBoltProjectileHitRadius = 0.25f;
 
         [Header("Ice Spike")]
         public float iceSpikeBaseDamage = 15f;
         public float iceSpikeAttackInterval = 1.2f;
         public float iceSpikeProjectileSpeed = 8f;
-        public float iceSpikeProjectileLifetime = 2.0f;
+        public float iceSpikeProjectileLifetime = 0.75f;
         public float iceSpikeProjectileHitRadius = 0.3f;
 
         [Header("Wind Blade")]
         public float windBladeBaseDamage = 8f;
         public float windBladeAttackInterval = 0.4f;
         public float windBladeProjectileSpeed = 15f;
-        public float windBladeProjectileLifetime = 1.0f;
+        public float windBladeProjectileLifetime = 0.4f;
         public float windBladeProjectileHitRadius = 0.22f;
 
         [Header("Chaos Burst")]
-        public float chaosBurstBaseDamage = 20f;
+        public float chaosBurstBaseDamage = 40f; // 20f -> 40f
         public float chaosBurstAttackInterval = 1.5f;
         public float chaosBurstProjectileSpeed = 3.0f;
         public float chaosBurstProjectileLifetime = 1.833f;
