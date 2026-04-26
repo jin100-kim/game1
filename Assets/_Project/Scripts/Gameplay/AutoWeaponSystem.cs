@@ -84,26 +84,31 @@ namespace EJR.Game.Gameplay
 
         private void UpdateWeapon(WeaponRuntime weapon)
         {
-            if (weapon == null)
-            {
-                return;
-            }
+            if (weapon == null) return;
 
             weapon.Cooldown -= Time.deltaTime;
             weapon.Strategy?.Update(weapon, this);
             
             if (weapon.Cooldown <= 0f)
             {
-                // 전략 클래스에서 쿨타임을 설정하기 전까지 중복 발사를 막기 위해 넉넉한 쿨타임(1초) 설정
-                weapon.Cooldown = 1.0f; 
-                FireWeapon(weapon);
+                if (FireWeapon(weapon))
+                {
+                    // 발사 성공 시에만 쿨타임 설정
+                    weapon.Cooldown = GetAttackInterval(weapon);
+                }
+                else
+                {
+                    // 적이 없어 발사 실패 시, 다음 프레임에 즉시 다시 시도하도록 쿨타임 0 유지
+                    weapon.Cooldown = 0f;
+                }
             }
         }
 
-        private void FireWeapon(WeaponRuntime weapon)
+        private bool FireWeapon(WeaponRuntime weapon)
         {
-            if (weapon == null || !TryResolveFireDirection(weapon, out var fireDirection)) return;
+            if (weapon == null || !TryResolveFireDirection(weapon, out var fireDirection)) return false;
             weapon.Strategy?.OnFire(weapon, this, fireDirection);
+            return true;
         }
 
 

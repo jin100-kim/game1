@@ -176,7 +176,7 @@ namespace EJR.Game.Core
             {
                 if (StarterWeapons[i].Id == weaponId) return StarterWeapons[i].DisplayName;
             }
-            return "폭발 화염탄(Fireball)";
+            return "화염구";
         }
 
         public static string GetStatDisplayName(StatUpgradeId statId)

@@ -1,0 +1,54 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f8f4bad1265634a4bb15f054ece46ba0, type: 3}
+  m_Name: WeaponConfig
+  m_EditorClassIdentifier: 
+  weaponType: 1
+  attackInterval: 0.5
+  attackRange: 2.2
+  fireballRange: 5
+  projectileDamage: 12
+  projectilePrefab: {fileID: 0}
+  impactVfxPrefab: {fileID: 0}
+  projectileSpeed: 10
+  projectileLifetime: 2
+  projectileHitRadius: 0.25
+  projectileVisualScale: 0.25
+  fireballProjectilePrefab: {fileID: 0}
+  fireballUpProjectilePrefab: {fileID: 0}
+  fireballDownProjectilePrefab: {fileID: 0}
+  fireballImpactVfxPrefab: {fileID: 0}
+  fireballBurstCount: 4
+  fireballBurstShotInterval: 0.06
+  fireballBurstDamageMultiplier: 0.5
+  fireballBurstSpreadAngle: 6
+  fireballBaseDamage: 12
+  fireballAttackInterval: 0.95
+  fireballProjectileSpeed: 4
+  fireballProjectileLifetime: 1.5
+  fireballProjectileHitRadius: 0.28
+  fireballSpreadAngle: 20
+  fireballExplosionRadius: 1.05
+  fireballExplosionDamageMultiplier: 0.4
+  fireballBurnDuration: 2.5
+  fireballBurnTickInterval: 0.5
+  fireballBurnDamageMultiplier: 0.32
+  fireballBurstChance: 0.35
+  slashVfxPrefab: {fileID: 100100000, guid: 02bd591636715474f92d908e8e04d40a, type: 3}
+  slashBaseDamage: 18
+  slashAttackInterval: 0.45
+  slashRange: 2.5
+  slashConeAngle: 110
+  slashBaseCount: 1
+  slashComboInterval: 0.15
+  chainLightningBeamPrefabs: []
+
