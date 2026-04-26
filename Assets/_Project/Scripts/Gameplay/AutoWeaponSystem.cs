@@ -564,13 +564,6 @@ namespace EJR.Game.Gameplay
                 {
                     psr.alignment = ParticleSystemRenderSpace.Local;
                 }
-
-                var particleSystems = vfx.GetComponentsInChildren<ParticleSystem>();
-                foreach (var pSys in particleSystems)
-                {
-                    var main = pSys.main;
-                    main.startColor = new ParticleSystem.MinMaxGradient(Color.magenta, new Color(0.3f, 0f, 0.5f));
-                }
             }
 
             // 이펙트 프리팹들은 보통 스스로 파괴되는 로직이 있거나 파티클 시스템입니다.

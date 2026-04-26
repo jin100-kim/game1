@@ -86,13 +86,6 @@ namespace EJR.Game.Gameplay
                     {
                         psr.alignment = ParticleSystemRenderSpace.Local;
                     }
-
-                    var particleSystems = vfx.GetComponentsInChildren<ParticleSystem>();
-                    foreach (var pSys in particleSystems)
-                    {
-                        var main = pSys.main;
-                        main.startColor = new ParticleSystem.MinMaxGradient(Color.magenta, new Color(0.3f, 0f, 0.5f)); // 짙은 보라색
-                    }
                 }
             }
         }

@@ -80,7 +80,7 @@ namespace EJR.Game.Gameplay
             {
                 var impact = Object.Instantiate(impactPrefab, target.transform.position, Quaternion.identity);
                 impact.name = "LightningBoltImpactVfx";
-                impact.transform.localScale = Vector3.one;
+                impact.transform.localScale = Vector3.one * 2.0f;
                 Object.Destroy(impact, 0.5f);
             }
 
