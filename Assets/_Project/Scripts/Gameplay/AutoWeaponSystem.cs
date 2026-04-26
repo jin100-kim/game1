@@ -94,6 +94,8 @@ namespace EJR.Game.Gameplay
             
             if (weapon.Cooldown <= 0f)
             {
+                // 전략 클래스에서 쿨타임을 설정하기 전까지 중복 발사를 막기 위해 넉넉한 쿨타임(1초) 설정
+                weapon.Cooldown = 1.0f; 
                 FireWeapon(weapon);
             }
         }
@@ -582,7 +584,6 @@ namespace EJR.Game.Gameplay
             var renderer = projectile.GetComponent<SpriteRenderer>();
             if (renderer != null)
             {
-                renderer.enabled = true;
                 renderer.sprite = GetProjectileVisualSprite(weaponId);
                 renderer.color = ShouldUseProjectileSourceColor(weaponId) ? Color.white : color;
                 renderer.flipX = GetProjectileVisualFlipX(weaponId, normalizedDirection);

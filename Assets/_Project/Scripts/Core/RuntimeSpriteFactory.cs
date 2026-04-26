@@ -165,6 +165,51 @@ namespace EJR.Game.Core
             return _playerFrames;
         }
 
+        /// <summary>무기 종류에 따라 Knight 또는 Wizard 스프라이트 프레임 반환</summary>
+        public static Sprite[] GetCharacterFramesByWeapon(WeaponUpgradeId weapon)
+        {
+            var kind = IsKnightWeapon(weapon) ? EnemyVisualKind.Warrior : EnemyVisualKind.Wizard;
+            return GetEnemyAnimationFrames(kind);
+        }
+
+        /// <summary>무기 종류에 따른 틴트 색상 반환</summary>
+        public static Color GetCharacterTintByWeapon(WeaponUpgradeId weapon)
+        {
+            return weapon switch
+            {
+                // Knight 계열
+                WeaponUpgradeId.Rifle          => new Color(0.85f, 0.92f, 1.00f), // 아주 연한 하늘색
+                WeaponUpgradeId.Shotgun        => new Color(0.95f, 0.85f, 0.75f), // 연한 브라운
+                WeaponUpgradeId.Slash          => new Color(1.00f, 0.80f, 0.80f), // 연한 핑크/레드
+                WeaponUpgradeId.BfSword        => new Color(1.00f, 0.98f, 0.80f), // 연한 레몬
+                WeaponUpgradeId.SwingMace      => new Color(0.90f, 0.85f, 1.00f), // 연한 라벤더
+                WeaponUpgradeId.Turret         => new Color(0.80f, 1.00f, 1.00f), // 연한 민트
+
+                // Wizard 계열
+                WeaponUpgradeId.Fireball       => new Color(1.00f, 0.90f, 0.75f), // 연한 살구색
+                WeaponUpgradeId.Bat            => new Color(0.92f, 0.82f, 1.00f), // 연한 보라
+                WeaponUpgradeId.ChainLightning => new Color(1.00f, 1.00f, 0.85f), // 연한 크림
+                WeaponUpgradeId.OrbitWeapon    => new Color(0.80f, 1.00f, 0.90f), // 연한 에메랄드
+                WeaponUpgradeId.Aura           => new Color(1.00f, 1.00f, 0.95f), // 거의 화이트에 가까운 금빛
+
+                _ => Color.white,
+            };
+        }
+
+        public static bool IsKnightWeapon(WeaponUpgradeId weapon)
+        {
+            return weapon switch
+            {
+                WeaponUpgradeId.Rifle     => true,
+                WeaponUpgradeId.Shotgun   => true,
+                WeaponUpgradeId.Slash     => true,
+                WeaponUpgradeId.BfSword   => true,
+                WeaponUpgradeId.SwingMace => true,
+                WeaponUpgradeId.Turret    => true,
+                _                         => false, // Wizard
+            };
+        }
+
         public static Sprite GetWeaponFire1Sprite()
         {
             var frames = GetWeaponFire1AnimationFrames();

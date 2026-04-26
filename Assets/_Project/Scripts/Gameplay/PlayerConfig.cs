@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 namespace EJR.Game.Gameplay
 {
@@ -14,8 +14,8 @@ namespace EJR.Game.Gameplay
         [Min(0f)] public float damageInvulnerabilitySeconds = 0.35f;
 
         [Header("Size")]
-        [Min(0.1f)] public float visualScale = 0.7f;
-        [Min(0.1f)] public float visualScaleMultiplier = 1.5f;
+        [Min(0.1f)] public float visualScale = 1.0f;
+        [Min(0.1f)] public float visualScaleMultiplier = 1.0f;
         public float visualYOffset = -1f;
         [Min(0.05f)] public float collisionRadius = 0.35f;
 

@@ -769,8 +769,10 @@ namespace EJR.Game.UI
 
                 var portrait = new Image
                 {
-                    sprite = RuntimeSpriteFactory.GetPlayerSprite(),
-                    tintColor = definition.Color,
+                    sprite = RuntimeSpriteFactory.GetCharacterFramesByWeapon(definition.StarterWeaponId) is { Length: > 0 } frames
+                        ? frames[0]
+                        : RuntimeSpriteFactory.GetSquareSprite(),
+                    tintColor = RuntimeSpriteFactory.GetCharacterTintByWeapon(definition.StarterWeaponId),
                     scaleMode = ScaleMode.ScaleToFit,
                 };
                 portrait.AddToClassList("title-character-entry-visual");

@@ -137,6 +137,9 @@ namespace EJR.Game.Gameplay
         private EnemySpriteAnimator _spriteAnimator;
         private SpriteRenderer _visualRenderer;
         private bool _isDead;
+        private bool _canPassThroughObstacles;
+        private Rigidbody2D _rb;
+        private CircleCollider2D _collider;
 
         private float _activeSlowMultiplier = 1f;
         private float _activeSlowRemaining;
@@ -184,6 +187,13 @@ namespace EJR.Game.Gameplay
         private SpriteRenderer _fireIndicatorRenderer;
         private SpriteRenderer _slowIndicatorRenderer;
         private SpriteRenderer _lightIndicatorRenderer;
+        private Vector2 _pendingDesiredVector;
+        private Vector2 _pendingFallbackDirection;
+        private UnityEngine.Tilemaps.Tilemap _propsTilemap;
+        private UnityEngine.Tilemaps.Tilemap _groundTilemap;
+        private int _obstacleMask;
+        private ContactFilter2D _obstacleFilter;
+        private readonly RaycastHit2D[] _castResults = new RaycastHit2D[1];
 
         private readonly System.Collections.Generic.List<EnemyController> _nearbyBuffer = new(24);
 
@@ -328,6 +338,7 @@ namespace EJR.Game.Gameplay
             EnemyConfig config,
             RuntimeSpriteFactory.EnemyVisualKind visualKind,
             EnemyStatProfile statProfile,
+            EnemyAnimationProfile animationProfile,
             Transform target,
             PlayerHealth playerHealth,
             EnemyRegistry registry,
@@ -341,7 +352,9 @@ namespace EJR.Game.Gameplay
             bool hasArenaBounds = false,
             Rect arenaBounds = default,
             BossArchetypeId bossArchetype = BossArchetypeId.Final,
-            RunDifficultyDefinition bossDifficulty = null)
+            RunDifficultyDefinition bossDifficulty = null,
+            UnityEngine.Tilemaps.Tilemap groundTilemap = null,
+            UnityEngine.Tilemaps.Tilemap propsTilemap = null)
         {
             _config = config;
             _visualKind = visualKind;
@@ -350,6 +363,45 @@ namespace EJR.Game.Gameplay
             _playerHealth = playerHealth;
             _registry = registry;
             _experienceSystem = experienceSystem;
+            _groundTilemap = groundTilemap;
+            _propsTilemap = propsTilemap;
+
+            _canPassThroughObstacles = animationProfile != null && animationProfile.canPassThroughObstacles;
+
+            _rb = GetComponent<Rigidbody2D>();
+            if (_rb == null)
+            {
+                _rb = gameObject.AddComponent<Rigidbody2D>();
+            }
+            
+            _rb.bodyType = RigidbodyType2D.Dynamic;
+            _rb.gravityScale = 0f;
+            _rb.linearDamping = 0f;
+            _rb.angularDamping = 0f;
+            _rb.interpolation = RigidbodyInterpolation2D.Interpolate;
+            _rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+            _rb.constraints = RigidbodyConstraints2D.FreezeRotation;
+
+            if (_propsTilemap != null) 
+            {
+                _obstacleMask = 1 << _propsTilemap.gameObject.layer;
+                
+                _obstacleFilter = new ContactFilter2D();
+                _obstacleFilter.SetLayerMask(_obstacleMask);
+                _obstacleFilter.useLayerMask = true;
+                _obstacleFilter.useTriggers = false;
+            }
+
+            _collider = GetComponent<CircleCollider2D>();
+            if (_collider == null)
+            {
+                _collider = gameObject.AddComponent<CircleCollider2D>();
+            }
+            
+            _collider.radius = Mathf.Max(0.05f, collisionRadius);
+            // 모든 몬스터는 이제 맵 안에서 생성되므로, 설정에 따라 고정된 충돌 속성을 가짐
+            _collider.isTrigger = _canPassThroughObstacles;
+            _collider.enabled = true;
 
             _playerCollisionRadius = Mathf.Max(0.05f, playerCollisionRadius);
             _collisionRadius = Mathf.Max(0.05f, collisionRadius);
@@ -458,29 +510,30 @@ namespace EJR.Game.Gameplay
             TickCoreEffectDurations();
             var isStunned = _stunRemaining > 0f;
 
-            var previousPosition = transform.position;
             var handledByBossPattern = UpdateBossPattern(Time.deltaTime);
             var handledByVariant = !handledByBossPattern && UpdateVariantBehavior(Time.deltaTime, isStunned);
+            
             if (!handledByBossPattern && !handledByVariant && !isStunned)
             {
                 var toPlayer = _target.position - transform.position;
                 var distance = toPlayer.magnitude;
-                var direction = distance > 0.001f ? toPlayer / distance : Vector3.zero;
+                var direction = distance > 0.001f ? (Vector2)(toPlayer / distance) : Vector2.zero;
                 var minimumSeparation = CollisionRadius + _playerCollisionRadius;
                 var separation = ComputeSeparationVector((Vector2)transform.position) * Mathf.Max(0f, _config.separationWeight);
 
                 var desired = separation;
                 if (distance > minimumSeparation)
                 {
-                    desired += (Vector2)direction;
+                    desired += direction;
                 }
-                MoveUsingDesiredVector(desired, (Vector2)direction, Time.deltaTime);
+                
+                _pendingDesiredVector = desired;
+                _pendingFallbackDirection = direction;
             }
-
-            if (_spriteAnimator != null)
+            else
             {
-                var velocity = ((Vector2)(transform.position - previousPosition)) / Mathf.Max(0.0001f, Time.deltaTime);
-                _spriteAnimator.SetMotion(velocity);
+                _pendingDesiredVector = Vector2.zero;
+                _pendingFallbackDirection = Vector2.right;
             }
 
             _contactCooldown -= Time.deltaTime;
@@ -490,6 +543,16 @@ namespace EJR.Game.Gameplay
             {
                 _contactCooldown = _contactDamageCooldown;
                 _playerHealth.TakeDamage(_contactDamage);
+            }
+        }
+
+        private void FixedUpdate()
+        {
+            if (_isDead || _config == null) return;
+            MoveUsingDesiredVector(_pendingDesiredVector, _pendingFallbackDirection, Time.fixedDeltaTime);
+            if (_spriteAnimator != null)
+            {
+                _spriteAnimator.SetMotion(_rb != null ? _rb.linearVelocity : Vector2.zero);
             }
         }
 
@@ -627,20 +690,29 @@ namespace EJR.Game.Gameplay
 
         private void MoveUsingDesiredVector(Vector2 desired, Vector2 fallbackDirection, float deltaTime)
         {
+            if (_rb == null) return;
+
             if (desired.sqrMagnitude > 1f)
             {
                 desired.Normalize();
             }
 
             var effectiveMoveSpeed = _moveSpeed * Mathf.Clamp(_activeSlowMultiplier, 0.1f, 1f);
-            var moveBudget = effectiveMoveSpeed * deltaTime;
-            var minimumSeparation = CollisionRadius + _playerCollisionRadius;
-            var next = transform.position + (Vector3)(desired * moveBudget);
-            next = ResolvePlayerOverlap(next, minimumSeparation, fallbackDirection);
-            next = ResolveCrowdOverlaps(next);
-            next = ClampPositionToArena(next);
-            transform.position = next;
-            _registry?.NotifyMoved(this, transform.position);
+            
+            // 물리 엔진의 속도를 직접 제어 (모든 몬스터가 맵 안에서 생성되므로 복잡한 체크 불필요)
+            _rb.linearVelocity = desired * effectiveMoveSpeed;
+            
+            _registry?.NotifyMoved(this, _rb.position);
+        }
+
+        private bool IsWalkable(Vector2 pos)
+        {
+            // 이제 Cast 방식을 사용하므로 IsWalkable은 보조용으로만 둡니다.
+            if (_obstacleMask != 0)
+            {
+                return !Physics2D.OverlapPoint(pos, _obstacleMask);
+            }
+            return true;
         }
 
         private bool UpdateVariantBehavior(float deltaTime, bool isStunned)
@@ -744,7 +816,8 @@ namespace EJR.Game.Gameplay
                     desired += separation * 0.35f;
                 }
 
-                MoveUsingDesiredVector(desired, direction, deltaTime);
+                _pendingDesiredVector = desired;
+                _pendingFallbackDirection = direction;
             }
 
             if (isStunned || _variantCooldownTimer > 0f)
@@ -789,10 +862,19 @@ namespace EJR.Game.Gameplay
             {
                 var dashDirection = _variantActionDirection.sqrMagnitude > 0.0001f ? _variantActionDirection.normalized : Vector2.right;
                 var effectiveMoveSpeed = _moveSpeed * Mathf.Clamp(_activeSlowMultiplier, 0.1f, 1f) * Mathf.Max(0.1f, _variantDefinition.DashSpeedMultiplier);
-                var next = transform.position + (Vector3)(dashDirection * (effectiveMoveSpeed * deltaTime));
-                next = ClampPositionToArena(next);
-                transform.position = next;
-                _registry?.NotifyMoved(this, transform.position);
+                
+                if (_rb != null)
+                {
+                    _rb.linearVelocity = dashDirection * effectiveMoveSpeed;
+                    _registry?.NotifyMoved(this, _rb.position);
+                }
+                else
+                {
+                    var next = ClampPositionToArena(transform.position + (Vector3)(dashDirection * (effectiveMoveSpeed * deltaTime)));
+                    transform.position = next;
+                    _registry?.NotifyMoved(this, transform.position);
+                }
+
                 _variantActionTimer -= deltaTime;
                 if (_variantActionTimer <= 0f)
                 {
@@ -1221,8 +1303,6 @@ namespace EJR.Game.Gameplay
 
             Defeated?.Invoke(this);
 
-
-
             var destroyDelay = _spriteAnimator != null ? _spriteAnimator.PlayDie() : 0f;
             if (destroyDelay > 0f)
             {
@@ -1521,11 +1601,8 @@ namespace EJR.Game.Gameplay
             if (_bossActionStep == 1)
             {
                 var dashSpeed = Mathf.Max(0.1f, _moveSpeed) * GetBossDashSpeedMultiplier(_bossCurrentAction);
-                var step = _bossDashDirection * dashSpeed * deltaTime;
-                var next = (Vector2)transform.position + step;
-                var clamped = ClampPositionToArena(new Vector3(next.x, next.y, transform.position.z));
-                transform.position = clamped;
-                _registry?.NotifyMoved(this, transform.position);
+                _pendingDesiredVector = _bossDashDirection;
+                _pendingFallbackDirection = _bossDashDirection;
 
                 _bossExecutionTimer -= deltaTime;
                 if (_bossExecutionTimer > 0f)
@@ -1663,6 +1740,8 @@ namespace EJR.Game.Gameplay
             HideBossDashTelegraphFx();
             HideBossAreaTelegraphFx();
             ClearBossPullState();
+            _pendingDesiredVector = Vector2.zero;
+            _pendingFallbackDirection = Vector2.right;
             _bossPreviousAction = _bossCurrentAction;
             _bossPatternState = BossPatternState.None;
             _bossCurrentAction = BossPatternActionKind.None;
@@ -2227,6 +2306,12 @@ namespace EJR.Game.Gameplay
             };
 
             return _bossDashTelegraphMaterial;
+        }
+
+        private bool IsInsideArena(Vector3 pos)
+        {
+            if (!_hasArenaBounds) return true;
+            return _arenaBounds.Contains((Vector2)pos);
         }
 
         private Vector3 ClampPositionToArena(Vector3 candidate)

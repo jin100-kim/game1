@@ -891,8 +891,9 @@ namespace EJR.Game.Gameplay
                 visualTransform.SetParent(player.transform, false);
             }
 
-            visualTransform.localPosition = new Vector3(0f, playerConfig.visualYOffset, 0f);
-            _weaponOrbitCenterLocal = new Vector2(visualTransform.localPosition.x, visualTransform.localPosition.y);
+            // 캐릭터가 공중에 뜨지 않도록 오프셋 제거 (발을 바닥에 고정)
+            visualTransform.localPosition = Vector3.zero;
+            _weaponOrbitCenterLocal = Vector2.zero;
 
             var playerRenderer = visualTransform.GetComponent<SpriteRenderer>();
             if (playerRenderer == null)
@@ -901,12 +902,24 @@ namespace EJR.Game.Gameplay
             }
 
             var squareSprite = RuntimeSpriteFactory.GetSquareSprite();
-            var playerFrames = RuntimeSpriteFactory.GetPlayerAnimationFrames();
-            var playerSprite = playerFrames.Length > 0 ? playerFrames[0] : squareSprite;
+
+            // 현재 선택된 캐릭터의 시작 무기를 직접 가져와서 Knight / Wizard 결정
+            var characterId = MetaProgressionService.GetSingleSelectedCharacterId();
+            var primaryWeapon = MetaProgressionService.GetCharacterStarterWeapon(characterId);
+
+            var playerFrames = RuntimeSpriteFactory.GetCharacterFramesByWeapon(primaryWeapon);
+            if (playerFrames == null || playerFrames.Length == 0)
+                playerFrames = new[] { squareSprite };
+
+            var playerSprite = playerFrames[0];
             var hasPlayerAnimation = playerFrames.Length > 1 && !ReferenceEquals(playerSprite, squareSprite);
 
             playerRenderer.sprite = playerSprite;
-            playerRenderer.color = hasPlayerAnimation ? SharedGameCatalog.GetCharacter(_selectedSingleCharacterId).Color : new Color(0.35f, 0.75f, 1f);
+            if (playerRenderer.sprite != null && playerRenderer.sprite.texture != null)
+            {
+                playerRenderer.sprite.texture.filterMode = FilterMode.Point;
+            }
+            playerRenderer.color  = RuntimeSpriteFactory.GetCharacterTintByWeapon(primaryWeapon);
             var visualWorldSize = Mathf.Max(0.1f, playerConfig.visualScale * Mathf.Max(0.1f, playerConfig.visualScaleMultiplier));
             ApplyVisualScale(visualTransform, playerSprite, visualWorldSize);
             _playerTransform = player.transform;
@@ -921,7 +934,9 @@ namespace EJR.Game.Gameplay
                 }
 
                 playerSpriteAnimator.enabled = true;
-                playerSpriteAnimator.Initialize(playerRenderer, playerFrames, playerConfig);
+                var kind = RuntimeSpriteFactory.IsKnightWeapon(primaryWeapon) ? RuntimeSpriteFactory.EnemyVisualKind.Warrior : RuntimeSpriteFactory.EnemyVisualKind.Wizard;
+                var animProfile = enemyConfig != null ? enemyConfig.GetAnimationProfile(kind) : null;
+                playerSpriteAnimator.Initialize(playerRenderer, playerFrames, playerConfig, animProfile);
                 _playerSpriteAnimator = playerSpriteAnimator;
             }
             else
@@ -979,6 +994,8 @@ namespace EJR.Game.Gameplay
             var circle = player.GetComponent<CircleCollider2D>();
             if (circle == null) circle = player.AddComponent<CircleCollider2D>();
             circle.radius = Mathf.Max(0.05f, playerConfig != null ? playerConfig.collisionRadius : 0.25f);
+            // 비주얼이 (0,0)이므로 콜라이더 오프셋도 제거
+            circle.offset = Vector2.zero;
 
             playerMover.Initialize(playerConfig, _playerStats, arenaBounds);
             playerMover.SetExternalVelocityReader(ReadBossPullVelocity);
@@ -1007,7 +1024,9 @@ namespace EJR.Game.Gameplay
                 (_currentMapDefinition ?? RunSelectionService.SingleMapDefinition).BossVisualKind,
                 (_currentMapDefinition ?? RunSelectionService.SingleMapDefinition).Id,
                 (_currentMapDefinition ?? RunSelectionService.SingleMapDefinition).BossArchetype,
-                _currentDifficultyDefinition ?? RunSelectionService.SingleDifficultyDefinition);
+                _currentDifficultyDefinition ?? RunSelectionService.SingleDifficultyDefinition,
+                _instantiatedMap?.transform.Find("Tilemap_Ground")?.GetComponent<UnityEngine.Tilemaps.Tilemap>(),
+                _instantiatedMap?.transform.Find("Tilemap_Props")?.GetComponent<UnityEngine.Tilemaps.Tilemap>());
             enemySpawner.WaveStarted += HandleWaveStarted;
             enemySpawner.WaveCleared += HandleWaveCleared;
             enemySpawner.WaveRewardChestCollected += HandleWaveRewardChestCollected;

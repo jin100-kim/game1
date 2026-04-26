@@ -27,6 +27,7 @@ namespace EJR.Game.Gameplay
         public RuntimeSpriteFactory.EnemyVisualKind visualKind = RuntimeSpriteFactory.EnemyVisualKind.Slime;
         [Min(1f)] public float animationFps = 9f;
         public bool flipByMoveDirection = true;
+        public bool canPassThroughObstacles;
         [Min(0)] public int idleStartFrame = 0;
         [Min(0)] public int idleEndFrame = 3;
         [Min(0)] public int moveStartFrame = 4;

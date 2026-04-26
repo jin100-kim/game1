@@ -11,7 +11,6 @@ namespace EJR.Game.Gameplay
 
         public void OnInitialize(WeaponRuntime weapon, AutoWeaponSystem system)
         {
-            // 박쥐 ?�용 초기??로직 (?�요??
         }
 
         public void Update(WeaponRuntime weapon, AutoWeaponSystem system)
@@ -21,7 +20,7 @@ namespace EJR.Game.Gameplay
 
             if (hadBatInstances && weapon.BatInstances.Count <= 0)
             {
-                weapon.Cooldown = system.GetAttackInterval(weapon);
+                weapon.Cooldown = system.GetAttackInterval(weapon) * system.GetCombinedAttackIntervalMultiplier(weapon);
             }
 
             if (weapon.BatInstances.Count > 0)
@@ -42,36 +41,13 @@ namespace EJR.Game.Gameplay
                 spawnedAny = true;
             }
 
-            weapon.Cooldown = spawnedAny
-                ? system.GetAttackInterval(weapon)
-                : Mathf.Max(0.15f, system.GetAttackInterval(weapon) * 0.25f);
-
-            if (spawnedAny)
-            {
-                // Note: Fired?.Invoke(_lastAimDirection) is handled by AutoWeaponSystem normally, 
-                // but since we are replacing the logic, we might need a way to trigger it.
-                // For now, we assume the system handles the visual feedback if we provide a hook.
-            }
+            var interval = system.GetAttackInterval(weapon) * system.GetCombinedAttackIntervalMultiplier(weapon); 
+            weapon.Cooldown = spawnedAny ? interval : Mathf.Max(0.15f, interval * 0.25f);
         }
 
         public void OnFire(WeaponRuntime weapon, AutoWeaponSystem system, Vector2 direction)
         {
-            var damage = system.GetWeaponBaseDamage(weapon) * 2f;
-            var projectileSpeed = system.Config.projectileSpeed * 1.6f;
-            var projectileLifetime = system.GetLifetimeCappedByRange(weapon, projectileSpeed, system.Config.projectileLifetime * 1.25f);
-            var maxHits = Mathf.Max(1, system.Config.batMaxHits + system.GetWeaponExtraCount(weapon));
-            
-            system.SpawnProjectile(
-                weapon.WeaponId,
-                direction,
-                damage,
-                projectileSpeed,
-                projectileLifetime,
-                system.Config.projectileHitRadius * 0.95f,
-                maxHits,
-                Mathf.Clamp(system.Config.batDamageFalloffPerHit, 0f, 0.9f),
-                Mathf.Clamp(system.Config.batMinimumDamageMultiplier, 0.05f, 1f),
-                new Color(0.6f, 0.95f, 1f));
+            // 박쥐는 Update에서 스스로 스폰되므로 OnFire에서는 아무것도 하지 않습니다.
         }
 
         private void UpdateBatInstances(WeaponRuntime weapon, AutoWeaponSystem system)
@@ -255,7 +231,7 @@ namespace EJR.Game.Gameplay
             }
         }
 
-                public void OnDrawGizmos(WeaponRuntime weapon, AutoWeaponSystem system, Color color)
+        public void OnDrawGizmos(WeaponRuntime weapon, AutoWeaponSystem system, Color color)
         {
         }
 
@@ -280,6 +256,3 @@ namespace EJR.Game.Gameplay
         }
     }
 }
-
-
-

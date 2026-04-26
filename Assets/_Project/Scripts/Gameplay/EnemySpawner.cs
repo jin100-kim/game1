@@ -22,6 +22,8 @@ namespace EJR.Game.Gameplay
         private float _playerCollisionRadius;
         private Rect _arenaBounds;
         private bool _hasArenaBounds;
+        private UnityEngine.Tilemaps.Tilemap _groundTilemap;
+        private UnityEngine.Tilemaps.Tilemap _propsTilemap;
 
         private float _elapsedSeconds;
         private float _spawnTimer;
@@ -71,11 +73,7 @@ namespace EJR.Game.Gameplay
 
         public void GetRewardChestWorldPositions(List<Vector3> results)
         {
-            if (results == null)
-            {
-                return;
-            }
-
+            if (results == null) return;
             results.Clear();
             for (var i = _activeRewardChests.Count - 1; i >= 0; i--)
             {
@@ -85,7 +83,6 @@ namespace EJR.Game.Gameplay
                     _activeRewardChests.RemoveAt(i);
                     continue;
                 }
-
                 results.Add(chest.transform.position);
             }
         }
@@ -101,7 +98,9 @@ namespace EJR.Game.Gameplay
             RuntimeSpriteFactory.EnemyVisualKind bossVisualKind = RuntimeSpriteFactory.EnemyVisualKind.Boss,
             string mapId = SharedRunCatalog.DefaultMapId,
             BossArchetypeId bossArchetype = BossArchetypeId.Final,
-            RunDifficultyDefinition bossDifficulty = null)
+            RunDifficultyDefinition bossDifficulty = null,
+            UnityEngine.Tilemaps.Tilemap groundTilemap = null,
+            UnityEngine.Tilemaps.Tilemap propsTilemap = null)
         {
             _config = config;
             _target = target;
@@ -128,6 +127,8 @@ namespace EJR.Game.Gameplay
             _bossVisualKind = bossVisualKind;
             _bossArchetype = bossArchetype;
             _bossDifficulty = bossDifficulty ?? SharedRunCatalog.GetDifficulty(SharedRunCatalog.DefaultDifficultyId);
+            _groundTilemap = groundTilemap;
+            _propsTilemap = propsTilemap;
             _activeWaveEnemies.Clear();
             _activeRewardChests.Clear();
             _spawnSequenceCounter = 0;
@@ -142,43 +143,27 @@ namespace EJR.Game.Gameplay
 
         private void Update()
         {
-            if (_config == null || _target == null || _playerHealth == null || _registry == null)
-            {
-                return;
-            }
-
-            if (_debugMonsterLabEnabled)
-            {
-                return;
-            }
+            if (_config == null || _target == null || _playerHealth == null || _registry == null) return;
+            if (_debugMonsterLabEnabled) return;
 
             _elapsedSeconds += Time.deltaTime;
             TryTriggerTimedWaves();
 
-            if (_bossWaveTriggered)
-            {
-                return;
-            }
+            if (_bossWaveTriggered) return;
 
             _spawnTimer -= Time.deltaTime;
-            if (_spawnTimer > 0f)
+            if (_spawnTimer <= 0f)
             {
-                return;
+                SpawnDynamicTickEnemies();
+                _spawnTimer = CalculateNextSpawnInterval();
             }
-
-            SpawnDynamicTickEnemies();
-            _spawnTimer = CalculateNextSpawnInterval();
         }
 
         public void TriggerBossWave()
         {
             if (_bossWaveTriggered || _config == null || _target == null || HasActiveWave)
             {
-                if (!_bossWaveTriggered && HasActiveWave)
-                {
-                    _pendingBoss = true;
-                }
-
+                if (!_bossWaveTriggered && HasActiveWave) _pendingBoss = true;
                 return;
             }
 
@@ -188,10 +173,7 @@ namespace EJR.Game.Gameplay
             var bossProfile = _config.GetStatProfile(RuntimeSpriteFactory.EnemyVisualKind.Boss);
             var bossRadius = CalculateCollisionRadius(bossProfile);
             var bossSpawnRadius = Mathf.Max(0.1f, _config.bossSpawnRadius);
-            var bossPosition = FindSpawnPosition(
-                bossRadius,
-                bossSpawnRadius * 0.9f,
-                bossSpawnRadius * 1.15f);
+            var bossPosition = FindSpawnPosition(bossRadius, bossSpawnRadius * 0.9f, bossSpawnRadius * 1.15f);
             _bossEnemy = SpawnEnemy(_bossVisualKind, bossPosition, bossProfile, isBoss: true);
             if (_bossEnemy != null)
             {
@@ -218,15 +200,10 @@ namespace EJR.Game.Gameplay
 
         private void HandleBossProjectileVolleyStarted()
         {
-            if (!_bossWaveTriggered || _config == null || !_config.spawnSkeleton)
-            {
-                return;
-            }
-
+            if (!_bossWaveTriggered || _config == null || !_config.spawnSkeleton) return;
             var spawnCenter = _bossEnemy != null ? _bossEnemy.transform.position : _target.position;
             var bossRadius = _bossEnemy != null ? Mathf.Max(0.1f, _bossEnemy.CollisionRadius) : 0.9f;
             var skeletonRadius = CalculateCollisionRadius(_config.GetStatProfile(RuntimeSpriteFactory.EnemyVisualKind.Skeleton));
-            // Boss projectile pattern summons should appear near the boss, not off-screen.
             var minRadius = Mathf.Max(0.8f, bossRadius + skeletonRadius + 0.15f);
             var maxRadius = Mathf.Max(minRadius + 0.45f, minRadius + (bossRadius * 0.75f));
             var angleOffset = Random.value * Mathf.PI * 2f;
@@ -243,11 +220,7 @@ namespace EJR.Game.Gameplay
 
         public void DebugAdvanceSeconds(float seconds)
         {
-            if (seconds <= 0f)
-            {
-                return;
-            }
-
+            if (seconds <= 0f) return;
             DebugSetElapsedSeconds(_elapsedSeconds + seconds);
         }
 
@@ -260,34 +233,16 @@ namespace EJR.Game.Gameplay
         public void DebugSkipToBossWave()
         {
             DebugSetElapsedSeconds(GetBossWaveStartSeconds());
-            if (!_bossWaveTriggered)
-            {
-                TriggerBossWave();
-            }
+            if (!_bossWaveTriggered) TriggerBossWave();
         }
 
-        public void DebugStartWave1()
-        {
-            DebugStartConfiguredWave(1);
-        }
-
-        public void DebugStartWave2()
-        {
-            DebugStartConfiguredWave(2);
-        }
+        public void DebugStartWave1() => DebugStartConfiguredWave(1);
+        public void DebugStartWave2() => DebugStartConfiguredWave(2);
 
         public void DebugStartBossWave()
         {
-            if (_config == null || _target == null)
-            {
-                return;
-            }
-
-            if (_debugMonsterLabEnabled)
-            {
-                DebugSetMonsterLabEnabled(false);
-            }
-
+            if (_config == null || _target == null) return;
+            if (_debugMonsterLabEnabled) DebugSetMonsterLabEnabled(false);
             DebugClearNonBossEnemies();
             _wave1Triggered = true;
             _wave2Triggered = true;
@@ -301,30 +256,14 @@ namespace EJR.Game.Gameplay
 
         public void DebugSetMonsterLabEnabled(bool enabled)
         {
-            if (_debugMonsterLabEnabled == enabled)
-            {
-                return;
-            }
-
+            if (_debugMonsterLabEnabled == enabled) return;
             _debugMonsterLabEnabled = enabled;
             _debugMonsterLabTimePaused = false;
             DebugSessionService.SetMonsterLabTimePaused(false);
             DebugClearNonBossEnemies();
             ClearActiveRewardChests();
             ResetWaveTracking();
-
-            if (enabled)
-            {
-                _bossEnemy = null;
-                _bossWaveTriggered = false;
-                _pendingBoss = false;
-                _pendingWave2 = false;
-                _spawnTimer = float.MaxValue;
-            }
-            else
-            {
-                _spawnTimer = 0f;
-            }
+            _spawnTimer = enabled ? float.MaxValue : 0f;
         }
 
         public void DebugSetMonsterLabTimePaused(bool paused)
@@ -335,27 +274,14 @@ namespace EJR.Game.Gameplay
 
         public void DebugSetSelectedVariant(EnemyVariantId variantId)
         {
-            if (variantId == EnemyVariantId.None)
-            {
-                return;
-            }
-
-            _debugSelectedVariantId = variantId;
+            if (variantId != EnemyVariantId.None) _debugSelectedVariantId = variantId;
         }
 
         public void DebugSpawnVariant(EnemyVariantId variantId, int count)
         {
-            if (!_debugMonsterLabEnabled || _target == null || count <= 0)
-            {
-                return;
-            }
-
+            if (!_debugMonsterLabEnabled || _target == null || count <= 0) return;
             var definition = SharedEnemyVariantCatalog.Get(variantId);
-            if (definition == null)
-            {
-                return;
-            }
-
+            if (definition == null) return;
             _debugSelectedVariantId = definition.Id;
             var center = _target.position;
             var angleOffset = Random.value * Mathf.PI * 2f;
@@ -372,31 +298,11 @@ namespace EJR.Game.Gameplay
         {
             ClearActiveRewardChests();
             ResetWaveTracking();
-            if (_registry == null || _registry.Enemies == null)
+            if (_registry?.Enemies != null)
             {
-                _debugMonsterLabEnemies.Clear();
-                _bossEnemy = null;
-                return;
+                var enemies = new List<EnemyController>(_registry.Enemies);
+                foreach (var enemy in enemies) if (enemy != null) Destroy(enemy.gameObject);
             }
-
-            var enemies = new List<EnemyController>(_registry.Enemies.Count);
-            for (var i = 0; i < _registry.Enemies.Count; i++)
-            {
-                var enemy = _registry.Enemies[i];
-                if (enemy != null)
-                {
-                    enemies.Add(enemy);
-                }
-            }
-
-            for (var i = 0; i < enemies.Count; i++)
-            {
-                if (enemies[i] != null)
-                {
-                    Destroy(enemies[i].gameObject);
-                }
-            }
-
             _debugMonsterLabEnemies.Clear();
             _bossEnemy = null;
             _bossSpawnSequence = 0;
@@ -407,16 +313,8 @@ namespace EJR.Game.Gameplay
 
         private void DebugStartConfiguredWave(int waveIndex)
         {
-            if (_config == null || _target == null)
-            {
-                return;
-            }
-
-            if (_debugMonsterLabEnabled)
-            {
-                DebugSetMonsterLabEnabled(false);
-            }
-
+            if (_config == null || _target == null) return;
+            if (_debugMonsterLabEnabled) DebugSetMonsterLabEnabled(false);
             DebugClearNonBossEnemies();
             _bossWaveTriggered = false;
             _pendingBoss = false;
@@ -429,13 +327,14 @@ namespace EJR.Game.Gameplay
                 _wave1Triggered = true;
                 _wave2Triggered = false;
                 StartConfiguredWave(1, _config.wave1SlimeCount, _config.wave1MushroomCount, _config.wave1SkeletonCount);
-                return;
             }
-
-            _elapsedSeconds = Mathf.Max(Mathf.Max(_config.wave1TimeSeconds, 0f), _config.wave2TimeSeconds);
-            _wave1Triggered = true;
-            _wave2Triggered = true;
-            StartConfiguredWave(2, _config.wave2SlimeCount, _config.wave2MushroomCount, _config.wave2SkeletonCount);
+            else
+            {
+                _elapsedSeconds = Mathf.Max(_config.wave1TimeSeconds, _config.wave2TimeSeconds);
+                _wave1Triggered = true;
+                _wave2Triggered = true;
+                StartConfiguredWave(2, _config.wave2SlimeCount, _config.wave2MushroomCount, _config.wave2SkeletonCount);
+            }
         }
 
         private EnemyController SpawnEnemy(
@@ -448,20 +347,23 @@ namespace EJR.Game.Gameplay
             var visualStatProfile = _config.GetStatProfile(visualKind);
             var statProfile = statProfileOverride ?? visualStatProfile;
             var collisionRadius = CalculateCollisionRadius(statProfile);
-            var runtimeMinuteTier = Mathf.Max(0, Mathf.FloorToInt(_elapsedSeconds / 60f));
-            var runtimeMoveSpeedMultiplier = 1f + (runtimeMinuteTier * 0.05f);
-            var runtimeHealthMultiplier = isBoss
-                ? 1f + (Mathf.Min(runtimeMinuteTier, 10) * 0.06f)
-                : 1f + (runtimeMinuteTier * 0.10f);
-            var runtimeContactDamageMultiplier = 1f + (Mathf.Min(runtimeMinuteTier, 10) * 0.10f);
-
-            var spawnPosition = requestedPosition.HasValue
+            
+            var spawnPosResult = requestedPosition.HasValue
                 ? requestedPosition.Value
                 : FindSpawnPosition(collisionRadius, _config.minSpawnRadius, _config.maxSpawnRadius);
 
+            if (!spawnPosResult.HasValue)
+            {
+                return null;
+            }
+
+            var spawnPosition = spawnPosResult.Value;
+
             if (!IsSpawnClear(spawnPosition, collisionRadius))
             {
-                spawnPosition = FindSpawnPosition(collisionRadius, _config.minSpawnRadius, _config.maxSpawnRadius);
+                var retryPos = FindSpawnPosition(collisionRadius, _config.minSpawnRadius, _config.maxSpawnRadius);
+                if (!retryPos.HasValue) return null;
+                spawnPosition = retryPos.Value;
             }
 
             var enemyObject = new GameObject(isBoss ? "BossEnemy" : "Enemy");
@@ -477,834 +379,393 @@ namespace EJR.Game.Gameplay
 
             var renderer = visualObject.AddComponent<SpriteRenderer>();
             renderer.sprite = baseSprite;
-            renderer.color = Color.white;
-            var scaleSourceProfile = statProfile ?? visualStatProfile;
-            var scaleMultiplier = scaleSourceProfile != null ? Mathf.Max(0.1f, scaleSourceProfile.visualScaleMultiplier) : 1f;
+            var scaleMultiplier = (statProfile ?? visualStatProfile)?.visualScaleMultiplier ?? 1f;
             var visualWorldSize = Mathf.Max(0.1f, _config.visualScale * scaleMultiplier);
             ApplyVisualScale(visualObject.transform, renderer.sprite, visualWorldSize);
+            
             if (enemyFrames.Length > 1)
             {
-                var spriteAnimator = visualObject.AddComponent<EnemySpriteAnimator>();
-                spriteAnimator.Initialize(renderer, enemyFrames, animationProfile);
+                visualObject.AddComponent<EnemySpriteAnimator>().Initialize(renderer, enemyFrames, animationProfile);
             }
 
+            var runtimeMinuteTier = Mathf.Max(0, Mathf.FloorToInt(_elapsedSeconds / 60f));
             var enemy = enemyObject.AddComponent<EnemyController>();
             enemy.Initialize(
-                _config,
-                visualKind,
-                statProfile,
-                _target,
-                _playerHealth,
-                _registry,
-                _experienceSystem,
-                _playerCollisionRadius,
-                collisionRadius,
-                runtimeHealthMultiplier,
-                runtimeMoveSpeedMultiplier,
-                runtimeContactDamageMultiplier,
-                isBoss,
-                _hasArenaBounds,
-                _arenaBounds,
+                _config, visualKind, statProfile, animationProfile, _target, _playerHealth, _registry, _experienceSystem,
+                _playerCollisionRadius, collisionRadius,
+                isBoss ? 1f + (Mathf.Min(runtimeMinuteTier, 10) * 0.06f) : 1f + (runtimeMinuteTier * 0.10f),
+                1f + (runtimeMinuteTier * 0.05f),
+                1f + (Mathf.Min(runtimeMinuteTier, 10) * 0.10f),
+                isBoss, _hasArenaBounds, _arenaBounds,
                 isBoss ? _bossArchetype : BossArchetypeId.Final,
-                isBoss ? _bossDifficulty : null);
+                isBoss ? _bossDifficulty : null,
+                _groundTilemap, _propsTilemap);
 
             if (!isBoss)
             {
                 var healthBar = enemyObject.AddComponent<WorldHealthBar>();
-                var healthBarYOffset = _config.visualYOffset + Mathf.Max(0.28f, visualWorldSize * 0.36f);
-                healthBar.Initialize(
-                    new Vector3(0f, healthBarYOffset, 0f),
-                    0.82f,
-                    0.1f,
-                    new Color(1f, 0.3f, 0.35f, 0.95f),
-                    new Color(0f, 0f, 0f, 0.55f),
-                    24);
+                healthBar.Initialize(new Vector3(0f, _config.visualYOffset + visualWorldSize * 0.36f, 0f), 0.82f, 0.1f, 
+                    new Color(1f, 0.3f, 0.35f, 0.95f), new Color(0f, 0f, 0f, 0.55f), 24);
                 healthBar.SetHealth(enemy.CurrentHealth, enemy.MaxHealth);
                 enemy.Changed += healthBar.SetHealth;
             }
 
-            if (trackWaveTarget)
-            {
-                TrackWaveEnemy(enemy);
-            }
-
+            if (trackWaveTarget) TrackWaveEnemy(enemy);
             return enemy;
         }
 
-        private EnemyController SpawnVariantEnemy(
-            EnemyVariantDefinition definition,
-            Vector3? requestedPosition = null,
-            bool trackAsDebugMonster = false)
+        private EnemyController SpawnVariantEnemy(EnemyVariantDefinition definition, Vector3? requestedPosition = null, bool trackAsDebugMonster = false)
         {
-            if (definition == null)
-            {
-                return null;
-            }
-
-            var variantProfile = SharedEnemyVariantCatalog.CreateVariantStatProfile(_config, definition);
-            var resolvedPosition = requestedPosition;
+            if (definition == null) return null;
+            var profile = SharedEnemyVariantCatalog.CreateVariantStatProfile(_config, definition);
+            var pos = requestedPosition;
             if (trackAsDebugMonster && requestedPosition.HasValue)
+                pos = ResolveDebugSpawnPosition(requestedPosition.Value, CalculateCollisionRadius(profile));
+            
+            var enemy = SpawnEnemy(definition.BaseVisualKind, pos, profile);
+            if (enemy != null)
             {
-                var collisionRadius = CalculateCollisionRadius(variantProfile);
-                resolvedPosition = ResolveDebugSpawnPosition(requestedPosition.Value, collisionRadius);
+                enemy.ConfigureVariant(definition, HandleVariantSplitSpawnRequested);
+                enemy.gameObject.name = definition.DisplayName;
+                if (trackAsDebugMonster) _debugMonsterLabEnemies.Add(enemy);
             }
-
-            var enemy = SpawnEnemy(definition.BaseVisualKind, resolvedPosition, variantProfile);
-            if (enemy == null)
-            {
-                return null;
-            }
-
-            enemy.ConfigureVariant(definition, HandleVariantSplitSpawnRequested);
-            enemy.gameObject.name = definition.DisplayName;
-            if (trackAsDebugMonster)
-            {
-                _debugMonsterLabEnemies.Add(enemy);
-            }
-
             return enemy;
         }
 
         private void TryTriggerTimedWaves()
         {
-            if (_bossWaveTriggered || _config == null || _target == null || !_config.enableTimedWaves)
-            {
-                return;
-            }
-
+            if (_bossWaveTriggered || _config == null || _target == null || !_config.enableTimedWaves) return;
             var bossStart = GetBossWaveStartSeconds();
 
-            if (!_wave1Triggered &&
-                _elapsedSeconds >= Mathf.Max(1f, _config.wave1TimeSeconds) &&
-                _config.wave1TimeSeconds < bossStart)
+            if (!_wave1Triggered && _elapsedSeconds >= Mathf.Max(1f, _config.wave1TimeSeconds) && _config.wave1TimeSeconds < bossStart)
             {
                 _wave1Triggered = true;
                 StartConfiguredWave(1, _config.wave1SlimeCount, _config.wave1MushroomCount, _config.wave1SkeletonCount);
             }
 
-            if (!_wave2Triggered &&
-                _elapsedSeconds >= Mathf.Max(1f, _config.wave2TimeSeconds) &&
-                _config.wave2TimeSeconds < bossStart)
+            if (!_wave2Triggered && _elapsedSeconds >= Mathf.Max(1f, _config.wave2TimeSeconds) && _config.wave2TimeSeconds < bossStart)
             {
                 _wave2Triggered = true;
-                if (HasActiveWave)
-                {
-                    _pendingWave2 = true;
-                }
-                else
-                {
-                    StartConfiguredWave(2, _config.wave2SlimeCount, _config.wave2MushroomCount, _config.wave2SkeletonCount);
-                }
+                if (HasActiveWave) _pendingWave2 = true;
+                else StartConfiguredWave(2, _config.wave2SlimeCount, _config.wave2MushroomCount, _config.wave2SkeletonCount);
             }
 
             if (!_bossWaveTriggered && _elapsedSeconds >= bossStart)
             {
-                if (HasActiveWave)
-                {
-                    _pendingBoss = true;
-                }
-                else
-                {
-                    TriggerBossWave();
-                }
+                if (HasActiveWave) _pendingBoss = true;
+                else TriggerBossWave();
             }
         }
 
         private void StartConfiguredWave(int waveIndex, int slimeCount, int mushroomCount, int skeletonCount)
         {
-            var targetVisualKind = GetWaveTargetVisualKind(waveIndex);
-            var validSlimeCount = _config.spawnSlime ? Mathf.Max(0, slimeCount) : 0;
-            var validMushroomCount = _config.spawnMushroom ? Mathf.Max(0, mushroomCount) : 0;
-            var validSkeletonCount = _config.spawnSkeleton ? Mathf.Max(0, skeletonCount) : 0;
+            var targetKind = waveIndex <= 1 ? RuntimeSpriteFactory.EnemyVisualKind.Slime : RuntimeSpriteFactory.EnemyVisualKind.Mushroom;
+            var sCount = _config.spawnSlime ? Mathf.Max(0, slimeCount) : 0;
+            var mCount = _config.spawnMushroom ? Mathf.Max(0, mushroomCount) : 0;
+            var skCount = _config.spawnSkeleton ? Mathf.Max(0, skeletonCount) : 0;
 
-            if (targetVisualKind == RuntimeSpriteFactory.EnemyVisualKind.Slime && validSlimeCount > 0)
-            {
-                validSlimeCount--;
-            }
-            else if (targetVisualKind == RuntimeSpriteFactory.EnemyVisualKind.Mushroom && validMushroomCount > 0)
-            {
-                validMushroomCount--;
-            }
+            if (targetKind == RuntimeSpriteFactory.EnemyVisualKind.Slime && sCount > 0) sCount--;
+            else if (targetKind == RuntimeSpriteFactory.EnemyVisualKind.Mushroom && mCount > 0) mCount--;
 
-            var total = validSlimeCount + validMushroomCount + validSkeletonCount + 1;
-            if (total <= 0)
-            {
-                TryProcessPendingWaveSchedule();
-                return;
-            }
+            var total = sCount + mCount + skCount + 1;
+            if (total <= 0) { TryProcessPendingWaveSchedule(); return; }
 
-            _activeWaveIndex = Mathf.Max(0, waveIndex);
+            _activeWaveIndex = waveIndex;
             _activeWaveRemainingCount = 0;
             _activeWaveEnemies.Clear();
             _activeWaveTargetEnemy = null;
-            _activeWaveTargetLabel = GetWaveTargetLabel(_activeWaveIndex);
+            _activeWaveTargetLabel = waveIndex <= 1 ? "거대 슬라임" : "거대 버섯";
             _waveTargetSpawnSequence = 0;
 
-            var minRadius = Mathf.Max(0.1f, _config.timedWaveMinRadius);
-            var maxRadius = Mathf.Max(minRadius + 0.1f, _config.timedWaveMaxRadius);
+            var minR = Mathf.Max(0.1f, _config.timedWaveMinRadius);
+            var maxR = Mathf.Max(minR + 0.1f, _config.timedWaveMaxRadius);
             var angleOffset = Random.value * Mathf.PI * 2f;
-            var spawnIndex = 0;
+            var spawnIdx = 0;
 
-            SpawnWaveEnemies(RuntimeSpriteFactory.EnemyVisualKind.Slime, validSlimeCount, total, ref spawnIndex, angleOffset, minRadius, maxRadius);
-            SpawnWaveEnemies(RuntimeSpriteFactory.EnemyVisualKind.Mushroom, validMushroomCount, total, ref spawnIndex, angleOffset, minRadius, maxRadius);
-            SpawnWaveEnemies(RuntimeSpriteFactory.EnemyVisualKind.Skeleton, validSkeletonCount, total, ref spawnIndex, angleOffset, minRadius, maxRadius);
-            SpawnWaveTargetEnemy(targetVisualKind, total, ref spawnIndex, angleOffset, minRadius, maxRadius);
+            SpawnWaveEnemies(RuntimeSpriteFactory.EnemyVisualKind.Slime, sCount, total, ref spawnIdx, angleOffset, minR, maxR);
+            SpawnWaveEnemies(RuntimeSpriteFactory.EnemyVisualKind.Mushroom, mCount, total, ref spawnIdx, angleOffset, minR, maxR);
+            SpawnWaveEnemies(RuntimeSpriteFactory.EnemyVisualKind.Skeleton, skCount, total, ref spawnIdx, angleOffset, minR, maxR);
+            SpawnWaveTargetEnemy(targetKind, total, ref spawnIdx, angleOffset, minR, maxR);
+            
             WaveStarted?.Invoke(_activeWaveIndex);
             RaiseWaveStateChanged();
         }
 
-        private void SpawnWaveEnemies(
-            RuntimeSpriteFactory.EnemyVisualKind visualKind,
-            int count,
-            int total,
-            ref int spawnIndex,
-            float angleOffset,
-            float minRadius,
-            float maxRadius)
+        private void SpawnWaveEnemies(RuntimeSpriteFactory.EnemyVisualKind visualKind, int count, int total, ref int spawnIndex, float angleOffset, float minRadius, float maxRadius)
         {
-            var candidateRadius = CalculateCollisionRadius(_config.GetStatProfile(visualKind));
-            var adjustedMinRadius = Mathf.Max(0.1f, minRadius);
-            var adjustedMaxRadius = Mathf.Max(adjustedMinRadius + 0.1f, maxRadius);
-            ApplyOffscreenRadiusFloor(candidateRadius, ref adjustedMinRadius, ref adjustedMaxRadius);
+            var cRadius = CalculateCollisionRadius(_config.GetStatProfile(visualKind));
+            var adjMin = minRadius;
+            var adjMax = maxRadius;
+            ApplyOffscreenRadiusFloor(cRadius, ref adjMin, ref adjMax);
 
             for (var i = 0; i < count; i++)
             {
                 var t = total > 0 ? spawnIndex / (float)total : 0f;
                 var angle = angleOffset + (Mathf.PI * 2f * t) + Random.Range(-0.15f, 0.15f);
-                var radius = Random.Range(adjustedMinRadius, adjustedMaxRadius);
-                var position = _target.position + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius;
-                var variantDefinition = SharedEnemyVariantCatalog.PickWaveVariant(_mapId, _activeWaveIndex, visualKind, i, count);
-                if (variantDefinition != null)
-                {
-                    SpawnVariantEnemy(variantDefinition, position);
-                }
-                else
-                {
-                    SpawnEnemy(visualKind, position);
-                }
-
+                var radius = Random.Range(adjMin, adjMax);
+                var pos = _target.position + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius;
+                var def = SharedEnemyVariantCatalog.PickWaveVariant(_mapId, _activeWaveIndex, visualKind, i, count);
+                if (def != null) SpawnVariantEnemy(def, pos);
+                else SpawnEnemy(visualKind, pos);
                 spawnIndex++;
             }
         }
 
-        private void SpawnWaveTargetEnemy(
-            RuntimeSpriteFactory.EnemyVisualKind visualKind,
-            int total,
-            ref int spawnIndex,
-            float angleOffset,
-            float minRadius,
-            float maxRadius)
+        private void SpawnWaveTargetEnemy(RuntimeSpriteFactory.EnemyVisualKind visualKind, int total, ref int spawnIndex, float angleOffset, float minRadius, float maxRadius)
         {
             var baseProfile = _config.GetStatProfile(visualKind);
             var targetProfile = new EnemyStatProfile
             {
-                healthMultiplier = Mathf.Max(1f, baseProfile != null ? baseProfile.healthMultiplier : 1f) * 5.5f,
-                moveSpeedMultiplier = Mathf.Max(0.1f, baseProfile != null ? baseProfile.moveSpeedMultiplier : 1f) * 0.92f,
-                contactDamageMultiplier = Mathf.Max(0.1f, baseProfile != null ? baseProfile.contactDamageMultiplier : 1f) * 1.25f,
-                experienceMultiplier = Mathf.Max(0.1f, baseProfile != null ? baseProfile.experienceMultiplier : 1f) * 3f,
-                visualScaleMultiplier = Mathf.Max(0.1f, baseProfile != null ? baseProfile.visualScaleMultiplier : 1f) * WaveTargetVisualScaleMultiplier,
-                collisionRadiusMultiplier = Mathf.Max(0.1f, baseProfile != null ? baseProfile.collisionRadiusMultiplier : 1f) * WaveTargetCollisionRadiusMultiplier,
+                healthMultiplier = (baseProfile?.healthMultiplier ?? 1f) * 5.5f,
+                moveSpeedMultiplier = (baseProfile?.moveSpeedMultiplier ?? 1f) * 0.92f,
+                contactDamageMultiplier = (baseProfile?.contactDamageMultiplier ?? 1f) * 1.25f,
+                experienceMultiplier = (baseProfile?.experienceMultiplier ?? 1f) * 3f,
+                visualScaleMultiplier = (baseProfile?.visualScaleMultiplier ?? 1f) * WaveTargetVisualScaleMultiplier,
+                collisionRadiusMultiplier = (baseProfile?.collisionRadiusMultiplier ?? 1f) * WaveTargetCollisionRadiusMultiplier,
             };
 
-            var candidateRadius = CalculateCollisionRadius(targetProfile);
-            var adjustedMinRadius = Mathf.Max(0.1f, minRadius);
-            var adjustedMaxRadius = Mathf.Max(adjustedMinRadius + 0.1f, maxRadius);
-            ApplyOffscreenRadiusFloor(candidateRadius, ref adjustedMinRadius, ref adjustedMaxRadius);
+            var cRadius = CalculateCollisionRadius(targetProfile);
+            var adjMin = minRadius;
+            var adjMax = maxRadius;
+            ApplyOffscreenRadiusFloor(cRadius, ref adjMin, ref adjMax);
 
             var t = total > 0 ? spawnIndex / (float)total : 0f;
             var angle = angleOffset + (Mathf.PI * 2f * t) + Random.Range(-0.08f, 0.08f);
-            var radius = Random.Range(adjustedMinRadius, adjustedMaxRadius);
-            var position = _target.position + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius;
-            var enemy = SpawnEnemy(visualKind, position, targetProfile, trackWaveTarget: true);
+            var radius = Random.Range(adjMin, adjMax);
+            var pos = _target.position + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius;
+            var enemy = SpawnEnemy(visualKind, pos, targetProfile, trackWaveTarget: true);
             spawnIndex++;
-            if (enemy == null)
+            if (enemy != null)
             {
-                return;
+                _activeWaveTargetEnemy = enemy;
+                _waveTargetSpawnSequence = ++_spawnSequenceCounter;
+                enemy.gameObject.name = $"{_activeWaveTargetLabel}Enemy";
             }
-
-            _activeWaveTargetEnemy = enemy;
-            _waveTargetSpawnSequence = ++_spawnSequenceCounter;
-            ApplyWaveTargetPresentation(enemy);
         }
 
         public bool TryGetPriorityBossBarTarget(out EnemyController enemy, out string label)
         {
-            enemy = null;
-            label = string.Empty;
-
-            var boss = _bossEnemy;
-            if (boss == null || boss.IsDead)
+            enemy = null; label = string.Empty;
+            var boss = _bossEnemy; if (boss != null && boss.IsDead) boss = null;
+            var target = _activeWaveTargetEnemy; if (target != null && target.IsDead) target = null;
+            if (boss == null && target == null) return false;
+            if (target != null && (boss == null || _waveTargetSpawnSequence >= _bossSpawnSequence))
             {
-                boss = null;
+                enemy = target; label = _activeWaveTargetLabel; return true;
             }
-
-            var waveTarget = _activeWaveTargetEnemy;
-            if (waveTarget == null || waveTarget.IsDead)
-            {
-                waveTarget = null;
-            }
-
-            if (boss == null && waveTarget == null)
-            {
-                return false;
-            }
-
-            if (waveTarget != null && (boss == null || _waveTargetSpawnSequence >= _bossSpawnSequence))
-            {
-                enemy = waveTarget;
-                label = string.IsNullOrWhiteSpace(_activeWaveTargetLabel) ? "웨이브 목표" : _activeWaveTargetLabel;
-                return true;
-            }
-
-            enemy = boss;
-            label = "보스";
-            return true;
-        }
-
-        private RuntimeSpriteFactory.EnemyVisualKind GetWaveTargetVisualKind(int waveIndex)
-        {
-            return waveIndex <= 1
-                ? RuntimeSpriteFactory.EnemyVisualKind.Slime
-                : RuntimeSpriteFactory.EnemyVisualKind.Mushroom;
-        }
-
-        private string GetWaveTargetLabel(int waveIndex)
-        {
-            return waveIndex <= 1 ? "거대 슬라임" : "거대 버섯";
-        }
-
-        private void ApplyWaveTargetPresentation(EnemyController enemy)
-        {
-            if (enemy == null)
-            {
-                return;
-            }
-
-            enemy.gameObject.name = $"{GetWaveTargetLabel(_activeWaveIndex)}Enemy";
-            var visualRoot = enemy.transform.Find("Visual");
-            if (visualRoot == null)
-            {
-                return;
-            }
-
-            var legacyGlow = visualRoot.Find("WaveTargetGlow");
-            if (legacyGlow != null)
-            {
-                legacyGlow.gameObject.SetActive(false);
-            }
-
-            var baseRenderer = visualRoot.GetComponent<SpriteRenderer>();
-            if (baseRenderer == null)
-            {
-                return;
-            }
-
-            var tintTransform = visualRoot.Find("WaveTargetTint");
-            if (tintTransform != null)
-            {
-                tintTransform.gameObject.SetActive(false);
-            }
-
-            baseRenderer.color = Color.white;
-
-            var animator = visualRoot.GetComponent<EnemySpriteAnimator>();
-            animator?.SetBaseColor(Color.white);
-        }
-
-        private WaveRewardChest GetLatestRewardChest()
-        {
-            WaveRewardChest latestChest = null;
-            var latestSequence = int.MinValue;
-            for (var i = _activeRewardChests.Count - 1; i >= 0; i--)
-            {
-                var chest = _activeRewardChests[i];
-                if (chest == null)
-                {
-                    _activeRewardChests.RemoveAt(i);
-                    continue;
-                }
-
-                if (chest.SpawnSequence <= latestSequence)
-                {
-                    continue;
-                }
-
-                latestSequence = chest.SpawnSequence;
-                latestChest = chest;
-            }
-
-            return latestChest;
-        }
-
-        private void SpawnWaveRewardChest(int waveIndex, Vector3 position)
-        {
-            var chestObject = new GameObject($"WaveRewardChest_{Mathf.Max(1, waveIndex)}");
-            chestObject.transform.position = position;
-            var chest = chestObject.AddComponent<WaveRewardChest>();
-            _activeRewardChests.Add(chest);
-            chest.Initialize(
-                _target,
-                waveIndex,
-                ++_spawnSequenceCounter,
-                WaveRewardPickupRadius,
-                HandleWaveRewardChestCollected,
-                HandleWaveRewardChestReleased);
-        }
-
-        private void HandleWaveRewardChestCollected(WaveRewardChest chest)
-        {
-            if (chest == null)
-            {
-                return;
-            }
-
-            _activeRewardChests.Remove(chest);
-            WaveRewardChestCollected?.Invoke(chest.WaveIndex);
-        }
-
-        private void HandleWaveRewardChestReleased(WaveRewardChest chest)
-        {
-            if (chest == null)
-            {
-                return;
-            }
-
-            _activeRewardChests.Remove(chest);
-        }
-
-        private void OnEnable()
-        {
-            EnemyController.Defeated += HandleTrackedEnemyDefeated;
-        }
-
-        private void OnDisable()
-        {
-            EnemyController.Defeated -= HandleTrackedEnemyDefeated;
+            enemy = boss; label = "보스"; return true;
         }
 
         private void HandleTrackedEnemyDefeated(EnemyController enemy)
         {
-            if (enemy == null)
-            {
-                return;
-            }
-
+            if (enemy == null) return;
             _debugMonsterLabEnemies.Remove(enemy);
-
-            if (_bossEnemy == enemy)
+            if (_bossEnemy == enemy) { _bossEnemy = null; _bossSpawnSequence = 0; }
+            if (_activeWaveEnemies.Remove(enemy))
             {
-                _bossEnemy = null;
-                _bossSpawnSequence = 0;
+                if (_activeWaveTargetEnemy == enemy)
+                {
+                    SpawnWaveRewardChest(_activeWaveIndex, enemy.transform.position);
+                    _activeWaveTargetEnemy = null;
+                    _waveTargetSpawnSequence = 0;
+                }
+                _activeWaveRemainingCount = _activeWaveEnemies.Count;
+                RaiseWaveStateChanged();
+                if (_activeWaveRemainingCount <= 0)
+                {
+                    var idx = _activeWaveIndex; _activeWaveIndex = 0; WaveCleared?.Invoke(idx);
+                    RaiseWaveStateChanged();
+                    TryProcessPendingWaveSchedule();
+                }
             }
+        }
 
-            if (_activeWaveEnemies.Count <= 0 || !_activeWaveEnemies.Remove(enemy))
-            {
-                return;
-            }
+        private void SpawnWaveRewardChest(int waveIndex, Vector3 position)
+        {
+            var chest = new GameObject($"WaveRewardChest_{waveIndex}").AddComponent<WaveRewardChest>();
+            chest.transform.position = position;
+            _activeRewardChests.Add(chest);
+            chest.Initialize(_target, waveIndex, ++_spawnSequenceCounter, WaveRewardPickupRadius, HandleWaveRewardChestCollected, c => _activeRewardChests.Remove(c));
+        }
 
-            if (_activeWaveTargetEnemy == enemy)
-            {
-                SpawnWaveRewardChest(_activeWaveIndex, enemy.transform.position);
-                _activeWaveTargetEnemy = null;
-                _activeWaveTargetLabel = string.Empty;
-                _waveTargetSpawnSequence = 0;
-            }
-
-            _activeWaveRemainingCount = Mathf.Max(0, _activeWaveEnemies.Count);
-            RaiseWaveStateChanged();
-            if (_activeWaveRemainingCount > 0)
-            {
-                return;
-            }
-
-            var clearedWaveIndex = _activeWaveIndex;
-            _activeWaveIndex = 0;
-            _activeWaveRemainingCount = 0;
-            _activeWaveEnemies.Clear();
-            WaveCleared?.Invoke(clearedWaveIndex);
-            RaiseWaveStateChanged();
-            TryProcessPendingWaveSchedule();
+        private void HandleWaveRewardChestCollected(WaveRewardChest chest)
+        {
+            if (chest == null) return;
+            _activeRewardChests.Remove(chest);
+            WaveRewardChestCollected?.Invoke(chest.WaveIndex);
         }
 
         private void TrackWaveEnemy(EnemyController enemy)
         {
-            if (enemy == null)
-            {
-                return;
-            }
-
+            if (enemy == null) return;
             _activeWaveEnemies.Add(enemy);
             _activeWaveRemainingCount = _activeWaveEnemies.Count;
         }
 
-        private void RaiseWaveStateChanged()
-        {
-            WaveStateChanged?.Invoke(_activeWaveIndex, _activeWaveRemainingCount);
-        }
-
-        private void ResetWaveTracking()
-        {
-            _activeWaveIndex = 0;
-            _activeWaveRemainingCount = 0;
-            _activeWaveEnemies.Clear();
-            _activeWaveTargetEnemy = null;
-            _activeWaveTargetLabel = string.Empty;
-            _waveTargetSpawnSequence = 0;
-            RaiseWaveStateChanged();
-        }
-
-        private void ClearActiveRewardChests()
-        {
-            for (var i = 0; i < _activeRewardChests.Count; i++)
-            {
-                var chest = _activeRewardChests[i];
-                if (chest != null)
-                {
-                    Destroy(chest.gameObject);
-                }
-            }
-
-            _activeRewardChests.Clear();
-        }
+        private void RaiseWaveStateChanged() => WaveStateChanged?.Invoke(_activeWaveIndex, _activeWaveRemainingCount);
+        private void ResetWaveTracking() { _activeWaveIndex = 0; _activeWaveRemainingCount = 0; _activeWaveEnemies.Clear(); _activeWaveTargetEnemy = null; RaiseWaveStateChanged(); }
+        private void ClearActiveRewardChests() { foreach (var c in _activeRewardChests) if (c != null) Destroy(c.gameObject); _activeRewardChests.Clear(); }
 
         private void HandleVariantSplitSpawnRequested(EnemyController source, EnemyVariantDefinition definition)
         {
-            if (source == null || definition == null || definition.BehaviorKind != EnemyVariantBehaviorKind.SplitOnDeath)
-            {
-                return;
-            }
-
+            if (source == null || definition?.BehaviorKind != EnemyVariantBehaviorKind.SplitOnDeath) return;
             var count = Mathf.Max(0, definition.SplitSpawnCount);
-            if (count <= 0)
-            {
-                return;
-            }
-
             var childRadius = CalculateCollisionRadius(_config.GetStatProfile(RuntimeSpriteFactory.EnemyVisualKind.Slime));
-            var ringRadius = Mathf.Max(0.45f, childRadius * 2.2f);
+            var ringR = Mathf.Max(0.45f, childRadius * 2.2f);
             var angleOffset = Random.value * Mathf.PI * 2f;
             for (var i = 0; i < count; i++)
             {
                 var angle = angleOffset + ((Mathf.PI * 2f * i) / Mathf.Max(1, count));
-                var offset = new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * ringRadius;
-                var spawnPosition = ResolveDebugSpawnPosition(source.transform.position + offset, childRadius);
-                SpawnEnemy(RuntimeSpriteFactory.EnemyVisualKind.Slime, spawnPosition);
+                var pos = source.transform.position + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * ringR;
+                SpawnEnemy(RuntimeSpriteFactory.EnemyVisualKind.Slime, ResolveDebugSpawnPosition(pos, childRadius));
             }
         }
 
         private void TryProcessPendingWaveSchedule()
         {
-            if (HasActiveWave || _bossWaveTriggered || _config == null)
-            {
-                return;
-            }
-
-            if (_pendingWave2)
-            {
-                _pendingWave2 = false;
-                StartConfiguredWave(2, _config.wave2SlimeCount, _config.wave2MushroomCount, _config.wave2SkeletonCount);
-                return;
-            }
-
-            if (_pendingBoss)
-            {
-                _pendingBoss = false;
-                TriggerBossWave();
-            }
+            if (HasActiveWave || _bossWaveTriggered) return;
+            if (_pendingWave2) { _pendingWave2 = false; StartConfiguredWave(2, _config.wave2SlimeCount, _config.wave2MushroomCount, _config.wave2SkeletonCount); }
+            else if (_pendingBoss) { _pendingBoss = false; TriggerBossWave(); }
         }
 
-        private static void ApplyVisualScale(Transform targetTransform, Sprite sprite, float desiredWorldSize)
+        private static void ApplyVisualScale(Transform target, Sprite sprite, float desiredSize)
         {
-            var clampedSize = Mathf.Max(0.1f, desiredWorldSize);
-            if (sprite == null)
-            {
-                targetTransform.localScale = Vector3.one * clampedSize;
-                return;
-            }
-
-            var spriteBounds = sprite.bounds.size;
-            var spriteSize = Mathf.Max(spriteBounds.x, spriteBounds.y);
-            if (spriteSize <= 0.0001f)
-            {
-                targetTransform.localScale = Vector3.one * clampedSize;
-                return;
-            }
-
-            var uniformScale = clampedSize / spriteSize;
-            targetTransform.localScale = new Vector3(uniformScale, uniformScale, 1f);
+            if (sprite == null) { target.localScale = Vector3.one * desiredSize; return; }
+            var s = sprite.bounds.size;
+            var maxS = Mathf.Max(s.x, s.y);
+            var scale = maxS <= 0.0001f ? desiredSize : desiredSize / maxS;
+            target.localScale = new Vector3(scale, scale, 1f);
         }
 
-        private Vector3 ResolveDebugSpawnPosition(Vector3 requestedPosition, float candidateRadius)
+        private Vector3 ResolveDebugSpawnPosition(Vector3 req, float rad)
         {
-            if (IsSpawnClear(requestedPosition, candidateRadius))
-            {
-                return requestedPosition;
-            }
-
+            if (IsSpawnClear(req, rad)) return req;
             for (var i = 0; i < 12; i++)
             {
-                var offset = (Vector3)(UnityEngine.Random.insideUnitCircle.normalized * Random.Range(0.6f, 2.4f));
-                var candidate = ClampToArena(requestedPosition + offset);
-                if (IsSpawnClear(candidate, candidateRadius))
-                {
-                    return candidate;
-                }
+                var cand = ClampToArena(req + (Vector3)(Random.insideUnitCircle.normalized * Random.Range(0.6f, 2.4f)));
+                if (IsSpawnClear(cand, rad)) return cand;
             }
-
-            return ClampToArena(requestedPosition);
+            return ClampToArena(req);
         }
 
-        private Vector3 ClampToArena(Vector3 position)
+        private Vector3 ClampToArena(Vector3 pos)
         {
-            if (!_hasArenaBounds)
-            {
-                return new Vector3(position.x, position.y, 0f);
-            }
-
-            var clampedX = Mathf.Clamp(position.x, _arenaBounds.xMin, _arenaBounds.xMax);
-            var clampedY = Mathf.Clamp(position.y, _arenaBounds.yMin, _arenaBounds.yMax);
-            return new Vector3(clampedX, clampedY, 0f);
+            if (!_hasArenaBounds) return pos;
+            const float edgePadding = 0.8f;
+            return new Vector3(
+                Mathf.Clamp(pos.x, _arenaBounds.xMin + edgePadding, _arenaBounds.xMax - edgePadding), 
+                Mathf.Clamp(pos.y, _arenaBounds.yMin + edgePadding, _arenaBounds.yMax - edgePadding), 
+                0f);
         }
 
-        private Vector3 FindSpawnPosition(float candidateRadius, float minSpawnRadius, float maxSpawnRadius)
+        private Vector3? FindSpawnPosition(float rad, float minR, float maxR)
         {
-            const int maxTries = 12;
-            var fallback = _target.position;
-            var minRadius = Mathf.Max(0.1f, minSpawnRadius);
-            var maxRadius = Mathf.Max(minRadius + 0.1f, maxSpawnRadius);
-            ApplyOffscreenRadiusFloor(candidateRadius, ref minRadius, ref maxRadius);
+            // 이제 무식하게 수십 번 찍지 않고, 맵 안으로 밀어넣는 방식을 씁니다.
+            const int maxTries = 3; 
+            var min = minR; 
+            var max = maxR; 
+            ApplyOffscreenRadiusFloor(rad, ref min, ref max);
 
-            for (var attempt = 0; attempt < maxTries; attempt++)
+            for (var i = 0; i < maxTries; i++)
             {
                 var angle = Random.value * Mathf.PI * 2f;
-                var radius = Random.Range(minRadius, maxRadius);
-                var candidate = _target.position + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius;
+                var rawPos = _target.position + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * Random.Range(min, max);
+                
+                // [핵심] 일단 좌표를 찍고, 맵 밖이면 맵 경계선 안으로 밀어넣습니다.
+                // 이렇게 하면 한 번에 맵 안쪽 자리를 찾을 수 있습니다.
+                var cand = ClampToArena(rawPos);
 
-                fallback = candidate;
-                if (IsSpawnClear(candidate, candidateRadius))
+                if (IsSpawnClear(cand, rad))
                 {
-                    return candidate;
+                    return cand;
                 }
             }
 
-            return fallback;
+            return null;
         }
 
-        private void ApplyOffscreenRadiusFloor(float candidateRadius, ref float minRadius, ref float maxRadius)
+        private void ApplyOffscreenRadiusFloor(float rad, ref float min, ref float max)
         {
-            var offscreenMinRadius = GetMinimumOffscreenRadius(candidateRadius);
-            if (offscreenMinRadius <= 0f)
-            {
-                return;
-            }
-
-            minRadius = Mathf.Max(minRadius, offscreenMinRadius);
-            maxRadius = Mathf.Max(maxRadius, minRadius + 0.1f);
+            var offMin = GetMinimumOffscreenRadius(rad);
+            if (offMin > 0f) { min = Mathf.Max(min, offMin); max = Mathf.Max(max, min + 0.1f); }
         }
 
-        private float GetMinimumOffscreenRadius(float candidateRadius)
+        private float GetMinimumOffscreenRadius(float rad)
         {
-            if (_spawnReferenceCamera == null)
-            {
-                _spawnReferenceCamera = Camera.main;
-            }
-
-            if (_spawnReferenceCamera == null)
-            {
-                return 0f;
-            }
-
-            var camera = _spawnReferenceCamera;
-            if (camera.orthographic)
-            {
-                var halfHeight = camera.orthographicSize;
-                var halfWidth = halfHeight * Mathf.Max(0.1f, camera.aspect);
-                var halfDiagonal = Mathf.Sqrt((halfWidth * halfWidth) + (halfHeight * halfHeight));
-                var padding = Mathf.Max(0f, _config != null ? _config.offscreenSpawnPadding : 0f);
-                return halfDiagonal + padding + _playerCollisionRadius + Mathf.Max(0.05f, candidateRadius);
-            }
-
-            // If perspective is used unexpectedly, skip the offscreen clamp rather than guessing wrong.
-            return 0f;
+            var cam = _spawnReferenceCamera ?? Camera.main;
+            if (cam == null || !cam.orthographic) return 0f;
+            var h = cam.orthographicSize; var w = h * cam.aspect;
+            return Mathf.Sqrt(w * w + h * h) + (_config?.offscreenSpawnPadding ?? 0f) + _playerCollisionRadius + rad;
         }
 
-        private bool IsSpawnClear(Vector3 candidate, float candidateRadius)
+        private bool IsSpawnClear(Vector3 cand, float rad)
         {
-            var toPlayer = ((Vector2)candidate - (Vector2)_target.position).magnitude;
-            var minimumToPlayer = _playerCollisionRadius + candidateRadius + 0.01f;
-            if (toPlayer < minimumToPlayer)
+            // [수정] 반드시 풀밭 위여야 함
+            if (_groundTilemap != null && !_groundTilemap.HasTile(_groundTilemap.WorldToCell(cand))) return false;
+
+            // [수정] 플레이어와 너무 가까우면 안됨 (최소 거리 보장)
+            var distToPlayer = Vector2.Distance(cand, _target.position);
+            // 화면 밖에서만 생성되게 하거나, 최소한 플레이어 근처는 피함
+            var safeDistance = GetMinimumOffscreenRadius(rad) * 0.85f; // 화면 대각선의 85% 이상 거리 확보
+            if (distToPlayer < safeDistance) return false;
+
+            if (_registry?.Enemies == null) return true;
+            foreach (var other in _registry.Enemies)
             {
-                return false;
+                if (other == null) continue;
+                if (Vector2.Distance(cand, other.transform.position) < rad + other.CollisionRadius) return false;
             }
-
-            if (_registry == null)
-            {
-                return true;
-            }
-
-            var enemies = _registry.Enemies;
-            for (var i = 0; i < enemies.Count; i++)
-            {
-                var other = enemies[i];
-                if (other == null)
-                {
-                    continue;
-                }
-
-                var minimum = candidateRadius + other.CollisionRadius;
-                var distance = ((Vector2)candidate - (Vector2)other.transform.position).magnitude;
-                if (distance < minimum)
-                {
-                    return false;
-                }
-            }
-
             return true;
         }
 
-        private float CalculateCollisionRadius(EnemyStatProfile statProfile)
-        {
-            var multiplier = statProfile != null ? Mathf.Max(0.1f, statProfile.collisionRadiusMultiplier) : 1f;
-            return Mathf.Max(0.05f, _config.collisionRadius * multiplier);
-        }
-
-        private RuntimeSpriteFactory.EnemyVisualKind PickEnemyVisualKind()
-        {
-            return SharedEnemyVariantCatalog.PickDynamicVisualKind(_mapId, _config, _elapsedSeconds);
-        }
-
-        private float GetBossWaveStartSeconds()
-        {
-            var phaseStart = _config != null ? Mathf.Max(0f, _config.mushroomPhaseStartSeconds) : 300f;
-            var bossStart = _config != null ? Mathf.Max(1f, _config.bossWaveStartSeconds) : 600f;
-            return Mathf.Max(phaseStart + 1f, bossStart);
-        }
+        private float CalculateCollisionRadius(EnemyStatProfile p) => Mathf.Max(0.05f, _config.collisionRadius * (p?.collisionRadiusMultiplier ?? 1f));
+        private RuntimeSpriteFactory.EnemyVisualKind PickEnemyVisualKind() => SharedEnemyVariantCatalog.PickDynamicVisualKind(_mapId, _config, _elapsedSeconds);
+        private float GetBossWaveStartSeconds() => Mathf.Max((_config?.mushroomPhaseStartSeconds ?? 300f) + 1f, _config?.bossWaveStartSeconds ?? 600f);
 
         private void SpawnDynamicTickEnemies()
         {
-            var aliveCount = GetAliveEnemyCount();
-            var targetAliveCount = GetTargetAliveCount();
-            var spawnCount = CalculateSpawnCountForTick(aliveCount, targetAliveCount);
-
-            for (var i = 0; i < spawnCount; i++)
+            var count = CalculateSpawnCountForTick(GetAliveEnemyCount(), GetTargetAliveCount());
+            for (var i = 0; i < count; i++)
             {
-                if (IsAtHardAliveCap())
-                {
-                    break;
-                }
-
-                var visualKind = PickEnemyVisualKind();
-                var variantDefinition = SharedEnemyVariantCatalog.PickDynamicVariant(_mapId, visualKind, _elapsedSeconds);
-                if (variantDefinition != null)
-                {
-                    SpawnVariantEnemy(variantDefinition);
-                }
-                else
-                {
-                    SpawnEnemy(visualKind);
-                }
+                if (IsAtHardAliveCap()) break;
+                var visual = PickEnemyVisualKind();
+                var def = SharedEnemyVariantCatalog.PickDynamicVariant(_mapId, visual, _elapsedSeconds);
+                if (def != null) SpawnVariantEnemy(def); else SpawnEnemy(visual);
             }
         }
 
         private float CalculateNextSpawnInterval()
         {
-            var baseInterval = SpawnMath.CalculateSpawnInterval(
-                _elapsedSeconds,
-                _config.initialSpawnInterval,
-                _config.minimumSpawnInterval,
-                _config.spawnRampSeconds);
-
-            if (_config == null || !_config.enableDynamicDensity)
-            {
-                return baseInterval;
-            }
-
-            var targetAliveCount = Mathf.Max(1, GetTargetAliveCount());
-            var aliveCount = GetAliveEnemyCount();
-            var densityRatio = aliveCount / (float)targetAliveCount;
-
-            float densityScale;
-            if (densityRatio < 1f)
-            {
-                densityScale = Mathf.Lerp(
-                    Mathf.Clamp(_config.lowDensityIntervalScaleMin, 0.2f, 1f),
-                    1f,
-                    densityRatio);
-            }
-            else
-            {
-                var t = Mathf.Clamp01((densityRatio - 1f) / 0.6f);
-                densityScale = Mathf.Lerp(
-                    1f,
-                    Mathf.Max(1f, _config.highDensityIntervalScaleMax),
-                    t);
-            }
-
-            return Mathf.Max(0.03f, baseInterval * densityScale);
+            var baseInv = SpawnMath.CalculateSpawnInterval(_elapsedSeconds, _config.initialSpawnInterval, _config.minimumSpawnInterval, _config.spawnRampSeconds);
+            if (_config == null || !_config.enableDynamicDensity) return baseInv;
+            var ratio = GetAliveEnemyCount() / (float)Mathf.Max(1, GetTargetAliveCount());
+            var scale = ratio < 1f ? Mathf.Lerp(Mathf.Clamp(_config.lowDensityIntervalScaleMin, 0.2f, 1f), 1f, ratio) 
+                                   : Mathf.Lerp(1f, Mathf.Max(1f, _config.highDensityIntervalScaleMax), Mathf.Clamp01((ratio - 1f) / 0.6f));
+            return Mathf.Max(0.03f, baseInv * scale);
         }
 
-        private int CalculateSpawnCountForTick(int aliveCount, int targetAliveCount)
+        private int CalculateSpawnCountForTick(int alive, int target)
         {
-            if (_config == null)
-            {
-                return 1;
-            }
-
-            if (!_config.enableDynamicDensity)
-            {
-                return IsAtHardAliveCap() ? 0 : 1;
-            }
-
-            if (IsAtHardAliveCap())
-            {
-                return 0;
-            }
-
-            var deficit = Mathf.Max(0, targetAliveCount - aliveCount);
-            if (deficit <= 0)
-            {
-                return 1;
-            }
-
-            var chunk = Mathf.Max(1, Mathf.RoundToInt(targetAliveCount * 0.25f));
-            var extraSpawns = Mathf.Min(
-                Mathf.Max(0, _config.lowDensityExtraSpawnMax),
-                Mathf.CeilToInt(deficit / (float)chunk));
-
-            return 1 + extraSpawns;
+            if (_config == null) return 1;
+            if (!_config.enableDynamicDensity) return IsAtHardAliveCap() ? 0 : 1;
+            if (IsAtHardAliveCap()) return 0;
+            var deficit = target - alive; if (deficit <= 0) return 1;
+            var extra = Mathf.Min(Mathf.Max(0, _config.lowDensityExtraSpawnMax), Mathf.CeilToInt(deficit / (float)Mathf.Max(1, Mathf.RoundToInt(target * 0.25f))));
+            return 1 + extra;
         }
 
-        private int GetAliveEnemyCount()
-        {
-            return _registry != null && _registry.Enemies != null ? _registry.Enemies.Count : 0;
-        }
-
+        private int GetAliveEnemyCount() => _registry?.Enemies?.Count ?? 0;
         private int GetTargetAliveCount()
         {
-            if (_config == null)
-            {
-                return 12;
-            }
-
-            var start = Mathf.Max(1, _config.targetAliveStart);
-            var end = Mathf.Max(start, _config.targetAliveEnd);
-            var rampSeconds = Mathf.Max(1f, _config.targetAliveRampSeconds);
-            var t = Mathf.Clamp01(_elapsedSeconds / rampSeconds);
-            var exponent = Mathf.Max(0.1f, _config.targetAliveCurveExponent);
-            var curvedT = Mathf.Pow(t, exponent);
-            return Mathf.RoundToInt(Mathf.Lerp(start, end, curvedT));
+            if (_config == null) return 12;
+            var t = Mathf.Clamp01(_elapsedSeconds / Mathf.Max(1f, _config.targetAliveRampSeconds));
+            return Mathf.RoundToInt(Mathf.Lerp(_config.targetAliveStart, _config.targetAliveEnd, Mathf.Pow(t, Mathf.Max(0.1f, _config.targetAliveCurveExponent))));
         }
 
-        private bool IsAtHardAliveCap()
-        {
-            if (_config == null)
-            {
-                return false;
-            }
+        private bool IsAtHardAliveCap() => GetAliveEnemyCount() >= Mathf.Max(1, _config?.hardAliveCap ?? 100);
+        private WaveRewardChest GetLatestRewardChest() { WaveRewardChest l = null; int s = int.MinValue; foreach (var c in _activeRewardChests) { if (c != null && c.SpawnSequence > s) { s = c.SpawnSequence; l = c; } } return l; }
 
-            var hardCap = Mathf.Max(1, _config.hardAliveCap);
-            return GetAliveEnemyCount() >= hardCap;
-        }
+        private void OnEnable() => EnemyController.Defeated += HandleTrackedEnemyDefeated;
+        private void OnDisable() => EnemyController.Defeated -= HandleTrackedEnemyDefeated;
     }
-
 }
