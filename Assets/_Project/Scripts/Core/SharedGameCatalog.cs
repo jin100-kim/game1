@@ -86,12 +86,48 @@ namespace EJR.Game.Core
                 new MetaBonusValues { moveSpeedPercent = 10f },
                 CharacterPassiveId.SwordsmanLevelMoveSpeed,
                 "현재 레벨만큼 이동속도 +1%"),
+            new(
+                2,
+                "번개술사",
+                new Color(0.4f, 0.7f, 1f, 1f),
+                200,
+                false,
+                CharacterUnlockSource.Shop,
+                WeaponUpgradeId.LightningBolt,
+                new MetaBonusValues { attackSpeedPercent = 10f },
+                CharacterPassiveId.ThunderMageChainMastery,
+                "연쇄 번개 효율 +10% (임시)"),
+            new(
+                3,
+                "빙결술사",
+                new Color(0.7f, 0.9f, 1f, 1f),
+                300,
+                false,
+                CharacterUnlockSource.Shop,
+                WeaponUpgradeId.IceSpike,
+                new MetaBonusValues { attackPowerPercent = 5f, moveSpeedPercent = 5f },
+                CharacterPassiveId.VampireMaxHealthDamage,
+                "적 처치 시 체력 회복 (임시)"),
+            new(
+                4,
+                "바람술사",
+                new Color(0.6f, 1f, 0.8f, 1f),
+                400,
+                false,
+                CharacterUnlockSource.Shop,
+                WeaponUpgradeId.WindBlade,
+                new MetaBonusValues { moveSpeedPercent = 15f },
+                CharacterPassiveId.ExorcistLevelRange,
+                "현재 레벨만큼 범위 +1%"),
         };
 
         private static readonly SharedWeaponDefinition[] StarterWeapons =
         {
             new(WeaponUpgradeId.Fireball, "폭발 화염탄(Fireball)"),
             new(WeaponUpgradeId.Slash, "부채꼴 연속베기(Slash)"),
+            new(WeaponUpgradeId.LightningBolt, "전격 볼트(Lightning Bolt)"),
+            new(WeaponUpgradeId.IceSpike, "얼음 송곳(Ice Spike)"),
+            new(WeaponUpgradeId.WindBlade, "칼날 바람(Wind Blade)"),
         };
 
         public static int CharacterCount => Characters.Length;

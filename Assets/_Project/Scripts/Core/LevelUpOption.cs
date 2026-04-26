@@ -13,6 +13,9 @@ namespace EJR.Game.Core
         OrbitWeapon = 8,
         Turret = 9,
         Aura = 10,
+        LightningBolt = 11,
+        IceSpike = 12,
+        WindBlade = 13,
     }
 
     public enum StatUpgradeId

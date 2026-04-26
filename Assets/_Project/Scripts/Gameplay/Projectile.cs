@@ -78,13 +78,6 @@ namespace EJR.Game.Gameplay
             if (_direction.sqrMagnitude > 0.0001f)
             {
                 var angle = Mathf.Atan2(_direction.y, _direction.x) * Mathf.Rad2Deg;
-                
-                // 파이어볼의 경우 애매한 각도로 꺾이지 않고 4방향(90도 단위)으로만 스냅되도록 처리
-                if (_sourceWeaponId == WeaponUpgradeId.Fireball)
-                {
-                    angle = Mathf.Round(angle / 90f) * 90f;
-                }
-
                 transform.rotation = Quaternion.Euler(0f, 0f, angle);
             }
         }
@@ -140,6 +133,45 @@ namespace EJR.Game.Gameplay
                         enemy.ReceiveWeaponDamage(appliedDamage, _sourceWeaponId);
                         _directHitCallback?.Invoke(appliedDamage, enemy);
                         TriggerFireballExplosion(transform.position, enemy);
+                    }
+                    else if (_sourceWeaponId == WeaponUpgradeId.LightningBolt)
+                    {
+                        var appliedDamage = ApplyContextualDamageModifiers(_currentDamage, enemy);
+                        enemy.ReceiveWeaponDamage(appliedDamage, _sourceWeaponId);
+                        _directHitCallback?.Invoke(appliedDamage, enemy);
+                        WeaponFxRenderer.SpawnPrefabFx(
+                            "VFX/LightningBolt/VFX_2D_Projectile_Lightning_Impact_01_Color_Static",
+                            transform.position,
+                            Quaternion.identity,
+                            Vector3.one * 2.0f,
+                            0.5f,
+                            550);
+                    }
+                    else if (_sourceWeaponId == WeaponUpgradeId.IceSpike)
+                    {
+                        var appliedDamage = ApplyContextualDamageModifiers(_currentDamage, enemy);
+                        enemy.ReceiveWeaponDamage(appliedDamage, _sourceWeaponId);
+                        _directHitCallback?.Invoke(appliedDamage, enemy);
+                        WeaponFxRenderer.SpawnPrefabFx(
+                            "VFX/IceSpike/VFX_2D_Projectile_Ice_Impact_01_Color_Static",
+                            transform.position,
+                            Quaternion.identity,
+                            Vector3.one * 2.0f,
+                            0.5f,
+                            550);
+                    }
+                    else if (_sourceWeaponId == WeaponUpgradeId.WindBlade)
+                    {
+                        var appliedDamage = ApplyContextualDamageModifiers(_currentDamage, enemy);
+                        enemy.ReceiveWeaponDamage(appliedDamage, _sourceWeaponId);
+                        _directHitCallback?.Invoke(appliedDamage, enemy);
+                        WeaponFxRenderer.SpawnPrefabFx(
+                            "VFX/WindBlade/VFX_2D_Projectile_Wind_Impact_01_Color_Static",
+                            transform.position,
+                            Quaternion.identity,
+                            Vector3.one * 2.0f,
+                            0.5f,
+                            550);
                     }
                     else
                     {

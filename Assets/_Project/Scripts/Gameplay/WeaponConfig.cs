@@ -10,6 +10,9 @@ namespace EJR.Game.Gameplay
         {
             Fireball = 0,
             Slash = 1,
+            LightningBolt = 2,
+            IceSpike = 3,
+            WindBlade = 4,
         }
 
         [Header("General")]
@@ -57,6 +60,27 @@ namespace EJR.Game.Gameplay
         [Min(0.1f)] public float slashConeAngle = 90f;
         [Min(1)] public int slashBaseCount = 1;
         [Min(0.01f)] public float slashComboInterval = 0.15f;
+
+        [Header("Lightning Bolt")]
+        public float lightningBoltBaseDamage = 10f;
+        public float lightningBoltAttackInterval = 0.8f;
+        public float lightningBoltProjectileSpeed = 12f;
+        public float lightningBoltProjectileLifetime = 1.5f;
+        public float lightningBoltProjectileHitRadius = 0.25f;
+
+        [Header("Ice Spike")]
+        public float iceSpikeBaseDamage = 15f;
+        public float iceSpikeAttackInterval = 1.2f;
+        public float iceSpikeProjectileSpeed = 8f;
+        public float iceSpikeProjectileLifetime = 2.0f;
+        public float iceSpikeProjectileHitRadius = 0.3f;
+
+        [Header("Wind Blade")]
+        public float windBladeBaseDamage = 8f;
+        public float windBladeAttackInterval = 0.4f;
+        public float windBladeProjectileSpeed = 15f;
+        public float windBladeProjectileLifetime = 1.0f;
+        public float windBladeProjectileHitRadius = 0.22f;
 
         [Header("Chain Lightning (To be removed)")]
         public List<GameObject> chainLightningBeamPrefabs;
