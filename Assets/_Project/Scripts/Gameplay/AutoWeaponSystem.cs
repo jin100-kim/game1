@@ -399,7 +399,7 @@ namespace EJR.Game.Gameplay
 
             var projectileObject = projectile.gameObject;
 
-            // ?곕떽?????쑴竊???袁ⓥ봺??FireballVfx ??????덈뼄筌??????몃빍??
+            // 풀로 돌아올 때 동적으로 생성된 VFX 자식 오브젝트들을 정리합니다.
             for (var i = projectileObject.transform.childCount - 1; i >= 0; i--)
             {
                 UnityEngine.Object.Destroy(projectileObject.transform.GetChild(i).gameObject);
@@ -578,12 +578,46 @@ namespace EJR.Game.Gameplay
 
             var projectile = GetPooledProjectile();
             var projectileTransform = projectile.transform;
-            projectileTransform.SetPositionAndRotation(spawnPosition, GetProjectileVisualRotation(weaponId, normalizedDirection));
+            var rotation = GetProjectileVisualRotation(weaponId, normalizedDirection);
+            projectileTransform.SetPositionAndRotation(spawnPosition, rotation);
             projectileTransform.localScale = Vector3.one * spawnRequest.VisualScale;
 
+            // [비주얼 처리] 설정된 프리팹이 있으면 소환하고, 없으면 기존 스프라이트 방식을 사용합니다.
+            var prefab = GetProjectilePrefab(weaponId, normalizedDirection);
             var renderer = projectile.GetComponent<SpriteRenderer>();
-            if (renderer != null)
+
+            if (prefab != null)
             {
+                // 프리팹이 있으면 기존 스프라이트 렌더러는 끄고 프리팹을 자식으로 생성합니다.
+                if (renderer != null) renderer.enabled = false;
+                var vfx = Instantiate(prefab, projectileTransform);
+                vfx.transform.localPosition = Vector3.zero;
+                vfx.transform.localRotation = Quaternion.identity;
+                
+                // [수정] 위/아래 전용 프리팹인지 확인
+                var isDirectionalPrefab = (weaponId == WeaponUpgradeId.Fireball) && 
+                                          (prefab == _config.fireballUpProjectilePrefab || prefab == _config.fireballDownProjectilePrefab);
+                
+                if (isDirectionalPrefab)
+                {
+                    projectileTransform.rotation = Quaternion.identity;
+                }
+                else if (normalizedDirection.x < 0f)
+                {
+                    // [추가] 옆으로 쏘는 프리팹인데 왼쪽 방향이라면 좌우 반전(Flip) 처리
+                    // 회전은 0도로 초기화하고 Scale만 뒤집어서 빛 방향을 유지합니다.
+                    projectileTransform.rotation = Quaternion.identity;
+                    vfx.transform.localScale = new Vector3(-1f, 1f, 1f);
+                }
+                else
+                {
+                    vfx.transform.localScale = Vector3.one;
+                }
+            }
+            else if (renderer != null)
+            {
+                // 프리팹이 등록되지 않은 경우 기존 스프라이트 로직 유지
+                renderer.enabled = true;
                 renderer.sprite = GetProjectileVisualSprite(weaponId);
                 renderer.color = ShouldUseProjectileSourceColor(weaponId) ? Color.white : color;
                 renderer.flipX = GetProjectileVisualFlipX(weaponId, normalizedDirection);
@@ -601,7 +635,11 @@ namespace EJR.Game.Gameplay
                 Mathf.Clamp(minimumDamageMultiplier, 0.05f, 1f),
                 weaponId,
                 ReturnProjectileToPool,
-                TryApplyDirectHitLifesteal,
+                (dmg, enemy) => {
+                    TryApplyDirectHitLifesteal(dmg, enemy);
+                    // [추가] 명중 시 임팩트 VFX 소환
+                    SpawnImpactVfx(weaponId, enemy.transform.position);
+                },
                 _useProjectileBoundsCulling,
                 _projectileCullBounds,
                 _owner,
@@ -610,6 +648,53 @@ namespace EJR.Game.Gameplay
             ProjectileVisualRequested?.Invoke(spawnRequest);
             Fired?.Invoke(normalizedDirection);
             return projectile;
+        }
+
+        private void SpawnImpactVfx(WeaponUpgradeId weaponId, Vector3 position)
+        {
+            var prefab = GetImpactPrefab(weaponId);
+            if (prefab == null) return;
+            
+            var vfx = Instantiate(prefab, position, Quaternion.identity);
+            // 이펙트 프리팹들은 보통 스스로 파괴되는 로직이 있거나 파티클 시스템입니다.
+            // 안전을 위해 2초 뒤 파괴 설정을 해둡니다.
+            Destroy(vfx, 2f);
+        }
+
+        private GameObject GetProjectilePrefab(WeaponUpgradeId weaponId, Vector2 direction)
+        {
+            if (_config == null) return null;
+            return weaponId switch
+            {
+                WeaponUpgradeId.Rifle => _config.rifleProjectilePrefab ?? _config.projectilePrefab,
+                WeaponUpgradeId.Fireball => ResolveFireballPrefab(direction),
+                WeaponUpgradeId.Shotgun => _config.shotgunProjectilePrefab ?? _config.projectilePrefab,
+                WeaponUpgradeId.Turret => _config.turretProjectilePrefab ?? _config.projectilePrefab,
+                _ => _config.projectilePrefab,
+            };
+        }
+
+        private GameObject ResolveFireballPrefab(Vector2 direction)
+        {
+            // Y축 방향이 강할 때 전용 프리팹을 우선 반환합니다.
+            if (direction.y > 0.7f && _config.fireballUpProjectilePrefab != null) return _config.fireballUpProjectilePrefab;
+            if (direction.y < -0.7f && _config.fireballDownProjectilePrefab != null) return _config.fireballDownProjectilePrefab;
+            
+            return _config.fireballProjectilePrefab ?? _config.projectilePrefab;
+        }
+
+        private GameObject GetImpactPrefab(WeaponUpgradeId weaponId)
+        {
+            if (_config == null) return null;
+            return weaponId switch
+            {
+                WeaponUpgradeId.Rifle => _config.rifleImpactVfxPrefab ?? _config.impactVfxPrefab,
+                WeaponUpgradeId.Fireball => _config.fireballImpactVfxPrefab ?? _config.impactVfxPrefab,
+                WeaponUpgradeId.Shotgun => _config.shotgunImpactVfxPrefab ?? _config.impactVfxPrefab,
+                WeaponUpgradeId.ChainLightning => _config.chainLightningImpactVfxPrefab ?? _config.impactVfxPrefab,
+                WeaponUpgradeId.Turret => _config.turretImpactVfxPrefab ?? _config.impactVfxPrefab,
+                _ => _config.impactVfxPrefab,
+            };
         }
 
         public void DealDirectWeaponDamage(EnemyController enemy, float damage, WeaponUpgradeId weaponId)

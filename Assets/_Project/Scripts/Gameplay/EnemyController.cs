@@ -1277,6 +1277,18 @@ namespace EJR.Game.Gameplay
             }
 
             _isDead = true;
+
+            // [추가] 즉시 정지 및 물리 충돌 차단
+            if (_rb != null)
+            {
+                _rb.linearVelocity = Vector2.zero;
+                _rb.simulated = false; 
+            }
+            if (_collider != null)
+            {
+                _collider.enabled = false;
+            }
+
             HideFireStackFx();
             EndBossPattern();
             TriggerFireExplosionIfReady();

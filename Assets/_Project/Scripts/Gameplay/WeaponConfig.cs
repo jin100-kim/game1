@@ -39,6 +39,8 @@ namespace EJR.Game.Gameplay
         [Min(0.25f)] public float swingMaceMeleeRange = 1.85f;
 
         [Header("Rifle")]
+        public GameObject rifleProjectilePrefab;
+        public GameObject rifleImpactVfxPrefab;
         [Min(0.05f)] public float rifleAttackInterval = 0.7f;
         [Min(0.1f)] public float rifleBaseDamage = 12f;
         [Min(1)] public int rifleBaseShotCount = 2;
@@ -46,12 +48,18 @@ namespace EJR.Game.Gameplay
         [Min(0f)] public float rifleParallelShotSpacing = 0.32f;
 
         [Header("Projectile Base")]
+        public GameObject projectilePrefab;
+        public GameObject impactVfxPrefab;
         [Min(0.5f)] public float projectileSpeed = 10f;
         [Min(0.1f)] public float projectileLifetime = 2f;
         [Min(0.05f)] public float projectileHitRadius = 0.25f;
         [Min(0.05f)] public float projectileVisualScale = 0.25f;
 
         [Header("Fireball")]
+        public GameObject fireballProjectilePrefab;
+        public GameObject fireballUpProjectilePrefab;    // [추가] 위쪽 전용 프리팹
+        public GameObject fireballDownProjectilePrefab;  // [추가] 아래쪽 전용 프리팹
+        public GameObject fireballImpactVfxPrefab;
         [Min(1)] public int fireballBurstCount = 4;
         [Min(0.01f)] public float fireballBurstShotInterval = 0.06f;
         [Range(0.05f, 2f)] public float fireballBurstDamageMultiplier = 0.5f;
@@ -88,6 +96,8 @@ namespace EJR.Game.Gameplay
         [Min(0.05f)] public float batVisualScale = 0.32f;
 
         [Header("Shotgun")]
+        public GameObject shotgunProjectilePrefab;
+        public GameObject shotgunImpactVfxPrefab;
         [Min(0.1f)] public float shotgunBaseDamage = 12f;
         [Min(2)] public int shotgunPelletCount = 4;
         [Range(1f, 120f)] public float shotgunSpreadAngle = 36f;
@@ -114,6 +124,7 @@ namespace EJR.Game.Gameplay
         public Vector2 bfSwordVisualLocalOffset = new(0f, -0.16f);
 
         [Header("Chain Lightning")]
+        public GameObject chainLightningImpactVfxPrefab;
         [Min(0.1f)] public float chainLightningBaseDamage = 12f;
         [Min(1)] public int chainLightningBaseJumps = 3;
         [Min(0.1f)] public float chainLightningJumpRange = 3f;
@@ -146,6 +157,8 @@ namespace EJR.Game.Gameplay
         [Range(0.05f, 5f)] public float droneDamageMultiplier = 0.55f;
 
         [Header("Turret")]
+        public GameObject turretProjectilePrefab;
+        public GameObject turretImpactVfxPrefab;
         [Min(0.1f)] public float turretBaseDamage = 12f;
         [Min(0.1f)] public float turretDeployInterval = 3.8f;
         [Min(0.1f)] public float turretLifetime = 8f;
