@@ -12,6 +12,7 @@ namespace EJR.Game.Gameplay
             { WeaponUpgradeId.LightningBolt, new LightningBoltWeaponStrategy() },
             { WeaponUpgradeId.IceSpike, new IceSpikeWeaponStrategy() },
             { WeaponUpgradeId.WindBlade, new WindBladeWeaponStrategy() },
+            { WeaponUpgradeId.ChaosBurst, new ChaosBurstWeaponStrategy() },
         };
 
         public static IWeaponStrategy GetStrategy(WeaponUpgradeId id)

@@ -553,6 +553,26 @@ namespace EJR.Game.Gameplay
             if (prefab == null) return;
             
             var vfx = Instantiate(prefab, position, Quaternion.identity);
+
+            if (weaponId == WeaponUpgradeId.ChaosBurst)
+            {
+                vfx.name = "ChaosBurstImpactVfx";
+                vfx.transform.localScale = Vector3.one * 1.5f; // 임팩트도 1.5배로 키워서 폭발감을 줌
+
+                var particleRenderers = vfx.GetComponentsInChildren<ParticleSystemRenderer>();
+                foreach (var psr in particleRenderers)
+                {
+                    psr.alignment = ParticleSystemRenderSpace.Local;
+                }
+
+                var particleSystems = vfx.GetComponentsInChildren<ParticleSystem>();
+                foreach (var pSys in particleSystems)
+                {
+                    var main = pSys.main;
+                    main.startColor = new ParticleSystem.MinMaxGradient(Color.magenta, new Color(0.3f, 0f, 0.5f));
+                }
+            }
+
             // 이펙트 프리팹들은 보통 스스로 파괴되는 로직이 있거나 파티클 시스템입니다.
             // 안전을 위해 2초 뒤 파괴 설정을 해둡니다.
             Destroy(vfx, 2f);
@@ -583,6 +603,7 @@ namespace EJR.Game.Gameplay
             return weaponId switch
             {
                 WeaponUpgradeId.Fireball => _config.fireballImpactVfxPrefab ?? _config.impactVfxPrefab,
+                WeaponUpgradeId.ChaosBurst => Resources.Load<GameObject>("VFX/ChaosBurst/VFX_2D_Projectile_Burst_Impact_01_Color_Static"),
                 _ => _config.impactVfxPrefab,
             };
         }

@@ -35,7 +35,7 @@ namespace EJR.Game.Gameplay
         private PlayerBuildRuntime _build;
         private readonly List<EnemyController> _nearbyEnemies = new(16);
         private readonly List<EnemyController> _hitEnemies = new(8);
-        private const float BoundsCullMargin = 0.15f;
+        private const float BoundsCullMargin = 8.0f; // 맵 밖으로 나가도 한참 더 허용 (사거리 끝까지 비행 보장)
 
         public void Initialize(
             EnemyRegistry registry,
@@ -97,9 +97,17 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            _lifetime -= Time.deltaTime;
+            float dt = Time.deltaTime;
+            _lifetime -= dt;
             if (_lifetime <= 0f)
             {
+                // 소멸 시점의 오차 보정: 남은 수명만큼 위치를 더 이동시켜 정확한 사거리에서 사라지게 함
+                float overshoot = -_lifetime;
+                float correction = Mathf.Max(0f, dt - overshoot);
+                if (correction > 0)
+                {
+                    transform.position += _direction * _speed * correction;
+                }
                 Release();
                 return;
             }

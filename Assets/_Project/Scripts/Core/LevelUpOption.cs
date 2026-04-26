@@ -16,6 +16,7 @@ namespace EJR.Game.Core
         LightningBolt = 11,
         IceSpike = 12,
         WindBlade = 13,
+        ChaosBurst = 14,
     }
 
     public enum StatUpgradeId

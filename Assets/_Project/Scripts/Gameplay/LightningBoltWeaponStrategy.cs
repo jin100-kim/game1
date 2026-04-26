@@ -17,26 +17,72 @@ namespace EJR.Game.Gameplay
 
         public void OnFire(WeaponRuntime weapon, AutoWeaponSystem system, Vector2 direction)
         {
-            var config = system.Config;
+            var enemies = system.Registry.Enemies;
+            Vector2 ownerPos = system.Owner.position;
+            float rangeSq = GetRange(weapon, system) * GetRange(weapon, system);
+            
+            // 1. 유효한 적(사거리 내, 타겟팅 가능)의 수 계산 (가비지 컬렉션 방지)
+            int validCount = 0;
+            for (int i = 0; i < enemies.Count; i++)
+            {
+                var enemy = enemies[i];
+                if (enemy == null || !system.IsEnemyUsable(enemy)) continue;
+                
+                if (((Vector2)enemy.transform.position - ownerPos).sqrMagnitude <= rangeSq)
+                {
+                    validCount++;
+                }
+            }
+
+            if (validCount == 0) return;
+
+            // 2. 랜덤 인덱스 추첨 후 해당 타겟 찾기
+            int randomIndex = UnityEngine.Random.Range(0, validCount);
+            EnemyController target = null;
+            int currentIndex = 0;
+
+            for (int i = 0; i < enemies.Count; i++)
+            {
+                var enemy = enemies[i];
+                if (enemy == null || !system.IsEnemyUsable(enemy)) continue;
+                
+                if (((Vector2)enemy.transform.position - ownerPos).sqrMagnitude <= rangeSq)
+                {
+                    if (currentIndex == randomIndex)
+                    {
+                        target = enemy;
+                        break;
+                    }
+                    currentIndex++;
+                }
+            }
+
+            if (target == null) return;
+
             var damage = GetBaseDamage(weapon, system);
-            var speed = config.lightningBoltProjectileSpeed;
-            var lifetime = config.lightningBoltProjectileLifetime;
-            var hitRadius = config.lightningBoltProjectileHitRadius;
-            var baseDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : system.LastAimDirection;
+            
+            // 즉시 대미지 입힘
+            target.ReceiveWeaponDamage(damage, WeaponId);
 
-            var projectile = system.SpawnProjectile(
-                WeaponId,
-                baseDirection,
-                damage,
-                speed,
-                lifetime,
-                hitRadius,
-                1,
-                0f,
-                1f,
-                GetSourceColor(weapon, system));
+            // 1. 적 위치에 번개 줄기 이펙트 소환
+            var lightningPrefab = Resources.Load<GameObject>("VFX/LightningBolt/VFX_2D_Lightning_01_Mask_Static");
+            if (lightningPrefab != null)
+            {
+                var lightning = Object.Instantiate(lightningPrefab, target.transform.position, Quaternion.identity);
+                lightning.name = "LightningBoltStrikeVfx";
+                lightning.transform.localScale = Vector3.one;
+                Object.Destroy(lightning, 0.5f);
+            }
 
-            ApplyVisual(projectile);
+            // 2. 적 위치에 바닥 타격 폭발 이펙트 소환
+            var impactPrefab = Resources.Load<GameObject>("VFX/LightningBolt/VFX_2D_Projectile_Lightning_Impact_01_Color_Static");
+            if (impactPrefab != null)
+            {
+                var impact = Object.Instantiate(impactPrefab, target.transform.position, Quaternion.identity);
+                impact.name = "LightningBoltImpactVfx";
+                impact.transform.localScale = Vector3.one;
+                Object.Destroy(impact, 0.5f);
+            }
 
             weapon.Cooldown = GetAttackInterval(weapon, system);
         }

@@ -119,6 +119,17 @@ namespace EJR.Game.Core
                 new MetaBonusValues { moveSpeedPercent = 15f },
                 CharacterPassiveId.ExorcistLevelRange,
                 "현재 레벨만큼 범위 +1%"),
+            new(
+                5,
+                "공허술사",
+                new Color(0.6f, 0.2f, 0.9f, 1f),
+                600,
+                false,
+                CharacterUnlockSource.Shop,
+                WeaponUpgradeId.ChaosBurst,
+                new MetaBonusValues { attackPowerPercent = 20f },
+                CharacterPassiveId.VampireMaxHealthDamage,
+                "피해량 대폭 증가 (임시)"),
         };
 
         private static readonly SharedWeaponDefinition[] StarterWeapons =
@@ -128,6 +139,7 @@ namespace EJR.Game.Core
             new(WeaponUpgradeId.LightningBolt, "전격 볼트(Lightning Bolt)"),
             new(WeaponUpgradeId.IceSpike, "얼음 송곳(Ice Spike)"),
             new(WeaponUpgradeId.WindBlade, "칼날 바람(Wind Blade)"),
+            new(WeaponUpgradeId.ChaosBurst, "혼돈의 폭발(Chaos Burst)"),
         };
 
         public static int CharacterCount => Characters.Length;
