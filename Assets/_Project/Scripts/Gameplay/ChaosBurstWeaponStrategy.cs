@@ -19,56 +19,39 @@ namespace EJR.Game.Gameplay
         public void OnFire(WeaponRuntime weapon, AutoWeaponSystem system, Vector2 direction)
         {
             var config = system.Config;
-            var damage = GetBaseDamage(weapon, system);
+            var damage = 15f; // 기본 피해량 15
             var speed = config.chaosBurstProjectileSpeed;
             var lifetime = config.chaosBurstProjectileLifetime;
             var hitRadius = config.chaosBurstProjectileHitRadius;
             var baseDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : system.LastAimDirection;
 
-            var projectile = system.SpawnProjectile(
-                WeaponId,
-                baseDirection,
-                damage,
-                speed,
-                lifetime,
-                hitRadius,
-                1,
-                0f,
-                1f,
-                GetSourceColor(weapon, system));
+            var extraCount = system.GetWeaponExtraCount(weapon);
+            int totalProjectiles = 3 + extraCount; // 기본 3개 + 마일스톤
 
-            // Find nearest target for homing
-            EnemyController target = FindNearestTarget(system);
-            if (target != null)
+            float angleStep = 360f / totalProjectiles;
+            float startAngle = Mathf.Atan2(baseDirection.y, baseDirection.x) * Mathf.Rad2Deg;
+
+            for (int i = 0; i < totalProjectiles; i++)
             {
-                projectile.SetHoming(target, 180f); // 180 degrees per second turn speed
-            }
+                float angle = startAngle + (i * angleStep);
+                Vector2 spawnDir = new Vector2(Mathf.Cos(angle * Mathf.Deg2Rad), Mathf.Sin(angle * Mathf.Deg2Rad));
 
-            ApplyVisual(projectile);
+                var projectile = system.SpawnProjectile(
+                    WeaponId,
+                    spawnDir,
+                    damage,
+                    speed,
+                    lifetime,
+                    hitRadius,
+                    1,
+                    0f,
+                    1f,
+                    GetSourceColor(weapon, system));
+
+                ApplyVisual(projectile);
+            }
 
             weapon.Cooldown = GetAttackInterval(weapon, system);
-        }
-
-        private EnemyController FindNearestTarget(AutoWeaponSystem system)
-        {
-            var enemies = system.Registry.Enemies;
-            Vector2 ownerPos = system.Owner.position;
-            EnemyController nearest = null;
-            float minDistanceSq = float.MaxValue;
-
-            for (int i = 0; i < enemies.Count; i++)
-            {
-                var enemy = enemies[i];
-                if (enemy == null || !system.IsEnemyUsable(enemy)) continue;
-
-                float distSq = ((Vector2)enemy.transform.position - ownerPos).sqrMagnitude;
-                if (distSq < minDistanceSq)
-                {
-                    minDistanceSq = distSq;
-                    nearest = enemy;
-                }
-            }
-            return nearest;
         }
 
         public void OnDrawGizmos(WeaponRuntime weapon, AutoWeaponSystem system, Color baseColor)

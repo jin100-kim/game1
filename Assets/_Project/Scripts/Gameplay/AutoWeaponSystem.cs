@@ -443,7 +443,10 @@ namespace EJR.Game.Gameplay
             float damageFalloffPerHit,
             float minimumDamageMultiplier,
             Color color,
-            Vector3? overrideSpawnPosition = null)
+            Vector3? overrideSpawnPosition = null,
+            Action<float, EnemyController> directHitCallback = null,
+            bool isFragment = false,
+            EnemyController initialIgnoreTarget = null)
         {
             var normalizedDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : _lastAimDirection;
             SetAimDirection(normalizedDirection);
@@ -536,11 +539,15 @@ namespace EJR.Game.Gameplay
                     TryApplyDirectHitLifesteal(dmg, enemy);
                     // [추가] 명중 시 임팩트 VFX 소환
                     SpawnImpactVfx(weaponId, enemy.transform.position);
+                    // [추가] 외부에서 정의한 추가 명중 로직 수행
+                    directHitCallback?.Invoke(dmg, enemy);
                 },
                 _useProjectileBoundsCulling,
                 _projectileCullBounds,
                 _owner,
-                _build);
+                _build,
+                isFragment,
+                initialIgnoreTarget);
 
             ProjectileVisualRequested?.Invoke(spawnRequest);
             Fired?.Invoke(normalizedDirection);

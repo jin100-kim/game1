@@ -39,7 +39,7 @@ namespace EJR.Game.Gameplay
                     speed,
                     lifetime,
                     hitRadius,
-                    3, // Pierces 2 enemies
+                    2 + extraCount, // 기본 1개 관통(2타격) + 마일스톤 보너스
                     0.3f, // 30% falloff
                     0.4f,
                     GetSourceColor(weapon, system));

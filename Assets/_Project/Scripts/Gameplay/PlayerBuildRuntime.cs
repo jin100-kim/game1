@@ -300,8 +300,9 @@ namespace EJR.Game.Gameplay
                 WeaponUpgradeId.Fireball => milestones,
                 WeaponUpgradeId.Slash => milestones,
                 WeaponUpgradeId.LightningBolt => milestones,
-                WeaponUpgradeId.IceSpike => milestones,
-                WeaponUpgradeId.WindBlade => milestones,
+                WeaponUpgradeId.IceSpike => milestones, // 0->0, 1->1, 2->2 (will use as factor for fragments)
+                WeaponUpgradeId.WindBlade => milestones + (milestones >= 2 ? 1 : 0), // 5lv: +1, 10lv: +3 (total pierce bonus)
+                WeaponUpgradeId.ChaosBurst => milestones, // 5lv: +1, 10lv: +2
                 _ => 0,
             };
         }

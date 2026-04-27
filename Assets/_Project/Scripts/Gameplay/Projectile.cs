@@ -41,6 +41,7 @@ namespace EJR.Game.Gameplay
         // Boomerang properties
         private bool _isBoomerang;
         private bool _isReturning;
+        private bool _isFragment;
         private float _elapsedTime;
         private float _totalLifetime;
 
@@ -60,7 +61,9 @@ namespace EJR.Game.Gameplay
             bool useBoundsCulling = false,
             Rect bounds = default,
             Transform damageSourceTransform = null,
-            PlayerBuildRuntime build = null)
+            PlayerBuildRuntime build = null,
+            bool isFragment = false,
+            EnemyController initialIgnoreTarget = null)
         {
             _registry = registry;
             _direction = direction.normalized;
@@ -79,16 +82,28 @@ namespace EJR.Game.Gameplay
             _bounds = bounds;
             _damageSourceTransform = damageSourceTransform;
             _build = build;
+            _isFragment = isFragment;
             _isActive = true;
             _elapsedTime = 0f;
             _totalLifetime = lifetime;
             _isReturning = false;
-            _isBoomerang = (sourceWeaponId == WeaponUpgradeId.WindBlade && _build != null && _build.HasWeaponMilestone10(WeaponUpgradeId.WindBlade));
-            bool canHoming = (sourceWeaponId == WeaponUpgradeId.ChaosBurst && _build != null && _build.HasWeaponMilestone10(WeaponUpgradeId.ChaosBurst));
-
+            _isBoomerang = (sourceWeaponId == WeaponUpgradeId.WindBlade);
+            
             _hitEnemies.Clear();
+            if (initialIgnoreTarget != null)
+            {
+                _hitEnemies.Add(initialIgnoreTarget);
+            }
+
             _homingTarget = null;
             _homingTurnSpeed = 0f;
+
+            bool canHoming = (sourceWeaponId == WeaponUpgradeId.ChaosBurst);
+            if (canHoming)
+            {
+                _homingTarget = _registry.FindNearest((Vector2)transform.position, 10f);
+                _homingTurnSpeed = 180f;
+            }
 
             UpdateRotation();
         }
@@ -225,7 +240,12 @@ namespace EJR.Game.Gameplay
                         var appliedDamage = ApplyContextualDamageModifiers(_currentDamage, enemy);
                         enemy.ReceiveWeaponDamage(appliedDamage, _sourceWeaponId);
                         enemy.ApplySlow(0.5f, 1.5f); // 슬로우 효과 추가
-                        _directHitCallback?.Invoke(appliedDamage, enemy);
+                        
+                        if (!_isFragment)
+                        {
+                            _directHitCallback?.Invoke(appliedDamage, enemy);
+                        }
+
                         WeaponFxRenderer.SpawnPrefabFx(
                             "VFX/IceSpike/VFX_2D_Projectile_Ice_Impact_01_Color_Static",
                             transform.position,
@@ -375,6 +395,7 @@ namespace EJR.Game.Gameplay
             }
 
             _isActive = false;
+            _isFragment = false; // 리셋
             _releaseToPool?.Invoke(this);
         }
 
