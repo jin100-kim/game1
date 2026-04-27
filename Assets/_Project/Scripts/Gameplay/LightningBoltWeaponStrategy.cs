@@ -20,68 +20,57 @@ namespace EJR.Game.Gameplay
             var enemies = system.Registry.Enemies;
             Vector2 ownerPos = system.Owner.position;
             float rangeSq = GetRange(weapon, system) * GetRange(weapon, system);
-            
-            // 1. 유효한 적(사거리 내, 타겟팅 가능)의 수 계산 (가비지 컬렉션 방지)
-            int validCount = 0;
-            for (int i = 0; i < enemies.Count; i++)
-            {
-                var enemy = enemies[i];
-                if (enemy == null || !system.IsEnemyUsable(enemy)) continue;
-                
-                if (((Vector2)enemy.transform.position - ownerPos).sqrMagnitude <= rangeSq)
-                {
-                    validCount++;
-                }
-            }
 
-            if (validCount == 0) return;
-
-            // 2. 랜덤 인덱스 추첨 후 해당 타겟 찾기
-            int randomIndex = UnityEngine.Random.Range(0, validCount);
-            EnemyController target = null;
-            int currentIndex = 0;
-
-            for (int i = 0; i < enemies.Count; i++)
-            {
-                var enemy = enemies[i];
-                if (enemy == null || !system.IsEnemyUsable(enemy)) continue;
-                
-                if (((Vector2)enemy.transform.position - ownerPos).sqrMagnitude <= rangeSq)
-                {
-                    if (currentIndex == randomIndex)
-                    {
-                        target = enemy;
-                        break;
-                    }
-                    currentIndex++;
-                }
-            }
-
-            if (target == null) return;
-
+            var extraCount = system.GetWeaponExtraCount(weapon);
+            int targetCount = 1 + extraCount;
             var damage = GetBaseDamage(weapon, system);
-            
-            // 즉시 대미지 입힘
-            target.ReceiveWeaponDamage(damage, WeaponId);
+            var reservedTargets = new System.Collections.Generic.HashSet<EnemyController>();
 
-            // 1. 적 위치에 번개 줄기 이펙트 소환
-            var lightningPrefab = Resources.Load<GameObject>("VFX/LightningBolt/VFX_2D_Lightning_01_Mask_Static");
-            if (lightningPrefab != null)
+            for (int t = 0; t < targetCount; t++)
             {
-                var lightning = Object.Instantiate(lightningPrefab, target.transform.position, Quaternion.identity);
-                lightning.name = "LightningBoltStrikeVfx";
-                lightning.transform.localScale = Vector3.one;
-                Object.Destroy(lightning, 0.5f);
-            }
+                // 1. 유효한 적(사거리 내, 타겟팅 가능, 이미 선택되지 않음) 찾기
+                EnemyController bestTarget = null;
+                float bestScore = float.MaxValue; // 가까운 적 우선
 
-            // 2. 적 위치에 바닥 타격 폭발 이펙트 소환
-            var impactPrefab = Resources.Load<GameObject>("VFX/LightningBolt/VFX_2D_Projectile_Lightning_Impact_01_Color_Static");
-            if (impactPrefab != null)
-            {
-                var impact = Object.Instantiate(impactPrefab, target.transform.position, Quaternion.identity);
-                impact.name = "LightningBoltImpactVfx";
-                impact.transform.localScale = Vector3.one * 2.0f;
-                Object.Destroy(impact, 0.5f);
+                for (int i = 0; i < enemies.Count; i++)
+                {
+                    var enemy = enemies[i];
+                    if (enemy == null || reservedTargets.Contains(enemy) || !system.IsEnemyUsable(enemy)) continue;
+
+                    float distSq = ((Vector2)enemy.transform.position - ownerPos).sqrMagnitude;
+                    if (distSq <= rangeSq)
+                    {
+                        if (distSq < bestScore)
+                        {
+                            bestScore = distSq;
+                            bestTarget = enemy;
+                        }
+                    }
+                }
+
+                if (bestTarget == null) break;
+                reservedTargets.Add(bestTarget);
+
+                // 2. 타격 및 이펙트
+                bestTarget.ReceiveWeaponDamage(damage, WeaponId);
+
+                // 번개 줄기 이펙트
+                var lightningPrefab = Resources.Load<GameObject>("VFX/LightningBolt/VFX_2D_Lightning_01_Mask_Static");
+                if (lightningPrefab != null)
+                {
+                    var lightning = Object.Instantiate(lightningPrefab, bestTarget.transform.position, Quaternion.identity);
+                    lightning.transform.localScale = Vector3.one;
+                    Object.Destroy(lightning, 0.5f);
+                }
+
+                // 바닥 타격 폭발 이펙트
+                var impactPrefab = Resources.Load<GameObject>("VFX/LightningBolt/VFX_2D_Projectile_Lightning_Impact_01_Color_Static");
+                if (impactPrefab != null)
+                {
+                    var impact = Object.Instantiate(impactPrefab, bestTarget.transform.position, Quaternion.identity);
+                    impact.transform.localScale = Vector3.one * 2.0f;
+                    Object.Destroy(impact, 0.5f);
+                }
             }
 
             weapon.Cooldown = GetAttackInterval(weapon, system);

@@ -297,13 +297,11 @@ namespace EJR.Game.Gameplay
             var milestones = GetWeaponMilestoneCount(id);
             return id switch
             {
-                WeaponUpgradeId.Rifle => milestones,
                 WeaponUpgradeId.Fireball => milestones,
-                WeaponUpgradeId.Bat => milestones,
-                WeaponUpgradeId.Shotgun => milestones * 2,
                 WeaponUpgradeId.Slash => milestones,
-                WeaponUpgradeId.ChainLightning => (milestones * 2) + _chainLightningBonusJumps,
-                WeaponUpgradeId.Turret => milestones,
+                WeaponUpgradeId.LightningBolt => milestones,
+                WeaponUpgradeId.IceSpike => milestones,
+                WeaponUpgradeId.WindBlade => milestones,
                 _ => 0,
             };
         }

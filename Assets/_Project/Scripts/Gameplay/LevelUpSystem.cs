@@ -272,6 +272,10 @@ namespace EJR.Game.Gameplay
             {
                 WeaponUpgradeId.Fireball => WeaponMilestoneKind.ExtraProjectile,
                 WeaponUpgradeId.Slash => WeaponMilestoneKind.ExtraSlashes,
+                WeaponUpgradeId.LightningBolt => WeaponMilestoneKind.ExtraTargets,
+                WeaponUpgradeId.IceSpike => WeaponMilestoneKind.ExtraPierce,
+                WeaponUpgradeId.WindBlade => nextLevel >= 10 ? WeaponMilestoneKind.ExtraProjectile : WeaponMilestoneKind.ExtraProjectile,
+                WeaponUpgradeId.ChaosBurst => WeaponMilestoneKind.ExtraProjectile,
                 _ => WeaponMilestoneKind.ExtraProjectile,
             };
         }
@@ -285,8 +289,12 @@ namespace EJR.Game.Gameplay
         {
             return weaponId switch
             {
-                WeaponUpgradeId.Fireball => "화부 +1",
-                WeaponUpgradeId.Slash => "추가 베기 +1",
+                WeaponUpgradeId.Fireball => "화염탄 +1",
+                WeaponUpgradeId.Slash => "베기 횟수 +1",
+                WeaponUpgradeId.LightningBolt => "낙뢰 개수 +1",
+                WeaponUpgradeId.IceSpike => "관통 횟수 +1",
+                WeaponUpgradeId.WindBlade => nextLevel >= 10 ? "부메랑 활성화" : "칼날 바람 +1",
+                WeaponUpgradeId.ChaosBurst => nextLevel >= 10 ? "유도 기능 활성화" : "폭발 범위 증가",
                 _ => "특수 강화",
             };
         }

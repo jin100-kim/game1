@@ -136,7 +136,7 @@ namespace EJR.Game.Core
         {
             new(WeaponUpgradeId.Fireball, "폭발 화염탄(Fireball)"),
             new(WeaponUpgradeId.Slash, "부채꼴 연속베기(Slash)"),
-            new(WeaponUpgradeId.LightningBolt, "전격 볼트(Lightning Bolt)"),
+            new(WeaponUpgradeId.LightningBolt, "낙뢰(Lightning Bolt)"),
             new(WeaponUpgradeId.IceSpike, "얼음 송곳(Ice Spike)"),
             new(WeaponUpgradeId.WindBlade, "칼날 바람(Wind Blade)"),
             new(WeaponUpgradeId.ChaosBurst, "혼돈의 폭발(Chaos Burst)"),

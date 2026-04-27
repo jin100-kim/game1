@@ -83,7 +83,8 @@ namespace EJR.Game.Gameplay
             _elapsedTime = 0f;
             _totalLifetime = lifetime;
             _isReturning = false;
-            _isBoomerang = (sourceWeaponId == WeaponUpgradeId.WindBlade);
+            _isBoomerang = (sourceWeaponId == WeaponUpgradeId.WindBlade && _build != null && _build.HasWeaponMilestone10(WeaponUpgradeId.WindBlade));
+            bool canHoming = (sourceWeaponId == WeaponUpgradeId.ChaosBurst && _build != null && _build.HasWeaponMilestone10(WeaponUpgradeId.ChaosBurst));
 
             _hitEnemies.Clear();
             _homingTarget = null;
