@@ -9,9 +9,6 @@ namespace EJR.Game.Gameplay
     {
         private const float FireballExplosionRadius = 0.8f;
         private const float FireballExplosionDamageMultiplier = 0.4f;
-        private const float FireballBurnDuration = 2.5f;
-        private const float FireballBurnTickInterval = 0.5f;
-        private const float FireballBurnDamageMultiplier = 0.32f;
         private const float FireballExplosionMinorStunDuration = 0.04f;
         private const float FireballExplosionFxScaleMultiplier = 3.0f;
         private const float FireballExplosionFxDuration = 0.4f;
@@ -40,6 +37,12 @@ namespace EJR.Game.Gameplay
         // Homing properties
         private EnemyController _homingTarget;
         private float _homingTurnSpeed;
+
+        // Boomerang properties
+        private bool _isBoomerang;
+        private bool _isReturning;
+        private float _elapsedTime;
+        private float _totalLifetime;
 
         public void Initialize(
             EnemyRegistry registry,
@@ -77,6 +80,11 @@ namespace EJR.Game.Gameplay
             _damageSourceTransform = damageSourceTransform;
             _build = build;
             _isActive = true;
+            _elapsedTime = 0f;
+            _totalLifetime = lifetime;
+            _isReturning = false;
+            _isBoomerang = (sourceWeaponId == WeaponUpgradeId.WindBlade);
+
             _hitEnemies.Clear();
             _homingTarget = null;
             _homingTurnSpeed = 0f;
@@ -97,20 +105,52 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            // Apply homing rotation
-            if (_homingTarget != null && _homingTarget.isActiveAndEnabled && !_homingTarget.IsDead)
+            float dt = Time.deltaTime;
+            _elapsedTime += dt;
+
+            // Boomerang Logic
+            if (_isBoomerang)
+            {
+                if (!_isReturning && _elapsedTime >= _totalLifetime * 0.5f)
+                {
+                    _isReturning = true;
+                    _hitEnemies.Clear(); // 돌아올 때 재타격 가능하도록 리스트 비우기
+                }
+
+                if (_isReturning && _damageSourceTransform != null)
+                {
+                    Vector3 toPlayer = (_damageSourceTransform.position - transform.position).normalized;
+                    if (toPlayer.sqrMagnitude > 0.001f)
+                    {
+                        // 시계방향 회전을 위한 편향 벡터 계산 (진행 방향의 오른쪽)
+                        Vector3 sideBias = new Vector3(_direction.y, -_direction.x, 0f);
+                        Vector3 biasedTarget = Vector3.Lerp(toPlayer, sideBias, 0.01f).normalized;
+
+                        _direction = Vector3.Lerp(_direction, biasedTarget, dt * 25f).normalized;
+                        UpdateRotation();
+                    }
+
+                    // 플레이어 근처에 오면 회수
+                    if (Vector3.Distance(transform.position, _damageSourceTransform.position) < 0.4f)
+                    {
+                        Release();
+                        return;
+                    }
+                }
+            }
+            else if (_homingTarget != null && _homingTarget.isActiveAndEnabled && !_homingTarget.IsDead)
             {
                 Vector3 targetPos = _homingTarget.transform.position;
                 Vector3 targetDir = (targetPos - transform.position).normalized;
                 
                 if (targetDir.sqrMagnitude > 0.001f)
                 {
-                    _direction = Vector3.RotateTowards(_direction, targetDir, _homingTurnSpeed * Mathf.Deg2Rad * Time.deltaTime, 0f).normalized;
+                    _direction = Vector3.RotateTowards(_direction, targetDir, _homingTurnSpeed * Mathf.Deg2Rad * dt, 0f).normalized;
                     UpdateRotation();
                 }
             }
 
-            transform.position += _direction * _speed * Time.deltaTime;
+            transform.position += _direction * _speed * dt;
 
             if (_useBoundsCulling && IsOutOfBounds(transform.position))
             {
@@ -118,9 +158,13 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            float dt = Time.deltaTime;
-            _lifetime -= dt;
-            if (_lifetime <= 0f)
+
+            if (!_isReturning)
+            {
+                _lifetime -= dt;
+            }
+
+            if (_lifetime <= 0f && !_isReturning)
             {
                 float overshoot = -_lifetime;
                 float correction = Mathf.Max(0f, dt - overshoot);
@@ -179,6 +223,7 @@ namespace EJR.Game.Gameplay
                     {
                         var appliedDamage = ApplyContextualDamageModifiers(_currentDamage, enemy);
                         enemy.ReceiveWeaponDamage(appliedDamage, _sourceWeaponId);
+                        enemy.ApplySlow(0.5f, 1.5f); // 슬로우 효과 추가
                         _directHitCallback?.Invoke(appliedDamage, enemy);
                         WeaponFxRenderer.SpawnPrefabFx(
                             "VFX/IceSpike/VFX_2D_Projectile_Ice_Impact_01_Color_Static",
@@ -192,6 +237,7 @@ namespace EJR.Game.Gameplay
                     {
                         var appliedDamage = ApplyContextualDamageModifiers(_currentDamage, enemy);
                         enemy.ReceiveWeaponDamage(appliedDamage, _sourceWeaponId);
+                        enemy.ApplyKnockback(_direction, 5.0f); // 넉백 효과 추가
                         _directHitCallback?.Invoke(appliedDamage, enemy);
                         WeaponFxRenderer.SpawnPrefabFx(
                             "VFX/WindBlade/VFX_2D_Projectile_Wind_Impact_01_Color_Static",

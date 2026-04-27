@@ -79,7 +79,7 @@ namespace EJR.Game.Gameplay
         public float windBladeBaseDamage = 8f;
         public float windBladeAttackInterval = 0.4f;
         public float windBladeProjectileSpeed = 15f;
-        public float windBladeProjectileLifetime = 0.4f;
+        public float windBladeProjectileLifetime = 0.6f;
         public float windBladeProjectileHitRadius = 0.22f;
 
         [Header("Chaos Burst")]

@@ -52,7 +52,7 @@ namespace EJR.Game.Gameplay
             var origin = (Vector2)system.Owner.position;
             
             SpawnSlashVfx(system, origin, snappedDirection, range);
-            system.RequestWeaponSound(weapon.WeaponId, WeaponSoundKind.Primary, origin);
+            // system.RequestWeaponSound(...) 제거됨 - 이제 프리팹에서 사운드 재생
 
             for (int i = system.Registry.Enemies.Count - 1; i >= 0; i--)
             {
@@ -83,18 +83,13 @@ namespace EJR.Game.Gameplay
             if (prefab == null) return;
 
             float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
-            
-            // 만약 프리팹 이미지가 기본적으로 세로라면 90도 보정이 필요할 수 있습니다.
-            // 일단은 Atan2 값을 그대로 사용하고, 만약 90도 틀어져 보이면 이 값을 수정하면 됩니다.
             var rotation = Quaternion.Euler(0f, 0f, angle);
             
             var spawnPos = (Vector3)origin + (Vector3)(direction * (range * 0.4f)) + Vector3.back * 0.1f;
             var vfx = UnityEngine.Object.Instantiate(prefab, spawnPos, rotation);
             
-            // 크기를 기존의 절반 이하로 대폭 축소 (range * 0.5f)
             vfx.transform.localScale = Vector3.one * (range * 0.5f); 
 
-            // 파티클 시스템들이 부모의 회전을 따르도록 강제 설정
             var particleRenderers = vfx.GetComponentsInChildren<ParticleSystemRenderer>();
             foreach (var psr in particleRenderers)
             {

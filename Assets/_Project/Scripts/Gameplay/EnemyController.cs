@@ -35,17 +35,7 @@ namespace EJR.Game.Gameplay
             Executing = 2,
         }
 
-        private const float FireExplosionRadius = 0.725f;
-        private const float FireExplosionMaxRadiusMultiplier = 1.25f;
-        private const float FireExplosionMinRadiusRatio = 0.5f;
-        private const float FireExplosionFxDuration = 0.18f;
-        private const float FireExplosionFxLineWidth = 0.06f;
-        private const int FireExplosionFxSegments = 28;
-        private static readonly Color FireExplosionFxColor = new(1f, 0.45f, 0.1f, 0.9f);
-        private const float FireStackFxFps = 10f;
-        private const float FireBoomFxFps = 10f;
-        private const float FireStackFxScale = 2.7f;
-        private const float FireBoomFxScale = 6f;
+
         private const float VariantProjectileHitRadius = 0.12f;
         private const float VariantProjectileVisualScale = 0.2f;
         private const float VariantBlinkInterval = 0.12f;
@@ -93,7 +83,7 @@ namespace EJR.Game.Gameplay
         private const float StatusIndicatorScale = 0.08f;
         private const float StatusIndicatorHeightOffset = 0.22f;
         private const float StatusIndicatorSpacing = 0.14f;
-        private static readonly Color FireIndicatorColor = new(1f, 0.45f, 0.1f, 0.95f);
+
         private static readonly Color SlowIndicatorColor = new(0.38f, 0.86f, 1f, 0.95f);
         private static readonly Color LightIndicatorColor = new(1f, 0.92f, 0.36f, 0.95f);
         private static readonly Color VariantBomberTelegraphColor = new(1f, 0.44f, 0.18f, 0.94f);
@@ -146,13 +136,6 @@ namespace EJR.Game.Gameplay
         private float _activeLightBonusMultiplier;
         private float _activeLightRemaining;
         private float _lastWindKnockbackAt = -999f;
-        private float _fireAccumulatedDamage;
-        private int _fireAccumulatedHits;
-        private int _fireTriggerHitCount = int.MaxValue;
-        private float _burnDamagePerTick;
-        private float _burnTickInterval;
-        private float _burnTickTimer;
-        private float _burnRemaining;
         private float _stunRemaining;
         private float _minorStunCooldownUntil = -999f;
         private BossPatternState _bossPatternState;
@@ -177,14 +160,10 @@ namespace EJR.Game.Gameplay
         private Vector2 _variantActionDirection = Vector2.right;
         private VariantActionState _variantActionState;
         private Color _variantBaseColor = Color.white;
-        private static Material _fireExplosionFxMaterial;
         private static Material _bossDashTelegraphMaterial;
-        private Transform _fireStackFxRoot;
-        private SpriteFxAnimator _fireStackFxAnimator;
         private LineRenderer _bossDashTelegraphLine;
         private LineRenderer _bossAreaTelegraphLine;
         private Transform _statusIndicatorRoot;
-        private SpriteRenderer _fireIndicatorRenderer;
         private SpriteRenderer _slowIndicatorRenderer;
         private SpriteRenderer _lightIndicatorRenderer;
         private Vector2 _pendingDesiredVector;
@@ -193,6 +172,7 @@ namespace EJR.Game.Gameplay
         private UnityEngine.Tilemaps.Tilemap _groundTilemap;
         private int _obstacleMask;
         private ContactFilter2D _obstacleFilter;
+        private Vector2 _knockbackVelocity;
         private readonly RaycastHit2D[] _castResults = new RaycastHit2D[1];
 
         private readonly System.Collections.Generic.List<EnemyController> _nearbyBuffer = new(24);
@@ -700,7 +680,7 @@ namespace EJR.Game.Gameplay
             var effectiveMoveSpeed = _moveSpeed * Mathf.Clamp(_activeSlowMultiplier, 0.1f, 1f);
             
             // 물리 엔진의 속도를 직접 제어 (모든 몬스터가 맵 안에서 생성되므로 복잡한 체크 불필요)
-            _rb.linearVelocity = desired * effectiveMoveSpeed;
+            _rb.linearVelocity = (desired * effectiveMoveSpeed) + _knockbackVelocity;
             
             _registry?.NotifyMoved(this, _rb.position);
         }
@@ -1197,20 +1177,7 @@ namespace EJR.Game.Gameplay
                 519);
         }
 
-        public void ApplyBurn(float damagePerTick, float duration, float tickInterval)
-        {
-            if (_isDead || damagePerTick <= 0f || duration <= 0f)
-            {
-                return;
-            }
 
-            _burnDamagePerTick = Mathf.Max(_burnDamagePerTick, damagePerTick);
-            _burnTickInterval = Mathf.Max(0.05f, tickInterval);
-            _burnTickTimer = _burnTickTimer > 0f ? Mathf.Min(_burnTickTimer, _burnTickInterval) : _burnTickInterval;
-            _burnRemaining = Mathf.Max(_burnRemaining, duration);
-            ShowFireStackFx();
-            UpdateStatusIndicators();
-        }
 
         public void ApplyStun(float durationSeconds)
         {
@@ -1251,6 +1218,19 @@ namespace EJR.Game.Gameplay
             _stunRemaining = Mathf.Max(_stunRemaining, durationSeconds);
         }
 
+        public void ApplySlow(float multiplier, float duration)
+        {
+            if (_isDead || IsBoss) return;
+            _activeSlowMultiplier = Mathf.Min(_activeSlowMultiplier, multiplier);
+            _activeSlowRemaining = Mathf.Max(_activeSlowRemaining, duration);
+        }
+
+        public void ApplyKnockback(Vector2 direction, float force)
+        {
+            if (_isDead || IsBoss) return;
+            _knockbackVelocity = direction.normalized * force;
+        }
+
         private void RefreshResolvedTarget()
         {
             if (_targetResolver != null)
@@ -1289,9 +1269,8 @@ namespace EJR.Game.Gameplay
                 _collider.enabled = false;
             }
 
-            HideFireStackFx();
             EndBossPattern();
-            TriggerFireExplosionIfReady();
+
 
             if (_experienceOrbSpawner != null)
             {
@@ -1356,26 +1335,12 @@ namespace EJR.Game.Gameplay
                 }
             }
 
-            if (_burnRemaining > 0f && _burnDamagePerTick > 0f)
+            if (_knockbackVelocity.sqrMagnitude > 0.001f)
             {
-                _burnRemaining -= Time.deltaTime;
-                _burnTickTimer -= Time.deltaTime;
-                var tickInterval = Mathf.Max(0.05f, _burnTickInterval);
-                while (_burnTickTimer <= 0f && _burnRemaining > 0f && !_isDead)
-                {
-                    _burnTickTimer += tickInterval;
-                    ReceiveWeaponDamage(_burnDamagePerTick, WeaponUpgradeId.Fireball);
-                }
-
-                if (_burnRemaining <= 0f || _isDead)
-                {
-                    _burnRemaining = 0f;
-                    _burnDamagePerTick = 0f;
-                    _burnTickInterval = 0f;
-                    _burnTickTimer = 0f;
-                    HideFireStackFx();
-                }
+                _knockbackVelocity = Vector2.Lerp(_knockbackVelocity, Vector2.zero, Time.deltaTime * 8f);
             }
+
+
 
             UpdateStatusIndicators();
         }
@@ -2354,45 +2319,8 @@ namespace EJR.Game.Gameplay
             return candidate;
         }
 
-        private void ApplyFireCore(int coreLevel, float dealtDamage)
-        {
-            var (accumulateRatio, hitThreshold) = coreLevel switch
-            {
-                1 => (0.10f, 5),
-                2 => (0.20f, 4),
-                _ => (0.30f, 2),
-            };
 
-            _fireAccumulatedDamage += Mathf.Max(0f, dealtDamage) * accumulateRatio;
-            _fireAccumulatedHits++;
-            _fireTriggerHitCount = hitThreshold;
-            UpdateStatusIndicators();
 
-            if (_fireAccumulatedHits >= _fireTriggerHitCount)
-            {
-                TriggerFireExplosionIfReady();
-            }
-        }
-
-        private void ApplyWindCore(int coreLevel)
-        {
-            if (IsBoss)
-            {
-                return;
-            }
-
-            var (slowPercent, duration) = coreLevel switch
-            {
-                1 => (0.30f, 1.0f),
-                2 => (0.50f, 1.0f),
-                _ => (0.80f, 1.0f),
-            };
-
-            var slowMultiplier = Mathf.Clamp01(1f - slowPercent);
-            _activeSlowMultiplier = Mathf.Min(_activeSlowMultiplier, slowMultiplier);
-            _activeSlowRemaining = Mathf.Max(_activeSlowRemaining, duration);
-            UpdateStatusIndicators();
-        }
 
         private void ApplyLightCore(int coreLevel)
         {
@@ -2408,244 +2336,23 @@ namespace EJR.Game.Gameplay
             UpdateStatusIndicators();
         }
 
-        private void ApplyWaterCore(int coreLevel)
-        {
-            if (IsBoss)
-            {
-                return;
-            }
 
-            if (Time.time < _lastWindKnockbackAt + WindKnockbackCooldown)
-            {
-                return;
-            }
 
-            var knockbackDistance = coreLevel switch
-            {
-                1 => 0.1f,
-                2 => 0.2f,
-                _ => 0.3f,
-            };
 
-            if (knockbackDistance <= 0f)
-            {
-                return;
-            }
 
-            var away = _target != null
-                ? (Vector2)(transform.position - _target.position)
-                : Vector2.zero;
-            if (away.sqrMagnitude <= 0.000001f)
-            {
-                away = UnityEngine.Random.insideUnitCircle;
-            }
 
-            if (away.sqrMagnitude <= 0.000001f)
-            {
-                away = Vector2.right;
-            }
 
-            var next = (Vector2)transform.position + (away.normalized * knockbackDistance);
-            transform.position = new Vector3(next.x, next.y, transform.position.z);
-            _registry?.NotifyMoved(this, transform.position);
-            _lastWindKnockbackAt = Time.time;
-        }
 
-        private void ShowFireStackFx()
-        {
-            var frames = RuntimeSpriteFactory.GetSexyFireStackAnimationFrames();
-            if (frames == null || frames.Length <= 0)
-            {
-                return;
-            }
 
-            if (_fireStackFxRoot == null)
-            {
-                var fxObject = new GameObject("FireStackFx");
-                fxObject.transform.SetParent(transform, false);
-                var stackScale = Mathf.Max(0.05f, FireStackFxScale);
-                fxObject.transform.localScale = Vector3.one * stackScale;
 
-                var renderer = fxObject.AddComponent<SpriteRenderer>();
-                renderer.sprite = frames[0];
-                renderer.color = Color.white;
-                renderer.sortingOrder = 45;
-                fxObject.transform.localPosition = GetColliderCenteredOffset(renderer.sprite, stackScale, -0.02f);
 
-                _fireStackFxAnimator = fxObject.AddComponent<SpriteFxAnimator>();
-                _fireStackFxAnimator.Initialize(renderer, frames, FireStackFxFps, loop: true, destroyOnComplete: false);
-                _fireStackFxRoot = fxObject.transform;
-            }
 
-            if (_fireStackFxRoot != null && !_fireStackFxRoot.gameObject.activeSelf)
-            {
-                _fireStackFxRoot.gameObject.SetActive(true);
-                _fireStackFxAnimator?.PlayFromStart();
-            }
-        }
-
-        private void HideFireStackFx()
-        {
-            if (_fireStackFxRoot != null)
-            {
-                _fireStackFxRoot.gameObject.SetActive(false);
-            }
-        }
-
-        private void SpawnFireBoomFx(Vector2 origin, float explosionRadius)
-        {
-            var frameCount = Mathf.Max(1, RuntimeSpriteFactory.GetSexyFireBoomAnimationFrames().Length);
-            var animationDuration = frameCount / Mathf.Max(0.1f, FireBoomFxFps);
-            WeaponFxRenderer.SpawnFireBurstFx(
-                transform.parent,
-                new Vector3(origin.x, origin.y, 0f),
-                Mathf.Max(0.1f, FireBoomFxScale * explosionRadius),
-                animationDuration,
-                530,
-                "FireBoomFx");
-        }
-
-        private static Vector3 GetColliderCenteredOffset(Sprite sprite, float uniformScale, float z)
-        {
-            if (sprite == null)
-            {
-                return new Vector3(0f, 0f, z);
-            }
-
-            var centerFromPivot = sprite.bounds.center;
-            return new Vector3(
-                -centerFromPivot.x * uniformScale,
-                -centerFromPivot.y * uniformScale,
-                z);
-        }
-
-        private void TriggerFireExplosionIfReady()
-        {
-            if (_fireAccumulatedDamage <= 0f)
-            {
-                ResetFireAccumulation();
-                return;
-            }
-
-            var explosionDamage = _fireAccumulatedDamage;
-            var hitProgress = Mathf.Clamp01(_fireAccumulatedHits / (float)Mathf.Max(1, _fireTriggerHitCount));
-            var maxExplosionRadius = FireExplosionRadius * FireExplosionMaxRadiusMultiplier;
-            var scaledRadiusRatio = Mathf.Lerp(FireExplosionMinRadiusRatio, 1f, hitProgress);
-            var explosionRadius = maxExplosionRadius * scaledRadiusRatio;
-            ResetFireAccumulation();
-
-            if (_registry == null)
-            {
-                return;
-            }
-
-            if (explosionRadius <= 0.0001f)
-            {
-                return;
-            }
-
-            var origin = (Vector2)transform.position;
-            SpawnFireBoomFx(origin, explosionRadius);
-            var searchRadius = explosionRadius + _registry.GetMaxCollisionRadius();
-            _registry.GetNearby(origin, searchRadius, _nearbyBuffer);
-
-            for (var i = 0; i < _nearbyBuffer.Count; i++)
-            {
-                var enemy = _nearbyBuffer[i];
-                if (enemy == null || ReferenceEquals(enemy, this))
-                {
-                    continue;
-                }
-
-                var toEnemy = (Vector2)enemy.transform.position - origin;
-                var distance = toEnemy.magnitude;
-                var limit = explosionRadius + enemy.CollisionRadius;
-                if (distance > limit)
-                {
-                    continue;
-                }
-
-                enemy.ReceiveDamage(explosionDamage);
-            }
-        }
-
-        private static void SpawnFireExplosionRangeFx(Vector2 origin, float radius)
-        {
-            var fxObject = new GameObject("FireExplosionFx");
-            var lineRenderer = fxObject.AddComponent<LineRenderer>();
-            lineRenderer.useWorldSpace = true;
-            lineRenderer.loop = true;
-            lineRenderer.alignment = LineAlignment.View;
-            lineRenderer.numCapVertices = 2;
-            lineRenderer.numCornerVertices = 2;
-            lineRenderer.positionCount = FireExplosionFxSegments;
-            lineRenderer.startWidth = FireExplosionFxLineWidth;
-            lineRenderer.endWidth = FireExplosionFxLineWidth;
-            lineRenderer.startColor = FireExplosionFxColor;
-            lineRenderer.endColor = FireExplosionFxColor;
-            lineRenderer.sortingOrder = 520;
-            lineRenderer.sharedMaterial = GetOrCreateFireExplosionFxMaterial();
-
-            for (var i = 0; i < FireExplosionFxSegments; i++)
-            {
-                var t = i / (float)FireExplosionFxSegments;
-                var angle = t * Mathf.PI * 2f;
-                var point = origin + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
-                lineRenderer.SetPosition(i, new Vector3(point.x, point.y, -0.02f));
-            }
-
-            Destroy(fxObject, FireExplosionFxDuration);
-        }
-
-        private static Material GetOrCreateFireExplosionFxMaterial()
-        {
-            if (_fireExplosionFxMaterial != null)
-            {
-                return _fireExplosionFxMaterial;
-            }
-
-            var shader = Shader.Find("Sprites/Default");
-            if (shader == null)
-            {
-                shader = Shader.Find("Unlit/Color");
-            }
-
-            _fireExplosionFxMaterial = new Material(shader)
-            {
-                name = "FireExplosionFxMat",
-                hideFlags = HideFlags.HideAndDontSave,
-            };
-
-            return _fireExplosionFxMaterial;
-        }
-
-        private void ResetFireAccumulation()
-        {
-            _fireAccumulatedDamage = 0f;
-            _fireAccumulatedHits = 0;
-            _fireTriggerHitCount = int.MaxValue;
-            RefreshFireStackFxVisibility();
-            UpdateStatusIndicators();
-        }
-
-        private void RefreshFireStackFxVisibility()
-        {
-            if (_burnRemaining > 0f && _burnDamagePerTick > 0f && !_isDead)
-            {
-                ShowFireStackFx();
-                return;
-            }
-
-            HideFireStackFx();
-        }
 
         private void UpdateStatusIndicators()
         {
             var showSlow = _activeSlowRemaining > 0f && _activeSlowMultiplier < 0.999f;
             var showLight = _activeLightRemaining > 0f && _activeLightBonusMultiplier > 0f;
-            var showFire = (_fireAccumulatedHits > 0 && _fireAccumulatedDamage > 0f && _fireTriggerHitCount < int.MaxValue)
-                || (_burnRemaining > 0f && _burnDamagePerTick > 0f);
-            if (!showSlow && !showLight && !showFire)
+            if (!showSlow && !showLight)
             {
                 if (_statusIndicatorRoot != null)
                 {
@@ -2663,19 +2370,9 @@ namespace EJR.Game.Gameplay
 
             _statusIndicatorRoot.gameObject.SetActive(true);
             var y = CollisionRadius + StatusIndicatorHeightOffset;
-            var activeCount = (showFire ? 1 : 0) + (showSlow ? 1 : 0) + (showLight ? 1 : 0);
+            var activeCount = (showSlow ? 1 : 0) + (showLight ? 1 : 0);
             var firstX = -StatusIndicatorSpacing * 0.5f * Mathf.Max(0, activeCount - 1);
             var slotIndex = 0;
-
-            if (_fireIndicatorRenderer != null)
-            {
-                _fireIndicatorRenderer.enabled = showFire;
-                if (showFire)
-                {
-                    _fireIndicatorRenderer.transform.localPosition = new Vector3(firstX + (slotIndex * StatusIndicatorSpacing), y, -0.03f);
-                    slotIndex++;
-                }
-            }
 
             if (_slowIndicatorRenderer != null)
             {
@@ -2704,11 +2401,6 @@ namespace EJR.Game.Gameplay
                 var rootObject = new GameObject("StatusIndicators");
                 rootObject.transform.SetParent(transform, false);
                 _statusIndicatorRoot = rootObject.transform;
-            }
-
-            if (_fireIndicatorRenderer == null)
-            {
-                _fireIndicatorRenderer = CreateStatusIndicator("FireIndicator", FireIndicatorColor);
             }
 
             if (_slowIndicatorRenderer == null)
