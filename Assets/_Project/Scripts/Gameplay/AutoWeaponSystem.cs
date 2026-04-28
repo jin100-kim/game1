@@ -979,15 +979,25 @@ namespace EJR.Game.Gameplay
         public float GetWeaponBaseDamage(WeaponRuntime weapon)
         {
             if (weapon == null) return 0f;
-            if (weapon.Strategy != null) return weapon.Strategy.GetBaseDamage(weapon, this);
-            return 0f;
+            var baseDamage = weapon.Strategy != null ? weapon.Strategy.GetBaseDamage(weapon, this) : 0f;
+            
+            // 글로벌 공격력 + 무기 전용 피해량 보너스 적용
+            var statDamageMultiplier = _stats != null ? _stats.DamageMultiplier : 1f;
+            var weaponDamageMultiplier = 1f + GetWeaponDamageBonusPercent(weapon);
+            
+            return baseDamage * statDamageMultiplier * weaponDamageMultiplier;
         }
 
         public float GetWeaponRange(WeaponRuntime weapon)
         {
             if (weapon == null) return 0f;
-            if (weapon.Strategy != null) return weapon.Strategy.GetRange(weapon, this);
-            return 0f;
+            var baseRange = weapon.Strategy != null ? weapon.Strategy.GetRange(weapon, this) : 0f;
+            
+            // 글로벌 범위 스탯 + 무기 전용 범위 보너스 적용
+            var statRangeMultiplier = _stats != null ? _stats.AttackRangeMultiplier : 1f;
+            var weaponRangeMultiplier = 1f + GetWeaponRangeBonusPercent(weapon);
+            
+            return baseRange * statRangeMultiplier * weaponRangeMultiplier;
         }
 
         public float GetCombinedAttackIntervalMultiplier(WeaponRuntime weapon)

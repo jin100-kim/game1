@@ -19,9 +19,9 @@ namespace EJR.Game.Gameplay
         public void OnFire(WeaponRuntime weapon, AutoWeaponSystem system, Vector2 direction)
         {
             var config = system.Config;
-            var damage = GetBaseDamage(weapon, system); // 기본 피해량 12
+            var damage = system.GetWeaponBaseDamage(weapon);
             var speed = config.bubbleProjectileSpeed;
-            var lifetime = config.bubbleProjectileLifetime;
+            var lifetime = config.bubbleProjectileLifetime * (system.Stats != null ? system.Stats.AttackRangeMultiplier : 1f); // 수명에 범위 보너스 적용
             var hitRadius = config.bubbleProjectileHitRadius;
             var baseDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : system.LastAimDirection;
 
