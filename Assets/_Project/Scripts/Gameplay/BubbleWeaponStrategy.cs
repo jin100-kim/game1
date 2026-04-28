@@ -4,9 +4,9 @@ using System.Collections.Generic;
 
 namespace EJR.Game.Gameplay
 {
-    public sealed class ChaosBurstWeaponStrategy : IWeaponStrategy
+    public sealed class BubbleWeaponStrategy : IWeaponStrategy
     {
-        public WeaponUpgradeId WeaponId => WeaponUpgradeId.ChaosBurst;
+        public WeaponUpgradeId WeaponId => WeaponUpgradeId.Bubble;
 
         public void OnInitialize(WeaponRuntime weapon, AutoWeaponSystem system)
         {
@@ -20,9 +20,9 @@ namespace EJR.Game.Gameplay
         {
             var config = system.Config;
             var damage = GetBaseDamage(weapon, system); // 기본 피해량 12
-            var speed = config.chaosBurstProjectileSpeed;
-            var lifetime = config.chaosBurstProjectileLifetime;
-            var hitRadius = config.chaosBurstProjectileHitRadius;
+            var speed = config.bubbleProjectileSpeed;
+            var lifetime = config.bubbleProjectileLifetime;
+            var hitRadius = config.bubbleProjectileHitRadius;
             var baseDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : system.LastAimDirection;
 
             var extraCount = system.GetWeaponExtraCount(weapon);
@@ -60,17 +60,17 @@ namespace EJR.Game.Gameplay
 
         public float GetAttackInterval(WeaponRuntime weapon, AutoWeaponSystem system)
         {
-            return Mathf.Max(0.05f, system.Config.chaosBurstAttackInterval) * system.GetCombinedAttackIntervalMultiplier(weapon);
+            return Mathf.Max(0.05f, system.Config.bubbleAttackInterval) * system.GetCombinedAttackIntervalMultiplier(weapon);
         }
 
         public float GetBaseDamage(WeaponRuntime weapon, AutoWeaponSystem system)
         {
-            return Mathf.Max(0.1f, system.Config.chaosBurstBaseDamage);
+            return Mathf.Max(0.1f, system.Config.bubbleBaseDamage);
         }
 
         public float GetRange(WeaponRuntime weapon, AutoWeaponSystem system)
         {
-            return system.Config.chaosBurstProjectileSpeed * system.Config.chaosBurstProjectileLifetime;
+            return system.Config.bubbleProjectileSpeed * system.Config.bubbleProjectileLifetime;
         }
 
         public Color GetSourceColor(WeaponRuntime weapon, AutoWeaponSystem system)
@@ -89,7 +89,7 @@ namespace EJR.Game.Gameplay
                 if (vfxPrefab != null)
                 {
                     var vfx = Object.Instantiate(vfxPrefab, projectile.transform);
-                    vfx.name = "ChaosBurstVfx";
+                    vfx.name = "BubbleVfx";
                     vfx.transform.localPosition = Vector3.zero;
                     vfx.transform.localRotation = Quaternion.identity;
                     vfx.transform.localScale = Vector3.one * 1.5f;

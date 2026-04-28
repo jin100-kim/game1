@@ -302,7 +302,7 @@ namespace EJR.Game.Gameplay
                 WeaponUpgradeId.LightningBolt => milestones,
                 WeaponUpgradeId.IceSpike => milestones, // 0->0, 1->1, 2->2 (will use as factor for fragments)
                 WeaponUpgradeId.WindBlade => milestones + (milestones >= 2 ? 1 : 0), // 5lv: +1, 10lv: +3 (total pierce bonus)
-                WeaponUpgradeId.ChaosBurst => milestones, // 5lv: +1, 10lv: +2
+                WeaponUpgradeId.Bubble => milestones, // 5lv: +1, 10lv: +2
                 _ => 0,
             };
         }
@@ -319,12 +319,12 @@ namespace EJR.Game.Gameplay
 
         public int GetBfSwordAfterimageCount()
         {
-            return GetWeaponMilestoneCount(WeaponUpgradeId.BfSword);
+            return 0; // BfSword removed
         }
 
         public float GetAuraMilestoneRangeMultiplier()
         {
-            return 1f + (GetWeaponMilestoneCount(WeaponUpgradeId.Aura) * 0.20f);
+            return 1f; // Aura removed
         }
 
         public float GetGlobalStatTotal(StatUpgradeId statId)

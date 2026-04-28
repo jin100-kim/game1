@@ -143,13 +143,8 @@ namespace EJR.Game.Gameplay
         [SerializeField] private bool showWeaponCollisionGizmos = true;
         [SerializeField] private Color satelliteHitGizmoColor = new(0.35f, 1f, 0.95f, 0.95f);
         
-        [SerializeField, Min(0.01f)] private float chainFxDuration = 0.25f;
-        [SerializeField, Min(0.005f)] private float chainFxWidth = 0.05f;
         [SerializeField] private Color chainFxColor = new(0.45f, 0.85f, 1f, 0.95f);
-        [SerializeField, Min(0.01f)] private float turretTracerFxDuration = 0.06f;
-        [SerializeField, Min(0.005f)] private float turretTracerFxWidth = 0.03f;
         [SerializeField] private Color turretTracerFxColor = new(1f, 0.86f, 0.28f, 0.95f);
-        [SerializeField, Range(8, 96)] private int ringFxSegments = 28;
 
         public WeaponConfig Config => _config;
         public Transform Owner => _owner;
@@ -188,7 +183,6 @@ namespace EJR.Game.Gameplay
         public event Action<Vector2> AimUpdated;
         public event Action<Vector2> Fired;
         public event Action<ProjectileSpawnRequest> ProjectileVisualRequested;
-        public event Action<Vector3, Vector3> TurretTracerFxRequested;
         public event Action<WeaponSoundRequest> WeaponSoundRequested;
 
         public void Initialize(
@@ -561,9 +555,9 @@ namespace EJR.Game.Gameplay
             
             var vfx = Instantiate(prefab, position, Quaternion.identity);
 
-            if (weaponId == WeaponUpgradeId.ChaosBurst)
+            if (weaponId == WeaponUpgradeId.Bubble)
             {
-                vfx.name = "ChaosBurstImpactVfx";
+                vfx.name = "BubbleImpactVfx";
                 vfx.transform.localScale = Vector3.one * 1.5f; // 임팩트도 1.5배로 키워서 폭발감을 줌
 
                 var particleRenderers = vfx.GetComponentsInChildren<ParticleSystemRenderer>();
@@ -603,7 +597,7 @@ namespace EJR.Game.Gameplay
             return weaponId switch
             {
                 WeaponUpgradeId.Fireball => _config.fireballImpactVfxPrefab ?? _config.impactVfxPrefab,
-                WeaponUpgradeId.ChaosBurst => Resources.Load<GameObject>("VFX/ChaosBurst/VFX_2D_Projectile_Burst_Impact_01_Color_Static"),
+                WeaponUpgradeId.Bubble => Resources.Load<GameObject>("VFX/Bubble/VFX_2D_Projectile_Burst_Impact_01_Color_Static"),
                 _ => _config.impactVfxPrefab,
             };
         }

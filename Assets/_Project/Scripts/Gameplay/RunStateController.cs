@@ -1253,17 +1253,12 @@ namespace EJR.Game.Gameplay
             {
                 var score = options[i].WeaponId switch
                 {
-                    WeaponUpgradeId.Rifle => 48,
-                    WeaponUpgradeId.BfSword => 47,
-                    WeaponUpgradeId.Fireball => 44,
-                    WeaponUpgradeId.OrbitWeapon => 43,
-                    WeaponUpgradeId.SwingMace => 42,
-                    WeaponUpgradeId.Turret => 41,
-                    WeaponUpgradeId.Shotgun => 40,
-                    WeaponUpgradeId.Bat => 39,
-                    WeaponUpgradeId.Aura => 38,
-                    WeaponUpgradeId.ChainLightning => 37,
-                    WeaponUpgradeId.Slash => 36,
+                    WeaponUpgradeId.Fireball => 48,
+                    WeaponUpgradeId.LightningBolt => 46,
+                    WeaponUpgradeId.IceSpike => 44,
+                    WeaponUpgradeId.WindBlade => 42,
+                    WeaponUpgradeId.Bubble => 40,
+                    WeaponUpgradeId.Slash => 38,
                     _ => 30,
                 };
 
@@ -2459,7 +2454,7 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            var showHeldWeapon = _buildRuntime.HasWeapon(WeaponUpgradeId.BfSword);
+            var showHeldWeapon = false; // BfSword removed
             _weaponVisualRenderer.enabled = showHeldWeapon;
             if (_weaponSpriteAnimator != null)
             {

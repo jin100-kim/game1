@@ -107,49 +107,23 @@ namespace EJR.Game.Audio
         {
             switch (request.WeaponId)
             {
-                case WeaponUpgradeId.Rifle:
-                    PlaySfx(AudioCueId.WeaponRifle);
-                    break;
-                case WeaponUpgradeId.Shotgun:
-                    PlaySfx(AudioCueId.WeaponShotgun);
-                    break;
                 case WeaponUpgradeId.Fireball:
                     PlaySfx(AudioCueId.WeaponFireball);
                     break;
                 case WeaponUpgradeId.Slash:
                     PlaySfx(AudioCueId.WeaponKatana);
                     break;
-                case WeaponUpgradeId.BfSword:
-                    if (request.Kind == WeaponSoundKind.Primary)
-                    {
-                        PlaySfx(AudioCueId.WeaponBfSword);
-                    }
-                    break;
-                case WeaponUpgradeId.ChainLightning:
+                case WeaponUpgradeId.LightningBolt:
                     PlaySfx(AudioCueId.WeaponChainAttack);
                     break;
-                case WeaponUpgradeId.SwingMace:
-                    PlaySfx(AudioCueId.WeaponMace);
+                case WeaponUpgradeId.IceSpike:
+                    PlaySfx(AudioCueId.WeaponRifle, 0.8f);
                     break;
-                case WeaponUpgradeId.Turret:
-                    if (request.Kind == WeaponSoundKind.Deploy)
-                    {
-                        PlaySfx(AudioCueId.WeaponTurretDeploy);
-                    }
-                    else
-                    {
-                        PlaySfx(AudioCueId.WeaponRifle, 0.92f);
-                    }
+                case WeaponUpgradeId.WindBlade:
+                    PlaySfx(AudioCueId.WeaponKatana, 1.2f);
                     break;
-                case WeaponUpgradeId.Bat:
-                    if (request.Kind == WeaponSoundKind.Latch)
-                    {
-                        PlaySfx(AudioCueId.WeaponBatLatch);
-                    }
-                    else
-                    {
-                        PlaySfx(AudioCueId.WeaponBatFlap);
-                    }
+                case WeaponUpgradeId.Bubble:
+                    PlaySfx(AudioCueId.WeaponBatFlap, 1.5f);
                     break;
             }
         }

@@ -99,7 +99,7 @@ namespace EJR.Game.Gameplay
             _homingTarget = null;
             _homingTurnSpeed = 0f;
 
-            bool canHoming = (sourceWeaponId == WeaponUpgradeId.ChaosBurst);
+            bool canHoming = (sourceWeaponId == WeaponUpgradeId.Bubble);
             if (canHoming)
             {
                 _homingTarget = _registry.FindNearest((Vector2)transform.position, 10f);

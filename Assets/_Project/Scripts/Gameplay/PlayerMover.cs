@@ -12,7 +12,6 @@ namespace EJR.Game.Gameplay
 
         [SerializeField, Min(0.1f)] private float moveSpeed = 5f;
         [SerializeField] private Rect movementBounds = new Rect(-12f, -7f, 24f, 14f);
-        [SerializeField] private bool clampToBounds = true;
 
         private float _speedMultiplier = 1f;
         private float _collisionRadius = DefaultCollisionRadius;

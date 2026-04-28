@@ -2,21 +2,12 @@ namespace EJR.Game.Core
 {
     public enum WeaponUpgradeId
     {
-        Rifle = 0,
-        Fireball = 1,
-        Bat = 2,
-        Shotgun = 3,
-        Slash = 4,
-        BfSword = 5,
-        ChainLightning = 6,
-        SwingMace = 7,
-        OrbitWeapon = 8,
-        Turret = 9,
-        Aura = 10,
-        LightningBolt = 11,
-        IceSpike = 12,
-        WindBlade = 13,
-        ChaosBurst = 14,
+        Fireball = 0,
+        Slash = 1,
+        LightningBolt = 2,
+        IceSpike = 3,
+        WindBlade = 4,
+        Bubble = 5,
     }
 
     public enum StatUpgradeId

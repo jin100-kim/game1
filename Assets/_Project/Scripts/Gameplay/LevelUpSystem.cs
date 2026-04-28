@@ -275,7 +275,7 @@ namespace EJR.Game.Gameplay
                 WeaponUpgradeId.LightningBolt => WeaponMilestoneKind.ExtraTargets,
                 WeaponUpgradeId.IceSpike => WeaponMilestoneKind.ExtraPierce,
                 WeaponUpgradeId.WindBlade => nextLevel >= 10 ? WeaponMilestoneKind.ExtraProjectile : WeaponMilestoneKind.ExtraProjectile,
-                WeaponUpgradeId.ChaosBurst => WeaponMilestoneKind.ExtraProjectile,
+                WeaponUpgradeId.Bubble => WeaponMilestoneKind.ExtraProjectile,
                 _ => WeaponMilestoneKind.ExtraProjectile,
             };
         }
@@ -294,7 +294,7 @@ namespace EJR.Game.Gameplay
                 WeaponUpgradeId.LightningBolt => "낙뢰 타겟 +1",
                 WeaponUpgradeId.IceSpike => "타격 시 파편 +2",
                 WeaponUpgradeId.WindBlade => nextLevel >= 10 ? "관통 +2" : "관통 +1",
-                WeaponUpgradeId.ChaosBurst => "투사체 +1",
+                WeaponUpgradeId.Bubble => "투사체 +1",
                 _ => "특수 강화",
             };
         }

@@ -178,19 +178,14 @@ namespace EJR.Game.Core
             return weapon switch
             {
                 // Knight 계열
-                WeaponUpgradeId.Rifle          => new Color(0.85f, 0.92f, 1.00f), // 아주 연한 하늘색
-                WeaponUpgradeId.Shotgun        => new Color(0.95f, 0.85f, 0.75f), // 연한 브라운
                 WeaponUpgradeId.Slash          => new Color(1.00f, 0.80f, 0.80f), // 연한 핑크/레드
-                WeaponUpgradeId.BfSword        => new Color(1.00f, 0.98f, 0.80f), // 연한 레몬
-                WeaponUpgradeId.SwingMace      => new Color(0.90f, 0.85f, 1.00f), // 연한 라벤더
-                WeaponUpgradeId.Turret         => new Color(0.80f, 1.00f, 1.00f), // 연한 민트
 
                 // Wizard 계열
                 WeaponUpgradeId.Fireball       => new Color(1.00f, 0.90f, 0.75f), // 연한 살구색
-                WeaponUpgradeId.Bat            => new Color(0.92f, 0.82f, 1.00f), // 연한 보라
-                WeaponUpgradeId.ChainLightning => new Color(1.00f, 1.00f, 0.85f), // 연한 크림
-                WeaponUpgradeId.OrbitWeapon    => new Color(0.80f, 1.00f, 0.90f), // 연한 에메랄드
-                WeaponUpgradeId.Aura           => new Color(1.00f, 1.00f, 0.95f), // 거의 화이트에 가까운 금빛
+                WeaponUpgradeId.LightningBolt  => new Color(1.00f, 1.00f, 0.85f), // 연한 크림
+                WeaponUpgradeId.IceSpike       => new Color(0.80f, 1.00f, 1.00f), // 연한 민트
+                WeaponUpgradeId.WindBlade      => new Color(0.80f, 1.00f, 0.90f), // 연한 에메랄드
+                WeaponUpgradeId.Bubble         => new Color(0.40f, 0.80f, 1.00f), // 비누방울 하늘색
 
                 _ => Color.white,
             };
@@ -200,13 +195,8 @@ namespace EJR.Game.Core
         {
             return weapon switch
             {
-                WeaponUpgradeId.Rifle     => true,
-                WeaponUpgradeId.Shotgun   => true,
                 WeaponUpgradeId.Slash     => true,
-                WeaponUpgradeId.BfSword   => true,
-                WeaponUpgradeId.SwingMace => true,
-                WeaponUpgradeId.Turret    => true,
-                _                         => false, // Wizard
+                _                         => false, // Wizard (Fireball, LightningBolt, IceSpike, WindBlade, Bubble)
             };
         }
 

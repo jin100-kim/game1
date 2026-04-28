@@ -13,6 +13,7 @@ namespace EJR.Game.Gameplay
             LightningBolt = 2,
             IceSpike = 3,
             WindBlade = 4,
+            Bubble = 5,
         }
 
         [Header("General")]
@@ -82,12 +83,12 @@ namespace EJR.Game.Gameplay
         public float windBladeProjectileLifetime = 0.6f;
         public float windBladeProjectileHitRadius = 0.22f;
 
-        [Header("Chaos Burst")]
-        public float chaosBurstBaseDamage = 12f; // 40f -> 12f
-        public float chaosBurstAttackInterval = 1.5f;
-        public float chaosBurstProjectileSpeed = 3.0f;
-        public float chaosBurstProjectileLifetime = 2.75f; // 1.833f * 1.5
-        public float chaosBurstProjectileHitRadius = 0.4f;
+        [Header("Bubble")]
+        public float bubbleBaseDamage = 12f; // 40f -> 12f
+        public float bubbleAttackInterval = 1.5f;
+        public float bubbleProjectileSpeed = 3.0f;
+        public float bubbleProjectileLifetime = 2.75f; // 1.833f * 1.5
+        public float bubbleProjectileHitRadius = 0.4f;
 
         [Header("Chain Lightning (To be removed)")]
         public List<GameObject> chainLightningBeamPrefabs;

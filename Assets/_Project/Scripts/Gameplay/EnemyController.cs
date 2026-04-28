@@ -135,7 +135,6 @@ namespace EJR.Game.Gameplay
         private float _activeSlowRemaining;
         private float _activeLightBonusMultiplier;
         private float _activeLightRemaining;
-        private float _lastWindKnockbackAt = -999f;
         private float _stunRemaining;
         private float _minorStunCooldownUntil = -999f;
         private BossPatternState _bossPatternState;
@@ -1039,7 +1038,7 @@ namespace EJR.Game.Gameplay
 
         public void ReceiveDamage(float damage)
         {
-            ReceiveWeaponDamage(damage, WeaponUpgradeId.Rifle);
+            ReceiveWeaponDamage(damage, WeaponUpgradeId.Fireball);
         }
 
         public void Heal(float amount)
@@ -1198,8 +1197,6 @@ namespace EJR.Game.Gameplay
         {
             var duration = sourceWeaponId switch
             {
-                WeaponUpgradeId.Rifle => RifleMinorStunDuration,
-                WeaponUpgradeId.Shotgun => ShotgunMinorStunDuration,
                 WeaponUpgradeId.Slash => KatanaMinorStunDuration,
                 _ => 0f,
             };

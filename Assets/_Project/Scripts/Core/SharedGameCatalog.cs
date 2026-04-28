@@ -126,7 +126,7 @@ namespace EJR.Game.Core
                 600,
                 false,
                 CharacterUnlockSource.Shop,
-                WeaponUpgradeId.ChaosBurst,
+                WeaponUpgradeId.Bubble,
                 new MetaBonusValues { attackPowerPercent = 20f },
                 CharacterPassiveId.VampireMaxHealthDamage,
                 "피해량 대폭 증가 (임시)"),
@@ -139,7 +139,7 @@ namespace EJR.Game.Core
             new(WeaponUpgradeId.LightningBolt, "낙뢰(Lightning Bolt)"),
             new(WeaponUpgradeId.IceSpike, "얼음 파편(Ice Spike)"),
             new(WeaponUpgradeId.WindBlade, "칼날 바람(Wind Blade)"),
-            new(WeaponUpgradeId.ChaosBurst, "추적 방울(Bubble)"),
+            new(WeaponUpgradeId.Bubble, "추적 방울(Bubble)"),
         };
 
         public static int CharacterCount => Characters.Length;
