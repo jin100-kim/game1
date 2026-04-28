@@ -83,10 +83,10 @@ namespace EJR.Game.Gameplay
         public float windBladeProjectileHitRadius = 0.22f;
 
         [Header("Chaos Burst")]
-        public float chaosBurstBaseDamage = 40f; // 20f -> 40f
+        public float chaosBurstBaseDamage = 12f; // 40f -> 12f
         public float chaosBurstAttackInterval = 1.5f;
         public float chaosBurstProjectileSpeed = 3.0f;
-        public float chaosBurstProjectileLifetime = 1.833f;
+        public float chaosBurstProjectileLifetime = 2.75f; // 1.833f * 1.5
         public float chaosBurstProjectileHitRadius = 0.4f;
 
         [Header("Chain Lightning (To be removed)")]

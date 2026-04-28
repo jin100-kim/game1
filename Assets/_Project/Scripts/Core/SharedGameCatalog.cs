@@ -121,8 +121,8 @@ namespace EJR.Game.Core
                 "현재 레벨만큼 범위 +1%"),
             new(
                 5,
-                "공허술사",
-                new Color(0.6f, 0.2f, 0.9f, 1f),
+                "거품술사",
+                new Color(0.6f, 0.9f, 1f, 1f),
                 600,
                 false,
                 CharacterUnlockSource.Shop,
@@ -134,12 +134,12 @@ namespace EJR.Game.Core
 
         private static readonly SharedWeaponDefinition[] StarterWeapons =
         {
-            new(WeaponUpgradeId.Fireball, "폭발 화염탄(Fireball)"),
-            new(WeaponUpgradeId.Slash, "부채꼴 연속베기(Slash)"),
+            new(WeaponUpgradeId.Fireball, "화염구(Fireball)"),
+            new(WeaponUpgradeId.Slash, "베기(Slash)"),
             new(WeaponUpgradeId.LightningBolt, "낙뢰(Lightning Bolt)"),
-            new(WeaponUpgradeId.IceSpike, "얼음 송곳(Ice Spike)"),
+            new(WeaponUpgradeId.IceSpike, "얼음 파편(Ice Spike)"),
             new(WeaponUpgradeId.WindBlade, "칼날 바람(Wind Blade)"),
-            new(WeaponUpgradeId.ChaosBurst, "혼돈의 폭발(Chaos Burst)"),
+            new(WeaponUpgradeId.ChaosBurst, "추적 방울(Bubble)"),
         };
 
         public static int CharacterCount => Characters.Length;

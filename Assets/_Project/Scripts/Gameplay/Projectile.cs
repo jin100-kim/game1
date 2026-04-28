@@ -37,6 +37,7 @@ namespace EJR.Game.Gameplay
         // Homing properties
         private EnemyController _homingTarget;
         private float _homingTurnSpeed;
+        private float _homingSearchTimer;
 
         // Boomerang properties
         private bool _isBoomerang;
@@ -103,6 +104,7 @@ namespace EJR.Game.Gameplay
             {
                 _homingTarget = _registry.FindNearest((Vector2)transform.position, 10f);
                 _homingTurnSpeed = 180f;
+                _homingSearchTimer = 0.2f; // 리타겟팅 간격 설정
             }
 
             UpdateRotation();
@@ -154,15 +156,27 @@ namespace EJR.Game.Gameplay
                     }
                 }
             }
-            else if (_homingTarget != null && _homingTarget.isActiveAndEnabled && !_homingTarget.IsDead)
+            // 유도 로직 (Homing)
+            if (_homingTurnSpeed > 0)
             {
-                Vector3 targetPos = _homingTarget.transform.position;
-                Vector3 targetDir = (targetPos - transform.position).normalized;
-                
-                if (targetDir.sqrMagnitude > 0.001f)
+                // 주기적으로 가장 가까운 적을 다시 탐색 (최적화)
+                _homingSearchTimer -= dt;
+                if (_homingSearchTimer <= 0f)
                 {
-                    _direction = Vector3.RotateTowards(_direction, targetDir, _homingTurnSpeed * Mathf.Deg2Rad * dt, 0f).normalized;
-                    UpdateRotation();
+                    _homingSearchTimer = 0.2f;
+                    _homingTarget = _registry.FindNearest(transform.position, 10f);
+                }
+
+                if (_homingTarget != null && _homingTarget.isActiveAndEnabled && !_homingTarget.IsDead)
+                {
+                    Vector3 targetPos = _homingTarget.transform.position;
+                    Vector3 targetDir = (targetPos - transform.position).normalized;
+                    
+                    if (targetDir.sqrMagnitude > 0.001f)
+                    {
+                        _direction = Vector3.RotateTowards(_direction, targetDir, _homingTurnSpeed * Mathf.Deg2Rad * dt, 0f).normalized;
+                        UpdateRotation();
+                    }
                 }
             }
 

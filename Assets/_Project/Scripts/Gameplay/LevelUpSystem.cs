@@ -289,7 +289,7 @@ namespace EJR.Game.Gameplay
         {
             return weaponId switch
             {
-                WeaponUpgradeId.Fireball => "화염탄 +1",
+                WeaponUpgradeId.Fireball => "화염구 +1",
                 WeaponUpgradeId.Slash => "베기 횟수 +1",
                 WeaponUpgradeId.LightningBolt => "낙뢰 타겟 +1",
                 WeaponUpgradeId.IceSpike => "타격 시 파편 +2",

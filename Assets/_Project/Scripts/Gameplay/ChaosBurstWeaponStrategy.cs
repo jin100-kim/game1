@@ -19,7 +19,7 @@ namespace EJR.Game.Gameplay
         public void OnFire(WeaponRuntime weapon, AutoWeaponSystem system, Vector2 direction)
         {
             var config = system.Config;
-            var damage = 15f; // 기본 피해량 15
+            var damage = GetBaseDamage(weapon, system); // 기본 피해량 12
             var speed = config.chaosBurstProjectileSpeed;
             var lifetime = config.chaosBurstProjectileLifetime;
             var hitRadius = config.chaosBurstProjectileHitRadius;
@@ -75,7 +75,7 @@ namespace EJR.Game.Gameplay
 
         public Color GetSourceColor(WeaponRuntime weapon, AutoWeaponSystem system)
         {
-            return new Color(0.6f, 0.2f, 0.9f, 1f); // 보라색 공허 색상
+            return new Color(0.4f, 0.8f, 1f, 1f); // 비누방울 민트/하늘색
         }
 
         private void ApplyVisual(Projectile projectile)
@@ -85,7 +85,7 @@ namespace EJR.Game.Gameplay
             if (renderer != null)
             {
                 renderer.enabled = false;
-                var vfxPrefab = Resources.Load<GameObject>("VFX/ChaosBurst/VFX_2D_Projectile_Burst_01_Color_Loop_Static");
+                var vfxPrefab = Resources.Load<GameObject>("VFX/Bubble/VFX_2D_Bubble_01_Color_Loop_Static");
                 if (vfxPrefab != null)
                 {
                     var vfx = Object.Instantiate(vfxPrefab, projectile.transform);
