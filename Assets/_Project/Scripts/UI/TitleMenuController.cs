@@ -147,7 +147,7 @@ namespace EJR.Game.UI
             _selectedStarterWeaponId = MetaProgressionService.GetSingleSelectedStarterWeapon();
             _selectedMapId = RunSelectionService.SingleMapId;
             _selectedDifficultyId = SharedRunCatalog.DefaultDifficultyId;
-            _currentRunSetupStep = SingleRunSetupStep.MapSelect;
+            _currentRunSetupStep = SingleRunSetupStep.CharacterSelect;
             Debug.Log("[EJR] 5: Selections Initialized");
             InitializeDisplaySettings();
             Debug.Log("[EJR] 6: Display Settings Initialized");
@@ -894,7 +894,7 @@ namespace EJR.Game.UI
             _runSetupWeaponOptionsRoot = null;
             _runSetupStartButton = CreateButton(_runSetupCharacterStepRoot.transform, "RunSetupStartButtonV2", new Vector2(-126f, -338f), "출격 시작", StartSinglePlay, new Vector2(240f, 52f));
             _runSetupStartText = _runSetupStartButton.GetComponentInChildren<Text>();
-            _runSetupCharacterBackButton = CreateButton(_runSetupCharacterStepRoot.transform, "RunSetupBackButtonV2", new Vector2(126f, -338f), "뒤로", GoToRunSetupMapStep, new Vector2(240f, 52f));
+            _runSetupCharacterBackButton = CreateButton(_runSetupCharacterStepRoot.transform, "RunSetupBackButtonV2", new Vector2(126f, -338f), "뒤로", ShowMainMenu, new Vector2(240f, 52f));
         }
 
         private void BuildMetaPanelReference(Transform parent)
@@ -999,12 +999,12 @@ namespace EJR.Game.UI
             _selectedCharacterId = MetaProgressionService.GetSingleSelectedCharacterId();
             _inspectedCharacterId = _selectedCharacterId;
             _selectedStarterWeaponId = MetaProgressionService.GetSingleSelectedStarterWeapon();
-            _selectedMapId = RunSelectionService.SingleMapId;
+            _selectedMapId = SharedRunCatalog.DefaultMapId; // 항상 "forest" (숲)으로 고정
             _selectedDifficultyId = SharedRunCatalog.DefaultDifficultyId;
-            _currentRunSetupStep = SingleRunSetupStep.MapSelect;
+            _currentRunSetupStep = SingleRunSetupStep.CharacterSelect; // 캐릭터 선택으로 바로 진입
             RefreshRunSetupPanelV2();
             ShowPanel(_runSetupPanel, GetRunSetupPreferredSelection());
-            SetStatus("맵을 먼저 선택하세요.");
+            SetStatus("캐릭터를 선택하고 출격하세요.");
             return;
         }
 
