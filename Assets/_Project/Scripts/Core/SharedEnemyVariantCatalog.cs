@@ -95,6 +95,8 @@ namespace EJR.Game.Core
                 ProjectileSpeed = 4.6f,
                 ProjectileLifetime = 2.15f,
                 ProjectileDamageMultiplier = 0.9f,
+                DesiredMinRange = 0.0f,
+                DesiredMaxRange = 5.0f,
             },
 
             new()
