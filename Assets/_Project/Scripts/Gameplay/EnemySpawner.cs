@@ -633,7 +633,7 @@ namespace EJR.Game.Gameplay
                 var pos = source.transform.position + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * ringR;
                 
                 // 자식도 동일한 변종(SlimeSplit)으로 생성하되, 세대를 높여서 전달
-                var child = SpawnEnemy(definition.BaseVisualKind, ResolveDebugSpawnPosition(pos, childRadius), statProfile);
+                var child = SpawnEnemy(definition.BaseVisualKind, pos, statProfile);
                 if (child != null)
                 {
                     child.ConfigureVariant(definition, HandleVariantSplitSpawnRequested, nextGeneration);

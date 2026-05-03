@@ -26,7 +26,7 @@ namespace EJR.Game.Gameplay
             var baseDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : system.LastAimDirection;
 
             var extraCount = system.GetWeaponExtraCount(weapon);
-            int totalProjectiles = 3 + extraCount; // 기본 3개 + 마일스톤
+            int totalProjectiles = 2 + extraCount; // 기본 2개 + 마일스톤
 
             float angleStep = 360f / totalProjectiles;
             float startAngle = Mathf.Atan2(baseDirection.y, baseDirection.x) * Mathf.Rad2Deg;

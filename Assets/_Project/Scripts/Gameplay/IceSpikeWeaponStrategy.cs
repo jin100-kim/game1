@@ -68,14 +68,14 @@ namespace EJR.Game.Gameplay
             for (int i = 0; i < fragmentCount; i++)
             {
                 Vector2 dir;
-                if (nearbyEnemies.Count > 0)
+                if (i < nearbyEnemies.Count)
                 {
-                    // 적이 있는 경우: 적들을 순환하며 타겟팅
-                    var target = nearbyEnemies[i % nearbyEnemies.Count];
+                    // 적이 있는 경우: 한 적당 한 개의 파편만 유도
+                    var target = nearbyEnemies[i];
                     dir = (Vector2)(target.transform.position - position).normalized;
                     
-                    // 약간의 무작위 각도 추가 (겹침 방지)
-                    float jitter = UnityEngine.Random.Range(-15f, 15f);
+                    // 약간의 무작위 각도 추가 (직선으로만 날아가는 느낌 완화)
+                    float jitter = UnityEngine.Random.Range(-5f, 5f);
                     float rad = jitter * Mathf.Deg2Rad;
                     float cos = Mathf.Cos(rad);
                     float sin = Mathf.Sin(rad);

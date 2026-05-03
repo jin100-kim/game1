@@ -871,7 +871,24 @@ namespace EJR.Game.Gameplay
             renderer.sprite = RuntimeSpriteFactory.GetSquareSprite();
             renderer.color = color;
             renderer.sortingOrder = 43;
+            renderer.enabled = false; // 밋밋한 스프라이트 숨김
             projectileObject.transform.localScale = Vector3.one * VariantProjectileVisualScale;
+
+            var vfxPrefab = Resources.Load<GameObject>("VFX/Bubble/VFX_2D_Bubble_02_Mask_Loop_Static");
+            if (vfxPrefab != null)
+            {
+                var vfx = UnityEngine.Object.Instantiate(vfxPrefab, projectileObject.transform);
+                vfx.transform.localPosition = Vector3.zero;
+                vfx.transform.localRotation = Quaternion.identity;
+                vfx.transform.localScale = Vector3.one * 1.5f;
+
+                var particleRenderers = vfx.GetComponentsInChildren<ParticleSystemRenderer>();
+                foreach (var psr in particleRenderers)
+                {
+                    psr.alignment = ParticleSystemRenderSpace.Local;
+                }
+            }
+
             var projectile = projectileObject.AddComponent<EnemyVariantProjectile>();
             projectile.Initialize(
                 direction,

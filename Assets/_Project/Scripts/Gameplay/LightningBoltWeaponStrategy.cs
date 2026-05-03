@@ -17,63 +17,81 @@ namespace EJR.Game.Gameplay
 
         public void OnFire(WeaponRuntime weapon, AutoWeaponSystem system, Vector2 direction)
         {
-            var enemies = system.Registry.Enemies;
-            Vector2 ownerPos = system.Owner.position;
-            float rangeSq = GetRange(weapon, system) * GetRange(weapon, system);
-
             var extraCount = system.GetWeaponExtraCount(weapon);
             int targetCount = 1 + extraCount;
             var damage = GetBaseDamage(weapon, system);
-            var reservedTargets = new System.Collections.Generic.HashSet<EnemyController>();
 
-            for (int t = 0; t < targetCount; t++)
+            system.StartCoroutine(FireLightningSequence(weapon, system, targetCount, damage));
+            weapon.Cooldown = GetAttackInterval(weapon, system);
+        }
+
+        private System.Collections.IEnumerator FireLightningSequence(WeaponRuntime weapon, AutoWeaponSystem system, int remainingStrikes, float damage)
+        {
+            while (remainingStrikes > 0)
             {
-                // 1. 유효한 적(사거리 내, 타겟팅 가능, 이미 선택되지 않음) 찾기
-                EnemyController bestTarget = null;
-                float bestScore = float.MaxValue; // 가까운 적 우선
-
+                var enemies = system.Registry.Enemies;
+                Vector2 ownerPos = system.Owner.position;
+                float rangeSq = GetRange(weapon, system) * GetRange(weapon, system);
+                
+                var validEnemies = new System.Collections.Generic.List<EnemyController>();
                 for (int i = 0; i < enemies.Count; i++)
                 {
                     var enemy = enemies[i];
-                    if (enemy == null || reservedTargets.Contains(enemy) || !system.IsEnemyUsable(enemy)) continue;
-
-                    float distSq = ((Vector2)enemy.transform.position - ownerPos).sqrMagnitude;
-                    if (distSq <= rangeSq)
+                    if (enemy != null && system.IsEnemyUsable(enemy))
                     {
-                        if (distSq < bestScore)
+                        float distSq = ((Vector2)enemy.transform.position - ownerPos).sqrMagnitude;
+                        if (distSq <= rangeSq)
                         {
-                            bestScore = distSq;
-                            bestTarget = enemy;
+                            validEnemies.Add(enemy);
                         }
                     }
                 }
-
-                if (bestTarget == null) break;
-                reservedTargets.Add(bestTarget);
-
-                // 2. 타격 및 이펙트
-                bestTarget.ReceiveWeaponDamage(damage, WeaponId);
-
-                // 번개 줄기 이펙트
-                var lightningPrefab = Resources.Load<GameObject>("VFX/LightningBolt/VFX_2D_Lightning_01_Mask_Static");
-                if (lightningPrefab != null)
+                
+                // 사거리 내에 적이 아예 없으면 남은 횟수는 포기
+                if (validEnemies.Count == 0) break;
+                
+                // 가까운 순으로 정렬
+                validEnemies.Sort((a, b) => 
+                    ((Vector2)a.transform.position - ownerPos).sqrMagnitude.CompareTo(((Vector2)b.transform.position - ownerPos).sqrMagnitude));
+                
+                // 현재 웨이브에서 타격할 수 있는 횟수 (남은 횟수와 적의 수 중 작은 값)
+                int strikesThisWave = Mathf.Min(remainingStrikes, validEnemies.Count);
+                for (int i = 0; i < strikesThisWave; i++)
                 {
-                    var lightning = Object.Instantiate(lightningPrefab, bestTarget.transform.position, Quaternion.identity);
-                    lightning.transform.localScale = Vector3.one;
-                    Object.Destroy(lightning, 0.5f);
+                    StrikeTarget(validEnemies[i], damage);
                 }
-
-                // 바닥 타격 폭발 이펙트
-                var impactPrefab = Resources.Load<GameObject>("VFX/LightningBolt/VFX_2D_Projectile_Lightning_Impact_01_Color_Static");
-                if (impactPrefab != null)
+                
+                remainingStrikes -= strikesThisWave;
+                
+                // 횟수가 남았다면 0.1초 대기 후 다음 웨이브 진행 (재타겟팅)
+                if (remainingStrikes > 0)
                 {
-                    var impact = Object.Instantiate(impactPrefab, bestTarget.transform.position, Quaternion.identity);
-                    impact.transform.localScale = Vector3.one * 2.0f;
-                    Object.Destroy(impact, 0.5f);
+                    yield return new WaitForSeconds(0.1f);
                 }
             }
+        }
 
-            weapon.Cooldown = GetAttackInterval(weapon, system);
+        private void StrikeTarget(EnemyController target, float damage)
+        {
+            if (target == null) return;
+            
+            target.ReceiveWeaponDamage(damage, WeaponId);
+
+            var lightningPrefab = Resources.Load<GameObject>("VFX/LightningBolt/VFX_2D_Lightning_01_Mask_Static");
+            if (lightningPrefab != null)
+            {
+                var lightning = Object.Instantiate(lightningPrefab, target.transform.position, Quaternion.identity);
+                lightning.transform.localScale = Vector3.one;
+                Object.Destroy(lightning, 0.5f);
+            }
+
+            var impactPrefab = Resources.Load<GameObject>("VFX/LightningBolt/VFX_2D_Projectile_Lightning_Impact_01_Color_Static");
+            if (impactPrefab != null)
+            {
+                var impact = Object.Instantiate(impactPrefab, target.transform.position, Quaternion.identity);
+                impact.transform.localScale = Vector3.one * 2.0f;
+                Object.Destroy(impact, 0.5f);
+            }
         }
 
         private void ApplyVisual(Projectile projectile)
