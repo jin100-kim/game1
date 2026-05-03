@@ -149,8 +149,6 @@ namespace EJR.Game.Gameplay
             _elapsedSeconds += Time.deltaTime;
             TryTriggerTimedWaves();
 
-            if (_bossWaveTriggered) return;
-
             _spawnTimer -= Time.deltaTime;
             if (_spawnTimer <= 0f)
             {
@@ -168,7 +166,7 @@ namespace EJR.Game.Gameplay
             }
 
             _bossWaveTriggered = true;
-            _spawnTimer = float.MaxValue;
+            // No longer pausing spawn timer here.
 
             var bossProfile = _config.GetStatProfile(RuntimeSpriteFactory.EnemyVisualKind.Boss);
             var bossRadius = CalculateCollisionRadius(bossProfile);
