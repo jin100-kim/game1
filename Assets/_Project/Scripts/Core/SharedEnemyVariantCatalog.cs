@@ -73,9 +73,9 @@ namespace EJR.Game.Core
                 HealthMultiplier = 0.9f,
                 MoveSpeedMultiplier = 1.1f,
                 ContactDamageMultiplier = 0.9f,
-                VisualScaleMultiplier = 0.95f,
-                CollisionRadiusMultiplier = 0.95f,
-                SplitSpawnCount = 2,
+                VisualScaleMultiplier = 1.2f,
+                CollisionRadiusMultiplier = 1.2f,
+                SplitSpawnCount = 3,
                 SplitGenerationLimit = 1,
             },
 

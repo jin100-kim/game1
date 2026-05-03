@@ -607,15 +607,38 @@ namespace EJR.Game.Gameplay
         private void HandleVariantSplitSpawnRequested(EnemyController source, EnemyVariantDefinition definition)
         {
             if (source == null || definition?.BehaviorKind != EnemyVariantBehaviorKind.SplitOnDeath) return;
+            
+            // 세대 제한 체크
+            if (source.Generation >= definition.SplitGenerationLimit) return;
+
             var count = Mathf.Max(0, definition.SplitSpawnCount);
-            var childRadius = CalculateCollisionRadius(_config.GetStatProfile(RuntimeSpriteFactory.EnemyVisualKind.Slime));
-            var ringR = Mathf.Max(0.45f, childRadius * 2.2f);
-            var angleOffset = Random.value * Mathf.PI * 2f;
+            if (count <= 0) return;
+
+            var nextGeneration = source.Generation + 1;
+            var statProfile = SharedEnemyVariantCatalog.CreateVariantStatProfile(_config, definition);
+            
+            // 자식 세대는 더 작고 약하게 (예: 60% 크기, 50% 체력)
+            float scaleMultiplier = Mathf.Pow(0.6f, nextGeneration);
+            statProfile.healthMultiplier *= 0.5f;
+            statProfile.visualScaleMultiplier *= scaleMultiplier;
+            statProfile.collisionRadiusMultiplier *= scaleMultiplier;
+
+            var childRadius = CalculateCollisionRadius(statProfile);
+            var ringR = Mathf.Max(0.3f, childRadius * 2.0f);
+            var angleOffset = UnityEngine.Random.value * Mathf.PI * 2f;
+
             for (var i = 0; i < count; i++)
             {
                 var angle = angleOffset + ((Mathf.PI * 2f * i) / Mathf.Max(1, count));
                 var pos = source.transform.position + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * ringR;
-                SpawnEnemy(RuntimeSpriteFactory.EnemyVisualKind.Slime, ResolveDebugSpawnPosition(pos, childRadius));
+                
+                // 자식도 동일한 변종(SlimeSplit)으로 생성하되, 세대를 높여서 전달
+                var child = SpawnEnemy(definition.BaseVisualKind, ResolveDebugSpawnPosition(pos, childRadius), statProfile);
+                if (child != null)
+                {
+                    child.ConfigureVariant(definition, HandleVariantSplitSpawnRequested, nextGeneration);
+                    child.gameObject.name = $"{definition.DisplayName} (Gen {nextGeneration})";
+                }
             }
         }
 

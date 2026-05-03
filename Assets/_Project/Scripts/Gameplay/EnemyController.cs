@@ -111,6 +111,7 @@ namespace EJR.Game.Gameplay
         private bool _isBossBehavior;
         private BossArchetypeId _bossArchetype = BossArchetypeId.Final;
         private RunDifficultyDefinition _bossDifficulty;
+        private int _generation;
 
 
         private float _health;
@@ -181,6 +182,7 @@ namespace EJR.Game.Gameplay
         public float CollisionRadius => _collisionRadius;
         public RuntimeSpriteFactory.EnemyVisualKind VisualKind => _visualKind;
         public EnemyVariantId VariantId => _variantDefinition?.Id ?? EnemyVariantId.None;
+        public int Generation => _generation;
         public bool IsBoss => _isBossBehavior;
         public bool IsDead => _isDead;
 
@@ -419,10 +421,11 @@ namespace EJR.Game.Gameplay
             Changed?.Invoke(_health, _maxHealth);
         }
 
-        public void ConfigureVariant(EnemyVariantDefinition variantDefinition, Action<EnemyController, EnemyVariantDefinition> splitSpawnHandler = null)
+        public void ConfigureVariant(EnemyVariantDefinition variantDefinition, Action<EnemyController, EnemyVariantDefinition> splitSpawnHandler = null, int generation = 0)
         {
             _variantDefinition = variantDefinition;
             _variantSplitSpawnHandler = splitSpawnHandler;
+            _generation = generation;
 
             _variantActionTimer = 0f;
             _variantCooldownTimer = variantDefinition != null

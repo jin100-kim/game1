@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using EJR.Game.Core;
 using UnityEngine;
 
@@ -46,20 +47,46 @@ namespace EJR.Game.Gameplay
         private void SpawnFragments(AutoWeaponSystem system, WeaponRuntime weapon, Vector3 position, float fragmentDamage, EnemyController ignoreTarget)
         {
             var extraCount = system.GetWeaponExtraCount(weapon);
-            int fragmentCount = 2 + (extraCount * 2); // 0->2, 1->4, 2->6
+            int fragmentCount = 2 + (extraCount * 2);
 
             float speed = system.Config.iceSpikeProjectileSpeed * 0.7f;
             float lifetime = system.Config.iceSpikeProjectileLifetime * 0.5f;
             float hitRadius = system.Config.iceSpikeProjectileHitRadius * 0.6f;
             Color color = GetSourceColor(weapon, system);
 
-            float angleStep = 360f / fragmentCount;
-            float startAngle = UnityEngine.Random.Range(0f, 360f);
+            // 주변 적 탐색 (최대 6m)
+            var nearbyEnemies = new List<EnemyController>();
+            system.Registry.GetNearby(position, 6.0f, nearbyEnemies);
+            
+            // 무효한 타겟 제거 (이미 맞은 적, 죽은 적 등)
+            nearbyEnemies.RemoveAll(e => e == null || ReferenceEquals(e, ignoreTarget) || e.IsDead);
+            
+            // 거리순 정렬
+            nearbyEnemies.Sort((a, b) => 
+                (a.transform.position - position).sqrMagnitude.CompareTo((b.transform.position - position).sqrMagnitude));
 
             for (int i = 0; i < fragmentCount; i++)
             {
-                float angle = startAngle + (i * angleStep);
-                Vector2 dir = new Vector2(Mathf.Cos(angle * Mathf.Deg2Rad), Mathf.Sin(angle * Mathf.Deg2Rad));
+                Vector2 dir;
+                if (nearbyEnemies.Count > 0)
+                {
+                    // 적이 있는 경우: 적들을 순환하며 타겟팅
+                    var target = nearbyEnemies[i % nearbyEnemies.Count];
+                    dir = (Vector2)(target.transform.position - position).normalized;
+                    
+                    // 약간의 무작위 각도 추가 (겹침 방지)
+                    float jitter = UnityEngine.Random.Range(-15f, 15f);
+                    float rad = jitter * Mathf.Deg2Rad;
+                    float cos = Mathf.Cos(rad);
+                    float sin = Mathf.Sin(rad);
+                    dir = new Vector2(dir.x * cos - dir.y * sin, dir.x * sin + dir.y * cos);
+                }
+                else
+                {
+                    // 주변에 적이 없는 경우: 기존처럼 원형으로 분산
+                    float angle = (360f / fragmentCount) * i + UnityEngine.Random.Range(0f, 30f);
+                    dir = new Vector2(Mathf.Cos(angle * Mathf.Deg2Rad), Mathf.Sin(angle * Mathf.Deg2Rad));
+                }
 
                 var fragment = system.SpawnProjectile(
                     WeaponId,
@@ -72,11 +99,10 @@ namespace EJR.Game.Gameplay
                     position,
                     null,
                     true,
-                    ignoreTarget); // 처음 맞은 적 무시
+                    ignoreTarget);
 
                 if (fragment != null)
                 {
-                    // 파편 시각 효과
                     var renderer = fragment.GetComponent<SpriteRenderer>();
                     if (renderer != null) renderer.enabled = false;
 
