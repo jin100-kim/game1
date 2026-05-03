@@ -152,7 +152,7 @@ namespace EJR.Game.Gameplay
         private Vector2 _bossPullCenter;
         private float _bossPullRadius;
         private float _bossPullSpeed;
-        private float _variantAccumulatedDamage;
+
         private float _variantActionTimer;
         private float _variantCooldownTimer;
         private float _variantBlinkTimer;
@@ -189,17 +189,7 @@ namespace EJR.Game.Gameplay
             center = transform.position;
             radius = 0f;
             remainingTime = 0f;
-
-            if (_variantDefinition == null ||
-                _variantDefinition.BehaviorKind != EnemyVariantBehaviorKind.ProximityBomber ||
-                _variantActionState != VariantActionState.Windup)
-            {
-                return false;
-            }
-
-            radius = Mathf.Max(0.1f, _variantDefinition.ExplosionRadius);
-            remainingTime = Mathf.Max(0f, _variantActionTimer);
-            return true;
+            return false;
         }
 
         public bool TryGetBossPullState(out Vector2 center, out float radius, out float speed)
@@ -418,7 +408,7 @@ namespace EJR.Game.Gameplay
             _bossRepeatRemaining = 0;
             _bossActionStep = 0;
             ClearBossPullState();
-            _variantAccumulatedDamage = 0f;
+
             _variantActionTimer = 0f;
             _variantCooldownTimer = 0f;
             _variantBlinkTimer = 0f;
@@ -433,7 +423,7 @@ namespace EJR.Game.Gameplay
         {
             _variantDefinition = variantDefinition;
             _variantSplitSpawnHandler = splitSpawnHandler;
-            _variantAccumulatedDamage = 0f;
+
             _variantActionTimer = 0f;
             _variantCooldownTimer = variantDefinition != null
                 ? UnityEngine.Random.Range(0f, Mathf.Max(0.05f, variantDefinition.AttackCooldown * 0.35f))
@@ -705,68 +695,14 @@ namespace EJR.Game.Gameplay
 
             return _variantDefinition.BehaviorKind switch
             {
-                EnemyVariantBehaviorKind.ProximityBomber => UpdateBomberVariant(deltaTime),
+                EnemyVariantBehaviorKind.SplitOnDeath => false,
                 EnemyVariantBehaviorKind.Shooter => UpdateShooterVariant(deltaTime, isStunned, 2.4f, 4.4f),
-                EnemyVariantBehaviorKind.Healer => UpdateHealerVariant(isStunned),
                 EnemyVariantBehaviorKind.Charger => UpdateChargerVariant(deltaTime, isStunned),
-                EnemyVariantBehaviorKind.Archer => UpdateShooterVariant(
-                    deltaTime,
-                    isStunned,
-                    Mathf.Max(0f, _variantDefinition.DesiredMinRange),
-                    Mathf.Max(_variantDefinition.DesiredMinRange, _variantDefinition.DesiredMaxRange),
-                    keepRange: true),
                 _ => false,
             };
         }
 
-        private bool UpdateBomberVariant(float deltaTime)
-        {
-            if (_variantActionState == VariantActionState.Windup)
-            {
-                UpdateVariantBlink(deltaTime, Color.white);
-                _variantActionTimer -= deltaTime;
-                if (_variantActionTimer <= 0f)
-                {
-                    ApplyVariantBaseColor();
-                    ExecuteBomberExplosion();
-                }
 
-                return true;
-            }
-
-            if (_variantActionState != VariantActionState.None)
-            {
-                return true;
-            }
-
-            var triggerDamageThreshold = MaxHealth * Mathf.Clamp01(_variantDefinition.TriggerDamageRatio);
-            var triggerDistance = Mathf.Max(0.1f, _variantDefinition.TriggerDistance);
-            var distanceToPlayer = Vector2.Distance(transform.position, _target.position);
-            if (_variantAccumulatedDamage < triggerDamageThreshold && distanceToPlayer > triggerDistance)
-            {
-                return false;
-            }
-
-            return TryStartBomberWindup();
-        }
-
-        private bool UpdateHealerVariant(bool isStunned)
-        {
-            if (isStunned)
-            {
-                return false;
-            }
-
-            if (_variantCooldownTimer > 0f)
-            {
-                return false;
-            }
-
-            _spriteAnimator?.PlayAttackOneShot(Mathf.Clamp(_variantDefinition.AttackCooldown * 0.18f, 0.16f, 0.28f));
-            ExecuteHealPulse();
-            _variantCooldownTimer = Mathf.Max(0.1f, _variantDefinition.AttackCooldown);
-            return false;
-        }
 
         private bool UpdateShooterVariant(float deltaTime, bool isStunned, float minRange, float maxRange, bool keepRange = false)
         {
@@ -915,91 +851,9 @@ namespace EJR.Game.Gameplay
             _visualRenderer.color = nextColor;
         }
 
-        private void ExecuteBomberExplosion()
-        {
-            var radius = Mathf.Max(0.1f, _variantDefinition.ExplosionRadius);
-            var damage = Mathf.Max(0f, _contactDamage * Mathf.Max(0.1f, _variantDefinition.ExplosionDamageMultiplier));
-            var origin = (Vector2)transform.position;
-            SpawnVariantAreaFx(
-                origin,
-                radius,
-                VariantBomberExplosionColor,
-                VariantBomberTelegraphLineWidth + 0.02f,
-                0.20f,
-                VariantBomberBurstDuration,
-                10,
-                "BomberExplosionFx");
-            var hitLimit = radius + _playerCollisionRadius;
-            if (_playerHealth != null && ((Vector2)_target.position - origin).sqrMagnitude <= hitLimit * hitLimit)
-            {
-                _playerHealth.TakeDamage(damage);
-            }
 
-            if (_registry != null)
-            {
-                var searchRadius = radius + _registry.GetMaxCollisionRadius();
-                _registry.GetNearby(origin, searchRadius, _nearbyBuffer);
-                for (var i = 0; i < _nearbyBuffer.Count; i++)
-                {
-                    var enemy = _nearbyBuffer[i];
-                    if (enemy == null || ReferenceEquals(enemy, this) || enemy.IsDead)
-                    {
-                        continue;
-                    }
 
-                    var limit = radius + enemy.CollisionRadius;
-                    if (((Vector2)enemy.transform.position - origin).sqrMagnitude > limit * limit)
-                    {
-                        continue;
-                    }
 
-                    enemy.ReceiveDamage(damage);
-                }
-            }
-
-            _health = 0f;
-            Changed?.Invoke(_health, MaxHealth);
-            Die();
-        }
-
-        private void ExecuteHealPulse()
-        {
-            if (_registry == null)
-            {
-                return;
-            }
-
-            var radius = Mathf.Max(0.1f, _variantDefinition.HealRadius);
-            var amount = Mathf.Max(1f, _variantDefinition.HealAmount);
-            var origin = (Vector2)transform.position;
-            SpawnVariantAreaFx(
-                origin,
-                radius,
-                VariantHealPulseColor,
-                VariantHealPulseLineWidth,
-                VariantHealPulseDuration,
-                VariantHealBurstDuration,
-                9,
-                "HealerPulseFx");
-            var searchRadius = radius + _registry.GetMaxCollisionRadius();
-            _registry.GetNearby(origin, searchRadius, _nearbyBuffer);
-            for (var i = 0; i < _nearbyBuffer.Count; i++)
-            {
-                var enemy = _nearbyBuffer[i];
-                if (enemy == null || ReferenceEquals(enemy, this) || enemy.IsDead)
-                {
-                    continue;
-                }
-
-                var limit = radius + enemy.CollisionRadius;
-                if (((Vector2)enemy.transform.position - origin).sqrMagnitude > limit * limit)
-                {
-                    continue;
-                }
-
-                enemy.Heal(amount);
-            }
-        }
 
         private void SpawnVariantProjectile(Vector2 direction, float speed, float lifetime, float damage, Color color)
         {
@@ -1073,30 +927,8 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            var isBomberVariant = _variantDefinition != null &&
-                _variantDefinition.BehaviorKind == EnemyVariantBehaviorKind.ProximityBomber;
-            var bomberAlreadyArmed = isBomberVariant && _variantActionState != VariantActionState.None;
             var appliedDamage = Mathf.Min(baseDamage, Mathf.Max(0f, _health));
-            var nextHealth = Mathf.Max(0f, _health - baseDamage);
-
-            if (isBomberVariant && _variantActionState == VariantActionState.None)
-            {
-                _variantAccumulatedDamage += appliedDamage;
-            }
-
-            if (bomberAlreadyArmed)
-            {
-                _health = Mathf.Max(1f, nextHealth);
-            }
-            else if (isBomberVariant && nextHealth <= 0f && TryStartBomberWindup())
-            {
-                // A lethal hit arms the bomber instead of killing it immediately.
-                _health = 1f;
-            }
-            else
-            {
-                _health = nextHealth;
-            }
+            _health = Mathf.Max(0f, _health - baseDamage);
 
             if (_health > 0f &&
                 !IsBoss &&
@@ -1117,29 +949,7 @@ namespace EJR.Game.Gameplay
             }
         }
 
-        private bool TryStartBomberWindup()
-        {
-            if (_variantDefinition == null ||
-                _variantDefinition.BehaviorKind != EnemyVariantBehaviorKind.ProximityBomber ||
-                _variantActionState != VariantActionState.None)
-            {
-                return false;
-            }
 
-            _variantActionState = VariantActionState.Windup;
-            _variantActionTimer = Mathf.Max(0.1f, _variantDefinition.WindupSeconds);
-            _variantBlinkTimer = 0f;
-            SpawnVariantAreaFx(
-                transform.position,
-                Mathf.Max(0.1f, _variantDefinition.ExplosionRadius),
-                VariantBomberTelegraphColor,
-                VariantBomberTelegraphLineWidth,
-                _variantActionTimer + VariantBomberTelegraphDurationPadding,
-                VariantBomberBurstDuration,
-                8,
-                "BomberTelegraphFx");
-            return true;
-        }
 
         private void SpawnVariantAreaFx(
             Vector2 origin,
@@ -1344,76 +1154,16 @@ namespace EJR.Game.Gameplay
 
         private bool UpdateBossPattern(float deltaTime)
         {
-            if (!IsBoss || _playerHealth == null || _target == null)
-            {
-                ClearBossPullState();
-                return false;
-            }
-
-            switch (_bossPatternState)
-            {
-                case BossPatternState.Telegraph:
-                    if (ShouldShowDashTelegraph(_bossCurrentAction))
-                    {
-                        UpdateBossDashTelegraphFx();
-                    }
-                    else
-                    {
-                        HideBossDashTelegraphFx();
-                    }
-
-                    if (ShouldShowAreaTelegraph(_bossCurrentAction))
-                    {
-                        UpdateBossAreaTelegraphFx();
-                    }
-                    else
-                    {
-                        HideBossAreaTelegraphFx();
-                    }
-
-                    _bossStateTimer -= deltaTime;
-                    if (_bossStateTimer <= 0f)
-                    {
-                        HideBossDashTelegraphFx();
-                        HideBossAreaTelegraphFx();
-                        BeginBossExecution();
-                    }
-
-                    return true;
-
-                case BossPatternState.Executing:
-                    if (_bossCurrentAction == BossPatternActionKind.FinalGravityNova)
-                    {
-                        UpdateBossAreaTelegraphFx();
-                    }
-                    else
-                    {
-                        HideBossAreaTelegraphFx();
-                    }
-
-                    return UpdateBossExecuting(deltaTime);
-
-                case BossPatternState.Recovery:
-                    HideBossAreaTelegraphFx();
-                    _bossStateTimer -= deltaTime;
-                    if (_bossStateTimer <= 0f)
-                    {
-                        EndBossPattern();
-                    }
-
-                    return true;
-            }
-
+            // All boss patterns have been disabled per user request.
             ClearBossPullState();
-            _bossPatternCooldown -= deltaTime;
-            if (_bossPatternCooldown > 0f)
-            {
-                return false;
-            }
-
-            StartRandomBossPattern();
-            return true;
+            HideBossDashTelegraphFx();
+            HideBossAreaTelegraphFx();
+            return false;
         }
+
+
+
+
 
         private void StartRandomBossPattern()
         {

@@ -139,8 +139,8 @@ namespace EJR.Game.Core
                 new Color(0.10f, 0.16f, 0.12f, 1f),
                 new Color(0.40f, 0.58f, 0.36f, 1f),
                 string.Empty,
-                RuntimeSpriteFactory.EnemyVisualKind.Wizard,
-                BossArchetypeId.Wizard)
+                RuntimeSpriteFactory.EnemyVisualKind.Skeleton,
+                BossArchetypeId.Warrior)
             {
                 InitialSpawnInterval = 2.50f,
                 MinimumSpawnInterval = 0.55f,

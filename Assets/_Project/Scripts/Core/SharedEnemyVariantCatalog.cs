@@ -10,22 +10,16 @@ namespace EJR.Game.Core
     {
         None = 0,
         SlimeSplit = 1,
-        SlimeBomber = 2,
         MushroomShooter = 3,
-        MushroomHealer = 4,
         SkeletonCharger = 5,
-        SkeletonArcher = 6,
     }
 
     public enum EnemyVariantBehaviorKind
     {
         None = 0,
         SplitOnDeath = 1,
-        ProximityBomber = 2,
         Shooter = 3,
-        Healer = 4,
         Charger = 5,
-        Archer = 6,
     }
 
     [Serializable]
@@ -84,24 +78,7 @@ namespace EJR.Game.Core
                 SplitSpawnCount = 2,
                 SplitGenerationLimit = 1,
             },
-            new()
-            {
-                Id = EnemyVariantId.SlimeBomber,
-                DisplayName = "\uC2AC\uB77C\uC784 \uC790\uD3ED\uD615",
-                BaseVisualKind = RuntimeSpriteFactory.EnemyVisualKind.Slime,
-                BehaviorKind = EnemyVariantBehaviorKind.ProximityBomber,
-                TintColor = ParseColor("#FF8A5B"),
-                HealthMultiplier = 1.2f,
-                MoveSpeedMultiplier = 1f,
-                ContactDamageMultiplier = 1f,
-                VisualScaleMultiplier = 1.1f,
-                CollisionRadiusMultiplier = 1.1f,
-                TriggerDamageRatio = 0.25f,
-                TriggerDistance = 1.1f,
-                WindupSeconds = 0.9f,
-                ExplosionRadius = 1.4f,
-                ExplosionDamageMultiplier = 1.6f,
-            },
+
             new()
             {
                 Id = EnemyVariantId.MushroomShooter,
@@ -119,22 +96,7 @@ namespace EJR.Game.Core
                 ProjectileLifetime = 2.15f,
                 ProjectileDamageMultiplier = 0.9f,
             },
-            new()
-            {
-                Id = EnemyVariantId.MushroomHealer,
-                DisplayName = "\uBC84\uC12F \uD68C\uBCF5\uD615",
-                BaseVisualKind = RuntimeSpriteFactory.EnemyVisualKind.Mushroom,
-                BehaviorKind = EnemyVariantBehaviorKind.Healer,
-                TintColor = ParseColor("#A6FF54"),
-                HealthMultiplier = 1.15f,
-                MoveSpeedMultiplier = 0.9f,
-                ContactDamageMultiplier = 1f,
-                VisualScaleMultiplier = 1f,
-                CollisionRadiusMultiplier = 1f,
-                HealRadius = 2.5f,
-                AttackCooldown = 2.6f,
-                HealAmount = 18f,
-            },
+
             new()
             {
                 Id = EnemyVariantId.SkeletonCharger,
@@ -151,25 +113,6 @@ namespace EJR.Game.Core
                 DashDuration = 0.45f,
                 DashSpeedMultiplier = 4.5f,
                 AttackCooldown = 2.2f,
-            },
-            new()
-            {
-                Id = EnemyVariantId.SkeletonArcher,
-                DisplayName = "\uD574\uACE8 \uAD81\uC218",
-                BaseVisualKind = RuntimeSpriteFactory.EnemyVisualKind.Skeleton,
-                BehaviorKind = EnemyVariantBehaviorKind.Archer,
-                TintColor = ParseColor("#7DC6FF"),
-                HealthMultiplier = 0.9f,
-                MoveSpeedMultiplier = 0.95f,
-                ContactDamageMultiplier = 1f,
-                VisualScaleMultiplier = 1f,
-                CollisionRadiusMultiplier = 1f,
-                DesiredMinRange = 3.7f,
-                DesiredMaxRange = 5.3f,
-                AttackCooldown = 3.0f,
-                ProjectileSpeed = 5.9f,
-                ProjectileLifetime = 2.6f,
-                ProjectileDamageMultiplier = 1f,
             },
         };
 
@@ -293,14 +236,13 @@ namespace EJR.Game.Core
                     {
                         RuntimeSpriteFactory.EnemyVisualKind.Slime => PickWeighted(
                             EnemyVariantId.SlimeSplit,
-                            elapsedSeconds < 150f ? 0.18f : elapsedSeconds < 300f ? 0.14f : 0.12f,
-                            EnemyVariantId.SlimeBomber,
-                            elapsedSeconds < 180f ? 0f : elapsedSeconds < 300f ? 0.06f : 0.10f),
+                            elapsedSeconds < 150f ? 0.22f : elapsedSeconds < 300f ? 0.18f : 0.16f),
                         RuntimeSpriteFactory.EnemyVisualKind.Mushroom => PickWeighted(
                             EnemyVariantId.MushroomShooter,
-                            elapsedSeconds < 260f ? 0.06f : 0.08f,
-                            EnemyVariantId.MushroomHealer,
-                            elapsedSeconds < 320f ? 0.03f : 0.07f),
+                            elapsedSeconds < 260f ? 0.08f : 0.12f),
+                        RuntimeSpriteFactory.EnemyVisualKind.Skeleton => PickWeighted(
+                            EnemyVariantId.SkeletonCharger,
+                            0.15f),
                         _ => null,
                     };
 
@@ -308,20 +250,14 @@ namespace EJR.Game.Core
                     return visualKind switch
                     {
                         RuntimeSpriteFactory.EnemyVisualKind.Slime => PickWeighted(
-                            EnemyVariantId.SlimeBomber,
-                            elapsedSeconds < 240f ? 0.16f : 0.20f,
                             EnemyVariantId.SlimeSplit,
-                            elapsedSeconds < 240f ? 0.08f : 0.10f),
+                            elapsedSeconds < 240f ? 0.18f : 0.22f),
                         RuntimeSpriteFactory.EnemyVisualKind.Mushroom => PickWeighted(
                             EnemyVariantId.MushroomShooter,
-                            elapsedSeconds < 360f ? 0.09f : 0.10f,
-                            EnemyVariantId.MushroomHealer,
-                            elapsedSeconds < 360f ? 0.03f : 0.08f),
+                            elapsedSeconds < 360f ? 0.12f : 0.15f),
                         RuntimeSpriteFactory.EnemyVisualKind.Skeleton => PickWeighted(
                             EnemyVariantId.SkeletonCharger,
-                            0.15f,
-                            EnemyVariantId.SkeletonArcher,
-                            0.04f),
+                            0.15f),
                         _ => null,
                     };
 
@@ -330,19 +266,13 @@ namespace EJR.Game.Core
                     {
                         RuntimeSpriteFactory.EnemyVisualKind.Slime => PickWeighted(
                             EnemyVariantId.SlimeSplit,
-                            0.12f,
-                            EnemyVariantId.SlimeBomber,
-                            0.08f),
+                            0.18f),
                         RuntimeSpriteFactory.EnemyVisualKind.Mushroom => PickWeighted(
-                            EnemyVariantId.MushroomHealer,
-                            0.12f,
                             EnemyVariantId.MushroomShooter,
-                            0.07f),
+                            0.14f),
                         RuntimeSpriteFactory.EnemyVisualKind.Skeleton => PickWeighted(
                             EnemyVariantId.SkeletonCharger,
-                            elapsedSeconds < 360f ? 0.16f : 0.18f,
-                            EnemyVariantId.SkeletonArcher,
-                            elapsedSeconds < 360f ? 0.08f : 0.10f),
+                            elapsedSeconds < 360f ? 0.16f : 0.18f),
                         _ => null,
                     };
 
@@ -370,10 +300,11 @@ namespace EJR.Game.Core
                     {
                         RuntimeSpriteFactory.EnemyVisualKind.Slime => waveIndex <= 1
                             ? PickPattern(spawnOrdinal, EnemyVariantId.SlimeSplit, EnemyVariantId.None, EnemyVariantId.None, EnemyVariantId.SlimeSplit)
-                            : PickPattern(spawnOrdinal, EnemyVariantId.SlimeSplit, EnemyVariantId.None, EnemyVariantId.SlimeBomber, EnemyVariantId.None),
+                            : PickPattern(spawnOrdinal, EnemyVariantId.SlimeSplit, EnemyVariantId.None, EnemyVariantId.SlimeSplit, EnemyVariantId.None),
                         RuntimeSpriteFactory.EnemyVisualKind.Mushroom => waveIndex <= 1
                             ? PickPattern(spawnOrdinal, EnemyVariantId.None, EnemyVariantId.MushroomShooter, EnemyVariantId.None)
-                            : PickPattern(spawnOrdinal, EnemyVariantId.None, EnemyVariantId.MushroomShooter, EnemyVariantId.None, EnemyVariantId.MushroomHealer, EnemyVariantId.None),
+                            : PickPattern(spawnOrdinal, EnemyVariantId.None, EnemyVariantId.MushroomShooter, EnemyVariantId.None, EnemyVariantId.MushroomShooter, EnemyVariantId.None),
+                        RuntimeSpriteFactory.EnemyVisualKind.Skeleton => PickPattern(spawnOrdinal, EnemyVariantId.SkeletonCharger, EnemyVariantId.None, EnemyVariantId.None),
                         _ => null,
                     };
 
@@ -381,11 +312,11 @@ namespace EJR.Game.Core
                     return visualKind switch
                     {
                         RuntimeSpriteFactory.EnemyVisualKind.Slime => waveIndex <= 1
-                            ? PickPattern(spawnOrdinal, EnemyVariantId.SlimeBomber, EnemyVariantId.None, EnemyVariantId.None, EnemyVariantId.SlimeSplit)
-                            : PickPattern(spawnOrdinal, EnemyVariantId.SlimeBomber, EnemyVariantId.None, EnemyVariantId.SlimeBomber, EnemyVariantId.None, EnemyVariantId.SlimeSplit),
+                            ? PickPattern(spawnOrdinal, EnemyVariantId.SlimeSplit, EnemyVariantId.None, EnemyVariantId.None, EnemyVariantId.SlimeSplit)
+                            : PickPattern(spawnOrdinal, EnemyVariantId.SlimeSplit, EnemyVariantId.None, EnemyVariantId.SlimeSplit, EnemyVariantId.None, EnemyVariantId.SlimeSplit),
                         RuntimeSpriteFactory.EnemyVisualKind.Mushroom => waveIndex <= 1
                             ? null
-                            : PickPattern(spawnOrdinal, EnemyVariantId.None, EnemyVariantId.MushroomShooter, EnemyVariantId.None, EnemyVariantId.MushroomHealer, EnemyVariantId.None),
+                            : PickPattern(spawnOrdinal, EnemyVariantId.None, EnemyVariantId.MushroomShooter, EnemyVariantId.None, EnemyVariantId.MushroomShooter, EnemyVariantId.None),
                         RuntimeSpriteFactory.EnemyVisualKind.Skeleton => PickPattern(spawnOrdinal, EnemyVariantId.SkeletonCharger, EnemyVariantId.None, EnemyVariantId.None),
                         _ => null,
                     };
@@ -394,12 +325,12 @@ namespace EJR.Game.Core
                     return visualKind switch
                     {
                         RuntimeSpriteFactory.EnemyVisualKind.Slime => waveIndex <= 1
-                            ? PickPattern(spawnOrdinal, EnemyVariantId.SlimeSplit, EnemyVariantId.None, EnemyVariantId.SlimeBomber)
-                            : PickPattern(spawnOrdinal, EnemyVariantId.SlimeSplit, EnemyVariantId.SlimeBomber, EnemyVariantId.None, EnemyVariantId.SlimeSplit),
+                            ? PickPattern(spawnOrdinal, EnemyVariantId.SlimeSplit, EnemyVariantId.None, EnemyVariantId.SlimeSplit)
+                            : PickPattern(spawnOrdinal, EnemyVariantId.SlimeSplit, EnemyVariantId.None, EnemyVariantId.None, EnemyVariantId.SlimeSplit),
                         RuntimeSpriteFactory.EnemyVisualKind.Mushroom => waveIndex <= 1
-                            ? PickPattern(spawnOrdinal, EnemyVariantId.MushroomHealer, EnemyVariantId.None, EnemyVariantId.None, EnemyVariantId.MushroomShooter)
-                            : PickPattern(spawnOrdinal, EnemyVariantId.MushroomHealer, EnemyVariantId.None, EnemyVariantId.MushroomShooter, EnemyVariantId.None, EnemyVariantId.MushroomHealer),
-                        RuntimeSpriteFactory.EnemyVisualKind.Skeleton => PickPattern(spawnOrdinal, EnemyVariantId.SkeletonCharger, EnemyVariantId.None, EnemyVariantId.SkeletonArcher, EnemyVariantId.None),
+                            ? PickPattern(spawnOrdinal, EnemyVariantId.None, EnemyVariantId.None, EnemyVariantId.None, EnemyVariantId.MushroomShooter)
+                            : PickPattern(spawnOrdinal, EnemyVariantId.None, EnemyVariantId.MushroomShooter, EnemyVariantId.None, EnemyVariantId.MushroomShooter),
+                        RuntimeSpriteFactory.EnemyVisualKind.Skeleton => PickPattern(spawnOrdinal, EnemyVariantId.SkeletonCharger, EnemyVariantId.None, EnemyVariantId.None),
                         _ => null,
                     };
 
@@ -455,6 +386,7 @@ namespace EJR.Game.Core
         {
             return NormalizeMapId(mapId) switch
             {
+                ForestMapId => elapsedSeconds >= 480f ? 0.12f : elapsedSeconds >= 300f ? 0.05f : 0f,
                 DesertMapId => elapsedSeconds >= 420f ? 0.10f : elapsedSeconds >= 300f ? 0.06f : 0f,
                 SnowMapId => elapsedSeconds >= 420f ? 0.24f : elapsedSeconds >= 240f ? 0.18f : elapsedSeconds >= 120f ? 0.10f : 0f,
                 _ => 0f,
