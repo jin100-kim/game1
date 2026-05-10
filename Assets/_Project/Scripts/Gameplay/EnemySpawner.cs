@@ -9,6 +9,7 @@ namespace EJR.Game.Gameplay
     public sealed class EnemySpawner : MonoBehaviour
     {
         private const int BossProjectileVolleySkeletonCount = 2;
+        private const int WaveTargetSlimeSplitSpawnCount = 3;
         private const float WaveRewardPickupRadius = 0.8f;
         private const float WaveTargetVisualScaleMultiplier = 2f;
         private const float WaveTargetCollisionRadiusMultiplier = 1.7f;
@@ -413,7 +414,11 @@ namespace EJR.Game.Gameplay
             return enemy;
         }
 
-        private EnemyController SpawnVariantEnemy(EnemyVariantDefinition definition, Vector3? requestedPosition = null, bool trackAsDebugMonster = false)
+        private EnemyController SpawnVariantEnemy(
+            EnemyVariantDefinition definition,
+            Vector3? requestedPosition = null,
+            bool trackAsDebugMonster = false,
+            bool ignoreSpawnClearance = false)
         {
             if (definition == null) return null;
             var profile = SharedEnemyVariantCatalog.CreateVariantStatProfile(_config, definition);
@@ -421,7 +426,7 @@ namespace EJR.Game.Gameplay
             if (trackAsDebugMonster && requestedPosition.HasValue)
                 pos = ResolveDebugSpawnPosition(requestedPosition.Value, CalculateCollisionRadius(profile));
             
-            var enemy = SpawnEnemy(definition.BaseVisualKind, pos, profile);
+            var enemy = SpawnEnemy(definition.BaseVisualKind, pos, profile, ignoreSpawnClearance: ignoreSpawnClearance);
             if (enemy != null)
             {
                 enemy.ConfigureVariant(definition, HandleVariantSplitSpawnRequested);
@@ -538,6 +543,7 @@ namespace EJR.Game.Gameplay
             {
                 _activeWaveTargetEnemy = enemy;
                 _waveTargetSpawnSequence = ++_spawnSequenceCounter;
+                enemy.ConfigureWaveTargetBehavior(HandleWaveTargetSlimeSplitSpawnRequested);
                 enemy.gameObject.name = $"{_activeWaveTargetLabel}Enemy";
             }
         }
@@ -599,6 +605,34 @@ namespace EJR.Game.Gameplay
             if (enemy == null) return;
             _activeWaveEnemies.Add(enemy);
             _activeWaveRemainingCount = _activeWaveEnemies.Count;
+        }
+
+        private void HandleWaveTargetSlimeSplitSpawnRequested(EnemyController source)
+        {
+            if (source == null || _config == null) return;
+
+            var definition = SharedEnemyVariantCatalog.Get(EnemyVariantId.SlimeSplit);
+            if (definition == null) return;
+
+            var count = WaveTargetSlimeSplitSpawnCount;
+            var statProfile = SharedEnemyVariantCatalog.CreateVariantStatProfile(_config, definition);
+            var childRadius = CalculateCollisionRadius(statProfile);
+            var splitRadius = Mathf.Min(source.CollisionRadius * 0.35f, Mathf.Max(0.08f, childRadius * 0.5f));
+            var angleOffset = Random.value * Mathf.PI * 2f;
+            var sourcePosition = source.transform.position;
+
+            for (var i = 0; i < count; i++)
+            {
+                var angle = angleOffset + ((Mathf.PI * 2f * i) / count);
+                var pos = sourcePosition + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * splitRadius;
+                pos = ClampToArena(pos);
+                var child = SpawnVariantEnemy(definition, pos, ignoreSpawnClearance: true);
+                if (child != null && HasActiveWave)
+                {
+                    TrackWaveEnemy(child);
+                    RaiseWaveStateChanged();
+                }
+            }
         }
 
         private void RaiseWaveStateChanged() => WaveStateChanged?.Invoke(_activeWaveIndex, _activeWaveRemainingCount);
