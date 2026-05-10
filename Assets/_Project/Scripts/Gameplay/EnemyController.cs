@@ -39,12 +39,14 @@ namespace EJR.Game.Gameplay
         private const float VariantProjectileHitRadius = 0.12f;
         private const float VariantProjectileVisualScale = 0.4f;
         private const float WaveTargetMushroomCooldown = 10f;
+        private const float WaveTargetMushroomAttackStopDuration = 0.55f;
         private const float WaveTargetMushroomBurstInterval = 0.22f;
         private const int WaveTargetMushroomBurstCount = 3;
         private const int WaveTargetMushroomProjectileCount = 6;
         private const float WaveTargetMushroomProjectileSpeed = 4.8f;
         private const float WaveTargetMushroomProjectileLifetime = 2.35f;
         private const float WaveTargetMushroomProjectileDamageMultiplier = 0.85f;
+        private const float MushroomShooterAttackStopDuration = 0.32f;
         private const float VariantBlinkInterval = 0.12f;
         private const float VariantBomberTelegraphLineWidth = 0.09f;
         private const float VariantBomberTelegraphDurationPadding = 0.06f;
@@ -125,6 +127,8 @@ namespace EJR.Game.Gameplay
         private float _waveTargetMushroomCooldown = WaveTargetMushroomCooldown;
         private int _waveTargetMushroomBurstRemaining;
         private float _waveTargetMushroomBurstTimer;
+        private float _waveTargetMushroomAttackStopTimer;
+        private bool _waveTargetMushroomBurstAudioPlayed;
 
 
         private float _health;
@@ -169,6 +173,7 @@ namespace EJR.Game.Gameplay
 
         private float _variantActionTimer;
         private float _variantCooldownTimer;
+        private float _variantAttackStopTimer;
         private float _variantBlinkTimer;
         private Vector2 _variantActionDirection = Vector2.right;
         private VariantActionState _variantActionState;
@@ -427,6 +432,7 @@ namespace EJR.Game.Gameplay
 
             _variantActionTimer = 0f;
             _variantCooldownTimer = 0f;
+            _variantAttackStopTimer = 0f;
             _variantBlinkTimer = 0f;
             _variantActionDirection = Vector2.right;
             _variantActionState = VariantActionState.None;
@@ -437,6 +443,8 @@ namespace EJR.Game.Gameplay
             _waveTargetMushroomCooldown = WaveTargetMushroomCooldown;
             _waveTargetMushroomBurstRemaining = 0;
             _waveTargetMushroomBurstTimer = 0f;
+            _waveTargetMushroomAttackStopTimer = 0f;
+            _waveTargetMushroomBurstAudioPlayed = false;
             _registry.Register(this);
             Changed?.Invoke(_health, _maxHealth);
         }
@@ -451,6 +459,7 @@ namespace EJR.Game.Gameplay
             _variantCooldownTimer = variantDefinition != null
                 ? UnityEngine.Random.Range(0f, Mathf.Max(0.05f, variantDefinition.AttackCooldown * 0.35f))
                 : 0f;
+            _variantAttackStopTimer = 0f;
             _variantBlinkTimer = 0f;
             _variantActionDirection = Vector2.right;
             _variantActionState = VariantActionState.None;
@@ -467,6 +476,8 @@ namespace EJR.Game.Gameplay
             _waveTargetMushroomCooldown = WaveTargetMushroomCooldown;
             _waveTargetMushroomBurstRemaining = 0;
             _waveTargetMushroomBurstTimer = 0f;
+            _waveTargetMushroomAttackStopTimer = 0f;
+            _waveTargetMushroomBurstAudioPlayed = false;
         }
 
         public void SetTargetResolver(Func<Transform> targetResolver, Func<PlayerHealth> playerHealthResolver)
@@ -517,15 +528,15 @@ namespace EJR.Game.Gameplay
 
             TickCoreEffectDurations();
             var isStunned = _stunRemaining > 0f;
-            UpdateWaveTargetBehavior(Time.deltaTime, isStunned);
             _pendingDesiredVector = Vector2.zero;
             _pendingFallbackDirection = Vector2.right;
             _pendingMoveSpeedMultiplier = 1f;
 
-            var handledByBossPattern = UpdateBossPattern(Time.deltaTime);
-            var handledByVariant = !handledByBossPattern && UpdateVariantBehavior(Time.deltaTime, isStunned);
+            var handledByWaveTarget = UpdateWaveTargetBehavior(Time.deltaTime, isStunned);
+            var handledByBossPattern = !handledByWaveTarget && UpdateBossPattern(Time.deltaTime);
+            var handledByVariant = !handledByWaveTarget && !handledByBossPattern && UpdateVariantBehavior(Time.deltaTime, isStunned);
             
-            if (!handledByBossPattern && !handledByVariant && !isStunned)
+            if (!handledByWaveTarget && !handledByBossPattern && !handledByVariant && !isStunned)
             {
                 var toPlayer = _target.position - transform.position;
                 var distance = toPlayer.magnitude;
@@ -758,6 +769,14 @@ namespace EJR.Game.Gameplay
             var toPlayer = (Vector2)(_target.position - transform.position);
             var distance = toPlayer.magnitude;
             var direction = distance > 0.001f ? toPlayer / distance : Vector2.right;
+            if (_variantAttackStopTimer > 0f)
+            {
+                _variantAttackStopTimer = Mathf.Max(0f, _variantAttackStopTimer - deltaTime);
+                _pendingDesiredVector = Vector2.zero;
+                _pendingFallbackDirection = direction;
+                return true;
+            }
+
             if (!isStunned)
             {
                 var separation = ComputeSeparationVector((Vector2)transform.position) * Mathf.Max(0f, _config.separationWeight);
@@ -789,7 +808,12 @@ namespace EJR.Game.Gameplay
                 return true;
             }
 
-            _spriteAnimator?.PlayAttackOneShot(Mathf.Clamp(_variantDefinition.AttackCooldown * 0.16f, 0.12f, 0.24f));
+            var attackStopDuration = Mathf.Max(
+                MushroomShooterAttackStopDuration,
+                _spriteAnimator != null ? _spriteAnimator.PlayAttackOneShot(MushroomShooterAttackStopDuration) : 0f);
+            _variantAttackStopTimer = attackStopDuration;
+            _pendingDesiredVector = Vector2.zero;
+            _pendingFallbackDirection = direction;
             SpawnVariantProjectile(
                 direction,
                 Mathf.Max(0.1f, _variantDefinition.ProjectileSpeed),
@@ -889,7 +913,7 @@ namespace EJR.Game.Gameplay
 
 
 
-        private void SpawnVariantProjectile(Vector2 direction, float speed, float lifetime, float damage, Color color)
+        private void SpawnVariantProjectile(Vector2 direction, float speed, float lifetime, float damage, Color color, bool allowVfxAudio = true)
         {
             if (_playerHealth == null || damage <= 0f)
             {
@@ -913,6 +937,11 @@ namespace EJR.Game.Gameplay
                 vfx.transform.localRotation = Quaternion.identity;
                 vfx.transform.localScale = Vector3.one * 1.5f;
 
+                if (!allowVfxAudio)
+                {
+                    DisableVfxAudio(vfx);
+                }
+
                 var particleRenderers = vfx.GetComponentsInChildren<ParticleSystemRenderer>();
                 foreach (var psr in particleRenderers)
                 {
@@ -931,13 +960,39 @@ namespace EJR.Game.Gameplay
                 _playerCollisionRadius);
         }
 
-        private void UpdateWaveTargetBehavior(float deltaTime, bool isStunned)
+        private static void DisableVfxAudio(GameObject root)
+        {
+            if (root == null)
+            {
+                return;
+            }
+
+            var audioSources = root.GetComponentsInChildren<AudioSource>(true);
+            foreach (var audioSource in audioSources)
+            {
+                audioSource.Stop();
+                audioSource.mute = true;
+                audioSource.enabled = false;
+            }
+        }
+
+        private bool UpdateWaveTargetBehavior(float deltaTime, bool isStunned)
         {
             if (!_isWaveTargetBehavior ||
                 _visualKind != RuntimeSpriteFactory.EnemyVisualKind.Mushroom ||
                 _playerHealth == null)
             {
-                return;
+                return false;
+            }
+
+            var toPlayer = _target != null ? (Vector2)(_target.position - transform.position) : Vector2.right;
+            var direction = toPlayer.sqrMagnitude > 0.000001f ? toPlayer.normalized : Vector2.right;
+            var isAttacking = false;
+
+            if (_waveTargetMushroomAttackStopTimer > 0f)
+            {
+                _waveTargetMushroomAttackStopTimer = Mathf.Max(0f, _waveTargetMushroomAttackStopTimer - deltaTime);
+                isAttacking = true;
             }
 
             if (_waveTargetMushroomBurstRemaining > 0)
@@ -949,22 +1004,37 @@ namespace EJR.Game.Gameplay
                     _waveTargetMushroomBurstRemaining--;
                     _waveTargetMushroomBurstTimer = WaveTargetMushroomBurstInterval;
                 }
+
+                isAttacking = true;
             }
 
             _waveTargetMushroomCooldown = Mathf.Max(0f, _waveTargetMushroomCooldown - deltaTime);
-            if (isStunned || _waveTargetMushroomCooldown > 0f || _waveTargetMushroomBurstRemaining > 0)
+            if (!isStunned && _waveTargetMushroomCooldown <= 0f && _waveTargetMushroomBurstRemaining <= 0)
             {
-                return;
+                _waveTargetMushroomBurstRemaining = WaveTargetMushroomBurstCount;
+                _waveTargetMushroomBurstTimer = 0f;
+                _waveTargetMushroomCooldown = WaveTargetMushroomCooldown;
+                _waveTargetMushroomBurstAudioPlayed = false;
+                isAttacking = true;
             }
 
-            _spriteAnimator?.PlayAttackOneShot(0.35f);
-            _waveTargetMushroomBurstRemaining = WaveTargetMushroomBurstCount;
-            _waveTargetMushroomBurstTimer = 0f;
-            _waveTargetMushroomCooldown = WaveTargetMushroomCooldown;
+            if (!isAttacking)
+            {
+                return false;
+            }
+
+            _pendingDesiredVector = Vector2.zero;
+            _pendingFallbackDirection = direction;
+            return true;
         }
 
         private void FireWaveTargetMushroomRadialVolley()
         {
+            var attackStopDuration = Mathf.Max(
+                WaveTargetMushroomAttackStopDuration,
+                _spriteAnimator != null ? _spriteAnimator.PlayAttackOneShot(WaveTargetMushroomAttackStopDuration) : 0f);
+            _waveTargetMushroomAttackStopTimer = attackStopDuration;
+
             var angleOffset = UnityEngine.Random.value * 60f;
             var damage = Mathf.Max(0f, _contactDamage * WaveTargetMushroomProjectileDamageMultiplier);
             var color = new Color(0.42f, 1f, 0.35f, 1f);
@@ -972,12 +1042,19 @@ namespace EJR.Game.Gameplay
             {
                 var radians = ((360f / WaveTargetMushroomProjectileCount) * i + angleOffset) * Mathf.Deg2Rad;
                 var direction = new Vector2(Mathf.Cos(radians), Mathf.Sin(radians));
+                var allowVfxAudio = !_waveTargetMushroomBurstAudioPlayed && i == 0;
+                if (allowVfxAudio)
+                {
+                    _waveTargetMushroomBurstAudioPlayed = true;
+                }
+
                 SpawnVariantProjectile(
                     direction,
                     WaveTargetMushroomProjectileSpeed,
                     WaveTargetMushroomProjectileLifetime,
                     damage,
-                    color);
+                    color,
+                    allowVfxAudio);
             }
         }
 
