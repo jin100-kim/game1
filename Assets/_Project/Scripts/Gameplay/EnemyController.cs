@@ -168,6 +168,7 @@ namespace EJR.Game.Gameplay
         private SpriteRenderer _lightIndicatorRenderer;
         private Vector2 _pendingDesiredVector;
         private Vector2 _pendingFallbackDirection;
+        private float _pendingMoveSpeedMultiplier = 1f;
         private UnityEngine.Tilemaps.Tilemap _propsTilemap;
         private UnityEngine.Tilemaps.Tilemap _groundTilemap;
         private int _obstacleMask;
@@ -472,6 +473,7 @@ namespace EJR.Game.Gameplay
             {
                 _pendingDesiredVector = Vector2.zero;
                 _pendingFallbackDirection = Vector2.right;
+                _pendingMoveSpeedMultiplier = 1f;
                 return;
             }
 
@@ -479,6 +481,7 @@ namespace EJR.Game.Gameplay
             {
                 _pendingDesiredVector = Vector2.zero;
                 _pendingFallbackDirection = Vector2.right;
+                _pendingMoveSpeedMultiplier = 1f;
                 _spriteAnimator?.SetMotion(Vector2.zero);
                 return;
             }
@@ -487,6 +490,7 @@ namespace EJR.Game.Gameplay
             var isStunned = _stunRemaining > 0f;
             _pendingDesiredVector = Vector2.zero;
             _pendingFallbackDirection = Vector2.right;
+            _pendingMoveSpeedMultiplier = 1f;
 
             var handledByBossPattern = UpdateBossPattern(Time.deltaTime);
             var handledByVariant = !handledByBossPattern && UpdateVariantBehavior(Time.deltaTime, isStunned);
@@ -670,7 +674,9 @@ namespace EJR.Game.Gameplay
                 desired.Normalize();
             }
 
-            var effectiveMoveSpeed = _moveSpeed * Mathf.Clamp(_activeSlowMultiplier, 0.1f, 1f);
+            var effectiveMoveSpeed = _moveSpeed
+                * Mathf.Clamp(_activeSlowMultiplier, 0.1f, 1f)
+                * Mathf.Max(0.1f, _pendingMoveSpeedMultiplier);
             
             // 물리 엔진의 속도를 직접 제어 (모든 몬스터가 맵 안에서 생성되므로 복잡한 체크 불필요)
             _rb.linearVelocity = (desired * effectiveMoveSpeed) + _knockbackVelocity;
@@ -784,19 +790,9 @@ namespace EJR.Game.Gameplay
             if (_variantActionState == VariantActionState.Executing)
             {
                 var dashDirection = _variantActionDirection.sqrMagnitude > 0.0001f ? _variantActionDirection.normalized : Vector2.right;
-                var effectiveMoveSpeed = _moveSpeed * Mathf.Clamp(_activeSlowMultiplier, 0.1f, 1f) * Mathf.Max(0.1f, _variantDefinition.DashSpeedMultiplier);
-                
-                if (_rb != null)
-                {
-                    _rb.linearVelocity = dashDirection * effectiveMoveSpeed;
-                    _registry?.NotifyMoved(this, _rb.position);
-                }
-                else
-                {
-                    var next = ClampPositionToArena(transform.position + (Vector3)(dashDirection * (effectiveMoveSpeed * deltaTime)));
-                    transform.position = next;
-                    _registry?.NotifyMoved(this, transform.position);
-                }
+                _pendingDesiredVector = dashDirection;
+                _pendingFallbackDirection = dashDirection;
+                _pendingMoveSpeedMultiplier = Mathf.Max(0.1f, _variantDefinition.DashSpeedMultiplier);
 
                 _variantActionTimer -= deltaTime;
                 if (_variantActionTimer <= 0f)
