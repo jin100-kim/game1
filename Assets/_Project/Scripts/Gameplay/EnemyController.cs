@@ -37,7 +37,7 @@ namespace EJR.Game.Gameplay
 
 
         private const float VariantProjectileHitRadius = 0.12f;
-        private const float VariantProjectileVisualScale = 0.2f;
+        private const float VariantProjectileVisualScale = 0.4f;
         private const float VariantBlinkInterval = 0.12f;
         private const float VariantBomberTelegraphLineWidth = 0.09f;
         private const float VariantBomberTelegraphDurationPadding = 0.06f;
@@ -774,7 +774,6 @@ namespace EJR.Game.Gameplay
         {
             if (_variantActionState == VariantActionState.Windup)
             {
-                UpdateVariantBlink(deltaTime, Color.white);
                 _variantActionTimer -= deltaTime;
                 if (_variantActionTimer <= 0f)
                 {
@@ -826,6 +825,7 @@ namespace EJR.Game.Gameplay
             _variantActionState = VariantActionState.Windup;
             _variantActionTimer = Mathf.Max(0.1f, _variantDefinition.DashTelegraphSeconds);
             _variantBlinkTimer = 0f;
+            ApplyVariantBaseColor();
             if (_spriteAnimator != null)
             {
                 var windupDuration = Mathf.Clamp(_variantActionTimer, 0.12f, 0.45f);

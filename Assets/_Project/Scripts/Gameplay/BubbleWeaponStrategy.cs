@@ -92,7 +92,7 @@ namespace EJR.Game.Gameplay
                     vfx.name = "BubbleVfx";
                     vfx.transform.localPosition = Vector3.zero;
                     vfx.transform.localRotation = Quaternion.identity;
-                    vfx.transform.localScale = Vector3.one * 1.5f;
+                    vfx.transform.localScale = Vector3.one * 3f;
 
                     var particleRenderers = vfx.GetComponentsInChildren<ParticleSystemRenderer>();
                     foreach (var psr in particleRenderers)

@@ -112,7 +112,7 @@ namespace EJR.Game.Core
                 VisualScaleMultiplier = 1f,
                 CollisionRadiusMultiplier = 1f,
                 DashTelegraphSeconds = 0.5f,
-                DashDuration = 0.45f,
+                DashDuration = 0.675f,
                 DashSpeedMultiplier = 4.5f,
                 AttackCooldown = 2.2f,
             },
