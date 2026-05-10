@@ -7,12 +7,6 @@ namespace EJR.Game.Gameplay
 {
     public sealed class LevelUpSystem
     {
-        private static readonly WeaponUpgradeId[] AllWeaponIds =
-        {
-            WeaponUpgradeId.Fireball,
-            WeaponUpgradeId.Slash,
-        };
-
         private static readonly StatUpgradeId[] AllGlobalStatIds =
         {
             StatUpgradeId.AttackPower,
@@ -38,6 +32,7 @@ namespace EJR.Game.Gameplay
         private bool _awaitingChoice;
         private PlayerBuildRuntime _build;
         private LevelUpBalanceConfig _balanceConfig;
+        private WeaponCatalog _weaponCatalog;
         private Func<WeaponUpgradeId, bool> _weaponUnlockPredicate;
 
         public int Level { get; private set; } = 1;
@@ -49,16 +44,24 @@ namespace EJR.Game.Gameplay
         public event Action<int, int, int> ExperienceChanged;
         public event Action<LevelUpOption[]> OptionsGenerated;
 
-        public void Initialize(PlayerBuildRuntime build, LevelUpBalanceConfig balanceConfig = null, Func<WeaponUpgradeId, bool> weaponUnlockPredicate = null)
+        public void Initialize(
+            PlayerBuildRuntime build,
+            LevelUpBalanceConfig balanceConfig = null,
+            Func<WeaponUpgradeId, bool> weaponUnlockPredicate = null,
+            WeaponCatalog weaponCatalog = null)
         {
             _build = build;
             _balanceConfig = balanceConfig ?? LevelUpBalanceConfig.CreateRuntimeDefault();
             _weaponUnlockPredicate = weaponUnlockPredicate ?? (_ => true);
+            _weaponCatalog = weaponCatalog ?? WeaponCatalog.CreateRuntimeDefault();
         }
 
         public void AddExperience(int amount)
         {
-            if (amount <= 0) return;
+            if (amount <= 0)
+            {
+                return;
+            }
 
             CurrentExperience += amount;
             while (CurrentExperience >= RequiredExperience)
@@ -75,7 +78,10 @@ namespace EJR.Game.Gameplay
 
         public void ApplyOption(int optionIndex, IReadOnlyList<LevelUpOption> options)
         {
-            if (!_awaitingChoice || _build == null || options == null || options.Count <= 0) return;
+            if (!_awaitingChoice || _build == null || options == null || options.Count <= 0)
+            {
+                return;
+            }
 
             optionIndex = Mathf.Clamp(optionIndex, 0, options.Count - 1);
             _build.Apply(options[optionIndex]);
@@ -89,7 +95,10 @@ namespace EJR.Game.Gameplay
         public bool TryRerollCurrentChoice(out LevelUpOption[] nextOptions)
         {
             nextOptions = Array.Empty<LevelUpOption>();
-            if (!_awaitingChoice || _build == null) return false;
+            if (!_awaitingChoice || _build == null)
+            {
+                return false;
+            }
 
             nextOptions = GenerateOptions(Level);
             return nextOptions.Length > 0;
@@ -97,7 +106,10 @@ namespace EJR.Game.Gameplay
 
         private void TryOpenNextChoice()
         {
-            if (_awaitingChoice || _build == null) return;
+            if (_awaitingChoice || _build == null)
+            {
+                return;
+            }
 
             while (_pendingChoices > 0)
             {
@@ -108,8 +120,10 @@ namespace EJR.Game.Gameplay
                     OptionsGenerated?.Invoke(options);
                     return;
                 }
+
                 _pendingChoices--;
             }
+
             _awaitingChoice = false;
         }
 
@@ -119,12 +133,18 @@ namespace EJR.Game.Gameplay
             _globalCandidates.Clear();
             _workingOptions.Clear();
 
-            if (_build == null) return Array.Empty<LevelUpOption>();
+            if (_build == null)
+            {
+                return Array.Empty<LevelUpOption>();
+            }
 
             for (var i = 0; i < _build.OwnedWeapons.Count; i++)
             {
                 var weaponId = _build.OwnedWeapons[i];
-                if (!_build.CanLevelWeapon(weaponId)) continue;
+                if (!_build.CanLevelWeapon(weaponId))
+                {
+                    continue;
+                }
 
                 var currentLevel = _build.GetWeaponLevel(weaponId);
                 var nextLevel = currentLevel + 1;
@@ -138,9 +158,8 @@ namespace EJR.Game.Gameplay
                 }
             }
 
-            for (var i = 0; i < AllWeaponIds.Length; i++)
+            foreach (var weaponId in GetAcquireWeaponIds())
             {
-                var weaponId = AllWeaponIds[i];
                 if ((_weaponUnlockPredicate?.Invoke(weaponId) ?? true) && _build.CanAcquireWeapon(weaponId, playerLevel))
                 {
                     _weaponCandidates.Add(CreateWeaponAcquireOption(weaponId));
@@ -153,7 +172,10 @@ namespace EJR.Game.Gameplay
             }
 
             var totalCandidateCount = _weaponCandidates.Count + _globalCandidates.Count;
-            if (totalCandidateCount <= 0) return Array.Empty<LevelUpOption>();
+            if (totalCandidateCount <= 0)
+            {
+                return Array.Empty<LevelUpOption>();
+            }
 
             ShuffleCandidates(_weaponCandidates);
             ShuffleCandidates(_globalCandidates);
@@ -163,41 +185,73 @@ namespace EJR.Game.Gameplay
             {
                 var useWeaponBucket = ShouldUseWeaponBucketForSlot();
                 var selected = TakeNextCandidate(useWeaponBucket ? _weaponCandidates : _globalCandidates);
-                if (!selected.HasValue) selected = TakeNextCandidate(useWeaponBucket ? _globalCandidates : _weaponCandidates);
+                if (!selected.HasValue)
+                {
+                    selected = TakeNextCandidate(useWeaponBucket ? _globalCandidates : _weaponCandidates);
+                }
 
-                if (selected.HasValue) _workingOptions.Add(selected.Value);
+                if (selected.HasValue)
+                {
+                    _workingOptions.Add(selected.Value);
+                }
             }
 
             return _workingOptions.ToArray();
         }
 
+        private IEnumerable<WeaponUpgradeId> GetAcquireWeaponIds()
+        {
+            if (_weaponCatalog != null)
+            {
+                foreach (var weaponId in _weaponCatalog.GetAcquireWeaponIds())
+                {
+                    yield return weaponId;
+                }
+
+                yield break;
+            }
+
+            foreach (var weaponId in WeaponCatalog.DefaultWeaponIds)
+            {
+                yield return weaponId;
+            }
+        }
+
         private LevelUpOption CreateWeaponAcquireOption(WeaponUpgradeId weaponId)
         {
-            var title = $"새 무기: {SharedGameCatalog.GetWeaponDisplayName(weaponId)} 레벨 1";
-            var description = "무기 획득";
+            var title = $"New weapon: {SharedGameCatalog.GetWeaponDisplayName(weaponId)} Lv.1";
+            var description = "Acquire weapon";
             return LevelUpOption.CreateWeaponAcquire(weaponId, title, description, ComposeLabel(title, description, OptionRarity.Common, hideRarity: true));
         }
 
         private LevelUpOption CreateWeaponRollOption(WeaponUpgradeId weaponId, int currentLevel, int nextLevel, WeaponRollKind rollKind, OptionRarity rarity)
         {
             var value = _balanceConfig.GetWeaponRollValue(rollKind, rarity);
-            var title = $"{SharedGameCatalog.GetWeaponDisplayName(weaponId)} 강화 레벨 {nextLevel}";
+            var title = $"{SharedGameCatalog.GetWeaponDisplayName(weaponId)} Lv.{nextLevel}";
             var description = BuildWeaponRollDescription(rollKind, value);
             return LevelUpOption.CreateWeaponRoll(weaponId, rollKind, rarity, value, currentLevel, nextLevel, title, description, ComposeLabel(title, description, rarity));
         }
 
         private LevelUpOption CreateWeaponMilestoneOption(WeaponUpgradeId weaponId, int currentLevel, int nextLevel)
         {
-            var title = $"{SharedGameCatalog.GetWeaponDisplayName(weaponId)} 레벨 {nextLevel}";
+            var title = $"{SharedGameCatalog.GetWeaponDisplayName(weaponId)} Lv.{nextLevel}";
             var description = GetWeaponMilestoneDescription(weaponId, nextLevel);
-            return LevelUpOption.CreateWeaponMilestone(weaponId, GetWeaponMilestoneKind(weaponId, nextLevel), GetWeaponMilestoneValue(weaponId, nextLevel), currentLevel, nextLevel, title, description, ComposeSpecialLabel(title, description));
+            return LevelUpOption.CreateWeaponMilestone(
+                weaponId,
+                GetWeaponMilestoneKind(weaponId, nextLevel),
+                GetWeaponMilestoneValue(weaponId, nextLevel),
+                currentLevel,
+                nextLevel,
+                title,
+                description,
+                ComposeSpecialLabel(title, description));
         }
 
         private LevelUpOption CreateGlobalStatRollOption(StatUpgradeId statId)
         {
             var rarity = _balanceConfig.RollRarity(_build != null ? _build.GlobalLuckTotal : 0f);
             var value = _balanceConfig.GetGlobalRollValue(statId, rarity);
-            var title = $"전역 {SharedGameCatalog.GetStatDisplayName(statId)}";
+            var title = $"Global {SharedGameCatalog.GetStatDisplayName(statId)}";
             var description = BuildGlobalStatDescription(statId, value);
             return LevelUpOption.CreateGlobalStatRoll(statId, rarity, value, title, description, ComposeLabel(title, description, rarity));
         }
@@ -233,11 +287,11 @@ namespace EJR.Game.Gameplay
             };
             var text = rarity switch
             {
-                OptionRarity.Rare => "희귀",
-                OptionRarity.Epic => "영웅",
-                OptionRarity.Legendary => "전설",
-                OptionRarity.Special => "특수",
-                _ => "일반",
+                OptionRarity.Rare => "Rare",
+                OptionRarity.Epic => "Epic",
+                OptionRarity.Legendary => "Legendary",
+                OptionRarity.Special => "Special",
+                _ => "Common",
             };
             return $"<color={color}>{text}</color>";
         }
@@ -246,9 +300,9 @@ namespace EJR.Game.Gameplay
         {
             return rollKind switch
             {
-                WeaponRollKind.AttackSpeedPercent => $"공격 속도 +{value:0.#}%",
-                WeaponRollKind.RangePercent => $"사거리 +{value:0.#}%",
-                _ => $"피해량 +{value:0.#}%",
+                WeaponRollKind.AttackSpeedPercent => $"Attack speed +{value:0.#}%",
+                WeaponRollKind.RangePercent => $"Range +{value:0.#}%",
+                _ => $"Damage +{value:0.#}%",
             };
         }
 
@@ -256,47 +310,33 @@ namespace EJR.Game.Gameplay
         {
             return statId switch
             {
-                StatUpgradeId.MaxHealth => $"최대 체력 +{value:0}",
-                StatUpgradeId.HealthRegen => $"체력 재생 +{value:0.##}/초",
-                StatUpgradeId.Luck => $"행운 +{value:0}",
-                StatUpgradeId.AttackSpeed => $"공격 속도 +{value:0.#}%",
-                StatUpgradeId.MoveSpeed => $"이동 속도 +{value:0.#}%",
-                StatUpgradeId.AttackRange => $"공격 범위 +{value:0.#}%",
-                _ => $"피해량 +{value:0.#}%",
+                StatUpgradeId.MaxHealth => $"Max health +{value:0}",
+                StatUpgradeId.HealthRegen => $"Health regen +{value:0.##}/s",
+                StatUpgradeId.Luck => $"Luck +{value:0}",
+                StatUpgradeId.AttackSpeed => $"Attack speed +{value:0.#}%",
+                StatUpgradeId.MoveSpeed => $"Move speed +{value:0.#}%",
+                StatUpgradeId.AttackRange => $"Attack range +{value:0.#}%",
+                _ => $"Damage +{value:0.#}%",
             };
         }
 
-        private static WeaponMilestoneKind GetWeaponMilestoneKind(WeaponUpgradeId weaponId, int nextLevel)
+        private WeaponMilestoneKind GetWeaponMilestoneKind(WeaponUpgradeId weaponId, int nextLevel)
         {
-            return weaponId switch
-            {
-                WeaponUpgradeId.Fireball => WeaponMilestoneKind.ExtraProjectile,
-                WeaponUpgradeId.Slash => WeaponMilestoneKind.ExtraSlashes,
-                WeaponUpgradeId.LightningBolt => WeaponMilestoneKind.ExtraTargets,
-                WeaponUpgradeId.IceSpike => WeaponMilestoneKind.ExtraPierce,
-                WeaponUpgradeId.WindBlade => nextLevel >= 10 ? WeaponMilestoneKind.ExtraProjectile : WeaponMilestoneKind.ExtraProjectile,
-                WeaponUpgradeId.Bubble => WeaponMilestoneKind.ExtraProjectile,
-                _ => WeaponMilestoneKind.ExtraProjectile,
-            };
+            return _weaponCatalog != null
+                ? _weaponCatalog.GetMilestoneKind(weaponId, nextLevel)
+                : WeaponMilestoneKind.ExtraProjectile;
         }
 
-        private static float GetWeaponMilestoneValue(WeaponUpgradeId weaponId, int nextLevel)
+        private float GetWeaponMilestoneValue(WeaponUpgradeId weaponId, int nextLevel)
         {
-            return 1f;
+            return _weaponCatalog != null ? _weaponCatalog.GetMilestoneValue(weaponId, nextLevel) : 1f;
         }
 
-        private static string GetWeaponMilestoneDescription(WeaponUpgradeId weaponId, int nextLevel)
+        private string GetWeaponMilestoneDescription(WeaponUpgradeId weaponId, int nextLevel)
         {
-            return weaponId switch
-            {
-                WeaponUpgradeId.Fireball => "화염구 +1",
-                WeaponUpgradeId.Slash => "베기 횟수 +1",
-                WeaponUpgradeId.LightningBolt => "낙뢰 타겟 +1",
-                WeaponUpgradeId.IceSpike => "타격 시 파편 +2",
-                WeaponUpgradeId.WindBlade => nextLevel >= 10 ? "관통 +2" : "관통 +1",
-                WeaponUpgradeId.Bubble => "투사체 +1",
-                _ => "특수 강화",
-            };
+            return _weaponCatalog != null
+                ? _weaponCatalog.GetMilestoneDescription(weaponId, nextLevel)
+                : "Special upgrade";
         }
 
         private void AppendWeaponRollOptions(WeaponUpgradeId weaponId, int currentLevel, int nextLevel)

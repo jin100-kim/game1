@@ -42,6 +42,7 @@ namespace EJR.Game.Gameplay
         [Header("Configs (optional, runtime defaults used if empty)")]
         [SerializeField] private PlayerConfig playerConfig;
         [SerializeField] private WeaponConfig weaponConfig;
+        [SerializeField] private WeaponCatalog weaponCatalog;
         [SerializeField] private EnemyConfig enemyConfig;
         [SerializeField] private LevelUpBalanceConfig levelUpBalanceConfig;
 
@@ -403,6 +404,7 @@ namespace EJR.Game.Gameplay
         {
             playerConfig ??= ScriptableObject.CreateInstance<PlayerConfig>();
             weaponConfig ??= ScriptableObject.CreateInstance<WeaponConfig>();
+            weaponCatalog ??= WeaponCatalog.CreateRuntimeDefault(weaponConfig);
             enemyConfig ??= ScriptableObject.CreateInstance<EnemyConfig>();
             levelUpBalanceConfig ??= LevelUpBalanceConfig.CreateRuntimeDefault();
         }
@@ -840,7 +842,7 @@ namespace EJR.Game.Gameplay
             _playerStats = new PlayerStatsRuntime();
             _playerStats.RecalculateFromBuild(_buildRuntime);
             _levelUp = new LevelUpSystem();
-            _levelUp.Initialize(_buildRuntime, levelUpBalanceConfig, _ => true);
+            _levelUp.Initialize(_buildRuntime, levelUpBalanceConfig, _ => true, weaponCatalog);
             _hud = new HudController();
             _hud.Initialize();
             _hud.ConfigureDebugTools(
@@ -1087,7 +1089,8 @@ namespace EJR.Game.Gameplay
                 ResolveProjectileSpawnPoint,
                 projectileSpawnOverride: null,
                 projectileCullBounds: arenaBounds,
-                facingDirectionResolver: () => _playerMover != null ? _playerMover.CurrentFacingDirection : Vector2.right);
+                facingDirectionResolver: () => _playerMover != null ? _playerMover.CurrentFacingDirection : Vector2.right,
+                catalog: weaponCatalog);
             weaponSystem.ConfigureLoadout(_buildRuntime, _playerStats);
             weaponSystem.AimUpdated += OnWeaponAimUpdated;
             weaponSystem.Fired += OnWeaponFired;

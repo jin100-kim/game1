@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using EJR.Game.Audio;
 using EJR.Game.Core;
-using System.Linq;
 using UnityEngine;
 
 namespace EJR.Game.Gameplay
@@ -57,7 +56,7 @@ namespace EJR.Game.Gameplay
 
         private void Update()
         {
-            if (_config == null || _owner == null || _registry == null || _stats == null)
+            if (_catalog == null || _owner == null || _registry == null || _stats == null)
             {
                 return;
             }
@@ -147,6 +146,7 @@ namespace EJR.Game.Gameplay
         [SerializeField] private Color turretTracerFxColor = new(1f, 0.86f, 0.28f, 0.95f);
 
         public WeaponConfig Config => _config;
+        public WeaponCatalog Catalog => _catalog;
         public Transform Owner => _owner;
         public EnemyRegistry Registry => _registry;
         public PlayerStatsRuntime Stats => _stats;
@@ -156,6 +156,7 @@ namespace EJR.Game.Gameplay
 
 
         private WeaponConfig _config;
+        private WeaponCatalog _catalog;
         private Transform _owner;
         private PlayerHealth _playerHealth;
         private EnemyRegistry _registry;
@@ -194,9 +195,11 @@ namespace EJR.Game.Gameplay
             Func<Vector2, Vector3> projectileSpawnResolver = null,
             Func<ProjectileSpawnRequest, bool> projectileSpawnOverride = null,
             Rect? projectileCullBounds = null,
-            Func<Vector2> facingDirectionResolver = null)
+            Func<Vector2> facingDirectionResolver = null,
+            WeaponCatalog catalog = null)
         {
             _config = config;
+            _catalog = catalog != null ? catalog : WeaponCatalog.CreateRuntimeDefault(config);
             _owner = owner;
             _playerHealth = playerHealth;
             _registry = registry;
@@ -252,6 +255,7 @@ namespace EJR.Game.Gameplay
                     runtime.Level = level;
                 }
 
+                runtime.Definition = _catalog.GetDefinition(id);
                 runtime.Strategy = WeaponStrategyFactory.GetStrategy(id);
                 runtime.Strategy?.OnInitialize(runtime, this);
                 nextLoadout.Add(runtime);
@@ -392,38 +396,48 @@ namespace EJR.Game.Gameplay
         }
 
 
-        private float GetProjectileVisualScale(WeaponUpgradeId weaponId, float baseScale)
+        private WeaponDefinition ResolveWeaponDefinition(WeaponUpgradeId weaponId)
         {
-            return weaponId switch
-            {
-                WeaponUpgradeId.Fireball => 1.0f,
-                _ => baseScale,
-            };
+            return _catalog != null ? _catalog.GetDefinition(weaponId) : null;
         }
 
-        private Quaternion GetProjectileVisualRotation(WeaponUpgradeId weaponId, Vector2 direction)
+        public WeaponDefinition GetWeaponDefinition(WeaponRuntime weapon)
+        {
+            if (weapon == null)
+            {
+                return null;
+            }
+
+            weapon.Definition ??= ResolveWeaponDefinition(weapon.WeaponId);
+            return weapon.Definition;
+        }
+
+        public WeaponDefinition GetWeaponDefinition(WeaponUpgradeId weaponId)
+        {
+            return ResolveWeaponDefinition(weaponId);
+        }
+
+        private static float GetProjectileVisualScale(WeaponDefinition definition)
+        {
+            return definition != null ? Mathf.Max(0.01f, definition.projectileVisualScale) : 0.25f;
+        }
+
+        private static Quaternion GetProjectileVisualRotation(Vector2 direction)
         {
             var angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
             return Quaternion.Euler(0f, 0f, angle);
         }
 
-        private Sprite GetProjectileVisualSprite(WeaponUpgradeId weaponId)
+        private static Sprite GetProjectileVisualSprite(WeaponDefinition definition)
         {
-            return weaponId switch
-            {
-                WeaponUpgradeId.Fireball => RuntimeSpriteFactory.GetFireballProjectileSprite(),
-                _ => null,
-            };
+            return definition != null && definition.id == WeaponUpgradeId.Fireball
+                ? RuntimeSpriteFactory.GetFireballProjectileSprite()
+                : RuntimeSpriteFactory.GetSquareSprite();
         }
 
-        private bool ShouldUseProjectileSourceColor(WeaponUpgradeId weaponId)
+        private static bool ShouldUseProjectileSourceColor(WeaponDefinition definition)
         {
-            return weaponId == WeaponUpgradeId.Fireball;
-        }
-
-        private bool GetProjectileVisualFlipX(WeaponUpgradeId weaponId, Vector2 direction)
-        {
-            return false;
+            return definition != null && definition.id == WeaponUpgradeId.Fireball;
         }
 
         public Projectile SpawnProjectile(
@@ -444,10 +458,11 @@ namespace EJR.Game.Gameplay
         {
             var normalizedDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : _lastAimDirection;
             SetAimDirection(normalizedDirection);
+            var definition = ResolveWeaponDefinition(weaponId);
 
             var spawnPosition = overrideSpawnPosition
                 ?? (_projectileSpawnResolver != null ? _projectileSpawnResolver(normalizedDirection) : _owner.position);
-            var projectileVisualScale = GetProjectileVisualScale(weaponId, _config.projectileVisualScale);
+            var projectileVisualScale = GetProjectileVisualScale(definition);
 
             var spawnRequest = new ProjectileSpawnRequest(
                 weaponId,
@@ -472,12 +487,12 @@ namespace EJR.Game.Gameplay
 
             var projectile = GetPooledProjectile();
             var projectileTransform = projectile.transform;
-            var rotation = GetProjectileVisualRotation(weaponId, normalizedDirection);
+            var rotation = GetProjectileVisualRotation(normalizedDirection);
             projectileTransform.SetPositionAndRotation(spawnPosition, rotation);
             projectileTransform.localScale = Vector3.one * spawnRequest.VisualScale;
 
             // [비주얼 처리] 설정된 프리팹이 있으면 소환하고, 없으면 기존 스프라이트 방식을 사용합니다.
-            var prefab = GetProjectilePrefab(weaponId, normalizedDirection);
+            var prefab = GetProjectilePrefab(definition, normalizedDirection);
             var renderer = projectile.GetComponent<SpriteRenderer>();
 
             if (prefab != null)
@@ -489,8 +504,9 @@ namespace EJR.Game.Gameplay
                 vfx.transform.localRotation = Quaternion.identity;
                 
                 // [수정] 위/아래 전용 프리팹인지 확인
-                var isDirectionalPrefab = (weaponId == WeaponUpgradeId.Fireball) && 
-                                          (prefab == _config.fireballUpProjectilePrefab || prefab == _config.fireballDownProjectilePrefab);
+                var isDirectionalPrefab = definition != null
+                    && definition.id == WeaponUpgradeId.Fireball
+                    && (prefab == definition.projectileUpPrefab || prefab == definition.projectileDownPrefab);
                 
                 if (isDirectionalPrefab)
                 {
@@ -508,13 +524,39 @@ namespace EJR.Game.Gameplay
                     vfx.transform.localScale = Vector3.one;
                 }
             }
+            else if (definition != null && !string.IsNullOrWhiteSpace(definition.projectileVfxResourcePath))
+            {
+                var vfxPrefab = Resources.Load<GameObject>(definition.projectileVfxResourcePath);
+                if (vfxPrefab != null)
+                {
+                    if (renderer != null) renderer.enabled = false;
+                    var vfx = Instantiate(vfxPrefab, projectileTransform);
+                    vfx.name = $"{definition.id}Vfx";
+                    vfx.transform.localPosition = Vector3.zero;
+                    vfx.transform.localRotation = Quaternion.identity;
+                    vfx.transform.localScale = Vector3.one * Mathf.Max(0.01f, definition.projectileVfxScaleMultiplier);
+
+                    var particleRenderers = vfx.GetComponentsInChildren<ParticleSystemRenderer>();
+                    foreach (var psr in particleRenderers)
+                    {
+                        psr.alignment = ParticleSystemRenderSpace.Local;
+                    }
+                }
+                else if (renderer != null)
+                {
+                    renderer.enabled = true;
+                    renderer.sprite = GetProjectileVisualSprite(definition);
+                    renderer.color = ShouldUseProjectileSourceColor(definition) ? Color.white : color;
+                    renderer.flipX = false;
+                }
+            }
             else if (renderer != null)
             {
                 // 프리팹이 등록되지 않은 경우 기존 스프라이트 로직 유지
                 renderer.enabled = true;
-                renderer.sprite = GetProjectileVisualSprite(weaponId);
-                renderer.color = ShouldUseProjectileSourceColor(weaponId) ? Color.white : color;
-                renderer.flipX = GetProjectileVisualFlipX(weaponId, normalizedDirection);
+                renderer.sprite = GetProjectileVisualSprite(definition);
+                renderer.color = ShouldUseProjectileSourceColor(definition) ? Color.white : color;
+                renderer.flipX = false;
             }
 
             projectile.Initialize(
@@ -532,7 +574,6 @@ namespace EJR.Game.Gameplay
                 (dmg, enemy) => {
                     TryApplyDirectHitLifesteal(dmg, enemy);
                     // [추가] 명중 시 임팩트 VFX 소환
-                    SpawnImpactVfx(weaponId, enemy.transform.position);
                     // [추가] 외부에서 정의한 추가 명중 로직 수행
                     directHitCallback?.Invoke(dmg, enemy);
                 },
@@ -541,7 +582,10 @@ namespace EJR.Game.Gameplay
                 _owner,
                 _build,
                 isFragment,
-                initialIgnoreTarget);
+                initialIgnoreTarget,
+                definition,
+                WeaponProjectileHitBehaviorFactory.Get(definition),
+                ApplyContextualDamageModifiers);
 
             ProjectileVisualRequested?.Invoke(spawnRequest);
             Fired?.Invoke(normalizedDirection);
@@ -555,7 +599,7 @@ namespace EJR.Game.Gameplay
             
             var vfx = Instantiate(prefab, position, Quaternion.identity);
 
-            if (weaponId == WeaponUpgradeId.Bubble)
+            if (vfx != null && prefab.name.Contains("Bubble"))
             {
                 vfx.name = "BubbleImpactVfx";
                 vfx.transform.localScale = Vector3.one * 1.5f; // 임팩트도 1.5배로 키워서 폭발감을 줌
@@ -572,34 +616,23 @@ namespace EJR.Game.Gameplay
             Destroy(vfx, 2f);
         }
 
-        private GameObject GetProjectilePrefab(WeaponUpgradeId weaponId, Vector2 direction)
+        private static GameObject GetProjectilePrefab(WeaponDefinition definition, Vector2 direction)
         {
-            if (_config == null) return null;
-            return weaponId switch
-            {
-                WeaponUpgradeId.Fireball => ResolveFireballPrefab(direction),
-                _ => _config.projectilePrefab,
-            };
+            if (definition == null) return null;
+            if (direction.y > 0.7f && definition.projectileUpPrefab != null) return definition.projectileUpPrefab;
+            if (direction.y < -0.7f && definition.projectileDownPrefab != null) return definition.projectileDownPrefab;
+            return definition.projectilePrefab;
         }
 
         private GameObject ResolveFireballPrefab(Vector2 direction)
         {
             // Y축 방향이 강할 때 전용 프리팹을 우선 반환합니다.
-            if (direction.y > 0.7f && _config.fireballUpProjectilePrefab != null) return _config.fireballUpProjectilePrefab;
-            if (direction.y < -0.7f && _config.fireballDownProjectilePrefab != null) return _config.fireballDownProjectilePrefab;
-            
-            return _config.fireballProjectilePrefab ?? _config.projectilePrefab;
+            return GetProjectilePrefab(ResolveWeaponDefinition(WeaponUpgradeId.Fireball), direction);
         }
 
         private GameObject GetImpactPrefab(WeaponUpgradeId weaponId)
         {
-            if (_config == null) return null;
-            return weaponId switch
-            {
-                WeaponUpgradeId.Fireball => _config.fireballImpactVfxPrefab ?? _config.impactVfxPrefab,
-                WeaponUpgradeId.Bubble => Resources.Load<GameObject>("VFX/Bubble/VFX_2D_Projectile_Burst_Impact_01_Color_Static"),
-                _ => _config.impactVfxPrefab,
-            };
+            return ResolveWeaponDefinition(weaponId)?.impactVfxPrefab;
         }
 
         public void DealDirectWeaponDamage(EnemyController enemy, float damage, WeaponUpgradeId weaponId)
@@ -941,7 +974,7 @@ namespace EJR.Game.Gameplay
 
         private float GetMaximumLoadoutRange()
         {
-            var maxRange = Mathf.Max(0.5f, _config.attackRange);
+            var maxRange = _catalog != null ? _catalog.DefaultAttackRange : 5f;
             for (var i = 0; i < _loadout.Count; i++)
             {
                 var range = GetWeaponRange(_loadout[i]);
@@ -1052,7 +1085,7 @@ namespace EJR.Game.Gameplay
         #region Debug: Gizmos
         private void OnDrawGizmos()
         {
-            if (!showWeaponCollisionGizmos || _config == null || _loadout == null || _loadout.Count <= 0 || _owner == null)
+            if (!showWeaponCollisionGizmos || _catalog == null || _loadout == null || _loadout.Count <= 0 || _owner == null)
             {
                 return;
             }
@@ -1074,18 +1107,15 @@ namespace EJR.Game.Gameplay
         private void DrawWeaponCollisionGizmo(WeaponRuntime weapon, Vector2 aimDirection)
         {
             if (weapon?.Strategy == null) return;
-            var color = GetWeaponCollisionGizmoColor(weapon.WeaponId);
+            var color = GetWeaponCollisionGizmoColor(weapon);
             weapon.Strategy.OnDrawGizmos(weapon, this, color);
         }
 
-        private Color GetWeaponCollisionGizmoColor(WeaponUpgradeId weaponId)
+        private Color GetWeaponCollisionGizmoColor(WeaponRuntime weapon)
         {
-            return weaponId switch
-            {
-                WeaponUpgradeId.Fireball => new Color(1f, 0.45f, 0.15f, 0.45f),
-                WeaponUpgradeId.Slash => new Color(1f, 0.15f, 0.45f, 0.45f),
-                _ => new Color(1f, 1f, 1f, 0.45f),
-            };
+            var sourceColor = GetWeaponDefinition(weapon)?.sourceColor ?? Color.white;
+            sourceColor.a = 0.45f;
+            return sourceColor;
         }
         #endregion
     }

@@ -295,16 +295,7 @@ namespace EJR.Game.Gameplay
         public int GetWeaponExtraCountBonus(WeaponUpgradeId id)
         {
             var milestones = GetWeaponMilestoneCount(id);
-            return id switch
-            {
-                WeaponUpgradeId.Fireball => milestones,
-                WeaponUpgradeId.Slash => milestones,
-                WeaponUpgradeId.LightningBolt => milestones,
-                WeaponUpgradeId.IceSpike => milestones, // 0->0, 1->1, 2->2 (will use as factor for fragments)
-                WeaponUpgradeId.WindBlade => milestones + (milestones >= 2 ? 1 : 0), // 5lv: +1, 10lv: +3 (total pierce bonus)
-                WeaponUpgradeId.Bubble => milestones, // 5lv: +1, 10lv: +2
-                _ => 0,
-            };
+            return WeaponCatalog.GetExtraCountBonus(id, milestones);
         }
 
         public float GetBfSwordWidthMultiplier()

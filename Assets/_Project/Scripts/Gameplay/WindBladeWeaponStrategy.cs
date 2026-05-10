@@ -17,62 +17,30 @@ namespace EJR.Game.Gameplay
 
         public void OnFire(WeaponRuntime weapon, AutoWeaponSystem system, Vector2 direction)
         {
-            var config = system.Config;
-            var damage = GetBaseDamage(weapon, system);
-            var speed = config.windBladeProjectileSpeed;
-            var lifetime = config.windBladeProjectileLifetime;
-            var hitRadius = config.windBladeProjectileHitRadius;
+            var definition = system.GetWeaponDefinition(weapon);
+            var damage = system.GetWeaponBaseDamage(weapon);
             var baseDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : system.LastAimDirection;
-
-            // Wind blade fires in quick bursts or multiple projectiles
             var extraCount = system.GetWeaponExtraCount(weapon);
-            
-            for (int i = 0; i <= extraCount; i++)
+
+            for (var i = 0; i <= extraCount; i++)
             {
                 var spreadAngle = (i - extraCount * 0.5f) * 10f;
                 var spawnDir = AutoWeaponSystem.RotateDirection(baseDirection, spreadAngle);
-                
-                var projectile = system.SpawnProjectile(
+
+                system.SpawnProjectile(
                     WeaponId,
                     spawnDir,
                     damage,
-                    speed,
-                    lifetime,
-                    hitRadius,
-                    2 + extraCount, // 기본 1개 관통(2타격) + 마일스톤 보너스
-                    0.3f, // 30% falloff
+                    definition.projectileSpeed,
+                    definition.projectileLifetime,
+                    definition.projectileHitRadius,
+                    2 + extraCount,
+                    0.3f,
                     0.4f,
                     GetSourceColor(weapon, system));
-
-                ApplyVisual(projectile);
             }
 
             weapon.Cooldown = GetAttackInterval(weapon, system);
-        }
-
-        private void ApplyVisual(Projectile projectile)
-        {
-            if (projectile == null) return;
-            var renderer = projectile.GetComponent<SpriteRenderer>();
-            if (renderer != null)
-            {
-                renderer.enabled = false;
-                var vfxPrefab = Resources.Load<GameObject>("VFX/WindBlade/VFX_2D_Projectile_Wind_01_Color_Loop_Static");
-                if (vfxPrefab != null)
-                {
-                    var vfx = Object.Instantiate(vfxPrefab, projectile.transform);
-                    vfx.name = "WindBladeVfx";
-                    vfx.transform.localPosition = Vector3.zero;
-                    vfx.transform.localRotation = Quaternion.identity;
-                    vfx.transform.localScale = Vector3.one * 2.0f; // Set to 2.0x
-
-                    var particleRenderers = vfx.GetComponentsInChildren<ParticleSystemRenderer>();
-                    foreach (var psr in particleRenderers)
-                    {
-                        psr.alignment = ParticleSystemRenderSpace.Local;
-                    }
-                }
-            }
         }
 
         public void OnDrawGizmos(WeaponRuntime weapon, AutoWeaponSystem system, Color color)
@@ -81,22 +49,22 @@ namespace EJR.Game.Gameplay
 
         public float GetAttackInterval(WeaponRuntime weapon, AutoWeaponSystem system)
         {
-            return system.Config.windBladeAttackInterval * system.GetCombinedAttackIntervalMultiplier(weapon);
+            return Mathf.Max(0.05f, system.GetWeaponDefinition(weapon).attackInterval) * system.GetCombinedAttackIntervalMultiplier(weapon);
         }
 
         public float GetBaseDamage(WeaponRuntime weapon, AutoWeaponSystem system)
         {
-            return system.Config.windBladeBaseDamage;
+            return Mathf.Max(0.1f, system.GetWeaponDefinition(weapon).baseDamage);
         }
 
         public float GetRange(WeaponRuntime weapon, AutoWeaponSystem system)
         {
-            return system.Config.windBladeProjectileSpeed * system.Config.windBladeProjectileLifetime;
+            return Mathf.Max(0.5f, system.GetWeaponDefinition(weapon).range);
         }
 
         public Color GetSourceColor(WeaponRuntime weapon, AutoWeaponSystem system)
         {
-            return new Color(0.6f, 1f, 0.8f, 1f);
+            return system.GetWeaponDefinition(weapon).sourceColor;
         }
     }
 }

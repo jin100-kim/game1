@@ -7,11 +7,8 @@ namespace EJR.Game.Gameplay
 {
     public sealed class Projectile : MonoBehaviour
     {
-        private const float FireballExplosionRadius = 0.8f;
-        private const float FireballExplosionDamageMultiplier = 0.4f;
-        private const float FireballExplosionMinorStunDuration = 0.04f;
-        private const float FireballExplosionFxScaleMultiplier = 3.0f;
-        private const float FireballExplosionFxDuration = 0.4f;
+        private const float BoundsCullMargin = 8f;
+
         private EnemyRegistry _registry;
         private Vector3 _direction;
         private float _speed;
@@ -30,21 +27,20 @@ namespace EJR.Game.Gameplay
         private Rect _bounds;
         private Transform _damageSourceTransform;
         private PlayerBuildRuntime _build;
-        private readonly List<EnemyController> _nearbyEnemies = new(16);
-        private readonly List<EnemyController> _hitEnemies = new(8);
-        private const float BoundsCullMargin = 8.0f;
-
-        // Homing properties
-        private EnemyController _homingTarget;
-        private float _homingTurnSpeed;
-        private float _homingSearchTimer;
-
-        // Boomerang properties
-        private bool _isBoomerang;
-        private bool _isReturning;
         private bool _isFragment;
         private float _elapsedTime;
         private float _totalLifetime;
+        private bool _isReturning;
+        private WeaponDefinition _definition;
+        private IProjectileHitBehavior _hitBehavior;
+        private Func<float, EnemyController, float> _damageResolver;
+
+        private EnemyController _homingTarget;
+        private float _homingSearchTimer;
+        private float _homingTurnSpeedOverride = -1f;
+
+        private readonly List<EnemyController> _nearbyEnemies = new(16);
+        private readonly List<EnemyController> _hitEnemies = new(8);
 
         public void Initialize(
             EnemyRegistry registry,
@@ -64,16 +60,19 @@ namespace EJR.Game.Gameplay
             Transform damageSourceTransform = null,
             PlayerBuildRuntime build = null,
             bool isFragment = false,
-            EnemyController initialIgnoreTarget = null)
+            EnemyController initialIgnoreTarget = null,
+            WeaponDefinition definition = null,
+            IProjectileHitBehavior hitBehavior = null,
+            Func<float, EnemyController, float> damageResolver = null)
         {
             _registry = registry;
-            _direction = direction.normalized;
-            _speed = speed;
+            _direction = direction.sqrMagnitude > 0.000001f ? direction.normalized : Vector3.right;
+            _speed = Mathf.Max(0.01f, speed);
             _baseDamage = Mathf.Max(0f, damage);
             _currentDamage = _baseDamage;
             _minimumDamage = _baseDamage * Mathf.Clamp(minimumDamageMultiplier, 0.05f, 1f);
-            _lifetime = lifetime;
-            _hitRadius = hitRadius;
+            _lifetime = Mathf.Max(0.01f, lifetime);
+            _hitRadius = Mathf.Max(0.01f, hitRadius);
             _remainingHits = Mathf.Max(1, maxHits);
             _damageFalloffPerHit = Mathf.Clamp01(damageFalloffPerHit);
             _sourceWeaponId = sourceWeaponId;
@@ -86,10 +85,12 @@ namespace EJR.Game.Gameplay
             _isFragment = isFragment;
             _isActive = true;
             _elapsedTime = 0f;
-            _totalLifetime = lifetime;
+            _totalLifetime = _lifetime;
             _isReturning = false;
-            _isBoomerang = (sourceWeaponId == WeaponUpgradeId.WindBlade);
-            
+            _definition = definition;
+            _hitBehavior = hitBehavior ?? WeaponProjectileHitBehaviorFactory.Get(definition);
+            _damageResolver = damageResolver ?? ApplyContextualDamageModifiers;
+
             _hitEnemies.Clear();
             if (initialIgnoreTarget != null)
             {
@@ -97,14 +98,14 @@ namespace EJR.Game.Gameplay
             }
 
             _homingTarget = null;
-            _homingTurnSpeed = 0f;
-
-            bool canHoming = (sourceWeaponId == WeaponUpgradeId.Bubble);
-            if (canHoming)
+            _homingSearchTimer = 0f;
+            _homingTurnSpeedOverride = -1f;
+            if (_definition != null && _definition.projectileMotion == ProjectileMotionKind.Homing)
             {
-                _homingTarget = _registry.FindNearest((Vector2)transform.position, 10f);
-                _homingTurnSpeed = 180f;
-                _homingSearchTimer = 0.2f; // 리타겟팅 간격 설정
+                _homingTarget = _registry != null
+                    ? _registry.FindNearest((Vector2)transform.position, Mathf.Max(0.01f, _definition.homingSearchRange))
+                    : null;
+                _homingSearchTimer = Mathf.Max(0.01f, _definition.homingRetargetInterval);
             }
 
             UpdateRotation();
@@ -113,7 +114,7 @@ namespace EJR.Game.Gameplay
         public void SetHoming(EnemyController target, float turnSpeed)
         {
             _homingTarget = target;
-            _homingTurnSpeed = turnSpeed;
+            _homingTurnSpeedOverride = Mathf.Max(0f, turnSpeed);
         }
 
         private void Update()
@@ -123,62 +124,11 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            float dt = Time.deltaTime;
+            var dt = Time.deltaTime;
             _elapsedTime += dt;
 
-            // Boomerang Logic
-            if (_isBoomerang)
-            {
-                if (!_isReturning && _elapsedTime >= _totalLifetime * 0.5f)
-                {
-                    _isReturning = true;
-                    _hitEnemies.Clear(); // 돌아올 때 재타격 가능하도록 리스트 비우기
-                }
-
-                if (_isReturning && _damageSourceTransform != null)
-                {
-                    Vector3 toPlayer = (_damageSourceTransform.position - transform.position).normalized;
-                    if (toPlayer.sqrMagnitude > 0.001f)
-                    {
-                        // 시계방향 회전을 위한 편향 벡터 계산 (진행 방향의 오른쪽)
-                        Vector3 sideBias = new Vector3(_direction.y, -_direction.x, 0f);
-                        Vector3 biasedTarget = Vector3.Lerp(toPlayer, sideBias, 0.01f).normalized;
-
-                        _direction = Vector3.Lerp(_direction, biasedTarget, dt * 25f).normalized;
-                        UpdateRotation();
-                    }
-
-                    // 플레이어 근처에 오면 회수
-                    if (Vector3.Distance(transform.position, _damageSourceTransform.position) < 0.4f)
-                    {
-                        Release();
-                        return;
-                    }
-                }
-            }
-            // 유도 로직 (Homing)
-            if (_homingTurnSpeed > 0)
-            {
-                // 주기적으로 가장 가까운 적을 다시 탐색 (최적화)
-                _homingSearchTimer -= dt;
-                if (_homingSearchTimer <= 0f)
-                {
-                    _homingSearchTimer = 0.2f;
-                    _homingTarget = _registry.FindNearest(transform.position, 10f);
-                }
-
-                if (_homingTarget != null && _homingTarget.isActiveAndEnabled && !_homingTarget.IsDead)
-                {
-                    Vector3 targetPos = _homingTarget.transform.position;
-                    Vector3 targetDir = (targetPos - transform.position).normalized;
-                    
-                    if (targetDir.sqrMagnitude > 0.001f)
-                    {
-                        _direction = Vector3.RotateTowards(_direction, targetDir, _homingTurnSpeed * Mathf.Deg2Rad * dt, 0f).normalized;
-                        UpdateRotation();
-                    }
-                }
-            }
+            UpdateBoomerangMotion(dt);
+            UpdateHomingMotion(dt);
 
             transform.position += _direction * _speed * dt;
 
@@ -188,24 +138,102 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-
-            if (!_isReturning)
+            if (!IsBoomerangReturning())
             {
                 _lifetime -= dt;
             }
 
-            if (_lifetime <= 0f && !_isReturning)
+            if (_lifetime <= 0f && !IsBoomerangReturning())
             {
-                float overshoot = -_lifetime;
-                float correction = Mathf.Max(0f, dt - overshoot);
-                if (correction > 0)
+                var overshoot = -_lifetime;
+                var correction = Mathf.Max(0f, dt - overshoot);
+                if (correction > 0f)
                 {
                     transform.position += _direction * _speed * correction;
                 }
+
                 Release();
                 return;
             }
 
+            ProcessHits();
+        }
+
+        private void UpdateBoomerangMotion(float dt)
+        {
+            if (_definition == null || _definition.projectileMotion != ProjectileMotionKind.Boomerang)
+            {
+                return;
+            }
+
+            if (!_isReturning && _elapsedTime >= _totalLifetime * 0.5f)
+            {
+                _isReturning = true;
+                _hitEnemies.Clear();
+            }
+
+            if (!_isReturning || _damageSourceTransform == null)
+            {
+                return;
+            }
+
+            var toPlayer = (_damageSourceTransform.position - transform.position).normalized;
+            if (toPlayer.sqrMagnitude > 0.001f)
+            {
+                var sideBias = new Vector3(_direction.y, -_direction.x, 0f);
+                var biasedTarget = Vector3.Lerp(toPlayer, sideBias, 0.01f).normalized;
+                _direction = Vector3.Lerp(_direction, biasedTarget, dt * Mathf.Max(0.01f, _definition.boomerangReturnLerp)).normalized;
+                UpdateRotation();
+            }
+
+            if (Vector3.Distance(transform.position, _damageSourceTransform.position) < Mathf.Max(0.01f, _definition.boomerangReturnDistance))
+            {
+                Release();
+            }
+        }
+
+        private void UpdateHomingMotion(float dt)
+        {
+            if (_definition == null || _definition.projectileMotion != ProjectileMotionKind.Homing || _registry == null)
+            {
+                return;
+            }
+
+            _homingSearchTimer -= dt;
+            if (_homingSearchTimer <= 0f)
+            {
+                _homingSearchTimer = Mathf.Max(0.01f, _definition.homingRetargetInterval);
+                _homingTarget = _registry.FindNearest(transform.position, Mathf.Max(0.01f, _definition.homingSearchRange));
+            }
+
+            if (_homingTarget == null || !_homingTarget.isActiveAndEnabled || _homingTarget.IsDead)
+            {
+                return;
+            }
+
+            var targetDir = (_homingTarget.transform.position - transform.position).normalized;
+            if (targetDir.sqrMagnitude <= 0.001f)
+            {
+                return;
+            }
+
+            _direction = Vector3.RotateTowards(
+                _direction,
+                targetDir,
+                GetHomingTurnSpeed() * Mathf.Deg2Rad * dt,
+                0f).normalized;
+            UpdateRotation();
+        }
+
+        private float GetHomingTurnSpeed()
+        {
+            return _homingTurnSpeedOverride >= 0f
+                ? _homingTurnSpeedOverride
+                : Mathf.Max(0f, _definition != null ? _definition.homingTurnSpeed : 0f);
+        }
+
+        private void ProcessHits()
+        {
             if (_registry == null || _remainingHits <= 0 || _currentDamage <= 0f)
             {
                 return;
@@ -227,67 +255,24 @@ namespace EJR.Game.Gameplay
                     continue;
                 }
 
+                ProjectileHitResult hitResult;
                 try
                 {
-                    if (_sourceWeaponId == WeaponUpgradeId.Fireball)
-                    {
-                        var appliedDamage = ApplyContextualDamageModifiers(_currentDamage, enemy);
-                        enemy.ReceiveWeaponDamage(appliedDamage, _sourceWeaponId);
-                        _directHitCallback?.Invoke(appliedDamage, enemy);
-                        TriggerFireballExplosion(transform.position, enemy);
-                    }
-                    else if (_sourceWeaponId == WeaponUpgradeId.LightningBolt)
-                    {
-                        var appliedDamage = ApplyContextualDamageModifiers(_currentDamage, enemy);
-                        enemy.ReceiveWeaponDamage(appliedDamage, _sourceWeaponId);
-                        _directHitCallback?.Invoke(appliedDamage, enemy);
-                        WeaponFxRenderer.SpawnPrefabFx(
-                            "VFX/LightningBolt/VFX_2D_Projectile_Lightning_Impact_01_Color_Static",
-                            transform.position,
-                            Quaternion.identity,
-                            Vector3.one * 2.0f,
-                            0.5f,
-                            550);
-                    }
-                    else if (_sourceWeaponId == WeaponUpgradeId.IceSpike)
-                    {
-                        var appliedDamage = ApplyContextualDamageModifiers(_currentDamage, enemy);
-                        enemy.ReceiveWeaponDamage(appliedDamage, _sourceWeaponId);
-                        enemy.ApplySlow(0.5f, 1.5f); // 슬로우 효과 추가
-                        
-                        if (!_isFragment)
-                        {
-                            _directHitCallback?.Invoke(appliedDamage, enemy);
-                        }
-
-                        WeaponFxRenderer.SpawnPrefabFx(
-                            "VFX/IceSpike/VFX_2D_Projectile_Ice_Impact_01_Color_Static",
-                            transform.position,
-                            Quaternion.identity,
-                            Vector3.one * 2.0f,
-                            0.5f,
-                            550);
-                    }
-                    else if (_sourceWeaponId == WeaponUpgradeId.WindBlade)
-                    {
-                        var appliedDamage = ApplyContextualDamageModifiers(_currentDamage, enemy);
-                        enemy.ReceiveWeaponDamage(appliedDamage, _sourceWeaponId);
-                        enemy.ApplyKnockback(_direction, 5.0f); // 넉백 효과 추가
-                        _directHitCallback?.Invoke(appliedDamage, enemy);
-                        WeaponFxRenderer.SpawnPrefabFx(
-                            "VFX/WindBlade/VFX_2D_Projectile_Wind_Impact_01_Color_Static",
-                            transform.position,
-                            Quaternion.identity,
-                            Vector3.one * 2.0f,
-                            0.5f,
-                            550);
-                    }
-                    else
-                    {
-                        var appliedDamage = ApplyContextualDamageModifiers(_currentDamage, enemy);
-                        enemy.ReceiveWeaponDamage(appliedDamage, _sourceWeaponId);
-                        _directHitCallback?.Invoke(appliedDamage, enemy);
-                    }
+                    var context = new ProjectileHitContext(
+                        _definition,
+                        _sourceWeaponId,
+                        enemy,
+                        transform.position,
+                        _direction,
+                        _currentDamage,
+                        _baseDamage,
+                        _isFragment,
+                        _registry,
+                        transform.parent != null ? transform.parent : transform,
+                        _damageResolver,
+                        _directHitCallback,
+                        _nearbyEnemies);
+                    hitResult = (_hitBehavior ?? WeaponProjectileHitBehaviorFactory.Get(_definition)).OnHit(context);
                 }
                 finally
                 {
@@ -295,13 +280,7 @@ namespace EJR.Game.Gameplay
                     _remainingHits--;
                 }
 
-                if (_sourceWeaponId == WeaponUpgradeId.Fireball)
-                {
-                    Release();
-                    return;
-                }
-
-                if (_remainingHits <= 0)
+                if (hitResult.ReleaseProjectile || _remainingHits <= 0)
                 {
                     Release();
                     return;
@@ -320,6 +299,13 @@ namespace EJR.Game.Gameplay
 
                 return;
             }
+        }
+
+        private bool IsBoomerangReturning()
+        {
+            return _definition != null
+                && _definition.projectileMotion == ProjectileMotionKind.Boomerang
+                && _isReturning;
         }
 
         private void UpdateRotation()
@@ -351,43 +337,6 @@ namespace EJR.Game.Gameplay
             _homingTarget = null;
         }
 
-        private void TriggerFireballExplosion(Vector3 center, EnemyController directTarget)
-        {
-            var fxParent = transform.parent != null ? transform.parent : transform;
-            WeaponFxRenderer.SpawnFireBurstFx(
-                fxParent,
-                center,
-                Mathf.Max(0.1f, FireballExplosionRadius * FireballExplosionFxScaleMultiplier),
-                FireballExplosionFxDuration,
-                530,
-                "FireballExplosionFx");
-
-            if (_registry == null)
-            {
-                return;
-            }
-
-            var searchRadius = FireballExplosionRadius + _registry.GetMaxCollisionRadius();
-            _registry.GetNearby(center, searchRadius, _nearbyEnemies);
-            var explosionDamage = _baseDamage * FireballExplosionDamageMultiplier;
-            for (var i = 0; i < _nearbyEnemies.Count; i++)
-            {
-                var enemy = _nearbyEnemies[i];
-                if (enemy == null || enemy == directTarget)
-                {
-                    continue;
-                }
-
-                var limit = FireballExplosionRadius + enemy.CollisionRadius;
-                if ((enemy.transform.position - center).sqrMagnitude > limit * limit)
-                {
-                    continue;
-                }
-
-                enemy.ReceiveWeaponDamage(ApplyContextualDamageModifiers(explosionDamage, enemy), _sourceWeaponId);
-            }
-        }
-
         private float ApplyContextualDamageModifiers(float damage, EnemyController enemy)
         {
             if (_build == null || enemy == null)
@@ -409,7 +358,11 @@ namespace EJR.Game.Gameplay
             }
 
             _isActive = false;
-            _isFragment = false; // 리셋
+            _isFragment = false;
+            _definition = null;
+            _hitBehavior = null;
+            _damageResolver = null;
+            _homingTurnSpeedOverride = -1f;
             _releaseToPool?.Invoke(this);
         }
 
@@ -424,15 +377,18 @@ namespace EJR.Game.Gameplay
 #if UNITY_EDITOR
         private void OnDrawGizmos()
         {
-            if (!Application.isPlaying || !_isActive) return;
+            if (!Application.isPlaying || !_isActive)
+            {
+                return;
+            }
 
             Gizmos.color = new Color(1f, 0.5f, 0f, 0.5f);
             Gizmos.DrawWireSphere(transform.position, _hitRadius);
 
-            if (_sourceWeaponId == WeaponUpgradeId.Fireball)
+            if (_definition != null && _definition.impactBehavior == WeaponImpactBehaviorKind.FireballExplosion)
             {
                 Gizmos.color = new Color(1f, 0.1f, 0.1f, 0.3f);
-                Gizmos.DrawWireSphere(transform.position, FireballExplosionRadius);
+                Gizmos.DrawWireSphere(transform.position, _definition.explosionRadius);
             }
         }
 #endif
