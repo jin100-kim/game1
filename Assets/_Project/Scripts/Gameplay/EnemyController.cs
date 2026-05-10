@@ -470,17 +470,23 @@ namespace EJR.Game.Gameplay
 
             if (_isDead || _target == null || _config == null || _playerHealth == null)
             {
+                _pendingDesiredVector = Vector2.zero;
+                _pendingFallbackDirection = Vector2.right;
                 return;
             }
 
             if (DebugSessionService.IsMonsterLabTimePaused)
             {
+                _pendingDesiredVector = Vector2.zero;
+                _pendingFallbackDirection = Vector2.right;
                 _spriteAnimator?.SetMotion(Vector2.zero);
                 return;
             }
 
             TickCoreEffectDurations();
             var isStunned = _stunRemaining > 0f;
+            _pendingDesiredVector = Vector2.zero;
+            _pendingFallbackDirection = Vector2.right;
 
             var handledByBossPattern = UpdateBossPattern(Time.deltaTime);
             var handledByVariant = !handledByBossPattern && UpdateVariantBehavior(Time.deltaTime, isStunned);
@@ -501,11 +507,6 @@ namespace EJR.Game.Gameplay
                 
                 _pendingDesiredVector = desired;
                 _pendingFallbackDirection = direction;
-            }
-            else
-            {
-                _pendingDesiredVector = Vector2.zero;
-                _pendingFallbackDirection = Vector2.right;
             }
 
             _contactCooldown -= Time.deltaTime;
@@ -695,11 +696,15 @@ namespace EJR.Game.Gameplay
             }
 
             _variantCooldownTimer = Mathf.Max(0f, _variantCooldownTimer - deltaTime);
+            var desiredMinRange = Mathf.Max(0f, _variantDefinition.DesiredMinRange);
+            var desiredMaxRange = _variantDefinition.DesiredMaxRange > 0.1f
+                ? Mathf.Max(desiredMinRange + 0.1f, _variantDefinition.DesiredMaxRange)
+                : Mathf.Max(desiredMinRange + 0.1f, 4.4f);
 
             return _variantDefinition.BehaviorKind switch
             {
                 EnemyVariantBehaviorKind.SplitOnDeath => false,
-                EnemyVariantBehaviorKind.Shooter => UpdateShooterVariant(deltaTime, isStunned, 2.4f, 4.4f),
+                EnemyVariantBehaviorKind.Shooter => UpdateShooterVariant(deltaTime, isStunned, desiredMinRange, desiredMaxRange),
                 EnemyVariantBehaviorKind.Charger => UpdateChargerVariant(deltaTime, isStunned),
                 _ => false,
             };
