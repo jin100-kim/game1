@@ -34,6 +34,7 @@ namespace EJR.Game.Gameplay
         public Coroutine ActiveChainCoroutine { get; set; }
         
         public IWeaponStrategy Strategy { get; set; }
+        public WeaponDefinition Definition { get; set; }
         public object CustomState { get; set; }
     }
 }
