@@ -340,7 +340,8 @@ namespace EJR.Game.Gameplay
             Vector3? requestedPosition = null,
             EnemyStatProfile statProfileOverride = null,
             bool isBoss = false,
-            bool trackWaveTarget = false)
+            bool trackWaveTarget = false,
+            bool ignoreSpawnClearance = false)
         {
             var visualStatProfile = _config.GetStatProfile(visualKind);
             var statProfile = statProfileOverride ?? visualStatProfile;
@@ -357,7 +358,7 @@ namespace EJR.Game.Gameplay
 
             var spawnPosition = spawnPosResult.Value;
 
-            if (!IsSpawnClear(spawnPosition, collisionRadius))
+            if (!ignoreSpawnClearance && !IsSpawnClear(spawnPosition, collisionRadius))
             {
                 var retryPos = FindSpawnPosition(collisionRadius, _config.minSpawnRadius, _config.maxSpawnRadius);
                 if (!retryPos.HasValue) return null;
@@ -631,9 +632,10 @@ namespace EJR.Game.Gameplay
             {
                 var angle = angleOffset + ((Mathf.PI * 2f * i) / Mathf.Max(1, count));
                 var pos = source.transform.position + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * ringR;
+                pos = ClampToArena(pos);
                 
                 // 자식도 동일한 변종(SlimeSplit)으로 생성하되, 세대를 높여서 전달
-                var child = SpawnEnemy(definition.BaseVisualKind, pos, statProfile);
+                var child = SpawnEnemy(definition.BaseVisualKind, pos, statProfile, ignoreSpawnClearance: true);
                 if (child != null)
                 {
                     child.ConfigureVariant(definition, HandleVariantSplitSpawnRequested, nextGeneration);
