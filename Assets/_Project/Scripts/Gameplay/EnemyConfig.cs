@@ -204,7 +204,7 @@ namespace EJR.Game.Gameplay
 
         [Header("Progression")]
         [Min(30f)] public float mushroomPhaseStartSeconds = 180f;
-        [Min(60f)] public float bossWaveStartSeconds = 600f;
+        [Min(60f)] public float bossWaveStartSeconds = 900f;
         [Range(0f, 1f)] public float mushroomRatioAtPhaseStart = 0.5f;
         [Range(0f, 1f)] public float mushroomRatioBeforeBoss = 1f;
         [Min(1)] public int bossWaveSkeletonCount = 8;
@@ -214,14 +214,18 @@ namespace EJR.Game.Gameplay
 
         [Header("Timed Waves")]
         public bool enableTimedWaves = true;
-        [Min(1f)] public float wave1TimeSeconds = 180f;
-        [Min(1f)] public float wave2TimeSeconds = 360f;
+        [Min(1f)] public float wave1TimeSeconds = 240f;
+        [Min(1f)] public float wave2TimeSeconds = 480f;
+        [Min(1f)] public float wave3TimeSeconds = 720f;
         [Min(0)] public int wave1SlimeCount = 18;
         [Min(0)] public int wave1MushroomCount = 0;
         [Min(0)] public int wave1SkeletonCount = 0;
         [Min(0)] public int wave2SlimeCount = 0;
         [Min(0)] public int wave2MushroomCount = 18;
         [Min(0)] public int wave2SkeletonCount = 0;
+        [Min(0)] public int wave3SlimeCount = 0;
+        [Min(0)] public int wave3MushroomCount = 0;
+        [Min(0)] public int wave3SkeletonCount = 18;
         [Min(0.1f)] public float timedWaveMinRadius = 9.5f;
         [Min(0.1f)] public float timedWaveMaxRadius = 13f;
 

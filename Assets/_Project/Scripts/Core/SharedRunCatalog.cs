@@ -47,12 +47,16 @@ namespace EJR.Game.Core
         public float MushroomRatioBeforeBoss { get; set; }
         public float Wave1TimeSeconds { get; set; }
         public float Wave2TimeSeconds { get; set; }
+        public float Wave3TimeSeconds { get; set; }
         public int Wave1SlimeCount { get; set; }
         public int Wave1MushroomCount { get; set; }
         public int Wave1SkeletonCount { get; set; }
         public int Wave2SlimeCount { get; set; }
         public int Wave2MushroomCount { get; set; }
         public int Wave2SkeletonCount { get; set; }
+        public int Wave3SlimeCount { get; set; }
+        public int Wave3MushroomCount { get; set; }
+        public int Wave3SkeletonCount { get; set; }
         public float BossWaveStartSeconds { get; set; }
         public int BossWaveSkeletonCount { get; set; }
     }
@@ -139,8 +143,8 @@ namespace EJR.Game.Core
                 new Color(0.10f, 0.16f, 0.12f, 1f),
                 new Color(0.40f, 0.58f, 0.36f, 1f),
                 string.Empty,
-                RuntimeSpriteFactory.EnemyVisualKind.Skeleton,
-                BossArchetypeId.Warrior)
+                RuntimeSpriteFactory.EnemyVisualKind.Boss,
+                BossArchetypeId.Final)
             {
                 InitialSpawnInterval = 2.50f,
                 MinimumSpawnInterval = 0.55f,
@@ -152,15 +156,19 @@ namespace EJR.Game.Core
                 MushroomPhaseStartSeconds = 220f,
                 MushroomRatioAtPhaseStart = 0.20f,
                 MushroomRatioBeforeBoss = 0.45f,
-                Wave1TimeSeconds = 180f,
-                Wave2TimeSeconds = 360f,
+                Wave1TimeSeconds = 240f,
+                Wave2TimeSeconds = 480f,
+                Wave3TimeSeconds = 720f,
                 Wave1SlimeCount = 8,
                 Wave1MushroomCount = 1,
                 Wave1SkeletonCount = 0,
                 Wave2SlimeCount = 6,
                 Wave2MushroomCount = 4,
                 Wave2SkeletonCount = 0,
-                BossWaveStartSeconds = 600f,
+                Wave3SlimeCount = 0,
+                Wave3MushroomCount = 0,
+                Wave3SkeletonCount = 18,
+                BossWaveStartSeconds = 900f,
                 BossWaveSkeletonCount = 2,
             },
             new RunMapDefinition(
@@ -170,8 +178,8 @@ namespace EJR.Game.Core
                 new Color(0.22f, 0.18f, 0.10f, 1f),
                 new Color(0.82f, 0.66f, 0.32f, 1f),
                 "forest_clear",
-                RuntimeSpriteFactory.EnemyVisualKind.Warrior,
-                BossArchetypeId.Warrior)
+                RuntimeSpriteFactory.EnemyVisualKind.Boss,
+                BossArchetypeId.Final)
             {
                 InitialSpawnInterval = 2.30f,
                 MinimumSpawnInterval = 0.50f,
@@ -183,15 +191,19 @@ namespace EJR.Game.Core
                 MushroomPhaseStartSeconds = 300f,
                 MushroomRatioAtPhaseStart = 0.08f,
                 MushroomRatioBeforeBoss = 0.22f,
-                Wave1TimeSeconds = 170f,
-                Wave2TimeSeconds = 340f,
+                Wave1TimeSeconds = 240f,
+                Wave2TimeSeconds = 480f,
+                Wave3TimeSeconds = 720f,
                 Wave1SlimeCount = 10,
                 Wave1MushroomCount = 0,
                 Wave1SkeletonCount = 0,
                 Wave2SlimeCount = 12,
                 Wave2MushroomCount = 2,
                 Wave2SkeletonCount = 0,
-                BossWaveStartSeconds = 600f,
+                Wave3SlimeCount = 0,
+                Wave3MushroomCount = 0,
+                Wave3SkeletonCount = 18,
+                BossWaveStartSeconds = 900f,
                 BossWaveSkeletonCount = 3,
             },
             new RunMapDefinition(
@@ -214,15 +226,19 @@ namespace EJR.Game.Core
                 MushroomPhaseStartSeconds = 170f,
                 MushroomRatioAtPhaseStart = 0.35f,
                 MushroomRatioBeforeBoss = 0.60f,
-                Wave1TimeSeconds = 165f,
-                Wave2TimeSeconds = 330f,
+                Wave1TimeSeconds = 240f,
+                Wave2TimeSeconds = 480f,
+                Wave3TimeSeconds = 720f,
                 Wave1SlimeCount = 7,
                 Wave1MushroomCount = 4,
                 Wave1SkeletonCount = 0,
                 Wave2SlimeCount = 8,
                 Wave2MushroomCount = 8,
                 Wave2SkeletonCount = 0,
-                BossWaveStartSeconds = 600f,
+                Wave3SlimeCount = 0,
+                Wave3MushroomCount = 0,
+                Wave3SkeletonCount = 18,
+                BossWaveStartSeconds = 900f,
                 BossWaveSkeletonCount = 4,
             },
         };
@@ -456,13 +472,17 @@ namespace EJR.Game.Core
             config.mushroomRatioBeforeBoss = Mathf.Clamp01(map.MushroomRatioBeforeBoss);
             config.wave1TimeSeconds = Mathf.Max(1f, map.Wave1TimeSeconds);
             config.wave2TimeSeconds = Mathf.Max(config.wave1TimeSeconds + 1f, map.Wave2TimeSeconds);
+            config.wave3TimeSeconds = Mathf.Max(config.wave2TimeSeconds + 1f, map.Wave3TimeSeconds);
             config.wave1SlimeCount = Mathf.Max(0, map.Wave1SlimeCount);
             config.wave1MushroomCount = Mathf.Max(0, map.Wave1MushroomCount);
             config.wave1SkeletonCount = Mathf.Max(0, map.Wave1SkeletonCount);
             config.wave2SlimeCount = Mathf.Max(0, map.Wave2SlimeCount);
             config.wave2MushroomCount = Mathf.Max(0, map.Wave2MushroomCount);
             config.wave2SkeletonCount = Mathf.Max(0, map.Wave2SkeletonCount);
-            config.bossWaveStartSeconds = Mathf.Max(config.wave2TimeSeconds + 1f, map.BossWaveStartSeconds);
+            config.wave3SlimeCount = Mathf.Max(0, map.Wave3SlimeCount);
+            config.wave3MushroomCount = Mathf.Max(0, map.Wave3MushroomCount);
+            config.wave3SkeletonCount = Mathf.Max(0, map.Wave3SkeletonCount);
+            config.bossWaveStartSeconds = Mathf.Max(config.wave3TimeSeconds + 1f, map.BossWaveStartSeconds);
             config.bossWaveSkeletonCount = Mathf.Max(0, map.BossWaveSkeletonCount);
         }
 
@@ -483,10 +503,10 @@ namespace EJR.Game.Core
             config.wave2SlimeCount = ScaleCount(config.wave2SlimeCount, difficulty.WaveCountScale);
             config.wave2MushroomCount = ScaleCount(config.wave2MushroomCount, difficulty.WaveCountScale);
             config.wave2SkeletonCount = ScaleCount(config.wave2SkeletonCount, difficulty.WaveCountScale);
+            config.wave3SlimeCount = ScaleCount(config.wave3SlimeCount, difficulty.WaveCountScale);
+            config.wave3MushroomCount = ScaleCount(config.wave3MushroomCount, difficulty.WaveCountScale);
+            config.wave3SkeletonCount = ScaleCount(config.wave3SkeletonCount, difficulty.WaveCountScale);
             config.bossWaveSkeletonCount = ScaleCount(config.bossWaveSkeletonCount, difficulty.BossEscortScale);
-            config.wave1TimeSeconds = Mathf.Max(1f, config.wave1TimeSeconds + difficulty.Wave1Offset);
-            config.wave2TimeSeconds = Mathf.Max(config.wave1TimeSeconds + 1f, config.wave2TimeSeconds + difficulty.Wave2Offset);
-            config.bossWaveStartSeconds = Mathf.Max(config.wave2TimeSeconds + 1f, config.bossWaveStartSeconds + difficulty.BossOffset);
         }
 
         private static void NormalizeWaveOrdering(EnemyConfig config)
@@ -494,7 +514,8 @@ namespace EJR.Game.Core
             config.targetAliveEnd = Mathf.Max(config.targetAliveStart, config.targetAliveEnd);
             config.hardAliveCap = Mathf.Max(config.targetAliveEnd, config.hardAliveCap);
             config.wave2TimeSeconds = Mathf.Max(config.wave1TimeSeconds + 1f, config.wave2TimeSeconds);
-            config.bossWaveStartSeconds = Mathf.Max(config.wave2TimeSeconds + 1f, config.bossWaveStartSeconds);
+            config.wave3TimeSeconds = Mathf.Max(config.wave2TimeSeconds + 1f, config.wave3TimeSeconds);
+            config.bossWaveStartSeconds = Mathf.Max(config.wave3TimeSeconds + 1f, config.bossWaveStartSeconds);
         }
 
         private static int ScaleCount(int value, float scale)

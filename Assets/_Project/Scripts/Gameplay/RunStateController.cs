@@ -48,7 +48,7 @@ namespace EJR.Game.Gameplay
 
         [Header("Run")]
         [SerializeField] private Rect arenaBounds = new Rect(-12f, -7f, 24f, 14f);
-        [SerializeField, Min(30f)] private float runDurationSeconds = 600f;
+        [SerializeField, Min(30f)] private float runDurationSeconds = 900f;
 
         [Header("Camera")]
         [SerializeField] private Vector3 cameraOffset = new Vector3(0f, 0f, -10f);
@@ -1026,9 +1026,9 @@ namespace EJR.Game.Gameplay
                 _experienceSystem,
                 playerConfig.collisionRadius,
                 arenaBounds,
-                (_currentMapDefinition ?? RunSelectionService.SingleMapDefinition).BossVisualKind,
+                RuntimeSpriteFactory.EnemyVisualKind.Boss,
                 (_currentMapDefinition ?? RunSelectionService.SingleMapDefinition).Id,
-                (_currentMapDefinition ?? RunSelectionService.SingleMapDefinition).BossArchetype,
+                BossArchetypeId.Final,
                 _currentDifficultyDefinition ?? RunSelectionService.SingleDifficultyDefinition,
                 _instantiatedMap?.transform.Find("Tilemap_Ground")?.GetComponent<UnityEngine.Tilemaps.Tilemap>(),
                 _instantiatedMap?.transform.Find("Tilemap_Props")?.GetComponent<UnityEngine.Tilemaps.Tilemap>());

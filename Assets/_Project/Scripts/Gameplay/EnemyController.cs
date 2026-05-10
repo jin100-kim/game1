@@ -26,6 +26,7 @@ namespace EJR.Game.Gameplay
             FinalMixedVolley = 6,
             FinalChargeCombo = 7,
             FinalGravityNova = 8,
+            FinalSummon = 9,
         }
 
         private enum VariantActionState
@@ -46,6 +47,11 @@ namespace EJR.Game.Gameplay
         private const float WaveTargetMushroomProjectileSpeed = 4.8f;
         private const float WaveTargetMushroomProjectileLifetime = 2.35f;
         private const float WaveTargetMushroomProjectileDamageMultiplier = 0.85f;
+        private const float WaveTargetSkeletonWindupDuration = 0.5f;
+        private const float WaveTargetSkeletonDashDuration = 0.675f;
+        private const float WaveTargetSkeletonDashSpeedMultiplier = 4.5f;
+        private const float WaveTargetSkeletonCooldown = 2.2f;
+        private const float WaveTargetSkeletonIntermission = 0.14f;
         private const float MushroomShooterAttackStopDuration = 0.32f;
         private const float VariantBlinkInterval = 0.12f;
         private const float VariantBomberTelegraphLineWidth = 0.09f;
@@ -101,6 +107,7 @@ namespace EJR.Game.Gameplay
 
         public event Action<float, float> Changed;
         public event Action BossProjectileVolleyStarted;
+        public event Action BossMinionSummonRequested;
         public event Action<Vector3, Vector2, float, float, float> BossProjectileSpawned;
         public event Action<Vector3, float, float> BossSigilSpawned;
         public static event Action<EnemyController> Defeated;
@@ -129,6 +136,12 @@ namespace EJR.Game.Gameplay
         private float _waveTargetMushroomBurstTimer;
         private float _waveTargetMushroomAttackStopTimer;
         private bool _waveTargetMushroomBurstAudioPlayed;
+        private VariantActionState _waveTargetSkeletonActionState;
+        private float _waveTargetSkeletonActionTimer;
+        private float _waveTargetSkeletonCooldown;
+        private float _waveTargetSkeletonIntermissionTimer;
+        private int _waveTargetSkeletonDashRemaining;
+        private Vector2 _waveTargetSkeletonDashDirection = Vector2.right;
 
 
         private float _health;
@@ -445,6 +458,12 @@ namespace EJR.Game.Gameplay
             _waveTargetMushroomBurstTimer = 0f;
             _waveTargetMushroomAttackStopTimer = 0f;
             _waveTargetMushroomBurstAudioPlayed = false;
+            _waveTargetSkeletonActionState = VariantActionState.None;
+            _waveTargetSkeletonActionTimer = 0f;
+            _waveTargetSkeletonCooldown = WaveTargetSkeletonCooldown;
+            _waveTargetSkeletonIntermissionTimer = 0f;
+            _waveTargetSkeletonDashRemaining = 0;
+            _waveTargetSkeletonDashDirection = Vector2.right;
             _registry.Register(this);
             Changed?.Invoke(_health, _maxHealth);
         }
@@ -478,6 +497,12 @@ namespace EJR.Game.Gameplay
             _waveTargetMushroomBurstTimer = 0f;
             _waveTargetMushroomAttackStopTimer = 0f;
             _waveTargetMushroomBurstAudioPlayed = false;
+            _waveTargetSkeletonActionState = VariantActionState.None;
+            _waveTargetSkeletonActionTimer = 0f;
+            _waveTargetSkeletonCooldown = WaveTargetSkeletonCooldown;
+            _waveTargetSkeletonIntermissionTimer = 0f;
+            _waveTargetSkeletonDashRemaining = 0;
+            _waveTargetSkeletonDashDirection = Vector2.right;
         }
 
         public void SetTargetResolver(Func<Transform> targetResolver, Func<PlayerHealth> playerHealthResolver)
@@ -978,13 +1003,21 @@ namespace EJR.Game.Gameplay
 
         private bool UpdateWaveTargetBehavior(float deltaTime, bool isStunned)
         {
-            if (!_isWaveTargetBehavior ||
-                _visualKind != RuntimeSpriteFactory.EnemyVisualKind.Mushroom ||
-                _playerHealth == null)
+            if (!_isWaveTargetBehavior || _playerHealth == null)
             {
                 return false;
             }
 
+            return _visualKind switch
+            {
+                RuntimeSpriteFactory.EnemyVisualKind.Mushroom => UpdateWaveTargetMushroomBehavior(deltaTime, isStunned),
+                RuntimeSpriteFactory.EnemyVisualKind.Skeleton => UpdateWaveTargetSkeletonBehavior(deltaTime, isStunned),
+                _ => false,
+            };
+        }
+
+        private bool UpdateWaveTargetMushroomBehavior(float deltaTime, bool isStunned)
+        {
             var toPlayer = _target != null ? (Vector2)(_target.position - transform.position) : Vector2.right;
             var direction = toPlayer.sqrMagnitude > 0.000001f ? toPlayer.normalized : Vector2.right;
             var isAttacking = false;
@@ -1026,6 +1059,105 @@ namespace EJR.Game.Gameplay
             _pendingDesiredVector = Vector2.zero;
             _pendingFallbackDirection = direction;
             return true;
+        }
+
+        private bool UpdateWaveTargetSkeletonBehavior(float deltaTime, bool isStunned)
+        {
+            if (_target == null)
+            {
+                return false;
+            }
+
+            var toPlayer = (Vector2)(_target.position - transform.position);
+            var direction = toPlayer.sqrMagnitude > 0.000001f ? toPlayer.normalized : Vector2.right;
+
+            if (_waveTargetSkeletonActionState == VariantActionState.Windup)
+            {
+                _waveTargetSkeletonActionTimer -= deltaTime;
+                _pendingDesiredVector = Vector2.zero;
+                _pendingFallbackDirection = direction;
+                if (_waveTargetSkeletonActionTimer <= 0f)
+                {
+                    BeginWaveTargetSkeletonDash(direction);
+                }
+
+                return true;
+            }
+
+            if (_waveTargetSkeletonActionState == VariantActionState.Executing)
+            {
+                var dashDirection = _waveTargetSkeletonDashDirection.sqrMagnitude > 0.000001f
+                    ? _waveTargetSkeletonDashDirection.normalized
+                    : direction;
+                _pendingDesiredVector = dashDirection;
+                _pendingFallbackDirection = dashDirection;
+                _pendingMoveSpeedMultiplier = WaveTargetSkeletonDashSpeedMultiplier;
+
+                _waveTargetSkeletonActionTimer -= deltaTime;
+                if (_waveTargetSkeletonActionTimer <= 0f)
+                {
+                    _waveTargetSkeletonDashRemaining--;
+                    _waveTargetSkeletonActionState = VariantActionState.None;
+                    if (_waveTargetSkeletonDashRemaining <= 0)
+                    {
+                        _waveTargetSkeletonCooldown = WaveTargetSkeletonCooldown;
+                        _waveTargetSkeletonIntermissionTimer = 0f;
+                    }
+                    else
+                    {
+                        _waveTargetSkeletonIntermissionTimer = WaveTargetSkeletonIntermission;
+                    }
+                }
+
+                return true;
+            }
+
+            if (_waveTargetSkeletonIntermissionTimer > 0f)
+            {
+                _waveTargetSkeletonIntermissionTimer = Mathf.Max(0f, _waveTargetSkeletonIntermissionTimer - deltaTime);
+                _pendingDesiredVector = Vector2.zero;
+                _pendingFallbackDirection = direction;
+                if (_waveTargetSkeletonIntermissionTimer <= 0f)
+                {
+                    BeginWaveTargetSkeletonDash(direction);
+                }
+
+                return true;
+            }
+
+            _waveTargetSkeletonCooldown = Mathf.Max(0f, _waveTargetSkeletonCooldown - deltaTime);
+            if (isStunned || _waveTargetSkeletonCooldown > 0f)
+            {
+                return false;
+            }
+
+            _waveTargetSkeletonDashRemaining = UnityEngine.Random.Range(2, 4);
+            BeginWaveTargetSkeletonWindup(direction);
+            return true;
+        }
+
+        private void BeginWaveTargetSkeletonWindup(Vector2 direction)
+        {
+            _waveTargetSkeletonDashDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : Vector2.right;
+            _waveTargetSkeletonActionState = VariantActionState.Windup;
+            _waveTargetSkeletonActionTimer = WaveTargetSkeletonWindupDuration;
+            _pendingDesiredVector = Vector2.zero;
+            _pendingFallbackDirection = _waveTargetSkeletonDashDirection;
+            if (_spriteAnimator != null)
+            {
+                if (_spriteAnimator.PlayClipOneShot("Defense", WaveTargetSkeletonWindupDuration) <= 0f)
+                {
+                    _spriteAnimator.PlayAttackOneShot(WaveTargetSkeletonWindupDuration);
+                }
+            }
+        }
+
+        private void BeginWaveTargetSkeletonDash(Vector2 direction)
+        {
+            _waveTargetSkeletonDashDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : Vector2.right;
+            _waveTargetSkeletonActionState = VariantActionState.Executing;
+            _waveTargetSkeletonActionTimer = WaveTargetSkeletonDashDuration;
+            _spriteAnimator?.PlayAttackOneShot(Mathf.Clamp(WaveTargetSkeletonDashDuration * 0.8f, 0.12f, 0.34f));
         }
 
         private void FireWaveTargetMushroomRadialVolley()
@@ -1365,11 +1497,60 @@ namespace EJR.Game.Gameplay
 
         private bool UpdateBossPattern(float deltaTime)
         {
-            // All boss patterns have been disabled per user request.
-            ClearBossPullState();
-            HideBossDashTelegraphFx();
-            HideBossAreaTelegraphFx();
-            return false;
+            if (!IsBoss || _target == null || _playerHealth == null)
+            {
+                return false;
+            }
+
+            if (_bossPatternState == BossPatternState.Telegraph)
+            {
+                _pendingDesiredVector = Vector2.zero;
+                _pendingFallbackDirection = GetDirectionToPlayer();
+                if (ShouldShowDashTelegraph(_bossCurrentAction))
+                {
+                    UpdateBossDashTelegraphFx();
+                }
+
+                if (ShouldShowAreaTelegraph(_bossCurrentAction))
+                {
+                    UpdateBossAreaTelegraphFx();
+                }
+
+                _bossStateTimer -= deltaTime;
+                if (_bossStateTimer <= 0f)
+                {
+                    BeginBossExecution();
+                }
+
+                return true;
+            }
+
+            if (_bossPatternState == BossPatternState.Executing)
+            {
+                return UpdateBossExecuting(deltaTime);
+            }
+
+            if (_bossPatternState == BossPatternState.Recovery)
+            {
+                _pendingDesiredVector = Vector2.zero;
+                _pendingFallbackDirection = GetDirectionToPlayer();
+                _bossStateTimer -= deltaTime;
+                if (_bossStateTimer <= 0f)
+                {
+                    EndBossPattern();
+                }
+
+                return true;
+            }
+
+            _bossPatternCooldown = Mathf.Max(0f, _bossPatternCooldown - deltaTime);
+            if (_bossPatternCooldown > 0f)
+            {
+                return false;
+            }
+
+            StartRandomBossPattern();
+            return true;
         }
 
 
@@ -1452,13 +1633,18 @@ namespace EJR.Game.Gameplay
                     break;
 
                 case BossPatternActionKind.FinalMixedVolley:
-                    _bossRepeatRemaining = ScaleBossActionCount(2);
-                    BossProjectileVolleyStarted?.Invoke();
+                    _bossRepeatRemaining = 2;
                     break;
 
                 case BossPatternActionKind.FinalChargeCombo:
-                    _bossRepeatRemaining = ScaleBossActionCount(2);
+                    _bossRepeatRemaining = UnityEngine.Random.Range(2, 4);
                     BeginBossDashRun(_bossCurrentAction);
+                    break;
+
+                case BossPatternActionKind.FinalSummon:
+                    PlayBossClipOneShot("Attack", 0.30f);
+                    BossMinionSummonRequested?.Invoke();
+                    EnterBossRecovery(GetBossRecoveryDuration(_bossCurrentAction));
                     break;
 
                 case BossPatternActionKind.FinalGravityNova:
@@ -1535,9 +1721,9 @@ namespace EJR.Game.Gameplay
         {
             if (_bossActionStep == 1)
             {
-                var dashSpeed = Mathf.Max(0.1f, _moveSpeed) * GetBossDashSpeedMultiplier(_bossCurrentAction);
                 _pendingDesiredVector = _bossDashDirection;
                 _pendingFallbackDirection = _bossDashDirection;
+                _pendingMoveSpeedMultiplier = GetBossDashSpeedMultiplier(_bossCurrentAction);
 
                 _bossExecutionTimer -= deltaTime;
                 if (_bossExecutionTimer > 0f)
@@ -1701,9 +1887,9 @@ namespace EJR.Game.Gameplay
                     (BossPatternActionKind.WarriorChargeCombo, 0.65f),
                     (BossPatternActionKind.WarriorGroundSlam, 0.35f)),
                 _ => PickWeightedBossAction(
-                    (BossPatternActionKind.FinalMixedVolley, 0.38f),
-                    (BossPatternActionKind.FinalChargeCombo, 0.27f),
-                    (BossPatternActionKind.FinalGravityNova, 0.35f)),
+                    (BossPatternActionKind.FinalSummon, 1f),
+                    (BossPatternActionKind.FinalMixedVolley, 1f),
+                    (BossPatternActionKind.FinalChargeCombo, 1f)),
             };
         }
 
@@ -1785,6 +1971,7 @@ namespace EJR.Game.Gameplay
                 BossPatternActionKind.WizardCrossBurst => 0.70f,
                 BossPatternActionKind.WarriorChargeCombo => 0.65f,
                 BossPatternActionKind.WarriorGroundSlam => 0.80f,
+                BossPatternActionKind.FinalSummon => 0.70f,
                 BossPatternActionKind.FinalMixedVolley => 0.75f,
                 BossPatternActionKind.FinalChargeCombo => 0.55f,
                 BossPatternActionKind.FinalGravityNova => 0.85f,
@@ -1803,6 +1990,7 @@ namespace EJR.Game.Gameplay
                 BossPatternActionKind.WizardCrossBurst => 0.90f,
                 BossPatternActionKind.WarriorChargeCombo => 0.85f,
                 BossPatternActionKind.WarriorGroundSlam => 0.85f,
+                BossPatternActionKind.FinalSummon => 0.75f,
                 BossPatternActionKind.FinalMixedVolley => 0.70f,
                 BossPatternActionKind.FinalChargeCombo => 0.70f,
                 BossPatternActionKind.FinalGravityNova => 0.70f,
@@ -1880,6 +2068,7 @@ namespace EJR.Game.Gameplay
                 case BossPatternActionKind.WarriorGroundSlam:
                     PlayBossClipOneShot("Attack02", duration);
                     break;
+                case BossPatternActionKind.FinalSummon:
                 case BossPatternActionKind.FinalMixedVolley:
                 case BossPatternActionKind.FinalChargeCombo:
                 case BossPatternActionKind.FinalGravityNova:

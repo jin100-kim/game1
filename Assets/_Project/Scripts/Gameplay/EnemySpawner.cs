@@ -8,7 +8,10 @@ namespace EJR.Game.Gameplay
 {
     public sealed class EnemySpawner : MonoBehaviour
     {
-        private const int BossProjectileVolleySkeletonCount = 2;
+        private const int BossSummonEnemyCap = 18;
+        private const int BossSummonSlimeCount = 2;
+        private const int BossSummonMushroomCount = 2;
+        private const int BossSummonSkeletonCount = 2;
         private const int WaveTargetSlimeSplitSpawnCount = 3;
         private const float WaveRewardPickupRadius = 0.8f;
         private const float WaveTargetVisualScaleMultiplier = 2f;
@@ -31,7 +34,9 @@ namespace EJR.Game.Gameplay
         private bool _bossWaveTriggered;
         private bool _wave1Triggered;
         private bool _wave2Triggered;
+        private bool _wave3Triggered;
         private bool _pendingWave2;
+        private bool _pendingWave3;
         private bool _pendingBoss;
         private int _activeWaveIndex;
         private int _activeWaveRemainingCount;
@@ -44,6 +49,7 @@ namespace EJR.Game.Gameplay
         private RunDifficultyDefinition _bossDifficulty;
         private string _mapId = SharedRunCatalog.DefaultMapId;
         private readonly HashSet<EnemyController> _activeWaveEnemies = new();
+        private readonly HashSet<EnemyController> _bossSummonEnemies = new();
         private readonly List<WaveRewardChest> _activeRewardChests = new();
         private readonly HashSet<EnemyController> _debugMonsterLabEnemies = new();
         private int _spawnSequenceCounter;
@@ -117,7 +123,9 @@ namespace EJR.Game.Gameplay
             _bossWaveTriggered = false;
             _wave1Triggered = false;
             _wave2Triggered = false;
+            _wave3Triggered = false;
             _pendingWave2 = false;
+            _pendingWave3 = false;
             _pendingBoss = false;
             _activeWaveIndex = 0;
             _activeWaveRemainingCount = 0;
@@ -125,12 +133,13 @@ namespace EJR.Game.Gameplay
             _activeWaveTargetEnemy = null;
             _activeWaveTargetLabel = string.Empty;
             _spawnReferenceCamera = Camera.main;
-            _bossVisualKind = bossVisualKind;
-            _bossArchetype = bossArchetype;
+            _bossVisualKind = RuntimeSpriteFactory.EnemyVisualKind.Boss;
+            _bossArchetype = BossArchetypeId.Final;
             _bossDifficulty = bossDifficulty ?? SharedRunCatalog.GetDifficulty(SharedRunCatalog.DefaultDifficultyId);
             _groundTilemap = groundTilemap;
             _propsTilemap = propsTilemap;
             _activeWaveEnemies.Clear();
+            _bossSummonEnemies.Clear();
             _activeRewardChests.Clear();
             _spawnSequenceCounter = 0;
             _bossSpawnSequence = 0;
@@ -177,43 +186,62 @@ namespace EJR.Game.Gameplay
             if (_bossEnemy != null)
             {
                 _bossSpawnSequence = ++_spawnSequenceCounter;
-                _bossEnemy.BossProjectileVolleyStarted += HandleBossProjectileVolleyStarted;
-            }
-
-            var skeletonCount = Mathf.Max(1, _config.bossWaveSkeletonCount);
-            var skeletonRadius = CalculateCollisionRadius(_config.GetStatProfile(RuntimeSpriteFactory.EnemyVisualKind.Skeleton));
-            var minRadius = Mathf.Max(0.1f, _config.skeletonWaveMinRadius);
-            var maxRadius = Mathf.Max(minRadius + 0.1f, _config.skeletonWaveMaxRadius);
-            ApplyOffscreenRadiusFloor(skeletonRadius, ref minRadius, ref maxRadius);
-            var angleOffset = Random.value * Mathf.PI * 2f;
-
-            for (var i = 0; i < skeletonCount; i++)
-            {
-                var t = i / (float)skeletonCount;
-                var angle = angleOffset + (Mathf.PI * 2f * t) + Random.Range(-0.12f, 0.12f);
-                var radius = Random.Range(minRadius, maxRadius);
-                var ringPosition = _target.position + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius;
-                SpawnEnemy(RuntimeSpriteFactory.EnemyVisualKind.Skeleton, ringPosition);
+                _bossEnemy.BossMinionSummonRequested += HandleBossMinionSummonRequested;
             }
         }
 
-        private void HandleBossProjectileVolleyStarted()
+        private void HandleBossMinionSummonRequested()
         {
-            if (!_bossWaveTriggered || _config == null || !_config.spawnSkeleton) return;
+            if (!_bossWaveTriggered || _config == null || _bossEnemy == null) return;
+            CleanupBossSummons();
+            var remainingCapacity = BossSummonEnemyCap - _bossSummonEnemies.Count;
+            if (remainingCapacity <= 0) return;
+
+            var summonKinds = BuildBossSummonKinds();
+            if (summonKinds.Count <= 0) return;
+
             var spawnCenter = _bossEnemy != null ? _bossEnemy.transform.position : _target.position;
             var bossRadius = _bossEnemy != null ? Mathf.Max(0.1f, _bossEnemy.CollisionRadius) : 0.9f;
-            var skeletonRadius = CalculateCollisionRadius(_config.GetStatProfile(RuntimeSpriteFactory.EnemyVisualKind.Skeleton));
-            var minRadius = Mathf.Max(0.8f, bossRadius + skeletonRadius + 0.15f);
+            var minionRadius = 0.1f;
+            for (var i = 0; i < summonKinds.Count; i++)
+            {
+                minionRadius = Mathf.Max(minionRadius, CalculateCollisionRadius(_config.GetStatProfile(summonKinds[i])));
+            }
+
+            var minRadius = Mathf.Max(0.8f, bossRadius + minionRadius + 0.15f);
             var maxRadius = Mathf.Max(minRadius + 0.45f, minRadius + (bossRadius * 0.75f));
             var angleOffset = Random.value * Mathf.PI * 2f;
+            var spawnCount = Mathf.Min(remainingCapacity, summonKinds.Count);
 
-            for (var i = 0; i < BossProjectileVolleySkeletonCount; i++)
+            for (var i = 0; i < spawnCount; i++)
             {
-                var t = i / (float)BossProjectileVolleySkeletonCount;
+                var t = i / (float)spawnCount;
                 var angle = angleOffset + (Mathf.PI * 2f * t) + Random.Range(-0.14f, 0.14f);
                 var radius = Random.Range(minRadius, maxRadius);
-                var position = spawnCenter + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius;
-                SpawnEnemy(RuntimeSpriteFactory.EnemyVisualKind.Skeleton, position);
+                var position = ClampToArena(spawnCenter + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius);
+                var minion = SpawnEnemy(summonKinds[i], position, ignoreSpawnClearance: true);
+                if (minion != null)
+                {
+                    _bossSummonEnemies.Add(minion);
+                }
+            }
+        }
+
+        private List<RuntimeSpriteFactory.EnemyVisualKind> BuildBossSummonKinds()
+        {
+            var kinds = new List<RuntimeSpriteFactory.EnemyVisualKind>(BossSummonSlimeCount + BossSummonMushroomCount + BossSummonSkeletonCount);
+            AddBossSummonKinds(kinds, RuntimeSpriteFactory.EnemyVisualKind.Slime, BossSummonSlimeCount, _config.spawnSlime);
+            AddBossSummonKinds(kinds, RuntimeSpriteFactory.EnemyVisualKind.Mushroom, BossSummonMushroomCount, _config.spawnMushroom);
+            AddBossSummonKinds(kinds, RuntimeSpriteFactory.EnemyVisualKind.Skeleton, BossSummonSkeletonCount, _config.spawnSkeleton);
+            return kinds;
+        }
+
+        private static void AddBossSummonKinds(List<RuntimeSpriteFactory.EnemyVisualKind> kinds, RuntimeSpriteFactory.EnemyVisualKind kind, int count, bool enabled)
+        {
+            if (!enabled || count <= 0) return;
+            for (var i = 0; i < count; i++)
+            {
+                kinds.Add(kind);
             }
         }
 
@@ -237,6 +265,7 @@ namespace EJR.Game.Gameplay
 
         public void DebugStartWave1() => DebugStartConfiguredWave(1);
         public void DebugStartWave2() => DebugStartConfiguredWave(2);
+        public void DebugStartWave3() => DebugStartConfiguredWave(3);
 
         public void DebugStartBossWave()
         {
@@ -245,7 +274,9 @@ namespace EJR.Game.Gameplay
             DebugClearNonBossEnemies();
             _wave1Triggered = true;
             _wave2Triggered = true;
+            _wave3Triggered = true;
             _pendingWave2 = false;
+            _pendingWave3 = false;
             _pendingBoss = false;
             _bossWaveTriggered = false;
             _elapsedSeconds = GetBossWaveStartSeconds();
@@ -303,6 +334,7 @@ namespace EJR.Game.Gameplay
                 foreach (var enemy in enemies) if (enemy != null) Destroy(enemy.gameObject);
             }
             _debugMonsterLabEnemies.Clear();
+            _bossSummonEnemies.Clear();
             _bossEnemy = null;
             _bossSpawnSequence = 0;
             _activeWaveTargetEnemy = null;
@@ -318,6 +350,7 @@ namespace EJR.Game.Gameplay
             _bossWaveTriggered = false;
             _pendingBoss = false;
             _pendingWave2 = false;
+            _pendingWave3 = false;
             _spawnTimer = 0f;
 
             if (waveIndex <= 1)
@@ -325,14 +358,24 @@ namespace EJR.Game.Gameplay
                 _elapsedSeconds = Mathf.Max(0f, _config.wave1TimeSeconds);
                 _wave1Triggered = true;
                 _wave2Triggered = false;
+                _wave3Triggered = false;
                 StartConfiguredWave(1, _config.wave1SlimeCount, _config.wave1MushroomCount, _config.wave1SkeletonCount);
             }
-            else
+            else if (waveIndex == 2)
             {
                 _elapsedSeconds = Mathf.Max(_config.wave1TimeSeconds, _config.wave2TimeSeconds);
                 _wave1Triggered = true;
                 _wave2Triggered = true;
+                _wave3Triggered = false;
                 StartConfiguredWave(2, _config.wave2SlimeCount, _config.wave2MushroomCount, _config.wave2SkeletonCount);
+            }
+            else
+            {
+                _elapsedSeconds = Mathf.Max(_config.wave2TimeSeconds, _config.wave3TimeSeconds);
+                _wave1Triggered = true;
+                _wave2Triggered = true;
+                _wave3Triggered = true;
+                StartConfiguredWave(3, _config.wave3SlimeCount, _config.wave3MushroomCount, _config.wave3SkeletonCount);
             }
         }
 
@@ -454,6 +497,13 @@ namespace EJR.Game.Gameplay
                 else StartConfiguredWave(2, _config.wave2SlimeCount, _config.wave2MushroomCount, _config.wave2SkeletonCount);
             }
 
+            if (!_wave3Triggered && _elapsedSeconds >= Mathf.Max(1f, _config.wave3TimeSeconds) && _config.wave3TimeSeconds < bossStart)
+            {
+                _wave3Triggered = true;
+                if (HasActiveWave) _pendingWave3 = true;
+                else StartConfiguredWave(3, _config.wave3SlimeCount, _config.wave3MushroomCount, _config.wave3SkeletonCount);
+            }
+
             if (!_bossWaveTriggered && _elapsedSeconds >= bossStart)
             {
                 if (HasActiveWave) _pendingBoss = true;
@@ -463,13 +513,19 @@ namespace EJR.Game.Gameplay
 
         private void StartConfiguredWave(int waveIndex, int slimeCount, int mushroomCount, int skeletonCount)
         {
-            var targetKind = waveIndex <= 1 ? RuntimeSpriteFactory.EnemyVisualKind.Slime : RuntimeSpriteFactory.EnemyVisualKind.Mushroom;
+            var targetKind = waveIndex switch
+            {
+                1 => RuntimeSpriteFactory.EnemyVisualKind.Slime,
+                2 => RuntimeSpriteFactory.EnemyVisualKind.Mushroom,
+                _ => RuntimeSpriteFactory.EnemyVisualKind.Skeleton,
+            };
             var sCount = _config.spawnSlime ? Mathf.Max(0, slimeCount) : 0;
             var mCount = _config.spawnMushroom ? Mathf.Max(0, mushroomCount) : 0;
             var skCount = _config.spawnSkeleton ? Mathf.Max(0, skeletonCount) : 0;
 
             if (targetKind == RuntimeSpriteFactory.EnemyVisualKind.Slime && sCount > 0) sCount--;
             else if (targetKind == RuntimeSpriteFactory.EnemyVisualKind.Mushroom && mCount > 0) mCount--;
+            else if (targetKind == RuntimeSpriteFactory.EnemyVisualKind.Skeleton && skCount > 0) skCount--;
 
             var total = sCount + mCount + skCount + 1;
             if (total <= 0) { TryProcessPendingWaveSchedule(); return; }
@@ -478,7 +534,13 @@ namespace EJR.Game.Gameplay
             _activeWaveRemainingCount = 0;
             _activeWaveEnemies.Clear();
             _activeWaveTargetEnemy = null;
-            _activeWaveTargetLabel = waveIndex <= 1 ? "거대 슬라임" : "거대 버섯";
+            _activeWaveTargetLabel = targetKind switch
+            {
+                RuntimeSpriteFactory.EnemyVisualKind.Slime => "\uAC70\uB300 \uC2AC\uB77C\uC784",
+                RuntimeSpriteFactory.EnemyVisualKind.Mushroom => "\uAC70\uB300 \uBC84\uC12F",
+                RuntimeSpriteFactory.EnemyVisualKind.Skeleton => "\uAC70\uB300 \uC2A4\uCF08\uB808\uD1A4",
+                _ => "\uC911\uAC04 \uBCF4\uC2A4",
+            };
             _waveTargetSpawnSequence = 0;
 
             var minR = Mathf.Max(0.1f, _config.timedWaveMinRadius);
@@ -565,6 +627,7 @@ namespace EJR.Game.Gameplay
         {
             if (enemy == null) return;
             _debugMonsterLabEnemies.Remove(enemy);
+            _bossSummonEnemies.Remove(enemy);
             if (_bossEnemy == enemy) { _bossEnemy = null; _bossSpawnSequence = 0; }
             if (_activeWaveEnemies.Remove(enemy))
             {
@@ -639,6 +702,11 @@ namespace EJR.Game.Gameplay
         private void ResetWaveTracking() { _activeWaveIndex = 0; _activeWaveRemainingCount = 0; _activeWaveEnemies.Clear(); _activeWaveTargetEnemy = null; RaiseWaveStateChanged(); }
         private void ClearActiveRewardChests() { foreach (var c in _activeRewardChests) if (c != null) Destroy(c.gameObject); _activeRewardChests.Clear(); }
 
+        private void CleanupBossSummons()
+        {
+            _bossSummonEnemies.RemoveWhere(enemy => enemy == null || enemy.IsDead);
+        }
+
         private void HandleVariantSplitSpawnRequested(EnemyController source, EnemyVariantDefinition definition)
         {
             if (source == null || definition?.BehaviorKind != EnemyVariantBehaviorKind.SplitOnDeath) return;
@@ -682,6 +750,7 @@ namespace EJR.Game.Gameplay
         {
             if (HasActiveWave || _bossWaveTriggered) return;
             if (_pendingWave2) { _pendingWave2 = false; StartConfiguredWave(2, _config.wave2SlimeCount, _config.wave2MushroomCount, _config.wave2SkeletonCount); }
+            else if (_pendingWave3) { _pendingWave3 = false; StartConfiguredWave(3, _config.wave3SlimeCount, _config.wave3MushroomCount, _config.wave3SkeletonCount); }
             else if (_pendingBoss) { _pendingBoss = false; TriggerBossWave(); }
         }
 
@@ -777,7 +846,7 @@ namespace EJR.Game.Gameplay
 
         private float CalculateCollisionRadius(EnemyStatProfile p) => Mathf.Max(0.05f, _config.collisionRadius * (p?.collisionRadiusMultiplier ?? 1f));
         private RuntimeSpriteFactory.EnemyVisualKind PickEnemyVisualKind() => SharedEnemyVariantCatalog.PickDynamicVisualKind(_mapId, _config, _elapsedSeconds);
-        private float GetBossWaveStartSeconds() => Mathf.Max((_config?.mushroomPhaseStartSeconds ?? 300f) + 1f, _config?.bossWaveStartSeconds ?? 600f);
+        private float GetBossWaveStartSeconds() => Mathf.Max(1f, _config?.bossWaveStartSeconds ?? 900f);
 
         private void SpawnDynamicTickEnemies()
         {
