@@ -38,6 +38,13 @@ namespace EJR.Game.Gameplay
 
         private const float VariantProjectileHitRadius = 0.12f;
         private const float VariantProjectileVisualScale = 0.4f;
+        private const float WaveTargetMushroomCooldown = 10f;
+        private const float WaveTargetMushroomBurstInterval = 0.22f;
+        private const int WaveTargetMushroomBurstCount = 3;
+        private const int WaveTargetMushroomProjectileCount = 6;
+        private const float WaveTargetMushroomProjectileSpeed = 4.8f;
+        private const float WaveTargetMushroomProjectileLifetime = 2.35f;
+        private const float WaveTargetMushroomProjectileDamageMultiplier = 0.85f;
         private const float VariantBlinkInterval = 0.12f;
         private const float VariantBomberTelegraphLineWidth = 0.09f;
         private const float VariantBomberTelegraphDurationPadding = 0.06f;
@@ -106,12 +113,18 @@ namespace EJR.Game.Gameplay
         private ExperienceSystem _experienceSystem;
         private Action<Vector3, int> _experienceOrbSpawner;
         private Action<EnemyController, EnemyVariantDefinition> _variantSplitSpawnHandler;
+        private Action<EnemyController> _waveTargetSlimeSplitSpawnHandler;
         private RuntimeSpriteFactory.EnemyVisualKind _visualKind;
         private EnemyVariantDefinition _variantDefinition;
+        private bool _isWaveTargetBehavior;
         private bool _isBossBehavior;
         private BossArchetypeId _bossArchetype = BossArchetypeId.Final;
         private RunDifficultyDefinition _bossDifficulty;
         private int _generation;
+        private int _waveTargetSlimeThresholdIndex = 1;
+        private float _waveTargetMushroomCooldown = WaveTargetMushroomCooldown;
+        private int _waveTargetMushroomBurstRemaining;
+        private float _waveTargetMushroomBurstTimer;
 
 
         private float _health;
@@ -418,6 +431,12 @@ namespace EJR.Game.Gameplay
             _variantActionDirection = Vector2.right;
             _variantActionState = VariantActionState.None;
             _variantBaseColor = Color.white;
+            _isWaveTargetBehavior = false;
+            _waveTargetSlimeSplitSpawnHandler = null;
+            _waveTargetSlimeThresholdIndex = 1;
+            _waveTargetMushroomCooldown = WaveTargetMushroomCooldown;
+            _waveTargetMushroomBurstRemaining = 0;
+            _waveTargetMushroomBurstTimer = 0f;
             _registry.Register(this);
             Changed?.Invoke(_health, _maxHealth);
         }
@@ -438,6 +457,16 @@ namespace EJR.Game.Gameplay
             _visualRenderer ??= GetComponentInChildren<SpriteRenderer>();
             _variantBaseColor = variantDefinition != null ? variantDefinition.TintColor : Color.white;
             ApplyVariantBaseColor();
+        }
+
+        public void ConfigureWaveTargetBehavior(Action<EnemyController> slimeSplitSpawnHandler)
+        {
+            _isWaveTargetBehavior = true;
+            _waveTargetSlimeSplitSpawnHandler = slimeSplitSpawnHandler;
+            _waveTargetSlimeThresholdIndex = 1;
+            _waveTargetMushroomCooldown = WaveTargetMushroomCooldown;
+            _waveTargetMushroomBurstRemaining = 0;
+            _waveTargetMushroomBurstTimer = 0f;
         }
 
         public void SetTargetResolver(Func<Transform> targetResolver, Func<PlayerHealth> playerHealthResolver)
@@ -488,6 +517,7 @@ namespace EJR.Game.Gameplay
 
             TickCoreEffectDurations();
             var isStunned = _stunRemaining > 0f;
+            UpdateWaveTargetBehavior(Time.deltaTime, isStunned);
             _pendingDesiredVector = Vector2.zero;
             _pendingFallbackDirection = Vector2.right;
             _pendingMoveSpeedMultiplier = 1f;
@@ -901,6 +931,56 @@ namespace EJR.Game.Gameplay
                 _playerCollisionRadius);
         }
 
+        private void UpdateWaveTargetBehavior(float deltaTime, bool isStunned)
+        {
+            if (!_isWaveTargetBehavior ||
+                _visualKind != RuntimeSpriteFactory.EnemyVisualKind.Mushroom ||
+                _playerHealth == null)
+            {
+                return;
+            }
+
+            if (_waveTargetMushroomBurstRemaining > 0)
+            {
+                _waveTargetMushroomBurstTimer -= deltaTime;
+                if (_waveTargetMushroomBurstTimer <= 0f)
+                {
+                    FireWaveTargetMushroomRadialVolley();
+                    _waveTargetMushroomBurstRemaining--;
+                    _waveTargetMushroomBurstTimer = WaveTargetMushroomBurstInterval;
+                }
+            }
+
+            _waveTargetMushroomCooldown = Mathf.Max(0f, _waveTargetMushroomCooldown - deltaTime);
+            if (isStunned || _waveTargetMushroomCooldown > 0f || _waveTargetMushroomBurstRemaining > 0)
+            {
+                return;
+            }
+
+            _spriteAnimator?.PlayAttackOneShot(0.35f);
+            _waveTargetMushroomBurstRemaining = WaveTargetMushroomBurstCount;
+            _waveTargetMushroomBurstTimer = 0f;
+            _waveTargetMushroomCooldown = WaveTargetMushroomCooldown;
+        }
+
+        private void FireWaveTargetMushroomRadialVolley()
+        {
+            var angleOffset = UnityEngine.Random.value * 60f;
+            var damage = Mathf.Max(0f, _contactDamage * WaveTargetMushroomProjectileDamageMultiplier);
+            var color = new Color(0.42f, 1f, 0.35f, 1f);
+            for (var i = 0; i < WaveTargetMushroomProjectileCount; i++)
+            {
+                var radians = ((360f / WaveTargetMushroomProjectileCount) * i + angleOffset) * Mathf.Deg2Rad;
+                var direction = new Vector2(Mathf.Cos(radians), Mathf.Sin(radians));
+                SpawnVariantProjectile(
+                    direction,
+                    WaveTargetMushroomProjectileSpeed,
+                    WaveTargetMushroomProjectileLifetime,
+                    damage,
+                    color);
+            }
+        }
+
         private void ApplyVariantBaseColor()
         {
             if (_visualRenderer != null)
@@ -948,7 +1028,8 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            var appliedDamage = Mathf.Min(baseDamage, Mathf.Max(0f, _health));
+            var previousHealth = _health;
+            var appliedDamage = Mathf.Min(baseDamage, Mathf.Max(0f, previousHealth));
             _health = Mathf.Max(0f, _health - baseDamage);
 
             if (_health > 0f &&
@@ -964,9 +1045,41 @@ namespace EJR.Game.Gameplay
             Damaged?.Invoke(this, sourceWeaponId, appliedDamage);
             Changed?.Invoke(_health, MaxHealth);
 
+            TryTriggerWaveTargetSlimeSplits(previousHealth, _health);
+
             if (_health <= 0f)
             {
                 Die();
+            }
+        }
+
+        private void TryTriggerWaveTargetSlimeSplits(float previousHealth, float currentHealth)
+        {
+            if (!_isWaveTargetBehavior ||
+                _visualKind != RuntimeSpriteFactory.EnemyVisualKind.Slime ||
+                currentHealth <= 0f ||
+                _maxHealth <= 0.0001f ||
+                _waveTargetSlimeSplitSpawnHandler == null)
+            {
+                return;
+            }
+
+            while (_waveTargetSlimeThresholdIndex <= 2)
+            {
+                var threshold = _maxHealth * (1f - (_waveTargetSlimeThresholdIndex / 3f));
+                if (previousHealth <= threshold)
+                {
+                    _waveTargetSlimeThresholdIndex++;
+                    continue;
+                }
+
+                if (currentHealth > threshold)
+                {
+                    break;
+                }
+
+                _waveTargetSlimeThresholdIndex++;
+                _waveTargetSlimeSplitSpawnHandler.Invoke(this);
             }
         }
 
