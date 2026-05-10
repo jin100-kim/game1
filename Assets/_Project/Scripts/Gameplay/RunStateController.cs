@@ -379,6 +379,7 @@ namespace EJR.Game.Gameplay
             EnemyController.Defeated -= HandleEnemyDefeated;
 
             GameplaySpeedService.ApplyMenuTimeState();
+            AudioService.Instance.SetNonBgmPaused(false);
         }
 
         private void EnsureCamera()
@@ -571,6 +572,7 @@ namespace EJR.Game.Gameplay
             _isPauseMenuOpen = false;
             _nextPauseToggleAt = Time.unscaledTime + PauseToggleDebounceDuration;
             _hud?.HidePauseMenu();
+            AudioService.Instance.SetNonBgmPaused(false);
             GameplaySpeedService.ApplyMenuTimeState();
             SceneManager.LoadScene("TitleScene");
         }
@@ -596,8 +598,9 @@ namespace EJR.Game.Gameplay
         private void ApplySimulationTimeScale()
         {
             GameplaySpeedService.SetGameplaySpeedMultiplier(_debugPlaySpeedMultiplier);
-            GameplaySpeedService.ApplyGameplayTimeState(
-                _isGameOver || _isPauseMenuOpen || IsAnyChoiceAwaiting());
+            var paused = _isGameOver || _isPauseMenuOpen || IsAnyChoiceAwaiting();
+            GameplaySpeedService.ApplyGameplayTimeState(paused);
+            AudioService.Instance.SetNonBgmPaused(paused);
         }
 
         private void GrantDebugLevels(int levelsToGrant)
@@ -2058,12 +2061,14 @@ namespace EJR.Game.Gameplay
         private void RestartRun()
         {
             GameplaySpeedService.ApplyMenuTimeState();
+            AudioService.Instance.SetNonBgmPaused(false);
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
         }
 
         private void ReturnToLobby()
         {
             GameplaySpeedService.ApplyMenuTimeState();
+            AudioService.Instance.SetNonBgmPaused(false);
             SceneManager.LoadScene("TitleScene");
         }
 

@@ -39,6 +39,7 @@ namespace EJR.Game.Audio
         private float _masterVolume = DefaultMasterVolume;
         private float _bgmVolume = DefaultBgmVolume;
         private float _sfxVolume = DefaultSfxVolume;
+        private bool _nonBgmPaused;
 
         public static AudioService Instance => EnsureInstance();
         public static bool HasInstance => s_instance != null;
@@ -46,6 +47,7 @@ namespace EJR.Game.Audio
         public float MasterVolume => _masterVolume;
         public float BgmVolume => _bgmVolume;
         public float SfxVolume => _sfxVolume;
+        public bool NonBgmPaused => _nonBgmPaused;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Bootstrap()
@@ -85,10 +87,24 @@ namespace EJR.Game.Audio
             LoadSettings();
             BuildSources();
             ApplySettingsToLiveSources();
+            SetNonBgmPaused(false);
+        }
+
+        private void OnDestroy()
+        {
+            if (s_instance == this)
+            {
+                AudioListener.pause = false;
+            }
         }
 
         private void Update()
         {
+            if (_nonBgmPaused)
+            {
+                return;
+            }
+
             CleanupInactiveVoices(_sfxVoices);
             CleanupInactiveVoices(_uiVoices);
         }
@@ -188,6 +204,24 @@ namespace EJR.Game.Audio
             ApplySettingsToLiveSources();
         }
 
+        public void SetNonBgmPaused(bool paused)
+        {
+            if (_nonBgmPaused == paused && AudioListener.pause == paused)
+            {
+                return;
+            }
+
+            _nonBgmPaused = paused;
+            if (_musicSource != null)
+            {
+                _musicSource.ignoreListenerPause = true;
+            }
+
+            SetVoicePoolListenerPauseBypass(_sfxVoices, false);
+            SetVoicePoolListenerPauseBypass(_uiVoices, false);
+            AudioListener.pause = paused;
+        }
+
         private bool _catalogReady => _catalog != null;
 
         private void LoadSettings()
@@ -201,6 +235,7 @@ namespace EJR.Game.Audio
         {
             _musicSource = CreateSource("Music", _catalog != null ? _catalog.GetBusGroup(AudioBus.Bgm) : null);
             _musicSource.loop = true;
+            _musicSource.ignoreListenerPause = true;
 
             for (var i = 0; i < SfxVoicePoolSize; i++)
             {
@@ -229,6 +264,7 @@ namespace EJR.Game.Audio
             sourceObject.transform.SetParent(transform, false);
             var source = sourceObject.AddComponent<AudioSource>();
             source.playOnAwake = false;
+            source.ignoreListenerPause = false;
             source.spatialBlend = 0f;
             source.loop = false;
             source.outputAudioMixerGroup = outputGroup;
@@ -237,6 +273,11 @@ namespace EJR.Game.Audio
 
         private void PlayCue(AudioCueId cueId, List<ActiveVoice> pool, AudioBus fallbackBus, float volumeScale)
         {
+            if (_nonBgmPaused)
+            {
+                return;
+            }
+
             if (!_catalogReady || !_catalog.TryGetEntry(cueId, out var entry) || entry.clip == null)
             {
                 return;
@@ -352,8 +393,21 @@ namespace EJR.Game.Audio
                 return;
             }
 
+            _musicSource.ignoreListenerPause = true;
             _musicSource.outputAudioMixerGroup = entry.mixerGroup != null ? entry.mixerGroup : _catalog.GetBusGroup(AudioBus.Bgm);
             _musicSource.volume = ComputeFinalVolume(entry, AudioBus.Bgm, 1f);
+        }
+
+        private static void SetVoicePoolListenerPauseBypass(List<ActiveVoice> pool, bool ignoreListenerPause)
+        {
+            for (var i = 0; i < pool.Count; i++)
+            {
+                var source = pool[i].Source;
+                if (source != null)
+                {
+                    source.ignoreListenerPause = ignoreListenerPause;
+                }
+            }
         }
 
         private void RefreshVoicePool(List<ActiveVoice> pool)
