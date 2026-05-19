@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using EJR.Game.Audio;
@@ -80,8 +81,12 @@ namespace EJR.Game.Gameplay
 
         private const string PlayerVisualObjectName = "Visual";
         private const string WeaponVisualObjectName = "WeaponVisual";
+        private const string LevelUpVfxResourcePath = "VFX/LevelUp/VFX_2D_Level_Up_01_Color_Static";
         private const float WeaponAimFlipEpsilon = 0.01f;
         private const float PauseToggleDebounceDuration = 0.15f;
+        private const float LevelUpChoiceRevealDelay = 0.75f;
+        private const float LevelUpVfxLifetime = 1.25f;
+        private const float LevelUpVfxHeightOffset = 0.35f;
         private PlayerHealth _playerHealth;
         private PlayerStatsRuntime _playerStats;
 
@@ -113,6 +118,7 @@ namespace EJR.Game.Gameplay
         private readonly List<Vector3> _rewardChestWorldPositions = new();
         private PendingChoiceContext _activeChoiceContext;
         private string _activeChoiceTitle = string.Empty;
+        private Coroutine _levelUpChoiceRevealRoutine;
 
         private float _remainingSeconds;
         private bool _isGameOver;
@@ -1870,7 +1876,47 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            EnqueueChoice(PendingChoiceContext.LevelUp, options, "레벨 업 - 하나 선택");
+            PlayLevelUpEffect();
+            if (_levelUpChoiceRevealRoutine != null)
+            {
+                StopCoroutine(_levelUpChoiceRevealRoutine);
+            }
+
+            var request = new PendingChoiceRequest(PendingChoiceContext.LevelUp, options, "레벨 업 - 하나 선택");
+            _levelUpChoiceRevealRoutine = StartCoroutine(RevealLevelUpChoiceAfterEffect(request));
+        }
+
+        private IEnumerator RevealLevelUpChoiceAfterEffect(PendingChoiceRequest request)
+        {
+            yield return new WaitForSecondsRealtime(LevelUpChoiceRevealDelay);
+
+            _levelUpChoiceRevealRoutine = null;
+            if (_isGameOver)
+            {
+                yield break;
+            }
+
+            EnqueueChoice(request.Context, request.Options, request.Title);
+        }
+
+        private void PlayLevelUpEffect()
+        {
+            if (_playerTransform == null)
+            {
+                return;
+            }
+
+            var prefab = Resources.Load<GameObject>(LevelUpVfxResourcePath);
+            if (prefab == null)
+            {
+                return;
+            }
+
+            var fx = Instantiate(prefab, _playerTransform);
+            fx.transform.localPosition = new Vector3(0f, LevelUpVfxHeightOffset, 0f);
+            fx.transform.localRotation = Quaternion.identity;
+            fx.transform.localScale = Vector3.one;
+            Destroy(fx, LevelUpVfxLifetime);
         }
 
         private void SelectLevelUpOption(int optionIndex)
@@ -2002,6 +2048,12 @@ namespace EJR.Game.Gameplay
             _lastRunCleared = cleared;
             _isPauseMenuOpen = false;
             _pendingChoices.Clear();
+            if (_levelUpChoiceRevealRoutine != null)
+            {
+                StopCoroutine(_levelUpChoiceRevealRoutine);
+                _levelUpChoiceRevealRoutine = null;
+            }
+
             _activeChoiceContext = PendingChoiceContext.None;
             _currentOptions = null;
             _activeChoiceTitle = string.Empty;
