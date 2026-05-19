@@ -103,6 +103,12 @@ namespace EJR.Game.Gameplay
             _tilemapsResolved = ground != null;
         }
 
+        public bool IsPositionWalkable(Vector2 position)
+        {
+            TryResolveTilemaps();
+            return IsWalkable(position);
+        }
+
         private void TryResolveTilemaps()
         {
             if (_tilemapsResolved) return;

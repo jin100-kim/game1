@@ -1173,7 +1173,8 @@ namespace EJR.Game.Gameplay
                     bossPosition,
                     bossPullActive,
                     bossPullCenter,
-                    bossPullRadius)
+                    bossPullRadius,
+                    _playerMover != null ? _playerMover.IsPositionWalkable : (Func<Vector2, bool>)null)
                 : Vector2.zero;
         }
 

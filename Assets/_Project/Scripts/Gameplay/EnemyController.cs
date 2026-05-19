@@ -90,6 +90,14 @@ namespace EJR.Game.Gameplay
         private const float RifleMinorStunDuration = 0.04f;
         private const float ShotgunMinorStunDuration = 0.05f;
         private const float KatanaMinorStunDuration = 0.05f;
+        private const float ObstacleProbeBaseDistance = 0.35f;
+        private const float ObstacleProbeLeadSeconds = 0.24f;
+        private const float ObstacleStuckSeconds = 0.22f;
+        private const float ObstacleMinProgress = 0.012f;
+        private static readonly float[] ObstacleAvoidanceAngles =
+        {
+            0f, 35f, -35f, 65f, -65f, 95f, -95f, 130f, -130f, 165f, -165f
+        };
         private static readonly Color BossDashTelegraphColor = new(1f, 0.28f, 0.22f, 0.78f);
         private static readonly Color BossDashTelegraphHotColor = new(1f, 0.66f, 0.2f, 0.95f);
         private static readonly Color GroundSlamTelegraphColor = new(1f, 0.56f, 0.2f, 0.9f);
@@ -200,11 +208,15 @@ namespace EJR.Game.Gameplay
         private Vector2 _pendingDesiredVector;
         private Vector2 _pendingFallbackDirection;
         private float _pendingMoveSpeedMultiplier = 1f;
+        private bool _pendingAllowObstacleSteering = true;
         private UnityEngine.Tilemaps.Tilemap _propsTilemap;
         private UnityEngine.Tilemaps.Tilemap _groundTilemap;
         private int _obstacleMask;
         private ContactFilter2D _obstacleFilter;
         private Vector2 _knockbackVelocity;
+        private Vector2 _lastObstacleProbePosition;
+        private float _obstacleStuckTimer;
+        private int _obstacleAvoidanceSide = 1;
         private readonly RaycastHit2D[] _castResults = new RaycastHit2D[1];
 
         private readonly System.Collections.Generic.List<EnemyController> _nearbyBuffer = new(24);
@@ -405,6 +417,9 @@ namespace EJR.Game.Gameplay
             // 모든 몬스터는 이제 맵 안에서 생성되므로, 설정에 따라 고정된 충돌 속성을 가짐
             _collider.isTrigger = _canPassThroughObstacles;
             _collider.enabled = true;
+            _lastObstacleProbePosition = transform.position;
+            _obstacleStuckTimer = 0f;
+            _obstacleAvoidanceSide = (GetInstanceID() & 1) == 0 ? 1 : -1;
 
             _playerCollisionRadius = Mathf.Max(0.05f, playerCollisionRadius);
             _collisionRadius = Mathf.Max(0.05f, collisionRadius);
@@ -539,6 +554,7 @@ namespace EJR.Game.Gameplay
                 _pendingDesiredVector = Vector2.zero;
                 _pendingFallbackDirection = Vector2.right;
                 _pendingMoveSpeedMultiplier = 1f;
+                _pendingAllowObstacleSteering = true;
                 return;
             }
 
@@ -547,6 +563,7 @@ namespace EJR.Game.Gameplay
                 _pendingDesiredVector = Vector2.zero;
                 _pendingFallbackDirection = Vector2.right;
                 _pendingMoveSpeedMultiplier = 1f;
+                _pendingAllowObstacleSteering = true;
                 _spriteAnimator?.SetMotion(Vector2.zero);
                 return;
             }
@@ -556,6 +573,7 @@ namespace EJR.Game.Gameplay
             _pendingDesiredVector = Vector2.zero;
             _pendingFallbackDirection = Vector2.right;
             _pendingMoveSpeedMultiplier = 1f;
+            _pendingAllowObstacleSteering = true;
 
             var handledByWaveTarget = UpdateWaveTargetBehavior(Time.deltaTime, isStunned);
             var handledByBossPattern = !handledByWaveTarget && UpdateBossPattern(Time.deltaTime);
@@ -743,11 +761,121 @@ namespace EJR.Game.Gameplay
             var effectiveMoveSpeed = _moveSpeed
                 * Mathf.Clamp(_activeSlowMultiplier, 0.1f, 1f)
                 * Mathf.Max(0.1f, _pendingMoveSpeedMultiplier);
+            desired = ResolveObstacleAvoidance(desired, fallbackDirection, effectiveMoveSpeed, deltaTime);
             
             // 물리 엔진의 속도를 직접 제어 (모든 몬스터가 맵 안에서 생성되므로 복잡한 체크 불필요)
             _rb.linearVelocity = (desired * effectiveMoveSpeed) + _knockbackVelocity;
             
             _registry?.NotifyMoved(this, _rb.position);
+        }
+
+        private Vector2 ResolveObstacleAvoidance(Vector2 desired, Vector2 fallbackDirection, float effectiveMoveSpeed, float deltaTime)
+        {
+            if (!_pendingAllowObstacleSteering
+                || _canPassThroughObstacles
+                || _obstacleMask == 0
+                || _collider == null
+                || desired.sqrMagnitude <= 0.000001f)
+            {
+                TrackObstacleProgress(desired, effectiveMoveSpeed, deltaTime);
+                return desired;
+            }
+
+            TrackObstacleProgress(desired, effectiveMoveSpeed, deltaTime);
+
+            var desiredMagnitude = Mathf.Clamp01(desired.magnitude);
+            var desiredDirection = desired / Mathf.Max(0.0001f, desired.magnitude);
+            var fallback = fallbackDirection.sqrMagnitude > 0.000001f ? fallbackDirection.normalized : desiredDirection;
+            var probeDistance = Mathf.Clamp(
+                CollisionRadius + ObstacleProbeBaseDistance + (effectiveMoveSpeed * ObstacleProbeLeadSeconds),
+                CollisionRadius + 0.15f,
+                1.65f);
+            var directBlocked = IsObstacleAhead(desiredDirection, probeDistance);
+            var isStuck = _obstacleStuckTimer >= ObstacleStuckSeconds;
+
+            if (!directBlocked && !isStuck)
+            {
+                return desired;
+            }
+
+            var bestScore = float.NegativeInfinity;
+            var bestDirection = Vector2.zero;
+            for (var i = 0; i < ObstacleAvoidanceAngles.Length; i++)
+            {
+                var angle = ObstacleAvoidanceAngles[i];
+                var candidate = RotateDirection(desiredDirection, angle);
+                if (IsObstacleAhead(candidate, probeDistance))
+                {
+                    continue;
+                }
+
+                var side = (desiredDirection.x * candidate.y) - (desiredDirection.y * candidate.x);
+                var sideBias = Mathf.Sign(side) == _obstacleAvoidanceSide ? 0.08f : 0f;
+                var score = (Vector2.Dot(candidate, desiredDirection) * 1.25f)
+                    + (Vector2.Dot(candidate, fallback) * 0.35f)
+                    + sideBias;
+                if (isStuck && Mathf.Abs(angle) >= 55f)
+                {
+                    score += 0.35f;
+                }
+
+                if (isStuck && Mathf.Abs(angle) <= 0.01f)
+                {
+                    score -= 0.8f;
+                }
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestDirection = candidate;
+                }
+            }
+
+            if (bestDirection.sqrMagnitude > 0.000001f)
+            {
+                return bestDirection * desiredMagnitude;
+            }
+
+            var tangent = new Vector2(-desiredDirection.y, desiredDirection.x) * _obstacleAvoidanceSide;
+            if (!IsObstacleAhead(tangent, probeDistance * 0.7f))
+            {
+                return tangent * desiredMagnitude;
+            }
+
+            return Vector2.zero;
+        }
+
+        private void TrackObstacleProgress(Vector2 desired, float effectiveMoveSpeed, float deltaTime)
+        {
+            if (_rb == null)
+            {
+                return;
+            }
+
+            var currentPosition = _rb.position;
+            if (desired.sqrMagnitude <= 0.000001f)
+            {
+                _obstacleStuckTimer = 0f;
+                _lastObstacleProbePosition = currentPosition;
+                return;
+            }
+
+            var moved = Vector2.Distance(currentPosition, _lastObstacleProbePosition);
+            var expectedProgress = Mathf.Max(ObstacleMinProgress, effectiveMoveSpeed * deltaTime * 0.22f);
+            _obstacleStuckTimer = moved < expectedProgress
+                ? _obstacleStuckTimer + deltaTime
+                : 0f;
+            _lastObstacleProbePosition = currentPosition;
+        }
+
+        private bool IsObstacleAhead(Vector2 direction, float distance)
+        {
+            if (_collider == null || _obstacleMask == 0 || direction.sqrMagnitude <= 0.000001f)
+            {
+                return false;
+            }
+
+            return _collider.Cast(direction.normalized, _obstacleFilter, _castResults, Mathf.Max(0.01f, distance)) > 0;
         }
 
         private bool IsWalkable(Vector2 pos)
@@ -871,6 +999,7 @@ namespace EJR.Game.Gameplay
                 _pendingDesiredVector = dashDirection;
                 _pendingFallbackDirection = dashDirection;
                 _pendingMoveSpeedMultiplier = Mathf.Max(0.1f, _variantDefinition.DashSpeedMultiplier);
+                _pendingAllowObstacleSteering = false;
 
                 _variantActionTimer -= deltaTime;
                 if (_variantActionTimer <= 0f)
@@ -1092,6 +1221,7 @@ namespace EJR.Game.Gameplay
                 _pendingDesiredVector = dashDirection;
                 _pendingFallbackDirection = dashDirection;
                 _pendingMoveSpeedMultiplier = WaveTargetSkeletonDashSpeedMultiplier;
+                _pendingAllowObstacleSteering = false;
 
                 _waveTargetSkeletonActionTimer -= deltaTime;
                 if (_waveTargetSkeletonActionTimer <= 0f)
@@ -1724,6 +1854,7 @@ namespace EJR.Game.Gameplay
                 _pendingDesiredVector = _bossDashDirection;
                 _pendingFallbackDirection = _bossDashDirection;
                 _pendingMoveSpeedMultiplier = GetBossDashSpeedMultiplier(_bossCurrentAction);
+                _pendingAllowObstacleSteering = false;
 
                 _bossExecutionTimer -= deltaTime;
                 if (_bossExecutionTimer > 0f)

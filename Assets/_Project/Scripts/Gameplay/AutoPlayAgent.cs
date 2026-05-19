@@ -42,7 +42,8 @@ namespace EJR.Game.Gameplay
             Vector3? bossPosition = null,
             bool bossPullActive = false,
             Vector2 bossPullCenter = default,
-            float bossPullRadius = 0f)
+            float bossPullRadius = 0f,
+            System.Func<Vector2, bool> isWalkable = null)
         {
             if (Time.unscaledTime < _nextDecisionAt)
             {
@@ -202,8 +203,61 @@ namespace EJR.Game.Gameplay
                 move.Normalize();
             }
 
+            move = ResolveWalkableMove(playerPosition2D, move, movementBounds, isWalkable);
             _cachedMove = move;
             return _cachedMove;
+        }
+
+        private Vector2 ResolveWalkableMove(Vector2 playerPosition, Vector2 move, Rect movementBounds, System.Func<Vector2, bool> isWalkable)
+        {
+            if (isWalkable == null || move.sqrMagnitude <= 0.000001f)
+            {
+                return move;
+            }
+
+            var moveMagnitude = Mathf.Clamp01(move.magnitude);
+            var moveDirection = move / Mathf.Max(0.0001f, move.magnitude);
+            const float sampleDistance = 0.9f;
+            if (IsWalkableSample(playerPosition + (moveDirection * sampleDistance), movementBounds, isWalkable))
+            {
+                return move;
+            }
+
+            var bestScore = float.NegativeInfinity;
+            var bestDirection = Vector2.zero;
+            for (var i = 0; i < EscapeSampleDirections.Length; i++)
+            {
+                var candidate = EscapeSampleDirections[i];
+                var sample = playerPosition + (candidate * sampleDistance);
+                if (!IsWalkableSample(sample, movementBounds, isWalkable))
+                {
+                    continue;
+                }
+
+                var score = (Vector2.Dot(candidate, moveDirection) * 2.1f)
+                    + (EvaluateSampleSafety(sample, movementBounds) * 0.12f)
+                    + (Vector2.Dot(candidate, _wanderDirection) * 0.15f);
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestDirection = candidate;
+                }
+            }
+
+            return bestDirection.sqrMagnitude > 0.000001f
+                ? bestDirection * moveMagnitude
+                : Vector2.zero;
+        }
+
+        private static bool IsWalkableSample(Vector2 sample, Rect movementBounds, System.Func<Vector2, bool> isWalkable)
+        {
+            if (sample.x < movementBounds.xMin || sample.x > movementBounds.xMax ||
+                sample.y < movementBounds.yMin || sample.y > movementBounds.yMax)
+            {
+                return false;
+            }
+
+            return isWalkable.Invoke(sample);
         }
 
         private void CollectNearbyHazards(Vector2 playerPosition, float searchRadius)
