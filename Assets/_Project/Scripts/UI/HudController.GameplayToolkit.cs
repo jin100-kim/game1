@@ -351,7 +351,7 @@ namespace EJR.Game.UI
         {
             if (_gameplayToolkitEmptyWeaponIcon == null)
             {
-                _gameplayToolkitEmptyWeaponIcon = Resources.Load<Texture2D>("UI/Aurelith/Icons/icon_blank_quest_item_256");
+                _gameplayToolkitEmptyWeaponIcon = Resources.Load<Texture2D>("UI/Aurelith/Icons/icon_blank_quest_item_512");
             }
 
             return _gameplayToolkitEmptyWeaponIcon;
@@ -361,13 +361,13 @@ namespace EJR.Game.UI
         {
             return weaponId switch
             {
-                WeaponUpgradeId.Fireball => "UI/Aurelith/Icons/icon_fire_drop_256",
-                WeaponUpgradeId.Slash => "UI/Aurelith/Icons/icon_tool_hammer_256",
-                WeaponUpgradeId.LightningBolt => "UI/Aurelith/Icons/icon_crystal_sun_256",
-                WeaponUpgradeId.IceSpike => "UI/Aurelith/Icons/icon_gem_sapphire_256",
-                WeaponUpgradeId.WindBlade => "UI/Aurelith/Icons/icon_feather_blue_256",
-                WeaponUpgradeId.Bubble => "UI/Aurelith/Icons/icon_water_drop_256",
-                _ => "UI/Aurelith/Icons/icon_blank_quest_item_256",
+                WeaponUpgradeId.Fireball => "UI/Aurelith/Icons/icon_fire_drop_512",
+                WeaponUpgradeId.Slash => "UI/Aurelith/Icons/icon_tool_hammer_512",
+                WeaponUpgradeId.LightningBolt => "UI/Aurelith/Icons/icon_crystal_sun_512",
+                WeaponUpgradeId.IceSpike => "UI/Aurelith/Icons/icon_gem_sapphire_512",
+                WeaponUpgradeId.WindBlade => "UI/Aurelith/Icons/icon_feather_blue_512",
+                WeaponUpgradeId.Bubble => "UI/Aurelith/Icons/icon_water_drop_512",
+                _ => "UI/Aurelith/Icons/icon_blank_quest_item_512",
             };
         }
 

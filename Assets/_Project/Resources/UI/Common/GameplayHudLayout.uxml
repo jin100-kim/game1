@@ -25,8 +25,6 @@
                 <ui:Label name="wave-banner-text" class="hud-banner-text" text="" />
             </ui:VisualElement>
 
-            <ui:Button name="build-toggle-button" class="hud-button gameplay-build-toggle" text="빌드" />
-
             <ui:VisualElement name="weapon-strip" class="gameplay-weapon-strip">
                 <ui:VisualElement name="weapon-slot-0" class="gameplay-weapon-slot">
                     <ui:VisualElement name="weapon-icon-0" class="gameplay-weapon-icon" />
@@ -43,20 +41,6 @@
                 <ui:VisualElement name="weapon-slot-3" class="gameplay-weapon-slot">
                     <ui:VisualElement name="weapon-icon-3" class="gameplay-weapon-icon" />
                     <ui:Label name="weapon-level-3" class="gameplay-weapon-level" text="-" />
-                </ui:VisualElement>
-            </ui:VisualElement>
-
-            <ui:VisualElement name="build-panel" class="gameplay-build-panel">
-                <ui:Label class="gameplay-panel-title" text="빌드" />
-
-                <ui:VisualElement class="gameplay-build-card">
-                    <ui:Label class="gameplay-build-card-title" text="무기" />
-                    <ui:Label name="weapon-build-text" class="gameplay-build-body" text="무기" />
-                </ui:VisualElement>
-
-                <ui:VisualElement class="gameplay-build-card gameplay-build-card-bottom">
-                    <ui:Label class="gameplay-build-card-title" text="전투 수치" />
-                    <ui:Label name="stat-build-text" class="gameplay-build-body" text="전투 수치" />
                 </ui:VisualElement>
             </ui:VisualElement>
 

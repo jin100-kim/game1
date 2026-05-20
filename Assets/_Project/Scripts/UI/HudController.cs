@@ -299,6 +299,8 @@ namespace EJR.Game.UI
             }
         }
 
+        private static bool ShouldShowBuildDrawer() => false;
+
         public void SetModeHint(string modeHint)
         {
             if (HasGameplayToolkit)
@@ -1526,6 +1528,16 @@ namespace EJR.Game.UI
 
         private void BuildBuildPanelReference()
         {
+            _buildToggleButton = null;
+            _buildToggleText = null;
+            _buildPanel = null;
+            _weaponBuildText = null;
+            _statBuildText = null;
+            if (!ShouldShowBuildDrawer())
+            {
+                return;
+            }
+
             if (HasGameplayToolkit)
             {
                 return;

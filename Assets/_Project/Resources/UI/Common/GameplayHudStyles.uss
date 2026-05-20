@@ -140,14 +140,6 @@
     background-color: rgba(32, 42, 56, 0.98);
 }
 
-.gameplay-build-toggle {
-    position: absolute;
-    left: 24px;
-    top: 112px;
-    width: 132px;
-    height: 46px;
-}
-
 .gameplay-weapon-strip {
     position: absolute;
     left: 24px;
@@ -204,70 +196,6 @@
     -unity-font-style: bold;
     -unity-text-align: middle-center;
     background-color: rgba(6, 6, 8, 0.76);
-}
-
-.gameplay-build-panel {
-    position: absolute;
-    left: 24px;
-    top: 168px;
-    width: 342px;
-    height: 402px;
-    display: none;
-    border-top-left-radius: 18px;
-    border-top-right-radius: 18px;
-    border-bottom-left-radius: 18px;
-    border-bottom-right-radius: 18px;
-    border-left-width: 1px;
-    border-right-width: 1px;
-    border-top-width: 1px;
-    border-bottom-width: 1px;
-    border-left-color: rgba(87, 105, 128, 0.55);
-    border-right-color: rgba(87, 105, 128, 0.55);
-    border-top-color: rgba(87, 105, 128, 0.55);
-    border-bottom-color: rgba(87, 105, 128, 0.55);
-    background-color: rgba(14, 20, 28, 0.92);
-}
-
-.gameplay-panel-title {
-    color: rgb(242, 196, 53);
-    font-size: 22px;
-    -unity-font-style: bold;
-    -unity-text-align: middle-center;
-    margin-top: 18px;
-    margin-bottom: 16px;
-}
-
-.gameplay-build-card {
-    margin-left: 18px;
-    margin-right: 18px;
-    margin-bottom: 16px;
-    padding-left: 18px;
-    padding-right: 18px;
-    padding-top: 16px;
-    padding-bottom: 16px;
-    height: 148px;
-    border-top-left-radius: 14px;
-    border-top-right-radius: 14px;
-    border-bottom-left-radius: 14px;
-    border-bottom-right-radius: 14px;
-    background-color: rgba(24, 34, 46, 0.96);
-}
-
-.gameplay-build-card-bottom {
-    height: 170px;
-}
-
-.gameplay-build-card-title {
-    color: rgb(188, 201, 219);
-    font-size: 15px;
-    -unity-font-style: bold;
-    margin-bottom: 12px;
-}
-
-.gameplay-build-body {
-    color: rgb(236, 240, 247);
-    font-size: 14px;
-    white-space: normal;
 }
 
 .gameplay-boss-panel {

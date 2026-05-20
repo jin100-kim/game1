@@ -217,11 +217,6 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            if (IsBuildDrawerToggleKeyDown())
-            {
-                _hud?.ToggleBuildDrawer();
-            }
-
             UpdateWeaponAimSmoothing();
             if (!_isGameOver && _playerSpriteAnimator != null && _playerMover != null)
             {
@@ -2142,7 +2137,6 @@ namespace EJR.Game.Gameplay
                 _remainingSeconds);
 
             _hud.SetModeHint(string.Empty);
-            _hud.SetBuildInfo(BuildWeaponSummary(), BuildStatSummary());
             UpdateWeaponSlotHud();
             if (_enemySpawner != null)
             {
