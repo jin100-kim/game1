@@ -6,6 +6,10 @@ namespace EJR.Game.Gameplay
 {
     public sealed class IceSpikeWeaponStrategy : IWeaponStrategy
     {
+        private const int MainProjectileMaxHits = 2;
+        private const float FragmentDamageRatio = 0.5f;
+        private const float UnusedFragmentDamageRatio = 0.25f;
+
         public WeaponUpgradeId WeaponId => WeaponUpgradeId.IceSpike;
 
         public void OnInitialize(WeaponRuntime weapon, AutoWeaponSystem system)
@@ -29,17 +33,33 @@ namespace EJR.Game.Gameplay
                 definition.projectileSpeed,
                 definition.projectileLifetime,
                 definition.projectileHitRadius,
-                1,
+                MainProjectileMaxHits,
                 0f,
                 1f,
                 GetSourceColor(weapon, system),
                 null,
-                (finalDamage, enemy) => SpawnFragments(system, weapon, enemy.transform.position, finalDamage * 0.5f, enemy));
+                (finalDamage, enemy) => HandleMainProjectileHit(system, weapon, finalDamage, enemy));
 
             weapon.Cooldown = GetAttackInterval(weapon, system);
         }
 
-        private void SpawnFragments(AutoWeaponSystem system, WeaponRuntime weapon, Vector3 position, float fragmentDamage, EnemyController ignoreTarget)
+        private void HandleMainProjectileHit(AutoWeaponSystem system, WeaponRuntime weapon, float finalDamage, EnemyController enemy)
+        {
+            if (enemy == null)
+            {
+                return;
+            }
+
+            SpawnFragments(system, weapon, enemy.transform.position, finalDamage * FragmentDamageRatio, enemy, finalDamage);
+        }
+
+        private void SpawnFragments(
+            AutoWeaponSystem system,
+            WeaponRuntime weapon,
+            Vector3 position,
+            float fragmentDamage,
+            EnemyController ignoreTarget,
+            float mainHitDamage)
         {
             var definition = system.GetWeaponDefinition(weapon);
             var extraCount = system.GetWeaponExtraCount(weapon);
@@ -54,20 +74,12 @@ namespace EJR.Game.Gameplay
             nearbyEnemies.Sort((a, b) =>
                 (a.transform.position - position).sqrMagnitude.CompareTo((b.transform.position - position).sqrMagnitude));
 
-            for (var i = 0; i < fragmentCount; i++)
+            var targetedFragmentCount = Mathf.Min(fragmentCount, nearbyEnemies.Count);
+            for (var i = 0; i < targetedFragmentCount; i++)
             {
-                Vector2 dir;
-                if (i < nearbyEnemies.Count)
-                {
-                    var target = nearbyEnemies[i];
-                    dir = (Vector2)(target.transform.position - position).normalized;
-                    dir = AutoWeaponSystem.RotateDirection(dir, Random.Range(-5f, 5f));
-                }
-                else
-                {
-                    var angle = (360f / fragmentCount) * i + Random.Range(0f, 30f);
-                    dir = new Vector2(Mathf.Cos(angle * Mathf.Deg2Rad), Mathf.Sin(angle * Mathf.Deg2Rad));
-                }
+                var target = nearbyEnemies[i];
+                var dir = (Vector2)(target.transform.position - position).normalized;
+                dir = AutoWeaponSystem.RotateDirection(dir, Random.Range(-5f, 5f));
 
                 system.SpawnProjectile(
                     WeaponId,
@@ -84,6 +96,18 @@ namespace EJR.Game.Gameplay
                     null,
                     true,
                     ignoreTarget);
+            }
+
+            var unusedFragmentCount = fragmentCount - targetedFragmentCount;
+            if (unusedFragmentCount <= 0 || ignoreTarget == null || ignoreTarget.IsDead)
+            {
+                return;
+            }
+
+            var fallbackDamage = mainHitDamage * UnusedFragmentDamageRatio * unusedFragmentCount;
+            if (fallbackDamage > 0f)
+            {
+                ignoreTarget.ReceiveWeaponDamage(fallbackDamage, WeaponId);
             }
         }
 

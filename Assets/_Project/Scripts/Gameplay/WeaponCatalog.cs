@@ -153,7 +153,7 @@ namespace EJR.Game.Gameplay
             var milestones = Mathf.Max(0, milestoneCount);
             return id switch
             {
-                WeaponUpgradeId.WindBlade => milestones + (milestones >= 2 ? 1 : 0),
+                WeaponUpgradeId.WindBlade => milestones,
                 WeaponUpgradeId.Fireball => milestones,
                 WeaponUpgradeId.Slash => milestones,
                 WeaponUpgradeId.LightningBolt => milestones,
@@ -283,7 +283,7 @@ namespace EJR.Game.Gameplay
                     impactBehavior = WeaponImpactBehaviorKind.WindKnockback,
                     knockbackStrength = 5f,
                     milestoneKind = WeaponMilestoneKind.ExtraProjectile,
-                    milestoneDescription = "Pierce +1",
+                    milestoneDescription = "Projectile +1, Pierce +1",
                 },
                 WeaponUpgradeId.Bubble => new WeaponDefinition
                 {
