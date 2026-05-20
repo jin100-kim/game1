@@ -719,7 +719,7 @@ namespace EJR.Game.UI
                 return;
             }
 
-            var nextText = $"웨이브 {waveIndex} | 남은 대상 {remainingCount}";
+            var nextText = $"엘리트 {waveIndex} | 남은 대상 {remainingCount}";
             if (!string.Equals(_lastWaveStatus, nextText, StringComparison.Ordinal))
             {
                 _waveStatusText.text = nextText;
@@ -1457,8 +1457,8 @@ namespace EJR.Game.UI
             ConfigureDebugButton(_debugGrantLevelButton, _debugGrantLevelLabel, "레벨 +1", _debugGrantLevelAction);
             ConfigureDebugButton(_debugAdvanceTimeButton, _debugAdvanceTimeLabel, "레벨 +5", _debugAdvanceTimeAction);
             ConfigureDebugButton(_debugRerollButton, _debugRerollLabel, "선택지 다시 굴리기", _debugRerollAction);
-            ConfigureDebugButton(_debugWave1Button, _debugWave1Label, "1웨이브", _debugWave1Action);
-            ConfigureDebugButton(_debugWave2Button, _debugWave2Label, "2웨이브", _debugWave2Action);
+            ConfigureDebugButton(_debugWave1Button, _debugWave1Label, "엘리트1", _debugWave1Action);
+            ConfigureDebugButton(_debugWave2Button, _debugWave2Label, "엘리트2", _debugWave2Action);
             ConfigureDebugButton(_debugSkipBossButton, _debugSkipBossLabel, "보스", _debugSkipBossAction);
             ConfigureDebugButton(_debugSpeedButton, _debugSpeedLabel, $"속도: {Mathf.RoundToInt(Mathf.Max(1f, _debugPlaySpeedMultiplier))}x", _debugSpeedAction);
             ConfigureDebugButton(_debugInvincibleButton, _debugInvincibleLabel, _debugInvincibleEnabled ? "무적: 켜짐" : "무적: 꺼짐", _debugInvincibleAction);

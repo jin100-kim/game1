@@ -17,6 +17,9 @@ namespace EJR.Game.Gameplay
         private const float WaveTargetVisualScaleMultiplier = 2f;
         private const float WaveTargetCollisionRadiusMultiplier = 1.7f;
         private const float DebugVariantSpawnRingRadius = 2.4f;
+        private const float BossDynamicSpawnIntervalMultiplier = 2.5f;
+        private const float BossDynamicTargetAliveMultiplier = 0.5f;
+        private const float BossDynamicHardCapMultiplier = 0.5f;
 
         private EnemyConfig _config;
         private Transform _target;
@@ -863,11 +866,21 @@ namespace EJR.Game.Gameplay
         private float CalculateNextSpawnInterval()
         {
             var baseInv = SpawnMath.CalculateSpawnInterval(_elapsedSeconds, _config.initialSpawnInterval, _config.minimumSpawnInterval, _config.spawnRampSeconds);
-            if (_config == null || !_config.enableDynamicDensity) return baseInv;
-            var ratio = GetAliveEnemyCount() / (float)Mathf.Max(1, GetTargetAliveCount());
-            var scale = ratio < 1f ? Mathf.Lerp(Mathf.Clamp(_config.lowDensityIntervalScaleMin, 0.2f, 1f), 1f, ratio) 
-                                   : Mathf.Lerp(1f, Mathf.Max(1f, _config.highDensityIntervalScaleMax), Mathf.Clamp01((ratio - 1f) / 0.6f));
-            return Mathf.Max(0.03f, baseInv * scale);
+            var interval = baseInv;
+            if (_config != null && _config.enableDynamicDensity)
+            {
+                var ratio = GetAliveEnemyCount() / (float)Mathf.Max(1, GetTargetAliveCount());
+                var scale = ratio < 1f ? Mathf.Lerp(Mathf.Clamp(_config.lowDensityIntervalScaleMin, 0.2f, 1f), 1f, ratio)
+                                       : Mathf.Lerp(1f, Mathf.Max(1f, _config.highDensityIntervalScaleMax), Mathf.Clamp01((ratio - 1f) / 0.6f));
+                interval *= scale;
+            }
+
+            if (IsBossEncounterActive())
+            {
+                interval *= BossDynamicSpawnIntervalMultiplier;
+            }
+
+            return Mathf.Max(0.03f, interval);
         }
 
         private int CalculateSpawnCountForTick(int alive, int target)
@@ -885,10 +898,18 @@ namespace EJR.Game.Gameplay
         {
             if (_config == null) return 12;
             var t = Mathf.Clamp01(_elapsedSeconds / Mathf.Max(1f, _config.targetAliveRampSeconds));
-            return Mathf.RoundToInt(Mathf.Lerp(_config.targetAliveStart, _config.targetAliveEnd, Mathf.Pow(t, Mathf.Max(0.1f, _config.targetAliveCurveExponent))));
+            var target = Mathf.RoundToInt(Mathf.Lerp(_config.targetAliveStart, _config.targetAliveEnd, Mathf.Pow(t, Mathf.Max(0.1f, _config.targetAliveCurveExponent))));
+            return IsBossEncounterActive() ? Mathf.Max(1, Mathf.RoundToInt(target * BossDynamicTargetAliveMultiplier)) : target;
         }
 
-        private bool IsAtHardAliveCap() => GetAliveEnemyCount() >= Mathf.Max(1, _config?.hardAliveCap ?? 100);
+        private int GetHardAliveCap()
+        {
+            var cap = Mathf.Max(1, _config?.hardAliveCap ?? 100);
+            return IsBossEncounterActive() ? Mathf.Max(1, Mathf.RoundToInt(cap * BossDynamicHardCapMultiplier)) : cap;
+        }
+
+        private bool IsBossEncounterActive() => _bossWaveTriggered && _bossEnemy != null;
+        private bool IsAtHardAliveCap() => GetAliveEnemyCount() >= GetHardAliveCap();
         private WaveRewardChest GetLatestRewardChest() { WaveRewardChest l = null; int s = int.MinValue; foreach (var c in _activeRewardChests) { if (c != null && c.SpawnSequence > s) { s = c.SpawnSequence; l = c; } } return l; }
 
         private void OnEnable() => EnemyController.Defeated += HandleTrackedEnemyDefeated;

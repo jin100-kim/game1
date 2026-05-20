@@ -58,7 +58,6 @@ namespace EJR.Game.Core
         public int Wave3MushroomCount { get; set; }
         public int Wave3SkeletonCount { get; set; }
         public float BossWaveStartSeconds { get; set; }
-        public int BossWaveSkeletonCount { get; set; }
     }
 
     public sealed class RunDifficultyDefinition
@@ -74,10 +73,6 @@ namespace EJR.Game.Core
             float aliveTargetScale,
             float hardCapScale,
             float waveCountScale,
-            float bossEscortScale,
-            float wave1Offset,
-            float wave2Offset,
-            float bossOffset,
             float bossTelegraphScale,
             float bossCooldownScale,
             float bossActionCountScale,
@@ -95,10 +90,6 @@ namespace EJR.Game.Core
             AliveTargetScale = aliveTargetScale;
             HardCapScale = hardCapScale;
             WaveCountScale = waveCountScale;
-            BossEscortScale = bossEscortScale;
-            Wave1Offset = wave1Offset;
-            Wave2Offset = wave2Offset;
-            BossOffset = bossOffset;
             BossTelegraphScale = bossTelegraphScale;
             BossCooldownScale = bossCooldownScale;
             BossActionCountScale = bossActionCountScale;
@@ -117,10 +108,6 @@ namespace EJR.Game.Core
         public float AliveTargetScale { get; }
         public float HardCapScale { get; }
         public float WaveCountScale { get; }
-        public float BossEscortScale { get; }
-        public float Wave1Offset { get; }
-        public float Wave2Offset { get; }
-        public float BossOffset { get; }
         public float BossTelegraphScale { get; }
         public float BossCooldownScale { get; }
         public float BossActionCountScale { get; }
@@ -132,7 +119,7 @@ namespace EJR.Game.Core
     public static class SharedRunCatalog
     {
         public const string DefaultMapId = "forest";
-        public const string DefaultDifficultyId = "easy";
+        public const string DefaultDifficultyId = "normal";
 
         private static readonly RunMapDefinition[] s_mapDefinitions =
         {
@@ -169,7 +156,6 @@ namespace EJR.Game.Core
                 Wave3MushroomCount = 0,
                 Wave3SkeletonCount = 18,
                 BossWaveStartSeconds = 900f,
-                BossWaveSkeletonCount = 2,
             },
             new RunMapDefinition(
                 "desert",
@@ -204,7 +190,6 @@ namespace EJR.Game.Core
                 Wave3MushroomCount = 0,
                 Wave3SkeletonCount = 18,
                 BossWaveStartSeconds = 900f,
-                BossWaveSkeletonCount = 3,
             },
             new RunMapDefinition(
                 "snow",
@@ -239,36 +224,14 @@ namespace EJR.Game.Core
                 Wave3MushroomCount = 0,
                 Wave3SkeletonCount = 18,
                 BossWaveStartSeconds = 900f,
-                BossWaveSkeletonCount = 4,
             },
         };
 
         private static readonly RunDifficultyDefinition[] s_difficultyDefinitions =
         {
             new RunDifficultyDefinition(
-                "easy",
-                "\uC26C\uC6C0",
-                0.90f,
-                0.95f,
-                0.85f,
-                1.10f,
-                1.10f,
-                0.90f,
-                0.90f,
-                0.85f,
-                0.85f,
-                10f,
-                20f,
-                45f,
-                1.15f,
-                1.15f,
-                0.85f,
-                0.90f,
-                0.92f,
-                0.90f),
-            new RunDifficultyDefinition(
                 "normal",
-                "\uBCF4\uD1B5",
+                "\uAE30\uBCF8",
                 1f,
                 1f,
                 1f,
@@ -277,37 +240,12 @@ namespace EJR.Game.Core
                 1f,
                 1f,
                 1f,
-                1f,
-                0f,
-                0f,
-                0f,
                 1f,
                 1f,
                 1f,
                 1f,
                 1f,
                 1f),
-            new RunDifficultyDefinition(
-                "hard",
-                "\uC5B4\uB824\uC6C0",
-                1.20f,
-                1.08f,
-                1.15f,
-                0.90f,
-                0.90f,
-                1.15f,
-                1.15f,
-                1.25f,
-                1.25f,
-                -10f,
-                -20f,
-                -45f,
-                0.88f,
-                0.82f,
-                1.20f,
-                1.12f,
-                1.12f,
-                1.15f),
         };
 
         public static IReadOnlyList<RunMapDefinition> MapDefinitions => s_mapDefinitions;
@@ -483,7 +421,6 @@ namespace EJR.Game.Core
             config.wave3MushroomCount = Mathf.Max(0, map.Wave3MushroomCount);
             config.wave3SkeletonCount = Mathf.Max(0, map.Wave3SkeletonCount);
             config.bossWaveStartSeconds = Mathf.Max(config.wave3TimeSeconds + 1f, map.BossWaveStartSeconds);
-            config.bossWaveSkeletonCount = Mathf.Max(0, map.BossWaveSkeletonCount);
         }
 
         private static void ApplyDifficulty(EnemyConfig config, RunDifficultyDefinition difficulty)
@@ -506,7 +443,6 @@ namespace EJR.Game.Core
             config.wave3SlimeCount = ScaleCount(config.wave3SlimeCount, difficulty.WaveCountScale);
             config.wave3MushroomCount = ScaleCount(config.wave3MushroomCount, difficulty.WaveCountScale);
             config.wave3SkeletonCount = ScaleCount(config.wave3SkeletonCount, difficulty.WaveCountScale);
-            config.bossWaveSkeletonCount = ScaleCount(config.bossWaveSkeletonCount, difficulty.BossEscortScale);
         }
 
         private static void NormalizeWaveOrdering(EnemyConfig config)

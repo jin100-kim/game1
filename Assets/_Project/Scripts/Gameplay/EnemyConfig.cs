@@ -200,17 +200,13 @@ namespace EJR.Game.Gameplay
         public bool spawnSlime = true;
         public bool spawnMushroom = true;
         public bool spawnSkeleton = true;
-        public bool spawnBoss = true;
 
         [Header("Progression")]
         [Min(30f)] public float mushroomPhaseStartSeconds = 180f;
         [Min(60f)] public float bossWaveStartSeconds = 900f;
         [Range(0f, 1f)] public float mushroomRatioAtPhaseStart = 0.5f;
         [Range(0f, 1f)] public float mushroomRatioBeforeBoss = 1f;
-        [Min(1)] public int bossWaveSkeletonCount = 8;
         [Min(0.1f)] public float bossSpawnRadius = 9f;
-        [Min(0.1f)] public float skeletonWaveMinRadius = 7.5f;
-        [Min(0.1f)] public float skeletonWaveMaxRadius = 11f;
 
         [Header("Timed Waves")]
         public bool enableTimedWaves = true;

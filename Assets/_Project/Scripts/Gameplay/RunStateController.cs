@@ -1838,7 +1838,7 @@ namespace EJR.Game.Gameplay
 
         private void HandleWaveStarted(int waveIndex)
         {
-            _hud?.ShowWaveBanner($"웨이브 {waveIndex} 시작\n보상: 증강 선택");
+            _hud?.ShowWaveBanner($"엘리트 {waveIndex} 등장\n처치 보상: 증강 선택");
             UpdateHud();
         }
 
@@ -1849,7 +1849,7 @@ namespace EJR.Game.Gameplay
                 return;
             }
 
-            _hud?.ShowWaveBanner($"웨이브 {waveIndex} 정리 완료\n보상 상자 드롭");
+            _hud?.ShowWaveBanner($"엘리트 {waveIndex} 처치\n보상 상자 드롭");
             UpdateHud();
         }
 
@@ -1863,7 +1863,7 @@ namespace EJR.Game.Gameplay
             var options = SharedAugmentCatalog.BuildRandomOptions(_buildRuntime.ActiveAugments);
             if (options.Length > 0)
             {
-                EnqueueChoice(PendingChoiceContext.WaveAugment, options, $"웨이브 {waveIndex} 보상 - 증강 선택");
+                EnqueueChoice(PendingChoiceContext.WaveAugment, options, $"엘리트 {waveIndex} 보상 - 증강 선택");
             }
 
             UpdateHud();

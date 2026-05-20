@@ -755,25 +755,8 @@ namespace EJR.Game.UI
             _runSetupMapLockText.alignment = TextAnchor.MiddleLeft;
             _runSetupMapLockText.color = new Color(0.72f, 0.79f, 0.89f, 1f);
 
-            var difficultyHeader = CreateText(detailCard.transform, "RunSetupDifficultyHeaderV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -530f), new Vector2(180f, 20f), "난이도", 15, FontStyle.Bold);
-            difficultyHeader.alignment = TextAnchor.MiddleLeft;
-            difficultyHeader.color = new Color(0.78f, 0.84f, 0.92f, 1f);
-
-            var difficultyDefinitions = SharedRunCatalog.DifficultyDefinitions;
-            _runSetupDifficultyButtons = new Button[difficultyDefinitions.Count];
-            _runSetupDifficultyButtonTexts = new Text[difficultyDefinitions.Count];
-            for (var i = 0; i < difficultyDefinitions.Count; i++)
-            {
-                var difficultyId = difficultyDefinitions[i].Id;
-                var button = CreateButton(detailCard.transform, $"RunSetupDifficultyButton{i}", Vector2.zero, difficultyDefinitions[i].DisplayName, () => SelectSingleDifficulty(difficultyId), new Vector2(120f, 42f));
-                SetTopLeftRect(button.GetComponent<RectTransform>(), new Vector2(24f + (i * 132f), 560f), new Vector2(120f, 42f));
-                _runSetupDifficultyButtons[i] = button;
-                _runSetupDifficultyButtonTexts[i] = button.GetComponentInChildren<Text>();
-                if (_runSetupDifficultyButtonTexts[i] != null)
-                {
-                    _runSetupDifficultyButtonTexts[i].fontSize = 15;
-                }
-            }
+            _runSetupDifficultyButtons = System.Array.Empty<Button>();
+            _runSetupDifficultyButtonTexts = System.Array.Empty<Text>();
 
             _runSetupPrimaryActionButton = CreateButton(detailCard.transform, "RunSetupPrimaryActionButtonV2", Vector2.zero, "선택", () => TrySelectOrPurchaseCharacter(_inspectedCharacterId), new Vector2(388f, 48f));
             SetBottomCenterRect(_runSetupPrimaryActionButton.GetComponent<RectTransform>(), new Vector2(0f, 92f), new Vector2(388f, 48f));
@@ -831,25 +814,8 @@ namespace EJR.Game.UI
             _runSetupMapLockText.alignment = TextAnchor.MiddleLeft;
             _runSetupMapLockText.color = new Color(0.72f, 0.79f, 0.89f, 1f);
 
-            var difficultyHeader = CreateText(mapCard.transform, "RunSetupDifficultyHeaderV2", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(32f, -340f), new Vector2(180f, 20f), "난이도", 15, FontStyle.Bold);
-            difficultyHeader.alignment = TextAnchor.MiddleLeft;
-            difficultyHeader.color = new Color(0.78f, 0.84f, 0.92f, 1f);
-
-            var difficultyDefinitions = SharedRunCatalog.DifficultyDefinitions;
-            _runSetupDifficultyButtons = new Button[difficultyDefinitions.Count];
-            _runSetupDifficultyButtonTexts = new Text[difficultyDefinitions.Count];
-            for (var i = 0; i < difficultyDefinitions.Count; i++)
-            {
-                var difficultyId = difficultyDefinitions[i].Id;
-                var button = CreateButton(mapCard.transform, $"RunSetupDifficultyButton{i}", Vector2.zero, difficultyDefinitions[i].DisplayName, () => SelectSingleDifficulty(difficultyId), new Vector2(280f, 52f));
-                SetTopLeftRect(button.GetComponent<RectTransform>(), new Vector2(32f + (i * 300f), 370f), new Vector2(280f, 52f));
-                _runSetupDifficultyButtons[i] = button;
-                _runSetupDifficultyButtonTexts[i] = button.GetComponentInChildren<Text>();
-                if (_runSetupDifficultyButtonTexts[i] != null)
-                {
-                    _runSetupDifficultyButtonTexts[i].fontSize = 17;
-                }
-            }
+            _runSetupDifficultyButtons = System.Array.Empty<Button>();
+            _runSetupDifficultyButtonTexts = System.Array.Empty<Text>();
 
             _runSetupMapNextButton = CreateButton(_runSetupMapStepRoot.transform, "RunSetupNextButtonV2", new Vector2(-126f, -338f), "다음", GoToRunSetupCharacterStep, new Vector2(240f, 52f));
             _runSetupMapNextText = _runSetupMapNextButton.GetComponentInChildren<Text>();

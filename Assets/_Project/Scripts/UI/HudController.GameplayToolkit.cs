@@ -329,7 +329,7 @@ namespace EJR.Game.UI
             }
 
             _gameplayToolkitWaveStatusCard.style.display = DisplayStyle.Flex;
-            _gameplayToolkitWaveStatusLabel.text = $"웨이브 {waveIndex} | 남은 대상 {remainingCount}";
+            _gameplayToolkitWaveStatusLabel.text = $"엘리트 {waveIndex} | 남은 대상 {remainingCount}";
         }
 
         private void HideGameplayToolkitWaveStatus()
@@ -671,8 +671,8 @@ namespace EJR.Game.UI
             ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugGrantLevelButton, "레벨 +1", _debugGrantLevelAction);
             ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugAdvanceTimeButton, "레벨 +5", _debugAdvanceTimeAction);
             ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugRerollButton, "선택지 다시 굴리기", _debugRerollAction);
-            ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugWave1Button, "1웨이브", _debugWave1Action);
-            ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugWave2Button, "2웨이브", _debugWave2Action);
+            ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugWave1Button, "엘리트1", _debugWave1Action);
+            ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugWave2Button, "엘리트2", _debugWave2Action);
             ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugSkipBossButton, "보스", _debugSkipBossAction);
             ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugSpeedButton, $"속도: {Mathf.RoundToInt(Mathf.Max(1f, _debugPlaySpeedMultiplier))}x", _debugSpeedAction);
             ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugInvincibleButton, _debugInvincibleEnabled ? "무적: 켜짐" : "무적: 꺼짐", _debugInvincibleAction);
