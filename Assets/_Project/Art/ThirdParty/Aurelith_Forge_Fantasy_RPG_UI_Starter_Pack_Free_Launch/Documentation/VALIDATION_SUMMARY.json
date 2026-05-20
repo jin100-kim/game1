@@ -1,0 +1,39 @@
+{
+  "release": "v1.1 Free Launch Edition",
+  "counts": {
+    "UI screens": 12,
+    "Icons 512": 60,
+    "Icons 256": 60,
+    "SVG": 60,
+    "Overlays": 12,
+    "Panels": 6,
+    "Mockups": 3
+  },
+  "preview_dimensions_checked": {
+    "cover_itch_630x500.png": [
+      630,
+      500
+    ],
+    "cover_social_1280x720.png": [
+      1280,
+      720
+    ],
+    "pinterest_vertical_1000x1500.png": [
+      1000,
+      1500
+    ],
+    "square_preview_1080x1080.png": [
+      1080,
+      1080
+    ],
+    "contact_sheet_full_pack_1920x1080.png": [
+      1920,
+      1080
+    ],
+    "contact_sheet_icons_1800x1600.png": [
+      1800,
+      1600
+    ]
+  },
+  "errors": []
+}

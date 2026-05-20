@@ -1,0 +1,50 @@
+{
+  "product": "Aurelith Forge \u2014 Fantasy RPG Inventory, Shop & Crafting UI Starter Pack",
+  "publisher": "NexaVisuals",
+  "colors": {
+    "ink_black": "#140d08",
+    "charcoal_brown": "#2b1b0f",
+    "deep_wood": "#4d2b15",
+    "parchment": "#e2c27e",
+    "bright_gold": "#fcd168",
+    "antique_gold": "#d4a23d",
+    "emerald": "#3d8e65",
+    "ruby": "#a63a34",
+    "sapphire": "#3960a4",
+    "violet": "#7a49a0"
+  },
+  "rarity_colors": {
+    "common": "#b7a47a",
+    "uncommon": "#69b56e",
+    "rare": "#5a9dd8",
+    "epic": "#a46bd6",
+    "legendary": "#e6a94d"
+  },
+  "typography_suggestions": {
+    "display": "serif display font for covers and fantasy headers",
+    "ui_labels": "bold sans for buttons and tabs",
+    "body": "medium sans for descriptions",
+    "note": "Font files are not included."
+  },
+  "spacing": {
+    "xs": 4,
+    "sm": 8,
+    "md": 16,
+    "lg": 24,
+    "xl": 40,
+    "screen_margin": 80,
+    "card_gap": 24
+  },
+  "border_radius": {
+    "slot": 10,
+    "button": 16,
+    "card": 22,
+    "large_panel": 30
+  },
+  "component_notes": [
+    "Use gold trim for interactive frames.",
+    "Use parchment for readable content panels.",
+    "Use dark wood for main containers.",
+    "This is reference/prototype material, not an engine-ready UI system."
+  ]
+}

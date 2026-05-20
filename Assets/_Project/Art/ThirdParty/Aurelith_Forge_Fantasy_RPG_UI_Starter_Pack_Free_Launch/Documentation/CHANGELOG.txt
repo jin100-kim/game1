@@ -1,0 +1,14 @@
+v1.1 — Free Launch Edition
+- Repositioned release as Free / Pay What You Want for audience building and feedback.
+- Updated itch.io title, short description, full description, pricing strategy and launch notes.
+- Added itch.io setup guide for publishing the product correctly.
+- Preserved honest positioning: starter/reference pack, not engine-ready UI kit.
+
+v1.0 — Initial Pack
+- 12 UI/reference screens
+- 60 PNG icons in 512x512 and 256x256
+- 60 SVG alternatives
+- 12 overlays
+- 6 panels
+- 3 mockups
+- preview images, documentation, license, AI disclosure, design tokens and HTML/CSS preview

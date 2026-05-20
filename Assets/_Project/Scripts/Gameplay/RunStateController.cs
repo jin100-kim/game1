@@ -116,6 +116,7 @@ namespace EJR.Game.Gameplay
         private LevelUpOption[] _currentOptions;
         private readonly Queue<PendingChoiceRequest> _pendingChoices = new();
         private readonly List<Vector3> _rewardChestWorldPositions = new();
+        private readonly int[] _weaponHudLevels = new int[PlayerBuildRuntime.MaxWeaponSlotsAbsolute];
         private PendingChoiceContext _activeChoiceContext;
         private string _activeChoiceTitle = string.Empty;
         private Coroutine _levelUpChoiceRevealRoutine;
@@ -2142,6 +2143,7 @@ namespace EJR.Game.Gameplay
 
             _hud.SetModeHint(string.Empty);
             _hud.SetBuildInfo(BuildWeaponSummary(), BuildStatSummary());
+            UpdateWeaponSlotHud();
             if (_enemySpawner != null)
             {
                 _hud.SetMonsterLabState(
@@ -2385,6 +2387,32 @@ namespace EJR.Game.Gameplay
             }
 
             return lines;
+        }
+
+        private void UpdateWeaponSlotHud()
+        {
+            if (_hud == null)
+            {
+                return;
+            }
+
+            Array.Clear(_weaponHudLevels, 0, _weaponHudLevels.Length);
+            if (_buildRuntime == null)
+            {
+                _hud.SetWeaponSlots(null, _weaponHudLevels, 1);
+                return;
+            }
+
+            var playerLevel = _levelUp != null ? Mathf.Max(1, _levelUp.Level) : 1;
+            var unlockedSlots = _buildRuntime.GetUnlockedWeaponSlots(playerLevel);
+            var ownedWeapons = _buildRuntime.OwnedWeapons;
+            var count = Mathf.Min(ownedWeapons.Count, _weaponHudLevels.Length);
+            for (var i = 0; i < count; i++)
+            {
+                _weaponHudLevels[i] = _buildRuntime.GetWeaponLevel(ownedWeapons[i]);
+            }
+
+            _hud.SetWeaponSlots(ownedWeapons, _weaponHudLevels, unlockedSlots);
         }
 
         private string BuildStatSummary()

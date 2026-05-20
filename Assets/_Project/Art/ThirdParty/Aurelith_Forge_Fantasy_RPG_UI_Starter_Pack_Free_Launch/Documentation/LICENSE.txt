@@ -1,0 +1,18 @@
+LICENSE — Aurelith Forge by NexaVisuals
+
+You may:
+- Use the included files in personal and commercial game, video, pitch deck, prototype, UI mockup and visual development projects.
+- Modify, recolor, crop, resize and combine the assets for your own projects.
+- Use the assets in shipped commercial projects as part of a larger creative work.
+
+You may not:
+- Resell, redistribute, upload or share the original files as an asset pack, template pack, dataset or standalone library.
+- Claim authorship of the original pack.
+- Repackage the assets into another marketplace product or competing asset bundle.
+- Use the assets to train, fine-tune or evaluate AI models or datasets.
+- Use the assets in illegal, hateful, misleading or infringing projects.
+
+Ownership:
+The buyer receives a usage license, not exclusive ownership of the source pack.
+
+This license summary is provided for practical marketplace use and is not legal advice.

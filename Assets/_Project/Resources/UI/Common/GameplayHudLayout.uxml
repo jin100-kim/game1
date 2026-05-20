@@ -27,6 +27,25 @@
 
             <ui:Button name="build-toggle-button" class="hud-button gameplay-build-toggle" text="빌드" />
 
+            <ui:VisualElement name="weapon-strip" class="gameplay-weapon-strip">
+                <ui:VisualElement name="weapon-slot-0" class="gameplay-weapon-slot">
+                    <ui:VisualElement name="weapon-icon-0" class="gameplay-weapon-icon" />
+                    <ui:Label name="weapon-level-0" class="gameplay-weapon-level" text="-" />
+                </ui:VisualElement>
+                <ui:VisualElement name="weapon-slot-1" class="gameplay-weapon-slot">
+                    <ui:VisualElement name="weapon-icon-1" class="gameplay-weapon-icon" />
+                    <ui:Label name="weapon-level-1" class="gameplay-weapon-level" text="-" />
+                </ui:VisualElement>
+                <ui:VisualElement name="weapon-slot-2" class="gameplay-weapon-slot">
+                    <ui:VisualElement name="weapon-icon-2" class="gameplay-weapon-icon" />
+                    <ui:Label name="weapon-level-2" class="gameplay-weapon-level" text="-" />
+                </ui:VisualElement>
+                <ui:VisualElement name="weapon-slot-3" class="gameplay-weapon-slot">
+                    <ui:VisualElement name="weapon-icon-3" class="gameplay-weapon-icon" />
+                    <ui:Label name="weapon-level-3" class="gameplay-weapon-level" text="-" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+
             <ui:VisualElement name="build-panel" class="gameplay-build-panel">
                 <ui:Label class="gameplay-panel-title" text="빌드" />
 
@@ -91,8 +110,8 @@
                 <ui:Button name="debug-grant-level-button" class="dev-panel-button gameplay-debug-button" text="레벨 +1" />
                 <ui:Button name="debug-advance-time-button" class="dev-panel-button gameplay-debug-button" text="레벨 +5" />
                 <ui:Button name="debug-reroll-button" class="dev-panel-button gameplay-debug-button" text="선택지 다시 굴리기" />
-                <ui:Button name="debug-wave1-button" class="dev-panel-button gameplay-debug-button" text="1웨이브" />
-                <ui:Button name="debug-wave2-button" class="dev-panel-button gameplay-debug-button" text="2웨이브" />
+                <ui:Button name="debug-wave1-button" class="dev-panel-button gameplay-debug-button" text="엘리트1" />
+                <ui:Button name="debug-wave2-button" class="dev-panel-button gameplay-debug-button" text="엘리트2" />
                 <ui:Button name="debug-skip-boss-button" class="dev-panel-button gameplay-debug-button" text="보스" />
                 <ui:Button name="debug-speed-button" class="dev-panel-button gameplay-debug-button" text="속도: 1x" />
                 <ui:Button name="debug-invincible-button" class="dev-panel-button gameplay-debug-button" text="무적: 꺼짐" />
@@ -100,8 +119,8 @@
 
                 <ui:VisualElement name="monster-lab-section" class="dev-subsection">
                     <ui:Label class="dev-subsection-title" text="Monster Lab" />
-                    <ui:Toggle name="monster-lab-toggle" text="실험장 모드" />
-                    <ui:DropdownField name="monster-lab-dropdown" label="변주" />
+                    <ui:Toggle name="monster-lab-toggle" text="실험실 모드" />
+                    <ui:DropdownField name="monster-lab-dropdown" label="변종" />
                     <ui:Button name="monster-lab-spawn-one-button" class="dev-panel-button gameplay-debug-button" text="1마리 생성" />
                     <ui:Button name="monster-lab-spawn-five-button" class="dev-panel-button gameplay-debug-button" text="5마리 생성" />
                     <ui:Button name="monster-lab-clear-button" class="dev-panel-button gameplay-debug-button" text="전체 제거" />

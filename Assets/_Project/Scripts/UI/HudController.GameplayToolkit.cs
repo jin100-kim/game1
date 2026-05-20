@@ -14,6 +14,7 @@ namespace EJR.Game.UI
         private const string GameplayToolkitLayoutResourcePath = "UI/Common/GameplayHudLayout";
         private const string GameplayToolkitStylesResourcePath = "UI/Common/GameplayHudStyles";
         private const string GameplayToolkitDevOverlayStylesResourcePath = "UI/Common/DevOverlayStyles";
+        private const int GameplayWeaponSlotCount = 4;
         private UIDocument _gameplayToolkitDocument;
         private PanelSettings _gameplayToolkitPanelSettings;
         private UIToolkitVisualElement _gameplayToolkitScreen;
@@ -26,6 +27,11 @@ namespace EJR.Game.UI
         private UIToolkitLabel _gameplayToolkitWaveStatusLabel;
         private UIToolkitVisualElement _gameplayToolkitWaveBannerCard;
         private UIToolkitLabel _gameplayToolkitWaveBannerLabel;
+        private readonly UIToolkitVisualElement[] _gameplayToolkitWeaponSlots = new UIToolkitVisualElement[GameplayWeaponSlotCount];
+        private readonly UIToolkitVisualElement[] _gameplayToolkitWeaponIcons = new UIToolkitVisualElement[GameplayWeaponSlotCount];
+        private readonly UIToolkitLabel[] _gameplayToolkitWeaponLevels = new UIToolkitLabel[GameplayWeaponSlotCount];
+        private readonly Dictionary<WeaponUpgradeId, Texture2D> _gameplayToolkitWeaponIconCache = new();
+        private Texture2D _gameplayToolkitEmptyWeaponIcon;
         private UIToolkitButton _gameplayToolkitBuildToggleButton;
         private UIToolkitVisualElement _gameplayToolkitBuildPanel;
         private UIToolkitLabel _gameplayToolkitWeaponBuildLabel;
@@ -128,6 +134,12 @@ namespace EJR.Game.UI
             _gameplayToolkitWaveStatusLabel = root.Q<UIToolkitLabel>("wave-status-text");
             _gameplayToolkitWaveBannerCard = root.Q<UIToolkitVisualElement>("wave-banner-card");
             _gameplayToolkitWaveBannerLabel = root.Q<UIToolkitLabel>("wave-banner-text");
+            for (var i = 0; i < GameplayWeaponSlotCount; i++)
+            {
+                _gameplayToolkitWeaponSlots[i] = root.Q<UIToolkitVisualElement>($"weapon-slot-{i}");
+                _gameplayToolkitWeaponIcons[i] = root.Q<UIToolkitVisualElement>($"weapon-icon-{i}");
+                _gameplayToolkitWeaponLevels[i] = root.Q<UIToolkitLabel>($"weapon-level-{i}");
+            }
             _gameplayToolkitBuildToggleButton = root.Q<UIToolkitButton>("build-toggle-button");
             _gameplayToolkitBuildPanel = root.Q<UIToolkitVisualElement>("build-panel");
             _gameplayToolkitWeaponBuildLabel = root.Q<UIToolkitLabel>("weapon-build-text");
@@ -266,6 +278,97 @@ namespace EJR.Game.UI
             {
                 _gameplayToolkitStatBuildLabel.text = statsSummary ?? "전투 수치";
             }
+        }
+
+        private void SetGameplayToolkitWeaponSlots(IReadOnlyList<WeaponUpgradeId> ownedWeapons, IReadOnlyList<int> weaponLevels, int unlockedSlots)
+        {
+            var safeUnlockedSlots = Mathf.Clamp(unlockedSlots, 1, GameplayWeaponSlotCount);
+            var ownedCount = ownedWeapons?.Count ?? 0;
+            for (var i = 0; i < GameplayWeaponSlotCount; i++)
+            {
+                var slot = _gameplayToolkitWeaponSlots[i];
+                var icon = _gameplayToolkitWeaponIcons[i];
+                var levelLabel = _gameplayToolkitWeaponLevels[i];
+                if (slot == null || icon == null || levelLabel == null)
+                {
+                    continue;
+                }
+
+                var unlocked = i < safeUnlockedSlots;
+                var occupied = unlocked && i < ownedCount;
+                slot.EnableInClassList("is-locked", !unlocked);
+                slot.EnableInClassList("is-empty", unlocked && !occupied);
+
+                if (!unlocked)
+                {
+                    ApplyGameplayToolkitWeaponIcon(icon, GetEmptyGameplayToolkitWeaponIcon());
+                    levelLabel.text = "잠김";
+                    slot.tooltip = "잠긴 무기 슬롯";
+                    continue;
+                }
+
+                if (!occupied)
+                {
+                    ApplyGameplayToolkitWeaponIcon(icon, GetEmptyGameplayToolkitWeaponIcon());
+                    levelLabel.text = "+";
+                    slot.tooltip = "빈 무기 슬롯";
+                    continue;
+                }
+
+                var weaponId = ownedWeapons[i];
+                var level = weaponLevels != null && i < weaponLevels.Count ? Mathf.Max(1, weaponLevels[i]) : 1;
+                ApplyGameplayToolkitWeaponIcon(icon, GetGameplayToolkitWeaponIcon(weaponId));
+                levelLabel.text = $"Lv.{level}";
+                slot.tooltip = $"{SharedGameCatalog.GetWeaponDisplayName(weaponId)} Lv.{level}";
+            }
+        }
+
+        private static void ApplyGameplayToolkitWeaponIcon(UIToolkitVisualElement icon, Texture2D texture)
+        {
+            if (texture != null)
+            {
+                icon.style.backgroundImage = new StyleBackground(texture);
+            }
+            else
+            {
+                icon.style.backgroundImage = StyleKeyword.None;
+            }
+        }
+
+        private Texture2D GetGameplayToolkitWeaponIcon(WeaponUpgradeId weaponId)
+        {
+            if (_gameplayToolkitWeaponIconCache.TryGetValue(weaponId, out var cached))
+            {
+                return cached;
+            }
+
+            var texture = Resources.Load<Texture2D>(GetGameplayToolkitWeaponIconResourcePath(weaponId));
+            _gameplayToolkitWeaponIconCache[weaponId] = texture != null ? texture : GetEmptyGameplayToolkitWeaponIcon();
+            return _gameplayToolkitWeaponIconCache[weaponId];
+        }
+
+        private Texture2D GetEmptyGameplayToolkitWeaponIcon()
+        {
+            if (_gameplayToolkitEmptyWeaponIcon == null)
+            {
+                _gameplayToolkitEmptyWeaponIcon = Resources.Load<Texture2D>("UI/Aurelith/Icons/icon_blank_quest_item_256");
+            }
+
+            return _gameplayToolkitEmptyWeaponIcon;
+        }
+
+        private static string GetGameplayToolkitWeaponIconResourcePath(WeaponUpgradeId weaponId)
+        {
+            return weaponId switch
+            {
+                WeaponUpgradeId.Fireball => "UI/Aurelith/Icons/icon_fire_drop_256",
+                WeaponUpgradeId.Slash => "UI/Aurelith/Icons/icon_tool_hammer_256",
+                WeaponUpgradeId.LightningBolt => "UI/Aurelith/Icons/icon_crystal_sun_256",
+                WeaponUpgradeId.IceSpike => "UI/Aurelith/Icons/icon_gem_sapphire_256",
+                WeaponUpgradeId.WindBlade => "UI/Aurelith/Icons/icon_feather_blue_256",
+                WeaponUpgradeId.Bubble => "UI/Aurelith/Icons/icon_water_drop_256",
+                _ => "UI/Aurelith/Icons/icon_blank_quest_item_256",
+            };
         }
 
         private void SetGameplayToolkitBuildDrawerOpen(bool open)

@@ -1,0 +1,21 @@
+Aurelith Forge — Free Fantasy RPG Inventory, Shop & Crafting UI Starter Pack
+
+Aurelith Forge is a free / pay-what-you-want fantasy RPG UI starter and reference pack from NexaVisuals. It is designed for indie RPG developers, cozy fantasy creators, visual novel creators, solo developers, game jam teams, pitch deck creators and UI artists who need a fast visual direction for item-management flows.
+
+The pack includes inventory, shop, crafting, item detail, equipment, vendor comparison, loot, quest reward and compact mobile-style UI reference screens. It also includes RPG item icons, modular overlays, parchment and frame panels, mockup compositions, JSON design tokens and a local HTML/CSS preview page.
+
+Included:
+- 12 high-resolution UI/reference screens
+- 60 item icons as PNG 512x512
+- 60 item icons as PNG 256x256
+- 60 SVG open-format icon alternatives
+- 12 transparent overlays
+- 6 background/panel assets
+- 3 mockup compositions
+- design_tokens.json
+- local HTML/CSS preview page
+- documentation, license and AI disclosure
+
+This is not a PSD, Figma, Unity, Unreal or Godot project. It is not a complete coded UI system. It is a structured visual direction and prototype asset pack.
+
+AI disclosure: this product contains AI-assisted digital graphics and AI-assisted production planning. Files were curated, organized, exported and packaged as a structured digital product. No third-party brands, logos, franchise characters or intentionally copied game styles are included.

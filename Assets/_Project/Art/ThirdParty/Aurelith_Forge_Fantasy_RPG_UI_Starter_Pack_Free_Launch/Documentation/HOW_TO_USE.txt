@@ -1,0 +1,18 @@
+HOW TO USE — Aurelith Forge
+
+1. For moodboarding
+Open Preview_Images/contact_sheet_full_pack_1920x1080.png and Preview_Images/contact_sheet_icons_1800x1600.png. Use them to define the visual direction: parchment panels, wood containers, gold trim, warm inventory slots and clear item hierarchy.
+
+2. For a game pitch deck
+Use the mockup compositions and preview screenshots as high-impact slides. They communicate inventory, shop, crafting, loot and reward flows without requiring an engine project.
+
+3. For visual direction
+Use the 12 UI reference screens as layout studies. Adapt hierarchy, spacing, panel density and component placement for your own project.
+
+4. For prototyping
+Import PNG screens into your design tool or engine as static references. Use transparent overlays for quick mockups. Use icons as temporary or final prototype assets depending on your production needs.
+
+5. For icons and overlays
+Use PNG 512 for high-resolution previews, PNG 256 for compact mockups, and SVG alternatives when you need open-format editable vector-style references.
+
+Reminder: This is not a PSD, Figma, Unity, Unreal or Godot project.

@@ -1,0 +1,1 @@
+Free Fantasy RPG UI Starter Pack for indie game developers. Includes inventory, shop and crafting UI reference screens, RPG item icons, overlays, panels, mockups, design tokens and local HTML/CSS preview. Great for prototypes, pitch decks, game jams and visual direction.

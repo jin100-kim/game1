@@ -148,6 +148,64 @@
     height: 46px;
 }
 
+.gameplay-weapon-strip {
+    position: absolute;
+    left: 24px;
+    bottom: 24px;
+    width: 336px;
+    height: 76px;
+    flex-direction: row;
+}
+
+.gameplay-weapon-slot {
+    width: 76px;
+    height: 76px;
+    margin-right: 8px;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-left-color: rgba(151, 122, 72, 0.72);
+    border-right-color: rgba(151, 122, 72, 0.72);
+    border-top-color: rgba(232, 190, 98, 0.68);
+    border-bottom-color: rgba(83, 62, 34, 0.85);
+    background-color: rgba(20, 16, 14, 0.92);
+}
+
+.gameplay-weapon-slot.is-empty {
+    opacity: 0.74;
+}
+
+.gameplay-weapon-slot.is-locked {
+    opacity: 0.42;
+}
+
+.gameplay-weapon-icon {
+    position: absolute;
+    left: 10px;
+    top: 7px;
+    width: 56px;
+    height: 56px;
+    -unity-background-scale-mode: scale-to-fit;
+}
+
+.gameplay-weapon-level {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 3px;
+    height: 18px;
+    color: rgb(255, 232, 154);
+    font-size: 13px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    background-color: rgba(6, 6, 8, 0.76);
+}
+
 .gameplay-build-panel {
     position: absolute;
     left: 24px;

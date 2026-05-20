@@ -1,0 +1,18 @@
+FREE LAUNCH STRATEGY
+
+Recommended itch.io pricing for this release:
+- Select: $0 or donate
+- Suggested donation: $2.00
+- Optional note in description: ratings and feedback are appreciated
+
+Why free / pay-what-you-want:
+This is a strong launch product for visibility, trust and early audience building. It is structured, documented and useful, but it is honestly positioned as a starter/reference pack rather than a full engine-ready UI kit. Free launch lowers buyer friction and can help collect downloads, ratings, followers and feedback for NexaVisuals.
+
+Do not position this release as:
+- Premium UI Kit Pro
+- Complete Game UI System
+- Engine-ready Unity/Godot/Unreal UI
+- Figma/PSD source pack
+
+Recommended future path:
+After initial traction, release v1.1 or v2.0 with more components, states, source files or engine examples. At that point, consider $4.99–$9.99 depending on improvements.

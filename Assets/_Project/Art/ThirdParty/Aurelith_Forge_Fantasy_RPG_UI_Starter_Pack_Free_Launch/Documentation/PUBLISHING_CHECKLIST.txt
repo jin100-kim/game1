@@ -1,0 +1,13 @@
+PUBLISHING CHECKLIST
+
+Before pressing Publish on itch.io:
+[ ] Title says Free Fantasy RPG UI Starter Pack
+[ ] Pricing is set to $0 or donate
+[ ] Suggested donation is $2.00
+[ ] Cover image is cover_itch_630x500.png
+[ ] At least 5 screenshots are uploaded
+[ ] ZIP file is uploaded and downloadable
+[ ] Full description includes: This is not a PSD, Figma, Unity, Unreal or Godot project.
+[ ] AI disclosure is included in the page description
+[ ] Tags include Asset Pack, User Interface, RPG, Fantasy, Inventory, Crafting
+[ ] Page is checked in preview mode before public publishing

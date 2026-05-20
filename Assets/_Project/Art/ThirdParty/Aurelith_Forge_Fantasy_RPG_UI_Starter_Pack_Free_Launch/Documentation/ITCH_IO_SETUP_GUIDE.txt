@@ -1,0 +1,88 @@
+ITCH.IO SETUP GUIDE — FREE LAUNCH
+
+Use these fields for the itch.io project page.
+
+TITLE
+Aurelith Forge — Free Fantasy RPG UI Starter Pack
+
+PROJECT URL / SLUG
+Recommended slug:
+aurelith-forge-fantasy-rpg-ui-starter-pack
+
+Final URL will look like:
+https://nexavisuals.itch.io/aurelith-forge-fantasy-rpg-ui-starter-pack
+
+SHORT DESCRIPTION OR TAGLINE
+Free / pay-what-you-want fantasy RPG inventory, shop and crafting UI starter/reference assets for prototypes, pitch decks, moodboards and game jam projects.
+
+CLASSIFICATION
+Game assets
+
+KIND OF PROJECT
+Downloadable
+
+RELEASE STATUS
+Released
+
+PRICING
+Select: $0 or donate
+Suggested donation: $2.00
+
+COVER IMAGE
+Upload:
+Preview_Images/cover_itch_630x500.png
+
+SCREENSHOTS
+Upload 3–5 first:
+Preview_Images/contact_sheet_full_pack_1920x1080.png
+Preview_Images/contact_sheet_icons_1800x1600.png
+Preview_Images/whats_included.png
+Preview_Images/use_cases.png
+Preview_Images/preview_screenshot_01.png
+
+Recommended extra screenshots if itch allows more:
+Preview_Images/preview_screenshot_02.png
+Preview_Images/preview_screenshot_03.png
+Preview_Images/square_preview_1080x1080.png
+Preview_Images/cover_social_1280x720.png
+
+UPLOAD FILE
+Upload the final ZIP file:
+Aurelith_Forge_Fantasy_RPG_UI_Starter_Pack_NexaVisuals_Free_Launch_v1_1.zip
+
+TAGS
+Use these tags:
+Asset Pack
+User Interface
+RPG
+Fantasy
+Inventory
+Crafting
+Game Assets
+2D
+Prototype
+Cozy
+UI Design
+Icons
+
+PAGE COPY
+Use the full text from:
+Marketplace_Copy/itch_full_description.md
+
+COMMUNITY / COMMENTS
+Recommended: enabled.
+
+ADULT / SENSITIVE CONTENT
+No, unless you add unrelated content later.
+
+VISIBILITY BEFORE CHECKING
+Keep as Draft / Restricted until you verify:
+- download works
+- cover is sharp
+- screenshots are in correct order
+- ZIP opens correctly
+- page text says this is not PSD/Figma/Unity/Unreal/Godot
+- price is $0 or donate
+
+FINAL POSITIONING
+Do not call this a complete professional UI kit or engine-ready pack. Call it a free starter/reference pack.

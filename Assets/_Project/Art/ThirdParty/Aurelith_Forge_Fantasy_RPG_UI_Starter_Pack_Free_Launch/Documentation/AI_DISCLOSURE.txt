@@ -1,0 +1,16 @@
+AI DISCLOSURE — Aurelith Forge
+
+This product contains AI-assisted digital graphics and AI-assisted production planning. The final files were curated, named, exported, checked and packaged as a structured digital product.
+
+What the buyer receives:
+- Organized PNG assets
+- SVG open-format alternatives for icons
+- JSON design tokens
+- A local HTML/CSS preview page
+- Documentation and marketplace copy
+
+This is not a PSD, Figma, Unity, Unreal or Godot project. It should not be described as engine-ready unless the buyer builds their own engine implementation.
+
+No third-party brands, logos, franchise characters or intentionally copied game styles are included.
+
+Free launch note: this release is provided as Free / Pay What You Want, but the same disclosure and usage limitations still apply.

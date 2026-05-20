@@ -267,6 +267,14 @@ namespace EJR.Game.UI
             }
         }
 
+        public void SetWeaponSlots(IReadOnlyList<WeaponUpgradeId> ownedWeapons, IReadOnlyList<int> weaponLevels, int unlockedSlots)
+        {
+            if (HasGameplayToolkit)
+            {
+                SetGameplayToolkitWeaponSlots(ownedWeapons, weaponLevels, unlockedSlots);
+            }
+        }
+
         public void ToggleBuildDrawer()
         {
             SetBuildDrawerOpen(!_isBuildDrawerOpen);

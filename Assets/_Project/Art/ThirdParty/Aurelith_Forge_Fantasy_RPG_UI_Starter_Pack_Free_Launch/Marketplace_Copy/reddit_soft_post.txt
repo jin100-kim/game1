@@ -1,0 +1,8 @@
+I made a free / pay-what-you-want fantasy RPG UI starter/reference pack for indie devs and game jam teams.
+
+It includes inventory/shop/crafting UI reference screens, RPG item icons in PNG 512 and 256, SVG icon alternatives, overlays, panels, mockups, design tokens and a local HTML/CSS preview page.
+
+It is meant for prototypes, pitch decks, moodboards and visual direction — not as a finished Unity/Godot/Unreal implementation.
+
+Free launch page: https://nexavisuals.itch.io/
+Feedback is welcome.
