@@ -18,13 +18,6 @@ namespace EJR.Game.Gameplay
             StatUpgradeId.Luck,
         };
 
-        private static readonly WeaponRollKind[] DefaultWeaponRollKinds =
-        {
-            WeaponRollKind.DamagePercent,
-            WeaponRollKind.AttackSpeedPercent,
-            WeaponRollKind.RangePercent,
-        };
-
         private readonly List<LevelUpOption> _workingOptions = new(3);
         private readonly List<LevelUpOption> _weaponCandidates = new(24);
         private readonly List<LevelUpOption> _globalCandidates = new(12);
@@ -154,7 +147,7 @@ namespace EJR.Game.Gameplay
                 }
                 else
                 {
-                    AppendWeaponRollOptions(weaponId, currentLevel, nextLevel);
+                    _weaponCandidates.Add(CreateFixedWeaponRollOption(weaponId, currentLevel, nextLevel));
                 }
             }
 
@@ -224,12 +217,13 @@ namespace EJR.Game.Gameplay
             return LevelUpOption.CreateWeaponAcquire(weaponId, title, description, ComposeLabel(title, description, OptionRarity.Common, hideRarity: true));
         }
 
-        private LevelUpOption CreateWeaponRollOption(WeaponUpgradeId weaponId, int currentLevel, int nextLevel, WeaponRollKind rollKind, OptionRarity rarity)
+        private LevelUpOption CreateFixedWeaponRollOption(WeaponUpgradeId weaponId, int currentLevel, int nextLevel)
         {
-            var value = _balanceConfig.GetWeaponRollValue(rollKind, rarity);
+            var rollKind = GetFixedWeaponRollKind(nextLevel);
+            var value = GetFixedWeaponRollValue(nextLevel);
             var title = $"{SharedGameCatalog.GetWeaponDisplayName(weaponId)} Lv.{nextLevel}";
             var description = BuildWeaponRollDescription(rollKind, value);
-            return LevelUpOption.CreateWeaponRoll(weaponId, rollKind, rarity, value, currentLevel, nextLevel, title, description, ComposeLabel(title, description, rarity));
+            return LevelUpOption.CreateWeaponRoll(weaponId, rollKind, OptionRarity.Common, value, currentLevel, nextLevel, title, description, ComposeLabel(title, description, OptionRarity.Common, hideRarity: true));
         }
 
         private LevelUpOption CreateWeaponMilestoneOption(WeaponUpgradeId weaponId, int currentLevel, int nextLevel)
@@ -244,7 +238,7 @@ namespace EJR.Game.Gameplay
                 nextLevel,
                 title,
                 description,
-                ComposeSpecialLabel(title, description));
+                ComposeLabel(title, description, OptionRarity.Special, hideRarity: true));
         }
 
         private LevelUpOption CreateGlobalStatRollOption(StatUpgradeId statId)
@@ -339,13 +333,29 @@ namespace EJR.Game.Gameplay
                 : "Special upgrade";
         }
 
-        private void AppendWeaponRollOptions(WeaponUpgradeId weaponId, int currentLevel, int nextLevel)
+        private static WeaponRollKind GetFixedWeaponRollKind(int nextLevel)
         {
-            for (var i = 0; i < DefaultWeaponRollKinds.Length; i++)
+            return nextLevel switch
             {
-                var rarity = _balanceConfig.RollRarity(_build != null ? _build.GlobalLuckTotal : 0f);
-                _weaponCandidates.Add(CreateWeaponRollOption(weaponId, currentLevel, nextLevel, DefaultWeaponRollKinds[i], rarity));
-            }
+                3 or 7 => WeaponRollKind.AttackSpeedPercent,
+                4 or 8 => WeaponRollKind.RangePercent,
+                _ => WeaponRollKind.DamagePercent,
+            };
+        }
+
+        private static float GetFixedWeaponRollValue(int nextLevel)
+        {
+            return nextLevel switch
+            {
+                2 => 12f,
+                3 => 10f,
+                4 => 12f,
+                6 => 14f,
+                7 => 12f,
+                8 => 14f,
+                9 => 16f,
+                _ => 12f,
+            };
         }
 
         private bool ShouldUseWeaponBucketForSlot()
