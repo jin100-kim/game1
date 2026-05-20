@@ -69,6 +69,8 @@ namespace EJR.Game.Gameplay
                 var angle = Vector2.Angle(snappedDirection, toEnemy / Mathf.Max(0.0001f, centerDistance));
                 if (angle <= coneHalfAngle)
                 {
+                    var knockbackDirection = centerDistance > 0.0001f ? toEnemy / centerDistance : snappedDirection;
+                    enemy.ApplyKnockback(knockbackDirection, definition.knockbackStrength);
                     system.DealDirectWeaponDamage(enemy, damage, weapon.WeaponId);
                 }
             }

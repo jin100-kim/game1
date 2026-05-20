@@ -10,7 +10,6 @@ namespace EJR.Game.Core
         Overclock = 2,
         Finisher = 3,
         CloseQuarters = 4,
-        VitalCore = 5,
         Ambidextrous = 6,
         GlassCannon = 7,
         CautiousAttack = 8,

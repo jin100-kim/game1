@@ -87,9 +87,10 @@ namespace EJR.Game.Gameplay
         private const int BossAreaTelegraphSegments = 48;
         private const float WindKnockbackCooldown = 0.5f;
         private const float MinorStunInternalCooldown = 0.15f;
-        private const float RifleMinorStunDuration = 0.04f;
-        private const float ShotgunMinorStunDuration = 0.05f;
-        private const float KatanaMinorStunDuration = 0.05f;
+        private const float LightningMinorStunDuration = 0.05f;
+        private const float IceSpikeMinorStunDuration = 0.05f;
+        private const float WindBladeMinorStunDuration = 0.05f;
+        private const float BubbleMinorStunDuration = 0.05f;
         private const float ObstacleProbeBaseDistance = 0.35f;
         private const float ObstacleProbeLeadSeconds = 0.24f;
         private const float ObstacleStuckSeconds = 0.22f;
@@ -1480,7 +1481,10 @@ namespace EJR.Game.Gameplay
         {
             var duration = sourceWeaponId switch
             {
-                WeaponUpgradeId.Slash => KatanaMinorStunDuration,
+                WeaponUpgradeId.LightningBolt => LightningMinorStunDuration,
+                WeaponUpgradeId.IceSpike => IceSpikeMinorStunDuration,
+                WeaponUpgradeId.WindBlade => WindBladeMinorStunDuration,
+                WeaponUpgradeId.Bubble => BubbleMinorStunDuration,
                 _ => 0f,
             };
 

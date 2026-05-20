@@ -153,9 +153,23 @@ namespace EJR.Game.Gameplay
             public ProjectileHitResult OnHit(ProjectileHitContext context)
             {
                 var appliedDamage = context.ApplyDamage(context.CurrentDamage, context.Enemy);
+                ApplyExplosionKnockback(context, context.Enemy, context.Direction);
                 context.NotifyDirectHit(appliedDamage, context.Enemy);
                 TriggerExplosion(context);
                 return new ProjectileHitResult(true);
+            }
+
+            private static void ApplyExplosionKnockback(ProjectileHitContext context, EnemyController enemy, Vector3 direction)
+            {
+                if (context.Definition == null || enemy == null || context.Definition.knockbackStrength <= 0f)
+                {
+                    return;
+                }
+
+                var knockbackDirection = ((Vector2)direction).sqrMagnitude > 0.0001f
+                    ? ((Vector2)direction).normalized
+                    : Vector2.right;
+                enemy.ApplyKnockback(knockbackDirection, context.Definition.knockbackStrength);
             }
 
             private static void TriggerExplosion(ProjectileHitContext context)
@@ -198,6 +212,8 @@ namespace EJR.Game.Gameplay
                     }
 
                     context.ApplyDamage(explosionDamage, enemy);
+                    var toEnemy = enemy.transform.position - context.Position;
+                    ApplyExplosionKnockback(context, enemy, toEnemy);
                 }
             }
         }
