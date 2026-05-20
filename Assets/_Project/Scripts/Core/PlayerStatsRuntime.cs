@@ -16,6 +16,7 @@ namespace EJR.Game.Core
         public float HealthRegenPerSecond { get; private set; }
         public float Luck { get; private set; }
         public float ExperienceGainMultiplier { get; private set; } = 1f;
+        public float ExperiencePickupRadiusMultiplier { get; private set; } = 1f;
         public float CreditGainPercent { get; private set; }
 
         public void RecalculateFromBuild(PlayerBuildRuntime build)
@@ -30,6 +31,7 @@ namespace EJR.Game.Core
             HealthRegenPerSecond = 0f;
             Luck = 0f;
             ExperienceGainMultiplier = 1f;
+            ExperiencePickupRadiusMultiplier = 1f;
             CreditGainPercent = 0f;
 
             if (build == null)
@@ -48,6 +50,7 @@ namespace EJR.Game.Core
             HealthRegenPerSecond = build.SuppressesPassiveRegen ? 0f : Mathf.Max(0f, build.GlobalHealthRegenPerSecondTotal);
             Luck = Mathf.Max(0f, build.GlobalLuckTotal);
             ExperienceGainMultiplier = 1f + (Mathf.Max(0f, build.GlobalExperienceGainPercentTotal) / 100f);
+            ExperiencePickupRadiusMultiplier = 1f + (Mathf.Max(0f, build.GlobalExperiencePickupRadiusPercentTotal) / 100f);
             CreditGainPercent = Mathf.Max(0f, build.GlobalCreditGainPercentTotal);
         }
     }

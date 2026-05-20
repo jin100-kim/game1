@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 using EJR.Game.Gameplay;
 
@@ -19,6 +20,7 @@ namespace EJR.Game.Core
         public int creditsEarned;
         public RunCreditBreakdown creditBreakdown = new();
         public RunCombatStats combatStats = new();
+        public List<RunWeaponLevelEntry> weaponLevels = new();
 
         public string BuildDisplayText()
         {

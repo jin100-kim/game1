@@ -78,6 +78,8 @@ namespace EJR.Game.Gameplay
         public float GlobalLuckTotal => _metaBonuses.luck + _characterBaseBonuses.luck + _characterDynamicBonuses.luck + _runBonuses.luck;
         public float GlobalExperienceGainPercentTotal => _metaBonuses.experienceGainPercent + _characterBaseBonuses.experienceGainPercent + _characterDynamicBonuses.experienceGainPercent + _runBonuses.experienceGainPercent;
         public float GlobalCreditGainPercentTotal => _metaBonuses.creditGainPercent + _characterBaseBonuses.creditGainPercent + _characterDynamicBonuses.creditGainPercent + _runBonuses.creditGainPercent;
+        public float GlobalExperiencePickupRadiusPercentTotal => _metaBonuses.experiencePickupRadiusPercent + _characterBaseBonuses.experiencePickupRadiusPercent + _characterDynamicBonuses.experiencePickupRadiusPercent + _runBonuses.experiencePickupRadiusPercent;
+        public int GlobalProjectileCountBonus => Mathf.Max(0, Mathf.RoundToInt(_metaBonuses.projectileCountFlat + _characterBaseBonuses.projectileCountFlat + _characterDynamicBonuses.projectileCountFlat + _runBonuses.projectileCountFlat));
         public int ExtraWeaponSlots => _extraWeaponSlots;
         public float GlobalMaxHealthScale => _maxHealthScale;
         public float GlobalDamageTakenScale => _damageTakenScale;
@@ -295,7 +297,7 @@ namespace EJR.Game.Gameplay
         public int GetWeaponExtraCountBonus(WeaponUpgradeId id)
         {
             var milestones = GetWeaponMilestoneCount(id);
-            return WeaponCatalog.GetExtraCountBonus(id, milestones);
+            return WeaponCatalog.GetExtraCountBonus(id, milestones) + GlobalProjectileCountBonus;
         }
 
         public float GetBfSwordWidthMultiplier()
@@ -553,6 +555,8 @@ namespace EJR.Game.Gameplay
             bonuses.luck = Mathf.Max(0f, bonuses.luck);
             bonuses.experienceGainPercent = Mathf.Max(0f, bonuses.experienceGainPercent);
             bonuses.creditGainPercent = Mathf.Max(0f, bonuses.creditGainPercent);
+            bonuses.experiencePickupRadiusPercent = Mathf.Max(0f, bonuses.experiencePickupRadiusPercent);
+            bonuses.projectileCountFlat = Mathf.Max(0f, bonuses.projectileCountFlat);
             return bonuses;
         }
     }

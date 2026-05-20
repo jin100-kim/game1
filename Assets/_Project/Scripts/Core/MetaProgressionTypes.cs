@@ -26,6 +26,8 @@ namespace EJR.Game.Core
         Luck = 6,
         ExperienceGainPercent = 7,
         CreditGainPercent = 8,
+        ExperiencePickupRadiusPercent = 9,
+        ProjectileCount = 10,
     }
 
     [Serializable]
@@ -40,6 +42,13 @@ namespace EJR.Game.Core
     {
         public int weaponId;
         public float damage;
+    }
+
+    [Serializable]
+    public sealed class RunWeaponLevelEntry
+    {
+        public int weaponId;
+        public int level;
     }
 
     [Serializable]

@@ -35,13 +35,21 @@ namespace EJR.Game.Gameplay
             var orb = GetPooledOrb();
             var orbObject = orb.gameObject;
             orbObject.transform.SetPositionAndRotation(position, Quaternion.identity);
+            var pickupRadius = _playerConfig.pickupRadius;
+            var attractRadius = _playerConfig.xpAttractRadius;
+            if (_stats != null)
+            {
+                var radiusMultiplier = Mathf.Max(0.1f, _stats.ExperiencePickupRadiusMultiplier);
+                pickupRadius *= radiusMultiplier;
+                attractRadius *= radiusMultiplier;
+            }
 
             orb.Initialize(
                 _player,
                 this,
                 Mathf.Max(1, value),
-                _playerConfig.pickupRadius,
-                _playerConfig.xpAttractRadius,
+                pickupRadius,
+                attractRadius,
                 _playerConfig.xpAttractSpeed,
                 ReturnOrbToPool);
         }

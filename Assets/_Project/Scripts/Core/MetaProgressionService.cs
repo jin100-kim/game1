@@ -8,7 +8,8 @@ namespace EJR.Game.Core
     public static class MetaProgressionService
     {
         private const string SaveFileName = "meta-profile.json";
-        private const int CurrentSaveVersion = 3;
+        private const int CurrentSaveVersion = 4;
+        private const int MaxTrackedWeaponLevel = 10;
 
         private static bool s_loaded;
         private static MetaProfileData s_profile;
@@ -86,6 +87,12 @@ namespace EJR.Game.Core
             }
         }
 
+        public static int GetBestWeaponLevel(WeaponUpgradeId weaponId)
+        {
+            EnsureLoaded();
+            return GetBestWeaponLevelInternal(weaponId);
+        }
+
         public static bool HasUnseenAchievements
         {
             get
@@ -105,10 +112,17 @@ namespace EJR.Game.Core
 
             s_config = MetaProgressionConfig.CreateRuntimeDefault();
             var loadedProfile = LoadProfile();
+            var previousSaveVersion = loadedProfile?.saveVersion ?? CurrentSaveVersion;
             s_profile = loadedProfile ?? CreateDefaultProfile();
             var needsSave = loadedProfile != null && loadedProfile.saveVersion != CurrentSaveVersion;
             SanitizeProfile();
             s_loaded = true;
+            if (loadedProfile != null && previousSaveVersion < CurrentSaveVersion)
+            {
+                ApplyCompletedAchievementRewardMigration(previousSaveVersion);
+                needsSave = true;
+            }
+
             needsSave |= EvaluateAchievements();
             if (needsSave)
             {
@@ -486,6 +500,7 @@ namespace EJR.Game.Core
             s_profile.bestLevel = Mathf.Max(s_profile.bestLevel, Mathf.Max(1, summary.finalLevel));
             s_profile.bestTimeSeconds = Mathf.Max(s_profile.bestTimeSeconds, Mathf.Max(0f, summary.survivalTimeSeconds));
             s_profile.totalEnemiesDefeated += Mathf.Max(0, summary.enemiesDefeated);
+            RecordWeaponLevels(summary.weaponLevels);
             s_profile.pendingRunSummary = summary;
             EvaluateAchievements();
             SaveNow();
@@ -508,6 +523,32 @@ namespace EJR.Game.Core
 
             s_profile.pendingRunSummary = null;
             SaveNow();
+        }
+
+        private static void RecordWeaponLevels(IReadOnlyList<RunWeaponLevelEntry> weaponLevels)
+        {
+            if (weaponLevels == null || weaponLevels.Count <= 0)
+            {
+                return;
+            }
+
+            s_profile.bestWeaponLevels ??= new List<RunWeaponLevelEntry>();
+            for (var i = 0; i < weaponLevels.Count; i++)
+            {
+                var entry = weaponLevels[i];
+                if (entry == null)
+                {
+                    continue;
+                }
+
+                var weaponId = (WeaponUpgradeId)entry.weaponId;
+                if (!SharedGameCatalog.IsStarterWeaponSelectable(weaponId))
+                {
+                    continue;
+                }
+
+                SetBestWeaponLevelInternal(weaponId, entry.level);
+            }
         }
 
         public static void AddCreditsForDebug(int amount)
@@ -744,6 +785,7 @@ namespace EJR.Game.Core
             s_profile.unlockedCharacterIds ??= new List<int>();
             s_profile.upgradeLevels ??= new List<MetaUpgradeProgressEntry>();
             s_profile.clearedMapIds ??= new List<string>();
+            s_profile.bestWeaponLevels ??= new List<RunWeaponLevelEntry>();
             s_profile.completedAchievementIds ??= new List<string>();
             s_profile.unseenAchievementIds ??= new List<string>();
 
@@ -758,6 +800,7 @@ namespace EJR.Game.Core
 
             DeduplicateInts(s_profile.unlockedCharacterIds);
             DeduplicateStrings(s_profile.clearedMapIds);
+            SanitizeBestWeaponLevels();
             SanitizeAchievementIds(s_profile.completedAchievementIds);
             SanitizeAchievementIds(s_profile.unseenAchievementIds);
             SanitizeUpgradeLevels();
@@ -834,16 +877,42 @@ namespace EJR.Game.Core
                 return;
             }
 
-            if (definition.Reward.Kind != AchievementRewardKind.UnlockCharacter)
+            switch (definition.Reward.Kind)
+            {
+                case AchievementRewardKind.UnlockCharacter:
+                {
+                    var characterId = SharedGameCatalog.NormalizeCharacterId(definition.Reward.CharacterId);
+                    if (!s_profile.unlockedCharacterIds.Contains(characterId))
+                    {
+                        s_profile.unlockedCharacterIds.Add(characterId);
+                        DeduplicateInts(s_profile.unlockedCharacterIds);
+                    }
+                    break;
+                }
+                case AchievementRewardKind.GrantCredits:
+                    s_profile.currentCredits += Mathf.Max(0, definition.Reward.Credits);
+                    s_profile.totalCreditsEarned += Mathf.Max(0, definition.Reward.Credits);
+                    break;
+            }
+        }
+
+        private static void ApplyCompletedAchievementRewardMigration(int previousSaveVersion)
+        {
+            if (previousSaveVersion >= 4 || s_profile.completedAchievementIds == null)
             {
                 return;
             }
 
-            var characterId = SharedGameCatalog.NormalizeCharacterId(definition.Reward.CharacterId);
-            if (!s_profile.unlockedCharacterIds.Contains(characterId))
+            for (var i = 0; i < s_profile.completedAchievementIds.Count; i++)
             {
-                s_profile.unlockedCharacterIds.Add(characterId);
-                DeduplicateInts(s_profile.unlockedCharacterIds);
+                if (!SharedAchievementCatalog.TryGetDefinition(s_profile.completedAchievementIds[i], out var definition)
+                    || definition.Reward == null
+                    || definition.Reward.Kind != AchievementRewardKind.GrantCredits)
+                {
+                    continue;
+                }
+
+                ApplyAchievementReward(definition);
             }
         }
 
@@ -861,6 +930,7 @@ namespace EJR.Game.Core
                 AchievementMetricKind.MapCleared => s_profile.clearedMapIds.Contains(definition.TargetMapId) ? 1 : 0,
                 AchievementMetricKind.TotalEnemiesDefeated => Mathf.Max(0, s_profile.totalEnemiesDefeated),
                 AchievementMetricKind.BestLevel => Mathf.Max(1, s_profile.bestLevel),
+                AchievementMetricKind.WeaponLevelReached => GetBestWeaponLevelInternal(definition.TargetWeaponId),
                 _ => 0,
             };
         }
@@ -882,6 +952,7 @@ namespace EJR.Game.Core
             {
                 AchievementRewardKind.UnlockCharacter => $"캐릭터 해금: {SharedGameCatalog.GetCharacter(reward.CharacterId).DisplayName}",
                 AchievementRewardKind.UnlockMap => $"맵 개방: {SharedRunCatalog.GetMap(reward.MapId).DisplayName}",
+                AchievementRewardKind.GrantCredits => $"코인 +{Mathf.Max(0, reward.Credits)}",
                 _ => "보상 없음",
             };
         }
@@ -902,6 +973,65 @@ namespace EJR.Game.Core
                 entry.level = Mathf.Clamp(entry.level, 0, definition.MaxLevel);
                 s_profile.upgradeLevels[i] = entry;
             }
+        }
+
+        private static void SanitizeBestWeaponLevels()
+        {
+            s_profile.bestWeaponLevels ??= new List<RunWeaponLevelEntry>();
+            var seen = new HashSet<int>();
+            for (var i = s_profile.bestWeaponLevels.Count - 1; i >= 0; i--)
+            {
+                var entry = s_profile.bestWeaponLevels[i];
+                if (entry == null
+                    || !SharedGameCatalog.IsStarterWeaponSelectable((WeaponUpgradeId)entry.weaponId)
+                    || !seen.Add(entry.weaponId))
+                {
+                    s_profile.bestWeaponLevels.RemoveAt(i);
+                    continue;
+                }
+
+                entry.level = Mathf.Clamp(entry.level, 0, MaxTrackedWeaponLevel);
+            }
+        }
+
+        private static int GetBestWeaponLevelInternal(WeaponUpgradeId weaponId)
+        {
+            s_profile.bestWeaponLevels ??= new List<RunWeaponLevelEntry>();
+            var id = (int)weaponId;
+            for (var i = 0; i < s_profile.bestWeaponLevels.Count; i++)
+            {
+                var entry = s_profile.bestWeaponLevels[i];
+                if (entry != null && entry.weaponId == id)
+                {
+                    return Mathf.Clamp(entry.level, 0, MaxTrackedWeaponLevel);
+                }
+            }
+
+            return 0;
+        }
+
+        private static void SetBestWeaponLevelInternal(WeaponUpgradeId weaponId, int level)
+        {
+            s_profile.bestWeaponLevels ??= new List<RunWeaponLevelEntry>();
+            var id = (int)weaponId;
+            var clampedLevel = Mathf.Clamp(level, 0, MaxTrackedWeaponLevel);
+            for (var i = 0; i < s_profile.bestWeaponLevels.Count; i++)
+            {
+                var entry = s_profile.bestWeaponLevels[i];
+                if (entry == null || entry.weaponId != id)
+                {
+                    continue;
+                }
+
+                entry.level = Mathf.Max(entry.level, clampedLevel);
+                return;
+            }
+
+            s_profile.bestWeaponLevels.Add(new RunWeaponLevelEntry
+            {
+                weaponId = id,
+                level = clampedLevel,
+            });
         }
 
         private static int GetUpgradeLevelInternal(MetaUpgradeId upgradeId)

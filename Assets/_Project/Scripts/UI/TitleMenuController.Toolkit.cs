@@ -270,7 +270,7 @@ namespace EJR.Game.UI
             if (_toolkitRunSetupMapNextButton != null) _toolkitRunSetupMapNextButton.clicked += GoToRunSetupCharacterStep;
             if (_toolkitRunSetupMapBackButton != null) _toolkitRunSetupMapBackButton.clicked += ShowMainMenu;
             if (_toolkitRunSetupStartButton != null) _toolkitRunSetupStartButton.clicked += StartSinglePlay;
-            if (_toolkitRunSetupCharacterBackButton != null) _toolkitRunSetupCharacterBackButton.clicked += GoToRunSetupMapStep;
+            if (_toolkitRunSetupCharacterBackButton != null) _toolkitRunSetupCharacterBackButton.clicked += ShowMainMenu;
             if (_toolkitAchievementBackButton != null) _toolkitAchievementBackButton.clicked += ShowMainMenu;
             if (_toolkitMetaBackButton != null) _toolkitMetaBackButton.clicked += ShowMainMenu;
             if (_toolkitMetaUnlocksTabButton != null) _toolkitMetaUnlocksTabButton.clicked += () => SetMetaTab(MetaTab.Unlocks);
@@ -821,7 +821,7 @@ namespace EJR.Game.UI
             }
 
             return definition.UnlockSource == CharacterUnlockSource.Achievement
-                ? "도전과제 해금"
+                ? GetCharacterUnlockRequirementText(definition)
                 : "상점 해금";
         }
 
@@ -956,18 +956,19 @@ namespace EJR.Game.UI
             for (var i = 0; i < SharedGameCatalog.CharacterDefinitions.Count; i++)
             {
                 var definition = SharedGameCatalog.CharacterDefinitions[i];
-                if (definition.UnlockSource != CharacterUnlockSource.Shop)
+                if (definition.DefaultUnlocked)
                 {
                     continue;
                 }
 
                 var unlocked = MetaProgressionService.IsCharacterUnlocked(definition.Id);
                 var canBuy = CanPurchaseCharacter(definition.Id);
+                var requirementText = GetCharacterUnlockRequirementText(definition);
                 var row = CreateToolkitRowWithAction(
                     $"{definition.DisplayName} | {SharedGameCatalog.GetWeaponDisplayName(definition.StarterWeaponId)}",
                     $"기본 보너스 {BuildMetaBonusSummary(definition.BaseBonuses)}\n고유 특성 {definition.PassiveDescription}",
-                    unlocked ? "해금 완료" : $"비용 {definition.UnlockCost} 코인",
-                    unlocked ? "해금 완료" : $"구매 ({definition.UnlockCost}코인)",
+                    unlocked ? "해금 완료" : requirementText,
+                    unlocked ? "해금 완료" : definition.UnlockSource == CharacterUnlockSource.Shop ? $"구매 ({definition.UnlockCost}코인)" : "도전과제 필요",
                     unlocked ? null : () => PromptCharacterPurchase(definition.Id),
                     unlocked || canBuy,
                     definition.Color,
@@ -1234,7 +1235,7 @@ namespace EJR.Game.UI
                 if (_toolkitRunSetupMapNextButton != null) _toolkitRunSetupMapNextButton.clicked -= GoToRunSetupCharacterStep;
                 if (_toolkitRunSetupMapBackButton != null) _toolkitRunSetupMapBackButton.clicked -= ShowMainMenu;
                 if (_toolkitRunSetupStartButton != null) _toolkitRunSetupStartButton.clicked -= StartSinglePlay;
-                if (_toolkitRunSetupCharacterBackButton != null) _toolkitRunSetupCharacterBackButton.clicked -= GoToRunSetupMapStep;
+                if (_toolkitRunSetupCharacterBackButton != null) _toolkitRunSetupCharacterBackButton.clicked -= ShowMainMenu;
                 if (_toolkitAchievementBackButton != null) _toolkitAchievementBackButton.clicked -= ShowMainMenu;
                 if (_toolkitMetaBackButton != null) _toolkitMetaBackButton.clicked -= ShowMainMenu;
                 if (_toolkitSummaryMetaButton != null) _toolkitSummaryMetaButton.clicked -= OpenMetaFromSummary;

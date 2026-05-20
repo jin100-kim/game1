@@ -18,6 +18,7 @@ namespace EJR.Game.Core
         public int bestLevel = 1;
         public float bestTimeSeconds;
         public int totalEnemiesDefeated;
+        public List<RunWeaponLevelEntry> bestWeaponLevels = new();
         public List<string> completedAchievementIds = new();
         public List<string> unseenAchievementIds = new();
         public RunRewardSummary pendingRunSummary;

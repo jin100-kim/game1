@@ -163,7 +163,7 @@ namespace EJR.Game.Core
                 new Rect(-15f, -9f, 30f, 18f),
                 new Color(0.22f, 0.18f, 0.10f, 1f),
                 new Color(0.82f, 0.66f, 0.32f, 1f),
-                "forest_clear",
+                string.Empty,
                 RuntimeSpriteFactory.EnemyVisualKind.Boss,
                 BossArchetypeId.Final)
             {
@@ -197,7 +197,7 @@ namespace EJR.Game.Core
                 new Rect(-18f, -11f, 36f, 22f),
                 new Color(0.12f, 0.18f, 0.24f, 1f),
                 new Color(0.72f, 0.86f, 0.95f, 1f),
-                "desert_clear",
+                string.Empty,
                 RuntimeSpriteFactory.EnemyVisualKind.Boss,
                 BossArchetypeId.Final)
             {

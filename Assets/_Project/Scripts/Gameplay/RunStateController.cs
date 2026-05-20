@@ -2085,6 +2085,7 @@ namespace EJR.Game.Gameplay
                 mapDefinition.DisplayName,
                 string.Empty,
                 _playerStats != null ? _playerStats.CreditGainPercent : 0f);
+            summary.weaponLevels = BuildRunWeaponLevelEntries();
 
             MetaProgressionService.RecordRunSummary(summary);
             _hud.HideLevelUpOptions();
@@ -2093,6 +2094,27 @@ namespace EJR.Game.Gameplay
             _hud.HideWaveStatus();
             _hud.HideWaveBanner();
             _hud.ShowResult(summary, ReturnToLobby, "\uD0C0\uC774\uD2C0\uB85C");
+        }
+
+        private List<RunWeaponLevelEntry> BuildRunWeaponLevelEntries()
+        {
+            var entries = new List<RunWeaponLevelEntry>();
+            if (_buildRuntime == null)
+            {
+                return entries;
+            }
+
+            for (var i = 0; i < _buildRuntime.OwnedWeapons.Count; i++)
+            {
+                var weaponId = _buildRuntime.OwnedWeapons[i];
+                entries.Add(new RunWeaponLevelEntry
+                {
+                    weaponId = (int)weaponId,
+                    level = _buildRuntime.GetWeaponLevel(weaponId),
+                });
+            }
+
+            return entries;
         }
 
         private void TriggerBossWave()

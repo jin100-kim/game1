@@ -988,7 +988,7 @@ namespace EJR.Game.UI
             _currentMetaTab = MetaTab.Unlocks;
             RefreshMetaPanel();
             ShowPanel(_metaPanel, _metaUnlocksTabButton);
-            SetStatus("코인 상점에서 캐릭터 해금과 영구 강화를 관리하세요.");
+            SetStatus("도전과제 해금 조건과 영구 강화를 확인하세요.");
         }
 
         private void OnOptionsClicked()
@@ -1291,10 +1291,10 @@ namespace EJR.Game.UI
             {
                 var definition = SharedGameCatalog.CharacterDefinitions[i];
                 var unlocked = MetaProgressionService.IsCharacterUnlocked(definition.Id);
-                var affordable = MetaProgressionService.CurrentCredits >= definition.UnlockCost;
+                var affordable = CanPurchaseCharacter(definition.Id);
                 var label = unlocked
                     ? $"{definition.DisplayName}\n해금됨 | {BuildMetaBonusSummary(definition.TraitBonuses)}"
-                    : $"{definition.DisplayName}\n비용 {definition.UnlockCost} | {BuildMetaBonusSummary(definition.TraitBonuses)}";
+                    : $"{definition.DisplayName}\n{GetCharacterUnlockRequirementText(definition)} | {BuildMetaBonusSummary(definition.TraitBonuses)}";
                 CreateMetaEntryButton(_metaContentRoot.transform, $"Character{i}", new Vector2(0f, 52f + (i * 46f)), new Vector2(488f, 40f), label, !unlocked && affordable, () => TryPurchaseCharacter(definition.Id));
             }
 
@@ -2112,8 +2112,26 @@ namespace EJR.Game.UI
         private static string GetLockedCharacterStatus(SharedCharacterDefinition definition)
         {
             return definition.UnlockSource == CharacterUnlockSource.Achievement
-                ? "도전과제 해금"
+                ? GetCharacterUnlockRequirementText(definition)
                 : "상점 해금";
+        }
+
+        private static string GetCharacterUnlockRequirementText(SharedCharacterDefinition definition)
+        {
+            if (definition.UnlockSource == CharacterUnlockSource.Achievement)
+            {
+                if (!string.IsNullOrWhiteSpace(definition.RequiredAchievementId)
+                    && SharedAchievementCatalog.TryGetDefinition(definition.RequiredAchievementId, out var achievement))
+                {
+                    return achievement.Description;
+                }
+
+                return "도전과제 해금";
+            }
+
+            return definition.UnlockSource == CharacterUnlockSource.Shop
+                ? $"{definition.UnlockCost} 코인"
+                : "기본 해금";
         }
 
         private void RefreshAchievementButtonState()
@@ -2328,13 +2346,14 @@ namespace EJR.Game.UI
             for (var i = 0; i < SharedGameCatalog.CharacterDefinitions.Count; i++)
             {
                 var definition = SharedGameCatalog.CharacterDefinitions[i];
-                if (definition.UnlockSource != CharacterUnlockSource.Shop)
+                if (definition.DefaultUnlocked)
                 {
                     continue;
                 }
 
                 var unlocked = MetaProgressionService.IsCharacterUnlocked(definition.Id);
                 var canBuy = CanPurchaseCharacter(definition.Id);
+                var requirementText = GetCharacterUnlockRequirementText(definition);
                 var rowTop = 44f + (displayIndex * 88f);
                 var row = CreatePanel(
                     _metaContentRoot.transform,
@@ -2388,9 +2407,11 @@ namespace EJR.Game.UI
 
                 var buttonLabelText = unlocked
                     ? "해금 완료"
-                    : canBuy
-                        ? $"구매 가능 - {definition.UnlockCost} 코인"
-                        : $"코인 부족 - {definition.UnlockCost} 코인";
+                    : definition.UnlockSource == CharacterUnlockSource.Shop
+                        ? canBuy
+                            ? $"구매 가능 - {definition.UnlockCost} 코인"
+                            : $"코인 부족 - {definition.UnlockCost} 코인"
+                        : requirementText;
                 var button = CreateButton(
                     row.transform,
                     $"MetaCharacter{definition.Id}",
@@ -2699,6 +2720,8 @@ namespace EJR.Game.UI
             AppendBonus(builder, bonuses.luck, "\uD589\uC6B4 +{0:0}");
             AppendBonus(builder, bonuses.experienceGainPercent, "XP +{0:0.#}%");
             AppendBonus(builder, bonuses.creditGainPercent, "\uD06C\uB808\uB527 +{0:0.#}%");
+            AppendBonus(builder, bonuses.experiencePickupRadiusPercent, "XP 흡입 +{0:0.#}%");
+            AppendBonus(builder, bonuses.projectileCountFlat, "투사체 +{0:0}");
             return builder.Length > 0 ? builder.ToString() : "\uBCF4\uB108\uC2A4 \uC5C6\uC74C";
         }
 

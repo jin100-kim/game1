@@ -16,6 +16,8 @@ namespace EJR.Game.Core
         public float luck;
         public float experienceGainPercent;
         public float creditGainPercent;
+        public float experiencePickupRadiusPercent;
+        public float projectileCountFlat;
 
         public static MetaBonusValues operator +(MetaBonusValues a, MetaBonusValues b)
         {
@@ -30,6 +32,8 @@ namespace EJR.Game.Core
                 luck = a.luck + b.luck,
                 experienceGainPercent = a.experienceGainPercent + b.experienceGainPercent,
                 creditGainPercent = a.creditGainPercent + b.creditGainPercent,
+                experiencePickupRadiusPercent = a.experiencePickupRadiusPercent + b.experiencePickupRadiusPercent,
+                projectileCountFlat = a.projectileCountFlat + b.projectileCountFlat,
             };
         }
 
@@ -46,6 +50,8 @@ namespace EJR.Game.Core
                 luck = values.luck * multiplier,
                 experienceGainPercent = values.experienceGainPercent * multiplier,
                 creditGainPercent = values.creditGainPercent * multiplier,
+                experiencePickupRadiusPercent = values.experiencePickupRadiusPercent * multiplier,
+                projectileCountFlat = values.projectileCountFlat * multiplier,
             };
         }
     }
@@ -78,6 +84,7 @@ namespace EJR.Game.Core
     public sealed class MetaProgressionConfig : ScriptableObject
     {
         [SerializeField] private int[] upgradeCostCurve = { 60, 120, 220, 350, 500 };
+        [SerializeField] private int[] projectileCountCostCurve = { 10000 };
         [SerializeField, Min(0)] private int killsPerCredit = 10;
         [SerializeField, Min(0)] private int creditsPerMinuteSurvived = 5;
         [SerializeField, Min(0)] private int creditsPerBossThreshold = 5;
@@ -110,12 +117,13 @@ namespace EJR.Game.Core
                 return int.MaxValue;
             }
 
-            if (currentLevel < 0 || currentLevel >= definition.MaxLevel || currentLevel >= upgradeCostCurve.Length)
+            var costCurve = id == MetaUpgradeId.ProjectileCount ? projectileCountCostCurve : upgradeCostCurve;
+            if (currentLevel < 0 || currentLevel >= definition.MaxLevel || currentLevel >= costCurve.Length)
             {
                 return int.MaxValue;
             }
 
-            return Mathf.Max(0, upgradeCostCurve[currentLevel]);
+            return Mathf.Max(0, costCurve[currentLevel]);
         }
 
         public RunCreditBreakdown BuildCreditBreakdown(
@@ -196,11 +204,23 @@ namespace EJR.Game.Core
                 5,
                 new MetaBonusValues { experienceGainPercent = 8f }));
             _upgradeDefinitions.Add(new MetaUpgradeDefinition(
+                MetaUpgradeId.ExperiencePickupRadiusPercent,
+                "XP 흡입 거리",
+                "단계당 XP 흡입 거리 +12%",
+                5,
+                new MetaBonusValues { experiencePickupRadiusPercent = 12f }));
+            _upgradeDefinitions.Add(new MetaUpgradeDefinition(
                 MetaUpgradeId.CreditGainPercent,
                 "기본 코인",
                 "단계당 코인 획득량 +10%",
                 5,
                 new MetaBonusValues { creditGainPercent = 10f }));
+            _upgradeDefinitions.Add(new MetaUpgradeDefinition(
+                MetaUpgradeId.ProjectileCount,
+                "추가 투사체",
+                "모든 무기 발사/타격 수 +1",
+                1,
+                new MetaBonusValues { projectileCountFlat = 1f }));
             EnsureLookups();
         }
 
