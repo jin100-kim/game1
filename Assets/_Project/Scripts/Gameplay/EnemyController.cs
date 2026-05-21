@@ -39,7 +39,7 @@ namespace EJR.Game.Gameplay
 
         private const float VariantProjectileHitRadius = 0.12f;
         private const float VariantProjectileVisualScale = 0.4f;
-        private const float WaveTargetMushroomCooldown = 10f;
+        private const float WaveTargetMushroomCooldown = 5f;
         private const float WaveTargetMushroomAttackStopDuration = 0.55f;
         private const float WaveTargetMushroomBurstInterval = 0.22f;
         private const int WaveTargetMushroomBurstCount = 3;
@@ -49,7 +49,7 @@ namespace EJR.Game.Gameplay
         private const float WaveTargetMushroomProjectileDamageMultiplier = 0.85f;
         private const float WaveTargetSkeletonWindupDuration = 0.5f;
         private const float WaveTargetSkeletonDashDuration = 0.675f;
-        private const float WaveTargetSkeletonDashSpeedMultiplier = 4.5f;
+        private const float WaveTargetSkeletonDashSpeedMultiplier = 3.25f;
         private const float WaveTargetSkeletonCooldown = 2.2f;
         private const float WaveTargetSkeletonIntermission = 0.14f;
         private const float MushroomShooterAttackStopDuration = 0.32f;
@@ -64,6 +64,7 @@ namespace EJR.Game.Gameplay
         private const float BossProjectileHitRadius = 0.14f;
         private const float BossProjectileVisualScale = 0.22f;
         private const float BossProjectileDamageMultiplier = 0.8f;
+        private const string BossProjectileVfxResourcePath = "VFX/ChaosBurst/VFX_2D_Projectile_Burst_01_Color_Loop_Static";
         private const float BossAimFanSpreadDegrees = 12f;
         private const float WizardFanShotInterval = 0.28f;
         private const float WizardCrossBurstInterval = 0.30f;
@@ -77,6 +78,7 @@ namespace EJR.Game.Gameplay
         private const float FinalGravityDuration = 1.05f;
         private const float FinalGravityRadius = 6.5f;
         private const float FinalGravityPulseInterval = 0.50f;
+        private const float FinalPatternPullSpeed = 1.8f;
         private const int GroundSlamProjectileCount = 8;
         private const int GravityPulseProjectileCount = 10;
         private const float GroundSlamTelegraphRadius = 2.25f;
@@ -1738,6 +1740,7 @@ namespace EJR.Game.Gameplay
             {
                 case BossPatternActionKind.WizardFanVolley:
                     _bossRepeatRemaining = ScaleBossActionCount(3);
+                    ApplyBossPullState(transform.position, FinalGravityRadius, GetBossPullSpeed(FinalPatternPullSpeed));
                     BossProjectileVolleyStarted?.Invoke();
                     break;
 
@@ -1750,7 +1753,7 @@ namespace EJR.Game.Gameplay
                 case BossPatternActionKind.WizardCrossBurst:
                     _bossRepeatRemaining = ScaleBossActionCount(2);
                     PlayBossClipOneShot("Attack02", 0.24f);
-                    SpawnVariantAreaFx(transform.position, WizardCrossBurstTelegraphRadius, WizardCrossTelegraphColor, 0.07f, 0.24f, 0.18f, 8, "BossCrossBurstCastFx");
+                    ApplyBossPullState(transform.position, FinalGravityRadius, GetBossPullSpeed(FinalPatternPullSpeed));
                     BossProjectileVolleyStarted?.Invoke();
                     break;
 
@@ -1761,13 +1764,13 @@ namespace EJR.Game.Gameplay
 
                 case BossPatternActionKind.WarriorGroundSlam:
                     PlayBossClipOneShot("Attack02", 0.30f);
-                    SpawnVariantAreaFx(transform.position, GroundSlamTelegraphRadius, GroundSlamTelegraphColor, 0.08f, 0.28f, 0.22f, 10, "BossGroundSlamCastFx");
                     FireBossRadialBurst(GroundSlamProjectileCount, GetBossProjectileSpeed(5.5f));
                     EnterBossRecovery(GetBossRecoveryDuration(_bossCurrentAction));
                     break;
 
                 case BossPatternActionKind.FinalMixedVolley:
                     _bossRepeatRemaining = 2;
+                    ApplyBossPullState(transform.position, FinalGravityRadius, GetBossPullSpeed(FinalPatternPullSpeed));
                     break;
 
                 case BossPatternActionKind.FinalChargeCombo:
@@ -1778,12 +1781,12 @@ namespace EJR.Game.Gameplay
                 case BossPatternActionKind.FinalSummon:
                     PlayBossClipOneShot("Attack", 0.30f);
                     BossMinionSummonRequested?.Invoke();
-                    EnterBossRecovery(GetBossRecoveryDuration(_bossCurrentAction));
+                    ApplyBossPullState(transform.position, FinalGravityRadius, GetBossPullSpeed(FinalPatternPullSpeed));
+                    EnterBossRecovery(GetBossRecoveryDuration(_bossCurrentAction), keepPull: true);
                     break;
 
                 case BossPatternActionKind.FinalGravityNova:
                     _bossExecutionTimer = FinalGravityDuration;
-                    SpawnVariantAreaFx(transform.position, FinalGravityRadius, GravityTelegraphColor, 0.08f, FinalGravityDuration + 0.12f, 0.22f, 12, "BossGravityNovaCastFx");
                     PlayBossClipOneShot("Attack", Mathf.Clamp(FinalGravityDuration * 0.45f, 0.18f, 0.36f));
                     ApplyBossPullState(transform.position, FinalGravityRadius, GetBossPullSpeed(2.8f));
                     break;
@@ -1979,6 +1982,7 @@ namespace EJR.Game.Gameplay
             renderer.color = new Color(1f, 0.32f, 0.24f, 1f);
             renderer.sortingOrder = 38;
             projectileObject.transform.localScale = Vector3.one * BossProjectileVisualScale;
+            renderer.enabled = !AttachBossProjectileVfx(projectileObject.transform);
 
             var projectile = projectileObject.AddComponent<BossProjectile>();
             projectile.Initialize(
@@ -1989,6 +1993,34 @@ namespace EJR.Game.Gameplay
                 BossProjectileHitRadius,
                 _playerHealth,
                 _playerCollisionRadius);
+        }
+
+        private static bool AttachBossProjectileVfx(Transform parent)
+        {
+            if (parent == null)
+            {
+                return false;
+            }
+
+            var prefab = Resources.Load<GameObject>(BossProjectileVfxResourcePath);
+            if (prefab == null)
+            {
+                return false;
+            }
+
+            var vfx = UnityEngine.Object.Instantiate(prefab, parent);
+            vfx.transform.localPosition = Vector3.zero;
+            vfx.transform.localRotation = Quaternion.identity;
+            vfx.transform.localScale = Vector3.one * 1.35f;
+
+            var particleRenderers = vfx.GetComponentsInChildren<ParticleSystemRenderer>();
+            foreach (var particleRenderer in particleRenderers)
+            {
+                particleRenderer.alignment = ParticleSystemRenderSpace.Local;
+                particleRenderer.sortingOrder = Mathf.Max(particleRenderer.sortingOrder, 44);
+            }
+
+            return true;
         }
 
         private void EndBossPattern()
@@ -2087,14 +2119,12 @@ namespace EJR.Game.Gameplay
 
         private bool ShouldShowDashTelegraph(BossPatternActionKind action)
         {
-            return action == BossPatternActionKind.WarriorChargeCombo || action == BossPatternActionKind.FinalChargeCombo;
+            return false;
         }
 
         private bool ShouldShowAreaTelegraph(BossPatternActionKind action)
         {
-            return action == BossPatternActionKind.WarriorGroundSlam
-                || action == BossPatternActionKind.WizardCrossBurst
-                || action == BossPatternActionKind.FinalGravityNova;
+            return false;
         }
 
         private float GetBossTelegraphDuration(BossPatternActionKind action)
@@ -2154,7 +2184,7 @@ namespace EJR.Game.Gameplay
 
         private float GetBossDashSpeedMultiplier(BossPatternActionKind action)
         {
-            var baseMultiplier = action == BossPatternActionKind.FinalChargeCombo ? 5.8f : 5.2f;
+            var baseMultiplier = action == BossPatternActionKind.FinalChargeCombo ? 4.4f : 4f;
             return baseMultiplier * GetBossDifficultyScale(_bossDifficulty?.BossDashSpeedScale, 1f);
         }
 
@@ -2254,11 +2284,15 @@ namespace EJR.Game.Gameplay
             }
         }
 
-        private void EnterBossRecovery(float duration)
+        private void EnterBossRecovery(float duration, bool keepPull = false)
         {
             HideBossDashTelegraphFx();
             HideBossAreaTelegraphFx();
-            ClearBossPullState();
+            if (!keepPull)
+            {
+                ClearBossPullState();
+            }
+
             _bossPatternState = BossPatternState.Recovery;
             _bossStateTimer = Mathf.Max(0.05f, duration);
         }
