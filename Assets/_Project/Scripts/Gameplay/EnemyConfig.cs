@@ -410,7 +410,7 @@ namespace EJR.Game.Gameplay
             new EnemyStatProfile
             {
                 visualKind = RuntimeSpriteFactory.EnemyVisualKind.Boss,
-                healthMultiplier = 65f,
+                healthMultiplier = 85f,
                 moveSpeedMultiplier = 1.2f,
                 contactDamageMultiplier = 2.4f,
                 experienceMultiplier = 25f,
@@ -457,7 +457,7 @@ namespace EJR.Game.Gameplay
         [Min(1)] public int targetAliveStart = 3;
         [Min(1)] public int targetAliveEnd = 48;
         [Min(1f)] public float targetAliveRampSeconds = 480f;
-        [Min(0.1f)] public float targetAliveCurveExponent = 2f;
+        [Min(0.1f)] public float targetAliveCurveExponent = 1.5f;
         [Range(0.2f, 1f)] public float lowDensityIntervalScaleMin = 0.45f;
         [Range(1f, 3f)] public float highDensityIntervalScaleMax = 1.35f;
         [Min(0)] public int lowDensityExtraSpawnMax = 2;

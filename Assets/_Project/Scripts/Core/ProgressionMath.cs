@@ -7,7 +7,7 @@ namespace EJR.Game.Core
         public static int RequiredExperienceForLevel(int level)
         {
             level = Mathf.Max(level, 1);
-            return 5 + ((level - 1) * 3);
+            return 6 + ((level - 1) * 4);
         }
     }
 }
