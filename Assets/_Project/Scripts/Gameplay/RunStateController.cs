@@ -2054,24 +2054,6 @@ namespace EJR.Game.Gameplay
             _currentOptions = null;
             _activeChoiceTitle = string.Empty;
             ApplySimulationTimeScale();
-#if false
-            MetaProgressionService.RecordRunSummary(MetaProgressionService.BuildRunRewardSummary(
-                "싱글",
-                cleared,
-                _levelUp != null ? _levelUp.Level : 1,
-                _enemySpawner != null ? _enemySpawner.ElapsedSeconds : 0f,
-                _enemiesDefeated,
-                _bossWaveTriggered));
-            _hud.HideLevelUpOptions();
-            _hud.HidePauseMenu();
-            _hud.HideBossBar();
-            _hud.ShowResult(
-                cleared,
-                ReturnToLobby,
-                "타이틀로");
-        }
-
-#endif
             var mapDefinition = _currentMapDefinition ?? RunSelectionService.SingleMapDefinition;
             var summary = MetaProgressionService.BuildRunRewardSummary(
                 "\uC2F1\uAE00",
@@ -2293,60 +2275,30 @@ namespace EJR.Game.Gameplay
             var passiveId = MetaProgressionService.GetCharacterPassiveId(_selectedSingleCharacterId);
             var starterWeaponId = MetaProgressionService.GetCharacterStarterWeapon(_selectedSingleCharacterId);
             var currentLevel = _levelUp != null ? Mathf.Max(1, _levelUp.Level) : 1;
-            var dynamicBonuses = default(MetaBonusValues);
-            var ignoreChainDecay = false;
-            var bonusChains = 0;
+            var dynamicBonuses = _buildRuntime.GetLowHealthDynamicBonuses(GetCurrentHealthRatio());
             var starterWeaponDamageBonusPercent = 0f;
-            var starterWeaponRangeBonusPercent = 0f;
 
             switch (passiveId)
             {
-                case CharacterPassiveId.ArcherLevelAttackSpeed:
-                    dynamicBonuses.attackSpeedPercent = currentLevel;
-                    break;
-
-                case CharacterPassiveId.VampireMaxHealthDamage:
-                {
-                    var baseMaxHealth = Mathf.Max(1f, playerConfig != null ? playerConfig.maxHealth : 100f);
-                    var currentMaxHealth = _playerHealth != null ? _playerHealth.MaxHealth : GetCurrentMaxHealth();
-                    var bonusMaxHealth = Mathf.Max(0f, currentMaxHealth - baseMaxHealth);
-                    dynamicBonuses.attackPowerPercent = Mathf.Floor(bonusMaxHealth / 3f);
-                    break;
-                }
-
-                case CharacterPassiveId.SwordsmanLevelMoveSpeed:
-                    dynamicBonuses.moveSpeedPercent = currentLevel;
-                    break;
-
-                case CharacterPassiveId.TaoistLevelDamage:
-                    dynamicBonuses.attackPowerPercent = currentLevel;
-                    break;
-
-                case CharacterPassiveId.ExorcistLevelRange:
-                    dynamicBonuses.attackRangePercent = currentLevel;
-                    break;
-
-                case CharacterPassiveId.ThunderMageChainMastery:
-                    ignoreChainDecay = true;
-                    bonusChains = 2;
-                    break;
-                case CharacterPassiveId.StarterWeaponSpecialist:
-                    starterWeaponDamageBonusPercent = 10f;
-                    starterWeaponRangeBonusPercent = 10f;
+                case CharacterPassiveId.FireballLevelDamage:
+                case CharacterPassiveId.SlashLevelDamage:
+                case CharacterPassiveId.LightningLevelDamage:
+                case CharacterPassiveId.IceSpikeLevelDamage:
+                case CharacterPassiveId.WindBladeLevelDamage:
+                case CharacterPassiveId.BubbleLevelDamage:
+                    starterWeaponDamageBonusPercent = currentLevel * 2f;
                     break;
             }
 
-            dynamicBonuses += _buildRuntime.GetLowHealthDynamicBonuses(GetCurrentHealthRatio());
             _buildRuntime.ApplyCharacterDynamicBonuses(dynamicBonuses);
-            _buildRuntime.SetChainAttackModifiers(ignoreChainDecay, bonusChains);
             _buildRuntime.ClearCharacterWeaponBonuses();
-            if (starterWeaponDamageBonusPercent > 0f || starterWeaponRangeBonusPercent > 0f)
+            if (starterWeaponDamageBonusPercent > 0f)
             {
                 _buildRuntime.ApplyCharacterWeaponBonuses(
                     starterWeaponId,
                     starterWeaponDamageBonusPercent,
                     0f,
-                    starterWeaponRangeBonusPercent);
+                    0f);
             }
 
             ApplyBuildToRuntimeSystems();

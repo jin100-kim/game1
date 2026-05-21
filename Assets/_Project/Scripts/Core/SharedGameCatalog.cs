@@ -73,8 +73,8 @@ namespace EJR.Game.Core
                 CharacterUnlockSource.Default,
                 WeaponUpgradeId.Fireball,
                 new MetaBonusValues { attackPowerPercent = 10f },
-                CharacterPassiveId.TaoistLevelDamage,
-                "현재 레벨만큼 피해 +1%"),
+                CharacterPassiveId.FireballLevelDamage,
+                "레벨당 화염구 피해 +2%"),
             new(
                 1,
                 "검사",
@@ -84,8 +84,8 @@ namespace EJR.Game.Core
                 CharacterUnlockSource.Achievement,
                 WeaponUpgradeId.Slash,
                 new MetaBonusValues { moveSpeedPercent = 10f },
-                CharacterPassiveId.SwordsmanLevelMoveSpeed,
-                "현재 레벨만큼 이동속도 +1%",
+                CharacterPassiveId.SlashLevelDamage,
+                "레벨당 베기 피해 +2%",
                 "weapon_slash_lv10"),
             new(
                 2,
@@ -96,8 +96,8 @@ namespace EJR.Game.Core
                 CharacterUnlockSource.Achievement,
                 WeaponUpgradeId.LightningBolt,
                 new MetaBonusValues { attackSpeedPercent = 10f },
-                CharacterPassiveId.ThunderMageChainMastery,
-                "연쇄 번개 효율 +10% (임시)",
+                CharacterPassiveId.LightningLevelDamage,
+                "레벨당 낙뢰 피해 +2%",
                 "weapon_lightning_lv10"),
             new(
                 3,
@@ -108,8 +108,8 @@ namespace EJR.Game.Core
                 CharacterUnlockSource.Achievement,
                 WeaponUpgradeId.IceSpike,
                 new MetaBonusValues { attackPowerPercent = 5f, moveSpeedPercent = 5f },
-                CharacterPassiveId.VampireMaxHealthDamage,
-                "적 처치 시 체력 회복 (임시)",
+                CharacterPassiveId.IceSpikeLevelDamage,
+                "레벨당 얼음 파편 피해 +2%",
                 "weapon_ice_lv10"),
             new(
                 4,
@@ -120,8 +120,8 @@ namespace EJR.Game.Core
                 CharacterUnlockSource.Achievement,
                 WeaponUpgradeId.WindBlade,
                 new MetaBonusValues { moveSpeedPercent = 15f },
-                CharacterPassiveId.ExorcistLevelRange,
-                "현재 레벨만큼 범위 +1%",
+                CharacterPassiveId.WindBladeLevelDamage,
+                "레벨당 칼날 바람 피해 +2%",
                 "weapon_wind_lv10"),
             new(
                 5,
@@ -132,8 +132,8 @@ namespace EJR.Game.Core
                 CharacterUnlockSource.Achievement,
                 WeaponUpgradeId.Bubble,
                 new MetaBonusValues { attackPowerPercent = 20f },
-                CharacterPassiveId.VampireMaxHealthDamage,
-                "피해량 대폭 증가 (임시)",
+                CharacterPassiveId.BubbleLevelDamage,
+                "레벨당 추적 방울 피해 +2%",
                 "weapon_bubble_lv10"),
         };
 

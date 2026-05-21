@@ -58,8 +58,6 @@ namespace EJR.Game.Gameplay
         private float _lowHealthMaxThreshold;
         private float _lowEnemyHealthDamagePercent;
         private float _lowEnemyHealthThreshold;
-        private bool _chainLightningIgnoresDecay;
-        private int _chainLightningBonusJumps;
         private bool _hasCharacterWeaponBonuses;
         private WeaponUpgradeId _characterBonusWeaponId;
         private float _characterWeaponDamageBonusPercent;
@@ -115,8 +113,6 @@ namespace EJR.Game.Gameplay
             _lowHealthMaxThreshold = 0f;
             _lowEnemyHealthDamagePercent = 0f;
             _lowEnemyHealthThreshold = 0f;
-            _chainLightningIgnoresDecay = false;
-            _chainLightningBonusJumps = 0;
             _hasCharacterWeaponBonuses = false;
             _characterBonusWeaponId = WeaponUpgradeId.Fireball;
             _characterWeaponDamageBonusPercent = 0f;
@@ -142,12 +138,6 @@ namespace EJR.Game.Gameplay
         public void ApplyCharacterDynamicBonuses(MetaBonusValues bonuses)
         {
             _characterDynamicBonuses = SanitizeBonuses(bonuses);
-        }
-
-        public void SetChainAttackModifiers(bool ignoreDecay, int bonusJumps)
-        {
-            _chainLightningIgnoresDecay = ignoreDecay;
-            _chainLightningBonusJumps = Mathf.Max(0, bonusJumps);
         }
 
         public void ClearCharacterWeaponBonuses()
@@ -180,16 +170,6 @@ namespace EJR.Game.Gameplay
             }
 
             _runBonuses.maxHealthFlat += amount;
-        }
-
-        public bool DoesChainAttackIgnoreDecay()
-        {
-            return _chainLightningIgnoresDecay;
-        }
-
-        public int GetChainAttackBonusJumps()
-        {
-            return _chainLightningBonusJumps;
         }
 
         public int GetUnlockedWeaponSlots(int playerLevel)

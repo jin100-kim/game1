@@ -6,13 +6,12 @@ namespace EJR.Game.Core
     public enum CharacterPassiveId
     {
         None = 0,
-        ArcherLevelAttackSpeed = 1,
-        VampireMaxHealthDamage = 2,
-        SwordsmanLevelMoveSpeed = 3,
-        TaoistLevelDamage = 4,
-        ExorcistLevelRange = 5,
-        ThunderMageChainMastery = 6,
-        StarterWeaponSpecialist = 7,
+        FireballLevelDamage = 1,
+        SlashLevelDamage = 2,
+        LightningLevelDamage = 3,
+        IceSpikeLevelDamage = 4,
+        WindBladeLevelDamage = 5,
+        BubbleLevelDamage = 6,
     }
 
     public enum MetaUpgradeId
