@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using EJR.Game.Audio;
 using EJR.Game.Core;
 using UnityEngine;
 
@@ -150,6 +151,7 @@ namespace EJR.Game.Gameplay
             if (prefab == null) return false;
 
             var fxObject = Object.Instantiate(prefab, position, rotation);
+            VfxAudioRouter.RouteEmbeddedAudio(fxObject);
             fxObject.transform.localScale = scale;
 
             // 정렬 순서 적용 (SpriteRenderer나 ParticleSystemRenderer가 있는 경우)
@@ -190,6 +192,7 @@ namespace EJR.Game.Gameplay
             {
                 var pos = from + (step * (i + 0.5f));
                 var fx = Object.Instantiate(prefab, pos, Quaternion.Euler(0, 0, angle));
+                VfxAudioRouter.RouteEmbeddedAudio(fx);
                 if (parent != null) fx.transform.SetParent(parent);
 
                 // 각 마디마다 약간의 무작위성을 주어 "지지직"거리는 느낌을 줍니다.
@@ -233,6 +236,7 @@ namespace EJR.Game.Gameplay
             var scale = new Vector3(length, widthScale, 1f);
 
             var fxObject = Object.Instantiate(prefab, midpoint, rotation);
+            VfxAudioRouter.RouteEmbeddedAudio(fxObject);
             if (parent != null) fxObject.transform.SetParent(parent);
             fxObject.transform.localScale = scale;
 
@@ -644,6 +648,42 @@ namespace EJR.Game.Gameplay
             };
 
             return _sharedFxMaterial;
+        }
+    }
+
+    internal static class VfxAudioRouter
+    {
+        public static void RouteEmbeddedAudio(GameObject root, bool playOnce = true, float volumeScale = 1f)
+        {
+            if (root == null)
+            {
+                return;
+            }
+
+            var audioSources = root.GetComponentsInChildren<AudioSource>(true);
+            for (var i = 0; i < audioSources.Length; i++)
+            {
+                var source = audioSources[i];
+                if (source == null)
+                {
+                    continue;
+                }
+
+                var clip = source.clip;
+                var sourceVolume = source.volume;
+                var sourcePitch = source.pitch;
+
+                source.Stop();
+                source.playOnAwake = false;
+                source.loop = false;
+                source.mute = true;
+                source.enabled = false;
+
+                if (playOnce && clip != null)
+                {
+                    AudioService.Instance.PlaySfxClip(clip, sourceVolume * volumeScale, sourcePitch);
+                }
+            }
         }
     }
 }

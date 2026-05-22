@@ -28,6 +28,12 @@ namespace EJR.Game.Gameplay
             var baseDirection = direction.sqrMagnitude > 0.000001f ? direction.normalized : system.LastAimDirection;
             var extraShotCount = system.GetWeaponExtraCount(weapon);
             var reservedTargets = new HashSet<EnemyController>();
+            var primaryTarget = FindPreferredAdditionalFireballTarget(system, ownerPosition, range, baseDirection, reservedTargets);
+
+            if (primaryTarget != null)
+            {
+                reservedTargets.Add(primaryTarget);
+            }
 
             system.SpawnProjectile(weapon.WeaponId, baseDirection, damage, projectileSpeed, projectileLifetime, hitRadius, 1, 0f, 1f, GetSourceColor(weapon, system));
 

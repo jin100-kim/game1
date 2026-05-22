@@ -1922,6 +1922,7 @@ namespace EJR.Game.Gameplay
             }
 
             var fx = Instantiate(prefab, _playerTransform);
+            VfxAudioRouter.RouteEmbeddedAudio(fx);
             fx.transform.localPosition = new Vector3(0f, LevelUpVfxHeightOffset, 0f);
             fx.transform.localRotation = Quaternion.identity;
             fx.transform.localScale = Vector3.one;

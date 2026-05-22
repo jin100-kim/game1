@@ -119,6 +119,33 @@ namespace EJR.Game.Audio
             PlayCue(cueId, _sfxVoices, AudioBus.Sfx, volumeScale);
         }
 
+        public void PlaySfxClip(AudioClip clip, float volumeScale = 1f, float pitch = 1f)
+        {
+            if (_nonBgmPaused || clip == null)
+            {
+                return;
+            }
+
+            var voice = GetAvailableVoice(_sfxVoices);
+            if (voice == null || voice.Source == null)
+            {
+                return;
+            }
+
+            voice.Entry = null;
+            voice.Bus = AudioBus.Sfx;
+            voice.VolumeScale = Mathf.Clamp01(volumeScale);
+            voice.StopAtUnscaledTime = 0f;
+
+            voice.Source.Stop();
+            voice.Source.clip = clip;
+            voice.Source.loop = false;
+            voice.Source.pitch = Mathf.Max(0.01f, pitch);
+            voice.Source.outputAudioMixerGroup = GetResolvedBusGroup(AudioBus.Sfx);
+            voice.Source.volume = ComputeFinalVolume(null, AudioBus.Sfx, voice.VolumeScale);
+            voice.Source.Play();
+        }
+
         public void PlayWeaponSound(WeaponSoundRequest request)
         {
             switch (request.WeaponId)
@@ -303,7 +330,7 @@ namespace EJR.Game.Audio
             voice.Source.clip = entry.clip;
             voice.Source.loop = entry.loop;
             voice.Source.pitch = 1f + Random.Range(-entry.pitchVariance, entry.pitchVariance);
-            voice.Source.outputAudioMixerGroup = entry.mixerGroup != null ? entry.mixerGroup : _catalog.GetBusGroup(entry.bus);
+            voice.Source.outputAudioMixerGroup = entry.mixerGroup != null ? entry.mixerGroup : GetResolvedBusGroup(entry.bus);
             voice.Source.volume = ComputeFinalVolume(entry, fallbackBus, volumeScale);
             voice.Source.Play();
             _lastCuePlayedAt[cueId] = Time.unscaledTime;
@@ -415,14 +442,26 @@ namespace EJR.Game.Audio
             for (var i = 0; i < pool.Count; i++)
             {
                 var voice = pool[i];
-                if (voice.Source == null || voice.Entry == null)
+                if (voice.Source == null)
                 {
                     continue;
                 }
 
-                voice.Source.outputAudioMixerGroup = voice.Entry.mixerGroup != null ? voice.Entry.mixerGroup : _catalog.GetBusGroup(voice.Entry.bus);
-                voice.Source.volume = ComputeFinalVolume(voice.Entry, voice.Bus, voice.VolumeScale);
+                if (voice.Entry != null)
+                {
+                    voice.Source.outputAudioMixerGroup = voice.Entry.mixerGroup != null ? voice.Entry.mixerGroup : GetResolvedBusGroup(voice.Entry.bus);
+                    voice.Source.volume = ComputeFinalVolume(voice.Entry, voice.Bus, voice.VolumeScale);
+                    continue;
+                }
+
+                voice.Source.outputAudioMixerGroup = GetResolvedBusGroup(voice.Bus);
+                voice.Source.volume = ComputeFinalVolume(null, voice.Bus, voice.VolumeScale);
             }
+        }
+
+        private AudioMixerGroup GetResolvedBusGroup(AudioBus bus)
+        {
+            return _catalog != null ? _catalog.GetBusGroup(bus) : null;
         }
 
         private float ComputeFinalVolume(AudioCueCatalog.Entry entry, AudioBus fallbackBus, float volumeScale)

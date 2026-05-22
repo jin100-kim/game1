@@ -120,6 +120,7 @@ namespace EJR.Game.Gameplay
             if (definition.impactVfxPrefab != null)
             {
                 var fxObject = UnityEngine.Object.Instantiate(definition.impactVfxPrefab, context.Position, Quaternion.identity);
+                VfxAudioRouter.RouteEmbeddedAudio(fxObject);
                 fxObject.transform.localScale = Vector3.one * Mathf.Max(0.01f, scale);
                 UnityEngine.Object.Destroy(fxObject, Mathf.Max(0.1f, duration));
                 return;

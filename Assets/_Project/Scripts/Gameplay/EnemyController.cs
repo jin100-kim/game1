@@ -1093,11 +1093,7 @@ namespace EJR.Game.Gameplay
                 vfx.transform.localPosition = Vector3.zero;
                 vfx.transform.localRotation = Quaternion.identity;
                 vfx.transform.localScale = Vector3.one * 1.5f;
-
-                if (!allowVfxAudio)
-                {
-                    DisableVfxAudio(vfx);
-                }
+                VfxAudioRouter.RouteEmbeddedAudio(vfx, allowVfxAudio);
 
                 var particleRenderers = vfx.GetComponentsInChildren<ParticleSystemRenderer>();
                 foreach (var psr in particleRenderers)
@@ -1115,22 +1111,6 @@ namespace EJR.Game.Gameplay
                 VariantProjectileHitRadius,
                 _playerHealth,
                 _playerCollisionRadius);
-        }
-
-        private static void DisableVfxAudio(GameObject root)
-        {
-            if (root == null)
-            {
-                return;
-            }
-
-            var audioSources = root.GetComponentsInChildren<AudioSource>(true);
-            foreach (var audioSource in audioSources)
-            {
-                audioSource.Stop();
-                audioSource.mute = true;
-                audioSource.enabled = false;
-            }
         }
 
         private bool UpdateWaveTargetBehavior(float deltaTime, bool isStunned)
@@ -2009,6 +1989,7 @@ namespace EJR.Game.Gameplay
             }
 
             var vfx = UnityEngine.Object.Instantiate(prefab, parent);
+            VfxAudioRouter.RouteEmbeddedAudio(vfx);
             vfx.transform.localPosition = Vector3.zero;
             vfx.transform.localRotation = Quaternion.identity;
             vfx.transform.localScale = Vector3.one * 1.35f;

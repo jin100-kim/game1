@@ -500,6 +500,7 @@ namespace EJR.Game.Gameplay
                 // 프리팹이 있으면 기존 스프라이트 렌더러는 끄고 프리팹을 자식으로 생성합니다.
                 if (renderer != null) renderer.enabled = false;
                 var vfx = Instantiate(prefab, projectileTransform);
+                VfxAudioRouter.RouteEmbeddedAudio(vfx);
                 vfx.transform.localPosition = Vector3.zero;
                 vfx.transform.localRotation = Quaternion.identity;
                 
@@ -532,6 +533,7 @@ namespace EJR.Game.Gameplay
                     if (renderer != null) renderer.enabled = false;
                     var vfx = Instantiate(vfxPrefab, projectileTransform);
                     vfx.name = $"{definition.id}Vfx";
+                    VfxAudioRouter.RouteEmbeddedAudio(vfx);
                     vfx.transform.localPosition = Vector3.zero;
                     vfx.transform.localRotation = Quaternion.identity;
                     vfx.transform.localScale = Vector3.one * Mathf.Max(0.01f, definition.projectileVfxScaleMultiplier);
@@ -598,6 +600,7 @@ namespace EJR.Game.Gameplay
             if (prefab == null) return;
             
             var vfx = Instantiate(prefab, position, Quaternion.identity);
+            VfxAudioRouter.RouteEmbeddedAudio(vfx);
 
             if (vfx != null && prefab.name.Contains("Bubble"))
             {

@@ -93,6 +93,7 @@ namespace EJR.Game.Gameplay
             var rotation = Quaternion.Euler(0f, 0f, angle);
             var spawnPos = (Vector3)origin + (Vector3)(direction * (range * 0.4f)) + Vector3.back * 0.1f;
             var vfx = Object.Instantiate(prefab, spawnPos, rotation);
+            VfxAudioRouter.RouteEmbeddedAudio(vfx);
             vfx.transform.localScale = Vector3.one * (range * 0.5f);
 
             var particleRenderers = vfx.GetComponentsInChildren<ParticleSystemRenderer>();
