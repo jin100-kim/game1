@@ -703,6 +703,18 @@ namespace EJR.Game.Gameplay
             UpdateHud();
         }
 
+        private void DebugStartWave3()
+        {
+            if (_enemySpawner == null)
+            {
+                return;
+            }
+
+            _enemySpawner.DebugStartWave3();
+            SyncRemainingTimeFromSpawner();
+            UpdateHud();
+        }
+
         private void DebugStartBoss()
         {
             if (_enemySpawner == null)
@@ -860,6 +872,7 @@ namespace EJR.Game.Gameplay
                 enableDebugTimeSkip ? () => DebugRerollLevelUpOptions() : null,
                 enableDebugTimeSkip ? () => DebugStartWave1() : null,
                 enableDebugTimeSkip ? () => DebugStartWave2() : null,
+                enableDebugTimeSkip ? () => DebugStartWave3() : null,
                 enableDebugTimeSkip ? () => DebugStartBoss() : null,
                 enableDebugTimeSkip ? () => ToggleDebugPlaySpeed() : null,
                 () =>

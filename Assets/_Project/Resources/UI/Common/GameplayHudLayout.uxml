@@ -96,6 +96,7 @@
                 <ui:Button name="debug-reroll-button" class="dev-panel-button gameplay-debug-button" text="선택지 다시 굴리기" />
                 <ui:Button name="debug-wave1-button" class="dev-panel-button gameplay-debug-button" text="엘리트1" />
                 <ui:Button name="debug-wave2-button" class="dev-panel-button gameplay-debug-button" text="엘리트2" />
+                <ui:Button name="debug-wave3-button" class="dev-panel-button gameplay-debug-button" text="엘리트3" />
                 <ui:Button name="debug-skip-boss-button" class="dev-panel-button gameplay-debug-button" text="보스" />
                 <ui:Button name="debug-speed-button" class="dev-panel-button gameplay-debug-button" text="속도: 1x" />
                 <ui:Button name="debug-invincible-button" class="dev-panel-button gameplay-debug-button" text="무적: 꺼짐" />

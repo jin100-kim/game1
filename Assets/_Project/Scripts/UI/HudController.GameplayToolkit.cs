@@ -59,6 +59,7 @@ namespace EJR.Game.UI
         private UIToolkitButton _gameplayToolkitDebugRerollButton;
         private UIToolkitButton _gameplayToolkitDebugWave1Button;
         private UIToolkitButton _gameplayToolkitDebugWave2Button;
+        private UIToolkitButton _gameplayToolkitDebugWave3Button;
         private UIToolkitButton _gameplayToolkitDebugSkipBossButton;
         private UIToolkitButton _gameplayToolkitDebugSpeedButton;
         private UIToolkitButton _gameplayToolkitDebugInvincibleButton;
@@ -161,6 +162,7 @@ namespace EJR.Game.UI
             _gameplayToolkitDebugRerollButton = root.Q<UIToolkitButton>("debug-reroll-button");
             _gameplayToolkitDebugWave1Button = root.Q<UIToolkitButton>("debug-wave1-button");
             _gameplayToolkitDebugWave2Button = root.Q<UIToolkitButton>("debug-wave2-button");
+            _gameplayToolkitDebugWave3Button = root.Q<UIToolkitButton>("debug-wave3-button");
             _gameplayToolkitDebugSkipBossButton = root.Q<UIToolkitButton>("debug-skip-boss-button");
             _gameplayToolkitDebugSpeedButton = root.Q<UIToolkitButton>("debug-speed-button");
             _gameplayToolkitDebugInvincibleButton = root.Q<UIToolkitButton>("debug-invincible-button");
@@ -776,6 +778,7 @@ namespace EJR.Game.UI
             ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugRerollButton, "선택지 다시 굴리기", _debugRerollAction);
             ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugWave1Button, "엘리트1", _debugWave1Action);
             ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugWave2Button, "엘리트2", _debugWave2Action);
+            ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugWave3Button, "엘리트3", _debugWave3Action);
             ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugSkipBossButton, "보스", _debugSkipBossAction);
             ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugSpeedButton, $"속도: {Mathf.RoundToInt(Mathf.Max(1f, _debugPlaySpeedMultiplier))}x", _debugSpeedAction);
             ConfigureGameplayToolkitDebugButton(_gameplayToolkitDebugInvincibleButton, _debugInvincibleEnabled ? "무적: 켜짐" : "무적: 꺼짐", _debugInvincibleAction);
