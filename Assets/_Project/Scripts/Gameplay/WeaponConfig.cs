@@ -41,7 +41,7 @@ namespace EJR.Game.Gameplay
         [Range(0.05f, 2f)] public float fireballBurstDamageMultiplier = 0.5f;
         [Range(0f, 25f)] public float fireballBurstSpreadAngle = 6f;
         [Min(0.1f)] public float fireballBaseDamage = 14.5f;
-        [Min(0.1f)] public float fireballAttackInterval = 0.95f;
+        [Min(0.1f)] public float fireballAttackInterval = 1.05f;
         [Min(0.1f)] public float fireballProjectileSpeed = 6f;
         [Min(0.1f)] public float fireballProjectileLifetime = 1.333f;
         [Min(0.05f)] public float fireballProjectileHitRadius = 0.28f;
@@ -56,7 +56,7 @@ namespace EJR.Game.Gameplay
         [Header("Slash")]
         public GameObject slashVfxPrefab;
         [Min(0.1f)] public float slashBaseDamage = 15f;
-        [Min(0.1f)] public float slashAttackInterval = 0.5f;
+        [Min(0.1f)] public float slashAttackInterval = 0.65f;
         [Min(0.1f)] public float slashRange = 2.0f;
         [Min(0.1f)] public float slashConeAngle = 90f;
         [Min(1)] public int slashBaseCount = 1;
@@ -64,28 +64,28 @@ namespace EJR.Game.Gameplay
 
         [Header("Lightning Bolt")]
         public float lightningBoltBaseDamage = 12f;
-        public float lightningBoltAttackInterval = 0.8f;
+        public float lightningBoltAttackInterval = 0.95f;
         public float lightningBoltProjectileSpeed = 12f;
         public float lightningBoltProjectileLifetime = 0.5f;
         public float lightningBoltProjectileHitRadius = 0.25f;
 
         [Header("Ice Spike")]
         public float iceSpikeBaseDamage = 18f;
-        public float iceSpikeAttackInterval = 1.2f;
+        public float iceSpikeAttackInterval = 1.25f;
         public float iceSpikeProjectileSpeed = 8f;
         public float iceSpikeProjectileLifetime = 0.75f;
         public float iceSpikeProjectileHitRadius = 0.3f;
 
         [Header("Wind Blade")]
         public float windBladeBaseDamage = 8f;
-        public float windBladeAttackInterval = 0.4f;
+        public float windBladeAttackInterval = 0.65f;
         public float windBladeProjectileSpeed = 10f;
         public float windBladeProjectileLifetime = 0.7f;
         public float windBladeProjectileHitRadius = 0.26f;
 
         [Header("Bubble")]
         public float bubbleBaseDamage = 12f; // 40f -> 12f
-        public float bubbleAttackInterval = 1.3f;
+        public float bubbleAttackInterval = 1.45f;
         public float bubbleProjectileSpeed = 3.0f;
         public float bubbleProjectileLifetime = 2.75f; // 1.833f * 1.5
         public float bubbleProjectileHitRadius = 0.4f;

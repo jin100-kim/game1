@@ -32,7 +32,7 @@ MonoBehaviour:
   fireballBurstDamageMultiplier: 0.5
   fireballBurstSpreadAngle: 6
   fireballBaseDamage: 12
-  fireballAttackInterval: 0.95
+  fireballAttackInterval: 1.05
   fireballProjectileSpeed: 4
   fireballProjectileLifetime: 1.5
   fireballProjectileHitRadius: 0.28
@@ -45,7 +45,7 @@ MonoBehaviour:
   fireballBurstChance: 0.35
   slashVfxPrefab: {fileID: 100100000, guid: 02bd591636715474f92d908e8e04d40a, type: 3}
   slashBaseDamage: 18
-  slashAttackInterval: 0.45
+  slashAttackInterval: 0.65
   slashRange: 2.5
   slashConeAngle: 110
   slashBaseCount: 1

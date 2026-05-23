@@ -186,7 +186,7 @@ namespace EJR.Game.Gameplay
                 {
                     id = id,
                     baseDamage = legacy != null ? legacy.fireballBaseDamage : 14.5f,
-                    attackInterval = legacy != null ? legacy.fireballAttackInterval : 0.95f,
+                    attackInterval = legacy != null ? legacy.fireballAttackInterval : 1.05f,
                     range = legacy != null ? legacy.fireballRange : 5f,
                     projectileSpeed = legacy != null ? legacy.fireballProjectileSpeed : 6f,
                     projectileLifetime = legacy != null ? legacy.fireballProjectileLifetime : 1.333f,
@@ -214,7 +214,7 @@ namespace EJR.Game.Gameplay
                 {
                     id = id,
                     baseDamage = legacy != null ? legacy.slashBaseDamage : 15f,
-                    attackInterval = legacy != null ? legacy.slashAttackInterval : 0.5f,
+                    attackInterval = legacy != null ? legacy.slashAttackInterval : 0.65f,
                     range = legacy != null ? legacy.slashRange : 2f,
                     sourceColor = Color.white,
                     slashVfxPrefab = legacy != null ? legacy.slashVfxPrefab : null,
@@ -230,7 +230,7 @@ namespace EJR.Game.Gameplay
                 {
                     id = id,
                     baseDamage = legacy != null ? legacy.lightningBoltBaseDamage : 12f,
-                    attackInterval = legacy != null ? legacy.lightningBoltAttackInterval : 0.8f,
+                    attackInterval = legacy != null ? legacy.lightningBoltAttackInterval : 0.95f,
                     range = (legacy != null ? legacy.lightningBoltProjectileSpeed : 12f) * (legacy != null ? legacy.lightningBoltProjectileLifetime : 0.5f),
                     projectileSpeed = legacy != null ? legacy.lightningBoltProjectileSpeed : 12f,
                     projectileLifetime = legacy != null ? legacy.lightningBoltProjectileLifetime : 0.5f,
@@ -247,7 +247,7 @@ namespace EJR.Game.Gameplay
                 {
                     id = id,
                     baseDamage = legacy != null ? legacy.iceSpikeBaseDamage : 18f,
-                    attackInterval = legacy != null ? legacy.iceSpikeAttackInterval : 1.2f,
+                    attackInterval = legacy != null ? legacy.iceSpikeAttackInterval : 1.25f,
                     range = (legacy != null ? legacy.iceSpikeProjectileSpeed : 8f) * (legacy != null ? legacy.iceSpikeProjectileLifetime : 0.75f),
                     projectileSpeed = legacy != null ? legacy.iceSpikeProjectileSpeed : 8f,
                     projectileLifetime = legacy != null ? legacy.iceSpikeProjectileLifetime : 0.75f,
@@ -269,7 +269,7 @@ namespace EJR.Game.Gameplay
                 {
                     id = id,
                     baseDamage = legacy != null ? legacy.windBladeBaseDamage : 8f,
-                    attackInterval = legacy != null ? legacy.windBladeAttackInterval : 0.4f,
+                    attackInterval = legacy != null ? legacy.windBladeAttackInterval : 0.65f,
                     range = (legacy != null ? legacy.windBladeProjectileSpeed : 10f) * (legacy != null ? legacy.windBladeProjectileLifetime : 0.7f),
                     projectileSpeed = legacy != null ? legacy.windBladeProjectileSpeed : 10f,
                     projectileLifetime = legacy != null ? legacy.windBladeProjectileLifetime : 0.7f,
@@ -290,7 +290,7 @@ namespace EJR.Game.Gameplay
                 {
                     id = id,
                     baseDamage = legacy != null ? legacy.bubbleBaseDamage : 12f,
-                    attackInterval = legacy != null ? legacy.bubbleAttackInterval : 1.3f,
+                    attackInterval = legacy != null ? legacy.bubbleAttackInterval : 1.45f,
                     range = (legacy != null ? legacy.bubbleProjectileSpeed : 3f) * (legacy != null ? legacy.bubbleProjectileLifetime : 2.75f),
                     projectileSpeed = legacy != null ? legacy.bubbleProjectileSpeed : 3f,
                     projectileLifetime = legacy != null ? legacy.bubbleProjectileLifetime : 2.75f,
